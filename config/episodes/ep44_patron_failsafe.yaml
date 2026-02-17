@@ -1,0 +1,83 @@
+# episodes/ep44_patron_failsafe.yaml
+# Episode 44: "Patron Failsafe"
+# source: ep8_patron_failsafe
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep44_patron_failsafe"
+  date: "2043-03-27T07:50"
+  location: "Novagrad Port — underground lab complex"
+  summary: |
+    Q-Day 당일, 오전 6시 32분. 라파엘(엘 파트론)의 사무실. 한 통의 팩스가 기계에서 튀어나온다. Greyshore Capital Partners 계좌 동결 통지(OFAC Sanctions Order). 효력 발생: 24시간 이내. 그리고 35초 후, 두 번째 팩스. 노바그라드 항만 공급사 포털 공지: "URGENT: Cryogenic components order #NG-447-A suspended pending regulatory review. Estimated review period: 30-90 days." 냉각 부품이 끊긴다. 자금이 끊긴다.
+
+    라파엘은 침착하다. 이미 예상했던 신호들이다. 그는 단 한 번의 휴대폰 통화를 한다. 목소리는 낮고 명확하다. "Failsafe 발동. 지금. 모든 수준에서." 그 말 한 마디로, 다섯 개의 대륙에 있는 다섯 명의 사람들이 각각 한 조각씩 키를 꺼낸다. Failsafe Key—5-of-5 Shamir Secret Sharing. 어떤 한 조각만으로는 아무것도 할 수 없다. 하지만 다섯 조각이 모이면, 극비 파일 드라이브를 열 수 있다. 그 안엔 RSA 해독 결과, 금융 라우팅 코드, 정부 기밀 위치, 그리고 NSA 내부의 각종 비밀이 들어 있다.
+
+    "문(door)은 오늘 닫힌다. 우린 분산된 열쇠로 문을 걸어 잠근다. 그리고 협상할 때만 열쇠의 일부를 보여준다." 라파엘은 이제 정부와 협상 가능한 위치에 선다. 직접 QPU를 굴리지 않아도, 단지 정보를 조금씩 흘려주기만 해도 NSA는 움직일 수밖에 없다.
+
+    동시에, 지상의 봇넷(botnet) 네트워크가 활성화된다. 가짜 Q-Day 시나리오가 SNS, 뉴스 사이트, 금융 시스템 경고 채널로 퍼진다. "QUANTUM THREAT LEVEL: CRITICAL." "MAJOR BANKS COMPROMISED." "MILITARY NETWORKS UNDER ATTACK." 진짜가 아닌 가짜 정보다. 하지만 세상은 패닉한다. 주가가 떨어진다. 금융 시장이 흔들린다. 이것이 '내러티브 레일(narrative rail)'이다.
+
+    해질녘 7시 42분. 지하의 최종 QPU 시운전이 시작된다. 진짜 RSA 해독이 발생한다. 진짜 군사 통신이 해독된다. 이것이 '퀀텀 레일(quantum rail)'이다.
+
+    두 개의 레일이 겹친다. 가짜 공포와 진짜 기술이. 세상은 패닉에 빠져 있고, 정부는 현실이 무엇인지 파악하지 못한다. 그 혼돈 속에서, 라파엘은 조용히 협상 테이블에 앉는다. "우린 두 개의 레일을 함께 돌린다. 하나가 현실을 만들고, 다른 하나가 현실감을 만든다. 그리고 둘 다 우리가 통제한다."
+
+    수민은 이 말을 천천히 해석한다. '문(door)'은 자금 계좌. Greyshore 계좌가 동결됐으니, 라파엘은 그 계좌를 '문'이라 부른 것. '숨(breath)'은 물자 공급. 냉각 부품이 끊겼으니, 라파엘은 기술적 생명을 '숨'이라 부른 것. '귀(ear)'는 세상의 이목. 봇넷이 퍼뜨리는 가짜 정보가 세상의 귀를 사로잡는 것. 그리고 '열쇠(key)'—다섯 조각의 Failsafe Key가 모든 것을 통제한다.
+
+    이 순간, 수민은 라파엘이 얼마나 큰 전략가인지 깨닫는다. 그는 단순히 기술만 가진 테러리스트가 아니다. 정보전, 심리전, 금융전을 동시에 펼치는 전술가다. 그리고 NSA는 이 게임에서 졌다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep44_patron_failsafe_c01"
+      content: |
+        오전 6시 32분, 팩스 기계에서 종이가 튀어나온다. "OFAC SANCTIONS ORDER: Greyshore Capital Partners - Account Freeze Notice. Effective within 24 hours. All international transactions prohibited." 그리고 35초 후, 두 번째 팩스. 노바그라드 항만 공급사 포털의 공식 공지: "URGENT UPDATE: Cryogenic components order #NG-447-A status changed to 'SUSPENDED - Pending regulatory review.' Estimated review period: 30-90 days." 라파엘은 이 두 장의 팩스를 읽고, 가볍게 웃음을 짓는다. 정부의 움직임이 예상된 그대로였다는 뜻이기 때문이다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep44_patron_failsafe_c02"
+      content: |
+        라파엘이 단 한 번의 휴대폰 통화를 한다. 5초 안에 다섯 대륙의 다섯 사람에게 신호를 보낸다. "Failsafe 발동. 지금. 모든 수준에서." 그 말 한 마디 후, 다섯 개 위치에서 동시에 조치가 취해진다. 로스앤젤레스, 런던, 싱가포르, 더블린, 파나마. 각 위치의 특명을 받은 사람이 자신이 보관 중인 한 조각의 키를 꺼낸다. 각각은 USB 드라이브, 금고, 은행 안전 박스에 보관되어 있었다. "문(door=자금 계좌)은 닫힌다. 우린 분산된 다섯 조각의 열쇠로 모든 걸 통제한다. 그리고 협상할 때만, 필요한 조각씩만 보여준다."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep44_patron_failsafe_c03"
+      content: |
+        라파엘의 음성 지령 직후, 메인 트리거 매트릭스 로그가 변한다. 3개 조건이 동시에 TRUE로 전환된다: T1 (Greyshore freeze detected), T2 (Cryogenic supply suspended), T3 (Failsafe initiation confirmed). 이 세 신호가 모여야만 다음 단계가 자동으로 실행되도록 프로그래밍되었다. 라파엘은 이 타이밍을 정확히 예측했다. 정부의 압박이 발생하는 순간, 자신의 Failsafe가 동시에 발동되도록.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+    - id: "clue_ep44_patron_failsafe_c04"
+      content: |
+        두 개의 동시 레일 전략. 내러티브 레일: 8시~17시 봇넷 전방위 가짜 정보 배포. "NSA BREAKTHROUGH. BANKS COMPROMISED." "Q-DAY IMMINENT." "MILITARY UNDER ATTACK." 세상 패닉, 주가 급락, 중앙은행 통화 스와프 긴급 증액. 퀀텀 레일: 17시 42분 진짜 QPU 시운전 시작. 진짜 기술 작동. 라파엘의 전략: "둘 다 동시에 발생하면 누가 뭘 믿는가는 상관없다. 혼돈만 남는다. 혼돈 속에서 우리만 선택지를 가진다." 실제 계산: Failsafe 활성화 시 완전 QPU 가동 불필요. 이미 가짜 공포로 정부 패닉, NSA 혼란(진짜 vs. 거짓 구분 불가). "우리가 해독 결과를 가지고 있다"는 말 한 마디로 정부는 협상 강요. 공개 협박이 양 가능. 라파엘은 기술 + 정보 + 심리전으로 정부와 대등 협상 가능.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep44_patron_failsafe_c05"
+      content: |
+        수민의 메모: "균형은 키 분산이 아니라 타이밍 동기화(timing synchronization)에 있다. 내러티브 레일과 퀀텀 레일이 정확히 같은 시각에 발동되지 않으면 전략 무너진다. 라파엘은 시간 재설정까지 계산했을까?" 라파엘과 LST의 백채널 패킷: 의도적 철자 오류들 ("Time-Lok", "Greyshre", "Failsfe"). 포렌식 수사에 대한 '미끼'이자 동시에 라파엘의 '손가락 인쇄' (fingerprint). 나중에 "이 오류들이 우리 통신 증거"라 주장할 근거. 수민은 깨닫는다: 라파엘은 기술/정보/타이밍/포렌식까지 고려한 거대한 전략가. 자신은 도구일 뿐.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.75
+      inject_method: "document_artifact"
+
+    - id: "clue_ep44_patron_failsafe_c06"
+      content: |
+        라파엘의 카를로스 제거 명령과 수민의 계획 해독. 음성: "Carlos는 더 이상 필요 없다. Line-Delta로 이동하라. 우리 기록에서 빠져라." 카를로스는 초기 자금 담당자—이제 위험 요소. NSA/FBI가 잡으면 증언 가능. 정중한 제거. 라파엘은 이제 수민만 필요. 수민이 천천히 다섯 단어를 해독: "문(door)"=Greyshore 동결. "숨(breath)"=냉각 부품 공급 차단. "귀(ear)"=봇넷 여론전. "손(hand)"=수민 자신 (이용 중). "열쇠(key)"=5개 조각 분산. 다섯 가지 요소가 모여야 계획 완성. 수민은 깨닫는다: 자신은 "손"이다. 도구다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.75
+      inject_method: "system_alert"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "파트론이 정보·심리전까지 총괄하는 전략가임을 확정"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 11

@@ -1,0 +1,62 @@
+# episodes/ep18_family_call.yaml
+# Episode 18: "Family Call"
+# source: ep2_family_call
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep18_family_call"
+  date: "2043-03-06T10:05"
+  location: "Sumin’s private space — car / apartment video call"
+  summary: |
+    그 직후 수민의 휴대폰이 울린다. 여동생 혜진. 서울에서의 밝은 목소리가 울려 퍼진다. "오빠! 요즘 어때? 목소리가 좀 피곤해 보이는데." 혜진은 항상 첫 마디가 걱정이다. 수민은 아무렇지 않은 웃음을 짓는다. "괜찮아, 그냥 일이 좀 바빠." 혜진이 계속한다. "엄마가 요즘 오빠 때문에 맨날 걱정해. 전화 좀 자주 해줘. 미국에서 위험한 일 하는 건 아니지?" 그녀는 농담처럼 말했지만, 말 끝이 조심스럽다. 수민의 가슴이 철렁 내려앉는다. 자신의 비밀, 자신이 짊어진 죄책감—가족은 그 어느 것도 모르고 있다. 혜진이 조용해진 수민을 읽었을까. "힘들면 언제든 한국으로 돌아와. 우리가 있으니까." 그 말이 더 무겁다. 수민은 밝은 척 답한다. "알았어. 괜찮아." 통화가 끝나갈 무렵, 혜진이 덧붙인다. "아, 그리고 오빠 친구 벤 클라크 알지? 그 친구 스타트업으로 크게 성공했대. 오빠도 파이팅!" 수민은 벤의 이름을 듣고 순간 얼어붙는다. 벤—그도 MIT 출신이었다. 그것이 무슨 의미인지는 모르지만, 뭔가가 맞물리는 느낌이 든다. 전화를 끊을 때, 수민의 심정은 복잡했다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep18_family_call_c01"
+      content: "혜진의 정확한 대사: \"오빠! 요즘 어때? 목소리가 좀 피곤해 보이는데.\" → 모자와 엄마의 걱정을 전함. 가족은 수민의 스트레스를 감지."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep18_family_call_c02"
+      content: "혜진의 농담 속 진심: \"미국에서 위험한 일 하는 건 아니지?\" 조심스러운 어조. 수민이 뭔가 숨기고 있음을 감지하는 자매의 직감."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep18_family_call_c03"
+      content: "혜진의 따뜻한 조언: \"힘들면 언제든 한국으로 돌아와. 우리가 있으니까.\" 오히려 수민을 더 무겁게 만드는 말. 가족을 지키기 위해 견뎌야 한다는 책임감."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep18_family_call_c04"
+      content: "가족은 수민의 정보보안 활동이나 위험한 상황을 전혀 알지 못함. 수민이 철저히 차단."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep18_family_call_c05"
+      content: "마지막 정보: \"오빠 친구 벤 클라크가 스타트업으로 성공했데.\" 벤—MIT 출신. 그도 이 생태계에 연결되어 있을 수 있다는 불안감."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep18_family_call_c06"
+      content: "감정적 갈등: 가족의 따뜻함 vs. 자신이 짊어진 비밀과 죄책감. 수민은 가족을 지키기 위해 위험한 상황을 계속 견뎌야 한다는 깨달음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3500
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 12

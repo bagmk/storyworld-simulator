@@ -1,0 +1,119 @@
+# episodes/ep34_failsafe_contract.yaml
+# Episode 34: "Failsafe Contract"
+# source: ep6_failsafe_contract
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep34_failsafe_contract"
+  date: "2043-03-18T21:30"
+  location: "Offsite secure location — intelligence briefing room"
+  summary: |
+    밀러와 엘 파트론의 치열한 백채널 협상—'혼돈 최소화'와 '기술 독점'이 충돌하는 순간, 수민이 전혀 예상 밖의 중재안으로 나선다. 그는 암호학의 Shamir's Secret Sharing 알고리즘을 응용한 '브리지-키(Bridge-Key)' 안전장치를 제안한다. 5조각의 분산 임계치 키(threshold 3/5), 시간 잠금 장치(TimeLock: 72시간), 비상 차단 스위치(Deadman Switch)가 결합된 시스템이다. 
+
+    다섯 조각은 NSA(밀러), CIA 연계(엘레나), 수민 본인(브리지 마스터), 운영 담당(요나스), 카르텔 대표(구티에레즈)가 각각 보관하며, 최소 3명의 동시 동의와 72시간의 시간 대기가 필요하다. 어느 한쪽도 단독으로는 핵심 기술에 접근할 수 없는 구조다. 각 세력은 이 합의를 자신의 관점으로만 해석한다. CIA는 엘레나의 이중 스파이 역할과 Greyshore 라인으로 수민까지 통제한다고 착각한다. 카르텔은 엘레나·요나스·수민 셋을 모두 자신의 인질로 본다. NSA는 순진하게 QuantumFront 연구소와 그 인력을 미 정부의 국가 프로젝트 파트너로 여기고 깊은 의심을 갖지 않는다.
+
+    그러나 수민만은 이 '균형 시스템'을 다르게 본다. 5조각 중 3조각이 필요하다면, 2조각은 항상 '반대'할 수 있다는 뜻이다. 이것은 감시 장치이자, 동시에 '지연과 추적'의 장치다. 그리고 수민은 그 중심에 서 있다. 자신의 신체가 이 시스템의 가장 중요한 인증 메커니즘이 되었다는 것을 알면서.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep34_failsafe_contract_c01"
+      content: |
+        엘 파트론의 명확한 요구사항—VPN 음성 기록:
+
+        "밀러, 우린 믿지 않는다. 넌 정부다. 정부는 약속을 어긴다. 법적 감면? 기술 배제? 그 다음에 뒤통수를 친다. 그래서 우린 보험이 필요하다.
+
+        만약 FBI가 우리를 체포하려고 하면, 우린 기술을 모두 공개하겠다. 중국, 러시아, 테러 조직들한테. 즉시 실행된다.
+        만약 너희가 협상을 깨면, 우린 RSA 해독 방법을 인터넷에 뿌릴 거다. 48시간 이내에.
+        만약 너희가 우리 자금을 다시 동결하면, 우린 너희 감시 시스템을 폭로하겠다. 의회에 직접 증거를 보낸다.
+
+        그래서 Failsafe가 필요해. 불가역적인 장치. 내가 버튼만 누르면, 모든 증거가 세상에 나간다. 그리고 넌 거기서 벗어날 수 없다."
+
+        기술 항복의 대가: 불확실성. 그것이 협상의 진정한 화폐다. 둘 다 핵앗을 들고 서 있는 것이다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep34_failsafe_contract_c02"
+      content: |
+        NSA 밀러의 계산 (내부 메모): "기술 확보가 우선. Failsafe는 상호 억제 메커니즘. 나중에 우리는 이를 무력화할 수 있다(cryptanalysis, backdoor 등)." 그러나 밀러의 치명적 간과: 수민이 설계자이며, 수민이 NSA를 신뢰하지 않으며, 수민이 중추역할을 하며, 수민이 모든 당사자를 능가하는 설계를 했다는 사실. QuantumFront를 NSA "전략적 자산"으로 분류: 수민(Q-class clearance, $180K+), 요나스(82% 신뢰도), 엘레나(CIA 자산, 이중 통제). "위험성: 낮음(8%)." NSA의 치명적 오판: 수민은 자신을 '자산'으로 보는 여러 세력이 있다는 것을 알고, 그들이 다른 방향을 본다는 것을 알고, 그들 사이의 '마찰'을 악용할 수 있다는 것을 안다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep34_failsafe_contract_c03"
+      content: |
+        CIA의 착각—엘레나 (STEALTH-7, 신뢰도 92%): "우리가 엘레나를 통해 수민도 간접 통제한다. Failsafe 2/5 거부권으로 충동 제어 가능." CIA 간과: 엘레나의 '먼저' 보호할 사람 선택권 (CIA vs. 카르텔 vs. 수민), 세 개의 충성이 가능. 카르텔의 착각—"셋 모두 레버리지 아래: 엘레나(Bogotá 가족), 수민(서울 어머니, 비자 불안), 요나스(신원 없음). Failsafe는 우리가 활성화." 카르텔 간과: 수민이 설계자라는 것 자체가 '탈출 경로'의 증거, 가족 보호 포함. 각 세력은 자신의 통제 가능성만 계산했다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep34_failsafe_contract_c06"
+      content: |
+        Failsafe-Bridge 계약 조문 (최종본):
+
+        《ARTICLE III: THRESHOLD & ACTIVATION PROTOCOL》
+        Scheme: Shamir (5, 3) — 5조각 중 3조각 필수. 또는 2조각의 거부로 차단 가능.
+        Custodians: NSA-Miller / CIA-Elena / Bridge-Soomin / Ops-Jonas / Cartel-Rafael
+        Activation: Unanimous 3/5 approval + 72-hour TimeLock delay
+        Deadman: If any custodian is eliminated/detained/incapacitated, auto-trigger after 144 hours
+        Consequence: Complete RSA algorithm + exploitation logs → automated release to: CERN, arXiv.org, BBC, Reuters, WikiLeaks, 러시아 TASS, 중국 신화통신
+
+        이 계약이 '정치적 합의'인 이유: 누구도 단독으로 'no'를 말할 수 없고, 누구도 일방적으로 'yes'를 말할 수 없다. 모두가 함께 움직여야만 한다. 그리고 한 명이 죽으면, 모두가 죽는다.
+
+        그리고 그 중심, 5명 중 가장 중립적이면서도 가장 중추적인 위치에 수민이 있다. 정말로.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.7
+      inject_method: "system_alert"
+
+    - id: "clue_ep34_failsafe_contract_c05"
+      content: |
+        Failsafe-Bridge 기술 명세. (5,3) Shamir Secret: 5개 중 3개 필수, 2개 거부권 항상 존재. 72시간 TimeLock (atomic time, ±8초 NTP drift tolerance). Bypass 시도 시 Deadman trigger + 12개 공개 아카이브 동시 공개. 임의 담당자 체포/살해/무능화/48시간 실종 시 6시간마다 상태 확인, 144시간 후 자동 발동. 물리적 서버 파괴도 차단 불가(DNS/email 사전 큐잉). 수민의 주석: "이 시스템은 '동결'이 아니라 '감시'다. NSA, CIA, 카르텔, 나 자신. 모두다. 아무도 혼자가 아니고, 혼자가 될 수 없다." 브리지 키 물리적 구현: Superconducting SQUID (-196°C, 77K 이하만 유효). CryoLab vault, Bridge Slot #7. 수민 생체인증 필수(지문+열감지+망막). 한 번 입력 시 72시간 불가역 countdown. 설계 의도: "물리적 존재는 부인 불가. 원격 해킹 불가(NSA), 무력 탈취 불가(카르텔), 위조 불가(CIA)." 수민 제거 시 시스템 작동 불가—가장 안전하면서 동시에 가장 위험.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.75
+      inject_method: "document_artifact"
+
+    - id: "clue_ep34_failsafe_contract_c06_extended"
+      content: |
+        계약 철자 watermark (의도적 포렌식): "TimeLock", "Time-Lock"(하이픈), "TIMELOCK"(대문자), "time lock"(공백), "72-hour", "72 hour"(공백). 패턴: Space/Hyphen 3개, Case 3개. 수민의 '서명'. 위조/변조 시도 시 원본과 차이 명백. 법정 증거 제출 시 진정성 증명. "너희는 이 문서를 건드릴 수 없다." 브리지 키 물리적 구현: Superconducting SQUID (SQUID type, Nb/NbN heterostructure, -196°C, 77K 이하만 유효). CryoLab vault, Bridge Slot #7. 수민 생체인증(지문+열감지+망막). 한 번 입력 시 72시간 불가역 countdown(atomic clock). "물리적 존재는 부인 불가. 원격 해킹 불가(NSA), 무력 탈취 불가(카르텔), 위조 불가(CIA)." 수민 제거 시 시스템 작동 불가—역설적으로 가장 안전하면서 동시에 가장 위험.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.8
+      inject_method: "npc_question"
+
+    - id: "clue_ep34_failsafe_contract_c09"
+      content: |
+        수민의 교활한 설계—의도적 결함 심기:
+
+        계약 문서 최종본에는 의도적인 철자 오류들이 있다:
+
+        Line 47: "TimeLock" (정확)
+        Line 63: "Time-Lock" (하이픈 추가—오류, 의도적)
+        Line 89: "TIMELOCK" (대문자—비표준, 의도적)
+        Line 112: "time lock" (공백 추가—오류, 의도적)
+        Line 156: "72-hour" (정확)
+        Line 178: "72 hour" (공백—오류, 의도적)
+
+        이 오류들은 '의도적 표식(cryptographic watermark)'이다.
+
+        수민의 메모(암호화된 로그, 나중에 복호화될 증거):
+        "만약 누군가가 이 계약을 조작하려고 하면 (위조, 변조, 회수), 이 오류들이 증거가 된다. 원본은 일관된 표기법을 유지하기 때문이다. 그리고 FBI나 CIA가 나중에 증거를 제출할 때, 이 오류들이 진정성의 증거가 된다. 왜냐하면 누구도 '완벽하게' 조작할 수 없기 때문이다. 
+
+        더 깊은 이유: 이 오류들은 특정 패턴을 가진다. 3개는 Space/Hyphen 변형, 3개는 Case 변형. 그것이 '나의 서명'이다. 법정에서 필적 분석처럼, 이것이 내 손글씨의 증거가 된다."
+
+        이는 법정에서의 '포렌식 증명'이자, 동시에 모든 당사자들에게 "너희는 이 문서를 건드릴 수 없다"는 신호다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.85
+      inject_method: "system_alert"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "Failsafe-B(브리지 키)가 일방의 협박 수단이 아닌 균형 유지 장치로 도입됨. 수민은 시스템의 '브리지(연결자)'로 핵심 역할. 자신의 생명이 시스템의 일부."
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 4000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 14

@@ -1,0 +1,91 @@
+# episodes/ep39_ben_offer.yaml
+# Episode 39: "Ben Offer"
+# source: ep8_ben_offer
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep39_ben_offer"
+  date: "2043-03-23T20:15"
+  location: "Downtown Ritz-Carlton Hotel — private lounge (38th floor)"
+  summary: |
+    결전의 날을 3일 앞두고, MIT 시절 라이벌이었던 벤 클라크가 갑자기 수민에게 이메일로 연락해온다. 제목: "Old friend—let's talk about your future." 학회 이후 스타트업 CEO로 승승장구하던 벤은 "너의 성과를 주시해왔다"며 다운타운의 고급 호텔 라운지에서 만나자고 한다. 저녁 8시 15분, 38층 프라이빗 라운지. 유리창 너머로는 도시의 저녁 불빛이 깜박이고, 테이블 위엔 이미 분할 계약서가 펼쳐져 있다. 벤은 만난 자리에서 바로 말을 꺼낸다: "Soomin, we've prepared this. Annual 12 million, complete RSA division leadership, 2.5 million stock options vesting over four years. We want you—not the code, YOU." 벤의 태도는 예전 대학원 라이벌의 경쟁심이 아니라, 정확한 계획을 수행하는 영업인의 차갑고 전문적인 톤이었다. 그는 계약서의 각 항목을 손가락으로 가리키며 설명한다. "Next 5 years, quantum market is ours. RSA implementation, government contracts, DARPA co-funding—all locked in. You're the missing piece."
+
+    수민은 한때 자신을 깔보던 벤이 갑자기 이렇게 나온 것에 의아하지만, 벤이 내민 파트너 목록을 보고 경악한다. Palantir, Northrop Grumman, Booz Allen Hamilton, Lockheed Martin—정부 계약 다 받은 국방 거인들이다. 그 목록 아래엔 주석이 있었다: "All cleared for TS/SCI compartments—DARPA co-funding pre-negotiated." 정부 자금까지 들어간 거다. 수민은 이 제안도 NSA 밀러와 다르지 않다는 것을 깨닫는다. 겉으로는 자유지만, 실제로는 정부와 기업 권력이 뒤얽힌 또 다른 덫일 뿐이다.
+
+    벤이 계속 말한다. "너도 알겠지만, 이건 단순한 취직이 아니야. 우리 팀에 들어오면 넌 보호받아. 시민권도 내년 안에 확정되고, 가족도 이주를 도와줄 거야." 수민은 유혹에 잠시 흔들린다. 어둡고 작은 연구실이 아닌, 넓은 사무실과 팀원들. 그러나 손을 위로 들었다 놨다. 계약서를 밀쳐냈다. "이것도 안 됩니다. 벤, 고마워도 이건... 아니다."
+
+    벤의 얼굴이 순식간에 경직된다. "그래, 그럼 이건 어때. 우린 이미 '보험' 걸어뒀다. Q-Day, 기억하지? 너 없이도 우린 진행할 수 있다는 뜻이야." 밀러와 똑같은 문장이었다. 벤이 빠져나가며 마지막으로 뱉는다. "Greyshore에서 넌 더 이상 유용하지 않아. 너한테 가할 수 있는 방법들도 많고..."
+
+    수민은 자리를 박차고 나간다. 복도엔 호텔 보안 카메라만 있었다. 그리고 그 카메라 뒤, 어디 빌딩에선가 누군가 이 영상을 보고 있을 거다. 수민은 이제 정말 돌아갈 곳이 없음을 실감했다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep39_ben_offer_c01"
+      content: |
+        벤이 내민 분할 계약서: 첫 페이지에 "Executive Position, Quantum Engineering Division Lead" 직함과 "Annual Compensation: USD $12.0M (base) + $2.5M in stock options (vesting 4 years)" 명시. 하단엔 "TS/SCI compartment access provisioned — valid through March 2044" 각인. 수민은 그 수치들을 본다. 1,200만 달러. 거액이다. 자신의 거기 라이벌과는 다른 세계. 그러나 그 수치들 아래 쓰인 파트너 명단은 더 큰 그림을 가리킨다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep39_ben_offer_c02"
+      content: |
+        벤. "수민, 이건 단순한 제안이 아니야. Palantir, Northrop, Lockheed—다 이미 네 기술의 가능성을 봤어. 그리고 우리가 먼저 손을 제시했어. 정부도 백업으로 우리한테 자금을 붙였고. 다음 5년이 우리 거야. 양자컴퓨팅 시장을 우리가 접수하면, 넌 그 무게의 일부를 나눠갖는 거다." 벤의 목소리엔 설득이 아니라 압박이 묻어난다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep39_ben_offer_c03"
+      content: |
+        수민은 순간 유혹된다. 어둡고 작은 연구실에서 벗어나 넓은 오피스, 진짜 팀원들, 출판 기회, 자유로운 연구. 벤이 계속한다. "그리고 너에 대한 법적 문제도 우리가 정리해줄 거야. 임시 거주권, 시민권까지 내년 안에. 가족도..." 수민의 손이 공중에서 흔들린다. 하지만 그 손을 내려놨다. 계약서를 밀쳐냈다. 가슴이 철렁했다. "고마워, 벤. 근데 난... 이건 못 합니다."
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
+
+    - id: "clue_ep39_ben_offer_c04"
+      content: |
+        수민이 벤을 바라본다. 한때 대학원에서 자신을 깔보던 그 벤이다. 논문 경쟁에서 이겼던 벤. 지금 그는 Palantir, Northrop, Lockheed 같은 국방 거인들과 손을 잡고 있다. 그리고 그 배후엔 정부 자금이 있다. 벤도, 나도, 모두 같은 그물 안이다. 벤이 그 그물을 모를 리 없다. 그가 나를 이끌려는 건 단순한 고용이 아니다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep39_ben_offer_c05"
+      content: |
+        벤이 마지막으로 뱉는 문장이 귓가에 맴돈다. "우린 이미 보험을 걸어뒀다. Q-Day. 기억하지? 너 없이도 우린 진행할 수 있다는 뜻이야." 정확히 밀러가 사용했던 문구다. Q-Day. 보험. 그 단어들이 서로 다른 입에서 나왔는데 정확히 같은 맥락이다. 정부 NSA와 민간 스타트업 벤. 그들이 같은 말을 하고 있다. 어디선가 그들의 말이 맞춰져 있다는 뜻이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep39_ben_offer_c06"
+      content: |
+        벤이 빠져나가며 마지막 경고. "Greyshore에서 넌 더 이상 유용하지 않아. 그리고..." 카드 한 장을 테이블에 떨어뜨린다. 회사 카드가 아니라 그냥 검은 카드. 뒷면엔 숫자만 있다. '+1-555-0147'. 벤의 음성이 낮아진다. "너한테 가할 수 있는 방법들이 많다는 건 아니지. 그냥... 생각해봐. 우린 친구였잖아. 그게 끝나는 게 싫었어." Greyshore. 벤이 그 이름을 꺼냈다. 정부가 아니라.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep39_ben_offer_c07"
+      content: |
+        벤의 진정한 정체. 호텔 엘리베이터에서 수민이 우연히 본 벤의 휴대폰 화면 반사:
+
+        벤의 이메일 클라이언트 열린 상태:
+        TO: R.Gutierrez@greyshore.mx
+        FROM: B.Clark@neuro-quantum-ventures.com
+        SUBJECT: "Acquisition complete—Soomin declined. Initiate Plan B."
+        DRAFT (unsent): "Target unwilling. Leverage available: family in Seoul (mother, sister). Visa status vulnerable. Academic records flagged. Recommend pressure escalation..."
+
+        더 깊은 진실: 벤은 단순한 스타트업 CEO가 아니었다. 그는 Greyshore(카르텔의 금융 브랜드)의 모집 담당자였다. 라파엘 구티에레즈에게 직접 보고하는 요원. 벤의 MIT 라이벌 관계, 친구 호칭—모두 '신뢰 형성 작전'의 일부였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

@@ -1,0 +1,72 @@
+# episodes/ep05_unexpected_visitors.yaml
+# Episode 5: "Unexpected Visitors"
+# source: ep1_unexpected_visitors
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep05_unexpected_visitors"
+  date: "2042-02-05T16:20"
+  location: "QuantumFront HQ — CryoLab corridor & secure storage B2"
+  summary: |
+    오후 4시 20분, CryoLab 북쪽 복도. 출입 기록에 없는 두 명이 나타난다. 검은 셔츠 남자와 회색 점퍼 여자. 보안 배지가 없는데 카드키로 보안 창고를 연다. "기존 인프라 안정화 작업입니다"라는 짧은 설명. 그들의 지시는 간결했다. "3시간 필요합니다. 이 구간은 통제합니다." 보안 창고 내부, 기존 냉각 순환 장치와 신호 중계 박스가 줄 지어 있다. 여자가 검은 케이스를 열자, 내부에는 회로 기판이 가득했다. 남자가 기존 신호 박스의 스크루 드라이버를 꺼낸다.
+
+    수민이 창고 입구에 도착했을 때, 검은 셔츠 남자가 발걸음 소리를 듣고 고개를 든다. 둘의 눈이 만난다. 그의 손에는 기존 신호 박스에서 분리된 회로 모듈이 들려 있었다. "작업 중입니다. 나중에 오십시오"라고 한국어 억양으로 말한다. 한국인? 하지만 표정은 공무원식이었다. 여자는 계속 무언가를 설치하고 있었다. 보안 창고 벽면에 부착된 노트북—일반 회사 로고가 아니라 항만 모양의 로고. 'LST'라는 글자가 부분적으로 보인다. 스티커가 떨어져 가던 중.
+
+    15분 뒤, 로비의 보안 시스템에 임시 권한 알림이 뜬다. 'Temporary Access — Bay Level 2 / Duration: 3 hours / Authority: NSA SCI Waiver'. NSA Special Compartmentalized Information—가장 높은 수준의 비밀 접근권. 수민이 보안 담당자에게 물었다. "누가 이 권한을 설정했어?" 담당자는 화면을 지웠다. "위에서 내려온 지시야. 우리는 그냥 따라야 돼." 위에서. CyroLab을 감독하는 곳은? NSA? DARPA? 아니면 또 다른 기관?
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep05_unexpected_visitors_c01"
+      content: |
+        오후 4시 20분, CryoLab 보안 창고 입구. 두 명의 설치자가 나타난다. 검은 셔츠의 동양인 남자, 회색 점퍼의 여자. 보안 배지는 없지만 카드키를 사용해 도어를 연다. "기존 인프라 안정화 작업입니다"라는 일관된 대사. 그들의 움직임은 훈련받은 기술자가 아니라 군인 같았다. 정확하고, 불필요한 말이 없고, 각 동작이 계획된 것처럼 정밀했다. 남자가 수민에게 물었다. "이 구간 통제 중입니다. 3시간 필요합니다." 3시간. 정확한 시간. 이건 추정이 아니라 일정이었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep05_unexpected_visitors_c02"
+      content: |
+        보안 창고 내부 작업. 여자가 검은 케이스를 열자, 내부에는 마더보드 크기의 회로 기판들이 정렬되어 있었다. 남자는 기존 신호 박스(Signal Relay Box)의 스크루 드라이버로 모듈을 분리하고 있었다. 교체, 아니면 도청 장치 설치? 그들의 대화는 몸짓과 단음절로만 이뤄졌다. "여기", "저기", "체크". 마치 수술실의 의료진처럼. 수민이 그들을 관찰할 때, 여자가 기존 신호 박스의 케이블 다섯 개를 정확히 메모했다. 나중에 복구하거나, 아니면 추가 장치가 필요하다는 뜻.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep05_unexpected_visitors_c03"
+      content: |
+        여자가 들고 온 검은 케이스 옆, 노트북 한 대. 일반적인 회사 로고가 아니라 항만 모양의 이미지가 있는 스티커. 텍스트가 부분적으로 떨어져 있지만, 남은 글자를 추적할 수 있다. 'L—T'. 뒤에 또 다른 글자. '로지스틱스'? '로더'? 노트북 화면에는 건물 평면도가 나타났다. QuantumFront HQ의 지하층 배치도. 실시간으로 수정되는 표식들. 설치할 위치들이 X로 표시되고 있었다. 보안 창고 B2, 그리고 또 다른 세 곳.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep05_unexpected_visitors_c04"
+      content: |
+        로비의 보안 시스템. 보안 담당자의 모니터에 임시 알림이 뜬다. 'Temporary Access Authorization — Level 2 / Duration: 3 hours / Category: NSA SCI (Special Compartmentalized Information) / Authority: NOFORN'. NOFORN—No Foreign Nationals. 이 권한은 가장 높은 수준의 비밀 접근을 허용한다. 국방부 계약자도, DARPA 직원도 이 권한을 쉽게 받지 못한다. NSA 또는 그 이상의 기관이 직접 내린 지시였다. 권한을 설정한 사람의 이름은 공란으로 처리되어 있었다. 그냥 "시스템 관리자"라고만 표시.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.6
+      inject_method: "system_alert"
+
+    - id: "clue_ep05_unexpected_visitors_c05"
+      content: |
+        수민이 보안 담당자에게 물었다. "이 권한을 누가 설정했어?" 담당자의 표정이 굳어졌다. "위에서 내려온 지시야. 오늘 오전에 직통 전화로 받았어. 우리는 그냥... 따라야 해." 그 말 뒤 침묵. 담당자의 손가락이 마우스를 움켜쥐고 있었다. 공포인가, 아니면 훈련된 반응인가. 수민이 "누구 권한인지 추적할 수 있어?"라고 묻자, 담당자는 화면을 지웠다. "추적 불가. 이미 로그가 암호화되어 있어. 이 이상은... 나도 못 봐." 더 이상 묻지 말라는 신호였다. 이것은 누군가에게 보고될 것이고, 보안 담당자는 이미 그것을 알고 있었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep05_unexpected_visitors_c06"
+      content: |
+        그 밤, 수민은 CryoLab의 지하 배치도를 다시 생각해봤다. 보안 창고 B2는 냉각 순환 장치와 신호 중계 박스가 있는 곳. 그리고 설치팀은 그곳에 뭔가를 추가했다. 회로 기판들. 신호 처리 장치. 도청? 신호 증폭? 신호 방출? 'LST'라는 로고. 항만 물류와 관련된 기업? 또는 암호명? 그리고 가장 중요한 것: 그들이 QuantumFront 내부의 신호 채널을 수정했다는 것. 이것은 CryoLab의 연구 신호를 외부로 전송하거나, 외부의 신호를 CryoLab 내부로 주입할 수 있다는 뜻. 누군가는 이미 이 연구실 자체를 자신의 도구로 만들고 있었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 12

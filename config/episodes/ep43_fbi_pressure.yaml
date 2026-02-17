@@ -1,0 +1,91 @@
+# episodes/ep43_fbi_pressure.yaml
+# Episode 43: "FBI Pressure"
+# source: ep8_fbi_pressure
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep43_fbi_pressure"
+  date: "2043-03-26T22:30"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    시연 당일, 오전 6시. 밀러가 나타난다. "수민, 우리가 도움을 드릴 수 있는 방법이 있어. 모레노 교수가 어디 있는지 말해 줄래? 그리고 그의 모든 연구 자료를." 그의 손에는 문서가 들려 있다. EB-2 NIW 특별 귀화, 법적 면책권(Immunity Agreement), "모든 형사 책임 면제" 각인. "너는 이미 점 UCSA(Cooperating Suspect)로 등록되어 있어. 나머지는 우리가 정리할 테니까. 모레노 교수만 건네줘. 그럼 넌 자유야."
+
+    동시에 라파엘(엘 파트론)의 목소리가 수민의 흑색 휴대폰으로 울린다. "Sumin, let me be clear. If you hide the Professor, you become my enemy. And enemies are expensive. Your sister in Seoul, your mother's clinic—아직도 그대로 있네요. Beautiful building. I wonder how it would fare in an electrical fire." 협박이다. 분명한 협박.
+
+    수민은 그사이에 갇혔다. 양쪽 모두 자신의 말을 기다린다. 밀러는 보호를 약속하고, 라파엘은 위협한다. 모레노 교수는 여전히 지하 연구실에 있다. 알고리즘은 95% 완성되었다. QPU는 준비됐다. 그리고 시간은 남지 않았다.
+
+    수민은 대답하지 않는다. 밀러가 떠난다. 그리고 오후 2시, QPU 최종 시운전이 시작된다. 모레노 교수는 지하에서 부강한 계산 부하(1,600 TFLOPS)를 지휘해야 한다. 노인의 몸으로. 18시간을 꼬박 일해온 그 몸으로.
+
+    한 시간 후, 모레노 교수가 비명을 지른다. "안 돼... 계산이... 너무 많아..." 심박이 140을 넘는다. 혈중 산소 포화도가 85%로 떨어진다. 뇌파에 이상 신호가 나타난다. "누군가... 멈춰줘. 제발..." 그의 목소리는 약해진다.
+
+    수민은 모니터를 보면서 알 수 있다. 이게 아무도 멈추지 않으면 끝이 난다는 것을. 모레노 교수는 죽을 거다. 그리고 그건 자신의 선택이다. 밀러에게 항복하거나, 라파엘에게 항복하거나. 어느 쪽이든, 모레노는 죽는다.
+
+    수민은 확인 버튼을 누르지 않는다. 아니, 누를 수 없다. 왜냐하면 이미 누른 지 오래되었기 때문이다. 이미 결정한 지 오래되었기 때문이다.
+
+    모레노 교수의 생명 신호가 점점 약해진다. 심박이 떨어진다. 시운전은 계속된다. 그리고 2시간 52분 후, 화면이 검게 변한다. 교수는 죽었다. 알고리즘은 완성되었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep43_fbi_pressure_c01"
+      content: |
+        수민의 연구 노트에서 발견되는 줄. "모레노의 미분-모듈러 분해(differential modular decomposition) 없이는 특이값 분해 가속이 불가능. 즉, 모레노의 기여 없이 RSA 붕괴는 수학적으로 막혔다. 그는 대체 불가능하다. 우리가 기술인 이유는 그가 기술이기 때문이다." 이 줄은 모레노의 절대적 중요성을 보여준다. 그리고 역으로, 모레노가 죽으면 기술도 죽는다는 뜻이기도 했다. 수민은 이걸 알고 있었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep43_fbi_pressure_c02"
+      content: |
+        오후 3시 45분, 지하 연구실 모니터 14번. 모레노 교수의 생체신호. 심박 수치: 142 bpm (정상 60-100 bpm). 혈중 산소 포화도: 84% (정상 95-100%). 뇌파: 비정상 급속파 출현. 음성 녹취: "안 돼... 계산이... 너무 많아..." 2분 후: "누군가... 제발... 멈춰줘..." 4분 후: 심박 신호가 불규칙해진다. 심실 세동(ventricular fibrillation) 신호. 그리고 최종: 심박 신호 평탄선. 심정지.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep43_fbi_pressure_c03"
+      content: |
+        밀러가 수민 앞에 내민 문서들. 첫 번째: "Immigration Form I-360: Immigrant Petition for Orphan (조기 귀화 청원)". 두 번째: "Immunity Agreement: In exchange for cooperation against [REDACTED] and the provision of all proprietary algorithms, Sumin Kim shall be immune from all criminal charges related to [REDACTED]." 서명란에는 NSA와 DOJ 인장이 찍혀 있다. 세 번째: "Witness Protection Arrangement: Full relocation support, new identity, lifetime surveillance immunity." 밀러의 말: "모레노 교수만 넘겨주면, 넌 새로운 삶을 시작할 수 있어. 가족도 보호하고."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep43_fbi_pressure_c04"
+      content: |
+        수민의 심리 상태. 화면에 비친 자신의 얼굴을 보며 그는 생각한다: '내 눈앞에서 스승이 죽어가는데, 난 아무것도 하지 않았다. 아니, 그보다 더 악하다. 난 멈추지 않았다. 중단 버튼을 누를 수 있었는데, 누르지 않았다. 누르지 못했다. 아니, 누르고 싶지 않았다. 아니다, 더 솔직하게—나는 신경 쓰지 않았다. 모레노의 죽음과 내 자유 사이를 저울질했을 때, 내 손가락이 더 무거웠다.' 그 깨달음이 그를 짓누른다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep43_fbi_pressure_c05"
+      content: |
+        지하 연구실 라이브 피드. 모레노 교수가 알고리즘 최종 검증 중. 계산 부하: 점진적으로 상승. T+0: 800 TFLOPS. T+30분: 1,200 TFLOPS. T+60분: 1,600 TFLOPS. 이건 정상 범위를 넘은 영역이다. 교수의 신체는 노체(노년). 극도의 스트레스를 견딜 수 없다. 화면 위: "WARNING: Subject vitals critical. Recommend medical intervention." 하지만 아무도 개입하지 않는다. 수민도, 라파엘도, 밀러도. 계산이 끝날 때까지 그는 계속해야 한다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.65
+      inject_method: "system_alert"
+
+    - id: "clue_ep43_fbi_pressure_c06"
+      content: |
+        모레노 교수가 시운전 도중 심정지로 쓰러진다. 생명 신호: 심박 0 bpm, 혈중 산소 0%, 뇌파 평탄선. 죽음이다. 하지만 QPU는 계속 돈다. 최종 검증 95% → 97% → 99% → 100%. 알고리즘은 완성되었다. 모레노 교수는 최후의 결과를 볼 수 없다. 그의 죽음 3초 후, 화면에 문자가 뜬다: "ALGORITHM COMPLETE. RSA-2048 DECRYPTION SUCCESSFUL. ELAPSED TIME: 2 HOURS 52 MINUTES. TARGET ACHIEVED."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep43_fbi_pressure_c07"
+      content: |
+        (나중의 상상 대사) 밀러가 수민에게: "국가를 위해 눈감자, 수민. 한 사람의 죽음으로 수백만의 생명을 지킬 수 있다면—" 수민이 대답한다. 목소리는 차갑다. "당신들은 국가를 위해 선을 지웠습니다. 그들은 질서를 위해 선을 지웠죠. 저는 생존을 위해 선을 지웠습니다. 그런데 선이 지워지면 지우개만 남습니다. 그리고 지우개는 자신도 지워버립니다." 수민은 이제 이해했다. 어떤 명분도, 어떤 이유도 살인을 정당화하지 못한다는 것을.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "수민의 결정이 모레노의 죽음으로 이어졌음이 명확히 드러남"
+    - "주인공의 윤리적 타락이 확정"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 5000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 18

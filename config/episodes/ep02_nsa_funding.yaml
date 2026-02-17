@@ -1,0 +1,78 @@
+# episodes/ep02_nsa_funding.yaml
+# Episode 2: "NSA Funding"
+# source: ep0_nsa_funding
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep02_nsa_funding"
+  date: "2041-05-22T09:30"
+  location: "Conference venue — sponsor lounge / funding reception"
+  summary: |
+    컨퍼런스 중앙홀 스폰서 라운지, 카펫 바닥에 회색과 파란색 줄무늬. 유리창 너머로 제네바 호수가 보인다. 오전 9시 30분. 수민은 자신의 노트북을 정리하던 중 운영진으로부터 메시지를 받았다. "성공 사례 패널 선정—Session B, 10:15 AM." 예상하지 못한 호출이었다. 어제 모레노 교수의 강연을 듣고 질문을 몇 개 던졌는데, 그게 운영진의 눈에 띈 모양이었다.
+
+    무대 위. 수민은 "초전도-광학 인터페이스를 통한 큐비트 제어 개선"이라는 주제로 20분 발표를 시작했다. 핵심 슬라이드: 측정 시간 단축 데이터. 기존 25ms에서 3.2ms로. 그래프 아래 주석: "Fidelity: 99.7% (시뮬레이션)". 청중 반응은 조용했다. 학회에서 조용함은 두 가지를 의미한다. 무관심이거나, 집중이거나.
+
+    질문 시간. 청중 8번 좌석—어제의 제복 육군 대령—이 손을 든다. "당신의 시뮬레이션은 노이즈 모델이 이상적입니다. 실제 양자 프로세서에서는 대열적 에러가 누적될 텐데요." 그 질문은 학술적 질의가 아니었다. '당신의 수치가 현장에서 검증되었는가?'라는 보안 질문이었다. 전 홀이 조용해졌다. 수민은 숨을 들이마셨다. "맞습니다. 실제 실험실 장비에서는 아직 미테스트입니다. 하지만 노이즈 모델은 현재 공개된 IBM Q System One의 파라미터를 따랐습니다." 대령이 고개를 끄덕였다. 만족한 표정이었다.
+
+    발표가 끝나자 회색 수트의 남자가 수민에게 다가왔다. 40대 중반, 금테 안경, 헤어라인이 약간 후퇴했지만 단정한 인상. "좋은 발표였어. 혹시 점심 함께할 시간 있나?" 수민은 그의 목걸이에 걸린 출입증을 봤다. NSA 로고는 없었지만, 바코드 아래 작은 글씨: "Authorized Personnel Only". 이 사람은 일반 학술 참가자가 아니었다.
+
+    점심 테이블. 라운지 2층, 창가 자리. Miller가 명함을 밀어왔다. 'Christian Miller, NSA Quantum Initiative Research Liaison.' 명함 뒷면에 손글씨로 적힌 번호: 202-555-0147. Miller: "연구가 어떻게 되고 있어?" 수민: "충분히 진행 중입니다." Miller가 미소를 지었다. "그걸 1년으로 압축할 수 있다면?" 수민의 손이 멈췄다. 압축? 연구는 압축하는 게 아니다. 가속할 수는 있지만, 그건 자금과 인력이 필요하다. Miller가 덧붙인다. "우리가 필요한 건 빠른 결과야. 구체적으로는, 네가 제시한 3.2ms 측정 시간을 실제 하드웨어에서 재현하는 것."
+
+    옆 테이블에서 벤 클라크의 목소리가 들렸다. "어? 수민이야?" 벤은 같은 테이블에 앉지 않았지만, 분명 Miller를 인식하고 있었다. 벤이 대각선으로 접근하며 말한다. "Miller, 안녕. 내 팀과도 이야기 했는데..." 벤의 목소리는 Miller의 관심이 분산되었음을 확인하려는 시험이었다. Miller는 벤을 훑어봤다. 그 시선에는 "그래, 너도 이 경쟁에 있구나"라는 인정이 있었다.
+
+    복도. Miller가 수민을 구석으로 유도했다. "연 200만 달러. DARPA 정상 배분이 아니야. 정보 기관 지원은 통상 50만에서 100만. 근데 우리가 찾고 있는 특정 성과를 낸다면..." Miller의 목소리는 낮아졌다. "특정 성과"는 공개할 수 없다는 뜻. 수민은 질문을 삼켰다. 핸드폰이 울렸다. Miller는 화면을 보고, 통화를 받기 전 수민에게 덤덤하게 말했다. "오늘 만남은 기록에 남기지 않아도 된다."
+
+    그 문장의 무게. 학술 컨퍼런스에서 나올 수 없는 문장. 이건 비공식이라는 뜻. 비공식이라는 건 나중에 "이런 제안 안 했다"는 뜻. 수민은 고개를 끄덕였지만, 손바닥에 땀이 났다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep02_nsa_funding_c01"
+      content: |
+        무대 위 수민의 슬라이드. 《초전도-광학 인터페이스: 큐비트 제어 개선 사례》. 핵심 그래프는 측정 시간 단축 데이터. 기존 25ms에서 3.2ms로. 수치 아래 주석: "Fidelity: 99.7% (시뮬레이션 / 실제 실험실 장비: 미테스트)". 발표 중 어제의 제복 육군 대령이 손을 든다. "당신의 시뮬레이션은 노이즈 모델이 이상적입니다. 실제 양자 프로세서에서는 대열적 에러가 누적될 텐데요." 그 질문은 학술적 질의가 아니었다. "당신의 수치가 현장에서 검증되었는가?"라는 보안 질문이었다. 전 홀이 조용해졌다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep02_nsa_funding_c02"
+      content: |
+        발표 후 점심 테이블. Miller가 명함을 밀어온다. 손가락으로 한 글자씩 가리킨다. "Christian Miller. NSA Quantum Initiative Research Liaison." 명함 뒷면에 손글씨로 적힌 번호: 202-555-0147. 더 중요한 건 명함의 질감. 일반 인쇄가 아니라 엠보싱 처리. 공식 정부 신분증 수준. Miller: "연구가 어떻게 되고 있어?" 수민의 대답을 기다리지 않고 Miller가 계속한다. "그걸 1년으로 압축할 수 있다면?" 옆 테이블에서 벤의 목소리. 수민이 놀라 고개를 든다. 벤이 같은 방향을 보고 있었다. 정확히는 Miller를 보고 있었다. 그리고 벤의 표정은 "아, 저 사람이 이미 이 팀에 붙었군"이라는 확인이었다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep02_nsa_funding_c03"
+      content: |
+        점심 중간에 벤이 수민을 유인한다. "수민, 잠깐. 내 팀도 들어와 봐. DARPA 계약인데, 재료 과학 섹션이 핵심이고..." 벤의 제안은 합리적이었지만, Miller의 반응을 보면 달랐다. Miller의 눈이 벤을 훑어본다. 그 시선에는 "그래, 너도 이 경쟁에 있구나"라는 인정이 있었다. 경쟁자들이 이미 정부 자금을 따고 있다는 뜻. 수민은 뒤늦은 깨달음을 느꼈다. 학계라고 생각했던 무대가 실은 입찰 경쟁이었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep02_nsa_funding_c04"
+      content: |
+        복도로 나온 후, Miller가 귓가에 속삭인다. "연 200만 달러. DARPA 정상 배분이 아니야. 정보 기관 지원은 통상 50만에서 100만. 근데 우리가 찾고 있는 특정 성과를 낸다면..." 그의 목소리는 뉴스쇼처럼 뭔가를 암시하고 끝낸다. "특정 성과"는 공개할 수 없다는 뜻. 그 금액의 조건이 명확하지 않다는 뜻. 더 위험한 뜻도 있었다. 200만 달러는 개인 연구자가 아니라 국가 안보와 직결된 프로젝트의 규모라는 것.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.6
+      inject_method: "npc_question"
+
+    - id: "clue_ep02_nsa_funding_c05"
+      content: |
+        Miller의 핸드폰이 울렸다. 화면을 본 Miller의 표정이 바뀌었다. "잠깐." 통화를 받기 전, 수민에게 덤덤하게 말한다. "오늘 만남은 기록에 남기지 않아도 된다." 그 문장의 무게. 학술 컨퍼런스에서 나올 수 없는 문장. 이건 비공식이라는 뜻. 비공식이라는 건 나중에 "이런 제안 안 했다"는 뜻. Miller가 통화 받으러 가고, 수민은 테이블에 남겨진다. 옆 테이블 벤이 손을 들어 인사한다. 하지만 벤의 시선은 Miller가 떠난 방향을 추적하고 있었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "벤의 공격적 발언은 모레노 교수의 신뢰 표명으로 무마됨"
+    - "밀러가 단순한 학술 관심자가 아니라 국가 안보 기관 요원임이 드러남"
+    - "제안이 단순한 연구비 지원이 아니라 국가 안보 프로젝트와 직결된 권력적 접근임이 확인됨"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 1100
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 16

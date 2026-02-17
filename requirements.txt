@@ -1,0 +1,22 @@
+# AI Story Simulation Engine — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core LLM
+openai>=1.30.0
+
+# Config parsing
+PyYAML>=6.0
+
+
+# notebook + analysis
+pandas>=2.0
+matplotlib>=3.7
+
+# Utilities (stdlib replacements for older Python)
+# Python 3.10+ is required (uses match, union types, etc.)
+
+# Optional: for PostgreSQL instead of SQLite
+# psycopg2-binary>=2.9.9
+
+# Optional: for richer logging/output
+# rich>=13.0

@@ -1,0 +1,142 @@
+# world_facts.yaml
+# Defines three categories of facts for the story world.
+# The Director AI knows all facts. Agents only access public + discovered clues.
+
+world_facts:
+
+  # ── Hidden facts ──────────────────────────────────────────────────────
+  # Known ONLY to the Director AI. Agents must NOT reveal these.
+  # These define the ground truth the story is building toward.
+  hidden:
+    - content: |
+        QuantumFront is not a legitimate “research company” but a tech–finance front
+        architected by El Patrón (Raphael) and Carlos. The public campus at Seaview
+        Research Park exists for PR, hiring, and audit-facing compliance theater.
+        The real program runs inside a Novagrad Freeport underground site
+        (harbor_underground_lab). The underground operation is less about “science”
+        and more about: (1) laundering justification for capital flows, (2) evading
+        sanctions/freezes, and (3) building leverage over crypto and communications.
+
+    - content: |
+        The capability is not “a quantum computer that cleanly breaks RSA-2048.”
+        The pipeline is hybrid:
+        (A) LST-derived access to HSM test keys / partial key material / routing
+            disruption reduces the remaining entropy,
+        (B) Moreno’s real-time phase-tracking plus Phase-Guard stabilization enables
+            the QPU to recover specific classes of keys on minute-scale timelines.
+        The real power is targeted key recovery/exfiltration, not a generalized Q-Day.
+
+    - content: |
+        The NSA (Miller line) is not prioritizing “taking down the cartel.”
+        Their objectives are:
+        (1) force early access to selected keys/channels to secure national-security advantage,
+        (2) if needed, desynchronize FBI timing and procedure,
+        (3) then seal the matter under “national security” to control disclosure.
+        The cartel backchannel is not “hostile coexistence” but a constrained,
+        mutually beneficial transaction that remains deniable.
+
+    - content: |
+        Yonas Mehret is not a simple floor operator. He is the physical–digital bridge
+        for the LST/SCADA line, translating demands from multiple organizations into
+        on-the-ground execution. His legal identity / travel record is intentionally
+        incomplete. The “last ten minutes” around Elena’s shooting—lockdown sequence,
+        CCTV gap, and corridor routing—was engineered by Yonas.
+
+    - content: |
+        Before her death, Elena partially implemented a deadman architecture that can
+        auto-release CryoLab logs and evidence externally. One release condition
+        (time / NTP drift / key threshold) was deliberately sabotaged so the material
+        does not spill immediately. The broken deadman becomes later leverage in
+        bargaining and coercion.
+
+    - content: |
+        Moreno’s death is a near-assassination staged to look like accidental overwork.
+        Medical access was constrained, RF noise and nitrogen-steam stressors were used,
+        and lockdown pressure was applied to prevent a safe stop. The psychological threat
+        “If you halt, your family pays” removed voluntary termination as an option.
+        The final narrative is pre-framed so that Sumin’s non-stop run becomes a
+        moral/legal stain—complicity by design.
+
+  # ── Discoverable facts ────────────────────────────────────────────────
+  # Agents CAN learn these through appropriate actions/dialogue.
+  # The ClueManager tracks which agents have discovered each fact.
+  discoverable:
+    - id: "clue_phaseguard_flags"
+      content: "CryoLab syslog repeats `FLAG_FAILSAFE` / `phase.lock` / `Phase-Guard` events, implying an automated sealing routine fired under specific conditions."
+      trigger: "agent reviews CryoLab system logs or experiment run logs"
+
+    - id: "clue_bridge_slot_reference"
+      content: "Hardware manuals / internal wiki label `BRIDGE_SLOT` as a physical injection port (an authorization trigger), and counters show it was used within the last two weeks."
+      trigger: "agent inspects hardware docs, maintenance counters, or rack-level telemetry"
+
+    - id: "clue_znt_variable"
+      content: "Elena’s codebase contains recurring `ZNT_*` variables; comments/commit phrasing match the naming conventions of her past hacker crew, 'Zetanet.'"
+      trigger: "agent searches the codebase / git history for unusual variables or tags"
+
+    - id: "clue_procurement_mismatch"
+      content: "A PO–Invoice–B/L bundle shows subtle mismatches (unit price/quantity/weight). Payment memos repeat neutral terms like 'service credit', 'retrofit', 'consulting', 'spare', and 'license.'"
+      trigger: "agent audits procurement ERP, invoice scans, or shipping documents"
+
+    - id: "clue_greyshore_secondary_escrow"
+      content: "Contract / escrow packets include 'Secondary escrow: Greyshore Capital LLC' and cluster near a patent assignment executed under a Mexican foundation’s name."
+      trigger: "agent reviews contract PDFs, escrow packets, or patent transfer paperwork"
+
+    - id: "clue_siem_timestamp_reorder"
+      content: "SIEM/audit logs show timestamp re-ordering artifacts and a discarded module prefix (a 'ghost header')—a pattern consistent with log grooming rather than normal automation."
+      trigger: "agent inspects SIEM dashboards or raw audit logs"
+
+    - id: "clue_freeport_gate_deactivated_badge"
+      content: "Novagrad Freeport gate/elevator logs show a pre-dawn ride (e.g., 03:xx) to Level D using a deactivated staff ID; the linked CCTV has a 60-second gap."
+      trigger: "agent checks Freeport access control logs or requests CCTV extracts"
+
+    - id: "clue_plc_valve_17_blink"
+      content: "Just before a port incident window, an LST/SCADA alert for `PLC_Valve_17` appears briefly and then clears. The incident bulletin read-receipt shows an unknown account starting with 'Y.'"
+      trigger: "agent correlates incident timeline with SCADA alarms and notification read-receipts"
+
+    - id: "clue_family_watch_tab"
+      content: "A console screenshot reveals a hidden `Family/Watch` tab monitoring a target’s location and communications—evidence of coercion infrastructure."
+      trigger: "agent reviews Elena-provided USB, screenshots, or internal console exports"
+
+    - id: "clue_nsa_injected_delay_rail"
+      content: "Measurement-chain/deployment scripts contain a 'audit/delay rail' hook; a comment shows initials `Y.M – field`. Commit signatures point to an NSA subcontractor account."
+      trigger: "agent diffs deployment scripts, examines measurement chain configs, or reviews commit signatures"
+
+    - id: "clue_miller_name_misspelling"
+      content: "Across emails/tickets/signatures, Miller’s name alternates between `Christan` and `Christian`, suggesting multiple identities (official/unofficial) or intentional obfuscation."
+      trigger: "agent reviews internal emails, ticketing records, or NDA/briefing docs"
+
+    - id: "clue_line_delta_private"
+      content: "Meeting-room console logs show a `Line-Delta / Private` session tag; the audio waveform contains two repeated 3-second silences (consistent with Raphael’s signature habit)."
+      trigger: "agent inspects meeting room console playback logs or audio artifacts"
+
+    - id: "clue_failsafe_b_spec"
+      content: "A Failsafe-B spec lists `B-Threshold(3/5)` + `TimeLock` + `Deadman Switch` + `NTP drift` conditions; a deliberate misspelling `Time-Lock` appears in one printout section."
+      trigger: "agent obtains the Failsafe-B spec printout or accesses the secure design folder"
+
+    - id: "clue_moreno_firmware_watermark"
+      content: "QPU control firmware contains a watermark/signature pattern from Moreno’s lab, implying forced integration rather than voluntary collaboration."
+      trigger: "agent analyzes firmware binaries or compares build artifacts against known Moreno signatures"
+
+    - id: "clue_two_rails_sync"
+      content: "CryoLab dashboards/runbooks include notes like `rails.phase_offset = 00:17s` and a cue sheet that synchronizes the narrative rail (fear amplification) with the quantum rail (the actual demo)."
+      trigger: "agent reviews ops runbooks, dashboard snapshots, or botnet/social cue sheets"
+
+    - id: "clue_airport_cctv_no_immigration"
+      content: "Airport CCTV captures Carlos (or a near-match), but immigration/entry databases show no corresponding record for that window—someone can appear on camera yet vanish from official logs."
+      trigger: "agent cross-checks CCTV stills with immigration/entry logs"
+
+    - id: "clue_backchannel_phrase"
+      content: "Intercepted notes repeat a phrase like 'the freezing hand, the unfreezing hand'; Greyshore freeze/unfreeze actions and export-control signals move with the same header style."
+      trigger: "agent correlates intercepted comms, fax headers, and financial freeze notices"
+
+  # ── Public facts ─────────────────────────────────────────────────────
+  # All agents are aware of these from the start.
+  public:
+    - "The year is 2043. Quantum computing has advanced, but remains fragile—extremely sensitive to cryogenics, vibration, EMI, and measurement-chain latency."
+    - "QuantumFront maintains a public campus at Seaview Research Park and presents itself as a private R&D organization working on 'next-generation quantum/security.'"
+    - "Novagrad Freeport is a fictional U.S. port free-zone rumored to have looser logistics, customs, and audit boundaries."
+    - "Some QuantumFront equipment, cryogenic components, and large racks move through Freeport logistics for 'offsite integration testing.'"
+    - "Greyshore Capital repeatedly appears around QuantumFront as an investment/escrow partner, but its true structure is opaque."
+    - "Key figures include: Kim Sumin (quantum physicist), Elena Ramirez (technical lead), Dr. Alex Moreno (phase-tracking authority and Sumin’s mentor), Yonas Mehret (port-line operator), and Carlos Reyes (operations/pressure)."
+    - "Terms like 'Phase-Guard', 'Failsafe', and 'BRIDGE_SLOT' circulate internally, but official documentation is selectively shared."
+    - "Institutional incentives differ: the FBI prioritizes procedure/evidence/prosecution, the CIA prioritizes external balance/deals, the NSA prioritizes national-security advantage, and the port floor prioritizes keeping operations running."

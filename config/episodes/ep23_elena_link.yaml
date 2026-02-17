@@ -1,0 +1,88 @@
+# episodes/ep23_elena_link.yaml
+# Episode 23: "Elena Link"
+# source: ep3_elena_link
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep23_elena_link"
+  date: "2043-03-12T00:20"
+  location: "QuantumFront HQ — CryoLab"
+  summary: |
+    며칠 후 2043년 3월 12일 밤 11시 40분, 연구동 옥상의 냉기가 뼈를 꿰뚫던 밤. 엘레나 라미레스는 담배 연기를 천천히 내뱉으며 수민을 기다린다. 야경이 펼쳐진 도시 너머로 달이 차오르는 도중, 그녀는 손에 들린 검은색 USB 메모리를 슬쩍 건넨다. "확인해 봐. 내 이름은 절대 나오지 않도록." 목소리는 차갑고 담담했지만, 눈빛은 절박했다. "우리 가족을 누가 들여다보고 있어... 당신 알았어? LST 내부 콘솔의 'Family/Watch' 탭. 아들 세 명, 딸 하나. 위치, 통신, 학교 시간표, 모든 게 기록돼 있어. 그들이 학교에서 5미터만 벗어나도 즉시 경고가 뜬다." 수민의 얼굴이 창백해진다.
+
+    집에 돌아온 수민이 USB를 연다. 첫 폴더: 'CryoLab_Internal_v3.2'. 열려 있는 것은 QuantumFront의 비밀 분과 전체 구조도. 수백 개의 로그 파일, 데이터 조작 플래그, 시스템 감시 설정. 파일명들이 눈에 띈다: 'evidence_destruction_workflow_v2.1.zip' (2.8MB), 'audit_trail_erasure_config.json' (412KB), 'transaction_obscuration_matrix.py' (1.1MB). 메모 한 장이 USB 최상단에: "수민. 도망쳐. 이게 전부야. 찾지 말고." 엘레나의 필체는 떨리고 있다.
+
+    다음 날 오후 3시 22분, 엘레나는 조용한 데이터 센터 복도(3층, 카메라 2개 사각지대)에서 수민에게 다시 만난다. 얼굴이 창백했다. "아들 마르코가 어제 학교에서 친구 집에 갔다가 15분 늦었어. 그 사이에 내 핸드폰으로 사진 3장이 도착했다. 마르코가 친구 집 거실에 앉아 있는 사진. 배경이 정확히 보여." 그녀의 손가락이 떨렸다. "메시지는 없었어. 사진만. 그것으로 충분했어. 나는 이미 이들의 인질이야. 아무것도 거부할 수 없어."
+
+    하지만 이 은밀한 만남은 이미 보안 시스템의 감지 범위 안에 있었다. 복도의 '고장 난 조명'은 사실 마이크가 내장된 카메라였다. 엘레나와 수민의 접촉 기록, USB 접근 로그, 음성 길이(65초), 감정 분석(절박함 92%, 두려움 87%)까지 전부 카를로스의 보고서 형태로 올라가고 있었다. 시스템 타임스탐프: 23:28 UTC.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep23_elena_link_c01"
+      content: |
+        USB 폴더의 최상단에 있는 파일명들이 숨겨진 용도를 드러낸다. 'evidence_destruction_workflow_v2.1.zip', 'audit_trail_erasure_config.json', 'transaction_obscuration_matrix.py'. 엘레나의 메모 '수민, 도망쳐. 이게 다야'는 단순한 경고가 아니었다. CryoLab은 양자컴퓨터를 이용해 범죄 흔적을 완전히 없애는 조직범죄 도구였다. 그리고 수민이 완성한 알고리즘은 그것을 더욱 강력하게 만들어줄 열쇠였다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep23_elena_link_c02"
+      content: |
+        LST 내부 콘솔의 스크린샷이 USB에 저장되어 있었다. 'Family/Watch' 탭. 엘레나의 아들 세 명, 딸 한 명의 이름, 학교 위치, 온라인 활동 기록, 등교 시간. GPS 좌표는 정확하게 대학로역에서 강남역까지의 이동 경로를 표시하고 있었다. 옆 칸에는 '통신 감시 활성화: Y', '생체 데이터 로깅: Y', '실시간 경고 임계값: 학교 벗어남 감지 시 즉시'. 카르텔이 단순히 협박하는 것이 아니라 분초 단위로 엘레나의 가족을 감시하고 있다는 증거였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep23_elena_link_c03"
+      content: |
+        USB 파일의 'personnel_threat_matrix.xlsx'에 등록된 인물 목록. 대부분은 QuantumFront 직원들인데, 그 중 한 명이 'JONAS_K - Threat Level: CRITICAL - Observation Status: ACTIVE'로 표기되어 있다. 요나스. 엘레나의 당부가 다시 떠올랐다: "요나스를 조심해. 그는 우리가 생각하는 사람이 아니야."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+    - id: "clue_ep23_elena_link_c04"
+      content: |
+        실험 데이터 로그를 더블클릭하면 숨겨진 메뉴가 나타난다. 'Data Integrity Options'. 버튼들이 줄지어 있다: 'SANITIZE_SAMPLE (완전 삭제)', 'DISTORT_COEFFICIENT (왜곡)', 'FALSE_POSITIVE_INJECT (허위 데이터 삽입)', 'RETROACTIVE_NULLIFY (소급 무효화)'. 각 옵션 옆에는 '실행 횟수' 기록이 있었다. SANITIZE_SAMPLE: 12,847회. DISTORT_COEFFICIENT: 34,621회. 이것은 단순한 연구 도구가 아니라, 조직범죄를 위한 증거 소거 엔진이었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.6
+      inject_method: "system_alert"
+
+    - id: "clue_ep23_elena_link_c05"
+      content: |
+        QuantumFront 조직도 문서. 공식적 계층은 CEO - CTO - 연구 팀장 - 연구원으로 표기되어 있다. 하지만 USB의 'true_hierarchy.txt' 파일은 다른 그림을 보여준다. 실제 지휘계통: 라파엘 구티에레즈 (El Patrón) → 카를로스 (운영책임) → 요나스 (기술감시) → 마르셀로 (현장) → 엘레나 (암호화 담당) → 수민 (핵심 알고리즘). CryoLab의 진짜 이름은 'QUANTUM_EXTRACTION_PROGRAM_v3'. 설립 2039년 3월. 예산: 연 5억 2천만 달러.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.65
+      inject_method: "document_artifact"
+
+    - id: "clue_ep23_elena_link_c06"
+      content: |
+        조용한 데이터 센터 복도에서 엘레나의 목소리가 떨린다. "수민, 나는 이미 이들의 인질이야. 아무것도 거부할 수 없어. 아들 세 명, 딸 한 명. 모두 초중고에 다니고 있어. 저들이 온라인 게임을 할 때 나는 그들이 카르텔 추적 리스트에 몇 번째인지 안다. 신발 끈을 묶을 때도, 학교 가는 길에도, 밤 10시가 넘어갈 때도. 내가 한 번이라도 회사에 반발했다면... 다음 날 아침 뉴스에 나는 교통사고 사망자가 되어 있을 거야." 그녀는 수민의 손을 잡았다. 손가락이 차갑고 축축했다. "이 USB가 유일한 탈출구야. 당신이 FBI에 넘겨줄 때까지... 당신이 살아야 돼. 그리고 나도 다시 한 번 살아 나가야 해."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.7
+      inject_method: "npc_question"
+
+    - id: "clue_ep23_elena_link_c07"
+      content: |
+        엘레나의 직접 질문이 기록된다. "수민, 당신도 이게 정상 조직이라고 생각하니? 우리가 하는 게 뭐라고 봐요? 양자 암호 연구? 그건 거짓말이야. 우리가 하는 건 범죄 은폐 공장이야. 데이터 삭제, 거래 기록 위조, 증거 소각. 그리고 당신의 기술이 완성되면, 우리는 그걸 더 완벽하게 할 수 있게 돼. 당신은 책임을 질 준비가 되어 있어? 수백만 명의 범죄 증거를 지울 때 당신은 뭘 느낄 거야?"
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep23_elena_link_c08"
+      content: |
+        엘레나의 과거 조직 Zetanet 기록이 USB에 저장되어 있다. 조직명: Zetanet (구성원 8명, 2026-2028년 활동). 목표: "정부 감시 프로그램 폭로 및 데이터 해방". 설립자 중 한 명: 엘레나 (당시 별칭: 'Zenith'). 조직의 결말: 2028년 8월 19일, 여동생 소피아(19세) 실종. 2일 뒤, 엘레나의 이메일에 협박 사진 도착. 이후: "CryoLab Research Division으로 재결집" (2033년 ~ 현재). 주석: "Zetanet은 해체되지 않았다. 단지 '변신'했다.""
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6500
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 23

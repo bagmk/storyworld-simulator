@@ -1,0 +1,86 @@
+# episodes/ep08_nsa_briefing.yaml
+# Episode 8: "NSA Briefing"
+# source: ep1_nsa_briefing
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep08_nsa_briefing"
+  date: "2042-02-25T19:30"
+  location: "QuantumFront HQ — secure briefing room"
+  summary: |
+    연구동 3층, 창문 없는 소회의실. 낡은 커피 자국이 남은 합판 테이블, 실험실 특유의 냄새가 벽에 스며든 채 환기팬 소리만 낮게 흐른다. 밀러가 들어와 노트북을 프로젝터에 연결하자 화면에 첫 슬라이드가 뜬다: 《RSA-2048: 30 days → 3 days》. 30일에서 3일로 향하는 화살표 하나. 전 세계 통신·금융을 지탱하는 암호가 이미 한 달 안에 깨졌으며, 목표는 사흘로 단축하는 것이라는 충격적 사실.
+
+    밀러가 낡은 폴더를 밀어온다. Top Secret 표식, 'per-key time: ~741.2 hours', 'target: 70 hours (10x improvement)'. 한 키당 30일, 목표 3일. 이 수치들은 수민이 연구해온 병목 지점—초전도-광학 변환 잡음, 위상 드리프트, 측정 체인 지연—과 정확히 겹친다. DARPA 테스트베드와 외부 QPU 로그를 합친 데이터. NSA 단독이 아니라는 암시.
+
+    "우리가 먼저 잡지 못하면 다른 누군가가 차지할 거야. 그리고 그 누군가가 민주주의 규범을 우선한다고 기대하기 어렵지." 밀러는 '저장 후 해독' 전략—지금 암호화된 통신을 몽땅 저장해뒀다가 나중에 한꺼번에 여는 것—의 현실적 위협을 설명한다. "우리는 이 기술로 테러를 예방하고 전쟁을 막을 수 있어. 수상한 금융 흐름을 실시간으로 파악하고, 지휘계통을 제때 읽으면, 미사일이 날아오기 전에 전파를 끊을 수 있지. 내 아이들이 성인이 될 땐, 우리가 이걸 통제하고 있어야 한다."
+
+    동시에 당근도 내민다. EB-2 NIW 특별 귀화 카드. 비자 가속, 임시 체류 보장. "법적인 문제는 NSA가 책임질 테니 기술 개발에만 집중하라." 수민은 기술적 가능성을 인정하면서도 법적·윤리적 위험을 지적한다. "통제 장치가 없다면 단순한 무기일 뿐입니다. 명령 타이밍과 결과 타이밍이 어긋나면 성능이 무너져요."
+
+    폴더 마지막 페이지 각주에 흐릿한 회색 글씨: 'human factors—TBD'. 사람 요인—미정. 결국 이런 연구는 기계가 아니라 사람의 손끝에서 완성된다. 수십 년짜리 계산도, 몇 줄의 코드나 한 번의 직감으로 달라질 수 있다. 밀러는 "계약서 초안은 오늘 저녁까지 보낼 거다. 내일 오후까지 답장을 받아보면 좋겠네"라며 자리를 뜬다.
+
+    수민은 대답하지 않았다. 문 손잡이를 잡은 손끝이 미세하게 뜨거웠다. 복도엔 아무도 없었다. 문이 닫히기 직전, 테이블 위 30일 → 3일 화살표가 시야에서 곧게 줄어들었다. 그 화살표는 단순한 수치가 아니었다. 세계가 이미 기울기 시작한 각도였다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep08_nsa_briefing_c01"
+      content: |
+        프로젝터 화면에 첫 슬라이드가 뜬다: 《RSA-2048: 30 days → 3 days》
+        30일에서 3일로 향하는 화살표 하나. 단순한 그래픽이 아니다. RSA-2048—전 세계 모든 금융과 통신을 암호화한 인류가 개발한 가장 안전한 자물쇠가 이미 한 달이면 뚫린다는 뜻. 그리고 그걸 사흘로 줄이겠다는 거였다. 수민의 숨이 막혔다. 바닥이 꺼져내리는 듯한 감각이 뒤통수를 눌렀다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep08_nsa_briefing_c02"
+      content: |
+        밀러가 폴더를 밀어온다. 표지엔 굵은 검정 매직으로 적힌 문장과 등급 도장: 'Top Secret – Critical National Security Information'. 첫 페이지를 펼치자 표와 그래프가 빽빽하다. 'per-key time: ~741.2 hours'라고 적혀 있고, 옆 칸에 'target: 70 hours (10x improvement)'. 한 키당 어림잡아 30일. 목표 3일. 숫자 하나하나가 머리에 못처럼 박혔다. 여백에는 빨간 펜으로 "이 부분만 해결하면 RSA 해독 시간·에너지 10배 이상 단축"이라는 문장이 밑줄과 함께 반복되어 있었다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep08_nsa_briefing_c03"
+      content: |
+        수민이 묻는다. "저 표는 실험 결과입니까, 시뮬레이션입니까." 밀러가 대답한다. "둘 다. 포키샤에서 돌린 결과와 우리가 빌린 외부 QPU의 로그를 합쳤지. NSA 단독은 아니고, DARPA가 테스트베드 관리하고 있어. 장비 벤더들 이름은 생략할게." 그는 짧게 웃었다. 웃음에는 자랑이나 허세가 없었다. 그냥 분류상 말 못 한다는 표시였다. NSA 혼자가 아니라는 것, 이미 여러 기관이 물밑에서 협력하고 있다는 뜻.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep08_nsa_briefing_c04"
+      content: |
+        밀러의 위협적 설득과 유인. "'저장하고 나중에 푼다' 전략을 쓰는 적들을 보고 있어. 지금은 30일이지만 중요한 타깃은 충분히 저장해뒀다. 넌 속도를 바꿀 수 있을 거야." 표적은 은행 계좌, 정부 회선, 수민 가족 이메일일 수도 있음. 동시에 문서 제시: 'DHS liaison: EB-2 NIW'. "기술만 완성하면 특별 귀화도 가능하다. 비자 가속, 임시 체류 보장까지 조율할 수 있다." 수민의 반응: 미지근. "좋은 제안이지만 그런 이유로 끌려가진 않겠습니다." 밀러의 목소리는 낮고 평평: "우리는 테러 예방, 전쟁 방지에 기술을 쓸 거야. 금융 흐름을 파악하고 지휘계통을 읽으면 미사일 전에 전파를 끊을 수 있지. 내 아이들이 성인이 될 땐 우리가 통제해야 한다. 그렇지 않으면 누군가 아래에서 살게 된다." 설득이 아니라 압박.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep08_nsa_briefing_c06"
+      content: |
+        폴더 마지막 페이지의 각주를 한 번 더 본다. 흐릿한 회색 글씨: 'human factors—TBD'. 사람 요인—미정. 결국 이런 연구는 기계가 아니라 사람의 손끝에서 완성된다. 수십 년짜리 계산도, 몇 줄의 코드나 한 번의 직감으로 달라질 수 있다. 결국 장비가 아니라 사람이 무너진다. 그래서 연구는 언제나 장인의 손끝에서 갈린다. 그래서 더 위험하고, 동시에 더 '예술'에 가깝다. 누가 먼저 손에 넣느냐가, 곧 세계의 미래를 결정할 것이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep08_nsa_briefing_c05"
+      content: |
+        수민이 묻는다. "법적 감시 한도를 넘는 행위가 포함됩니까." 밀러는 문서를 펼친다: 'Title 50 coordination', 'FISC oversight', 'NSA 법무 자문'. "공식적으로는 선을 넘지 않는다. 모두 영장 아래에서 이뤄진다. 제도는 존재해. 우리가 통제하면 무법이 아니라 법의 테두리 안에서 움직이는 거다. 법적 문제는 NSA가 책임질 테니 기술 개발에만 집중하라." 수민은 연필을 튕겼다. 익숙한 논리: '우리가 하면 괜찮다'. 하지만 가장 위험한 말.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.75
+      inject_method: "npc_question"
+
+    - id: "clue_ep08_nsa_briefing_c06"
+      content: |
+        밀러가 폴더를 정리하며 최후통첩: "계약서 초안은 오늘 저녁까지 보낼 거다. 내일 오후까지 답장을 받으면 좋겠네." 수민은 답하지 않음. 손끝이 뜨거움. 복도는 공허함. 문이 닫히기 직전, 테이블의 30일 → 3일 화살표가 시야에서 곧게 줄어든다. 단순한 수치가 아니다. 세계가 기울기 시작한 각도. 핵을 처음 본 세대의 공포. 이건 단순한 연구가 아니다. 핵무기가 한 시대의 질서를 바꿨듯, 이것도 세계의 균형을 뒤흔드는 무기다. 폴더 마지막 페이지 각주: 흐릿한 회색 글씨 'human factors—TBD'. 사람 요인—미정. 결국 이런 연구는 기계가 아니라 사람의 손끝에서 완성된다. 누가 먼저 손에 넣느냐가 세계의 미래를 결정할 것이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.85
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 5000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 18

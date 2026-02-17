@@ -1,0 +1,90 @@
+# episodes/ep28_el_patrons_eye.yaml
+# Episode 28: "El Patrons Eye"
+# source: ep4_el_patrons_eye
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep28_el_patrons_eye"
+  date: "2043-03-15T17:30"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    2043년 3월 15일 오후 5시 32분. QuantumFront HQ, 3층 보안 회의실. 화상 회의 참여자 목록 업데이트: 'Boss_Primary - Buenos Aires'. 화면 깜빡임. 나타난다: 라파엘 구티에레즈(Rafael Gutiérrez, 별칭 'El Patrón'). 나이 55세(추정), 아르헨티나 아센트, 얼굴 잔주름, 눈빛 차가움, 목소리 저음. "좋은 저녁입니다." 회의실의 공기가 응고된다.
+
+    직접 질문 (녹음 기록, 17:34): "수민, 당신의 계산식 검산을 도와줄 누군가가 있었나요?" 답: "아니요, 독립적으로." 3초 침묵(엘 파트론의 시그니처 기법). 이 침묵 속에서 그는 상대의 거짓을 읽는다고 알려짐. "그렇다면 당신은 이미 모레노 교수와 접촉하려고 계획 중이시겠네요?" 수민의 얼굴이 창백해진다. 청소년 시절 강연 기록? 이메일 로그? 어떻게 알았지?
+
+    엘 파트론: "35시간 만에 RSA-2048 해독 경로를 9.5배 가속화했다니. 계산이 참 빠르군요. 우리에겐 그런 사람이 필요합니다. 빠르고, 깊고, 무엇보다 두려움을 아는 사람. 두려움을 아는 사람이 가장 신뢰할 수 있거든." 그의 눈이 카메라를 통해 수민을 직통한다. 화면 너머의 눈이 실시간으로 수민을 관통한다.
+
+    회의 후 복도. 엘레나가 수민을 잡는다. 목소리가 떨린다: "나, 그 사람 눈에 들으면... 못 빠져나가. 12년을 증명했어. 너도 이제 같은 상태야. 우린... 뭘 해야 돼?" 수민은 침묵한다. 그의 기술이 자신을 포로로 만들었다.
+
+    밤 11시 57분, 수민은 노트 위에 새로운 방정식을 그린다. 이번엔 기술 공식이 아니라 권력의 공식이다. X=자신, Y1·Y2·Y3=NSA·카르텔·CIA. 방정식: 셋 모두가 X를 원함. 그렇다면 X=? 모든 세력의 교집합. 동시에 모두의 감시 대상. '내 기술이 내 감옥이 되었다.'"
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep28_el_patrons_eye_c01"
+      content: |
+        라파엘 구티에레즈의 첫 직접 등장. 화상 회의 화면에 나타난 순간. 신원: Rafael Gutiérrez, 별칭: 'El Patrón'. 나이: 55세 (추정). 국적: 아르헨티나. 활동 경력: 30년 (1차 카르텔 지도자: 1993-2005, 감옥 2005-2015, 2015년 이후 재정권 확보 후 현재). 현 직책: Quantum Operations Group CEO (명목), 실제 직책: 국제 조직범죄 네트워크 통합 운영자. 재산 규모: 추정 4-6조 달러. 특징: 3초 침묵 습관을 통한 상대 심리 분석.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep28_el_patrons_eye_c02"
+      content: |
+        엘 파트론의 첫 질문: "수민, 당신의 계산식 검산을 도와줄 누군가가 있었나요?" 이 질문은 단순한 궁금증이 아니었다. 그는 이미 수민의 개인 기록을 전부 확인했다. 가족 관계, 학교 기록, 논문 인용 기록, 2년 전의 모레노 강연 참석 기록까지. "당신은 모레노 교수와 접촉하려고 이미 계획하고 있겠네요?" 수민이 대답하지 않자, 엘 파트론이 말을 이었다: "호기심은 과학자의 미덕이지만, 때로 목을 죌 수도 있다는 걸 알아?"
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep28_el_patrons_eye_c03"
+      content: |
+        회의 중 엘레나의 신체 언어 분석. 손이 테이블 위에서 미세하게 떨린다. 눈빛이 화면 위의 엘 파트론과 수민을 번갈아 본다. 목에 맥박이 빠르게 뛴다. 그녀는 수민이 이 순간을 견딜 수 있을지 의심한다. 그리고 동시에 자신이 수민을 이 상황에 몰아 넣은 것에 대한 죄책감을 느낀다. USB를 건넨 엘레나, 그리고 그 USB가 불러온 연쇄반응.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep28_el_patrons_eye_c04"
+      content: |
+        엘 파트론의 평가 발언: "넌 참 계산이 빠르군. 35시간 안에 RSA-2048 해독의 9.5배 가속화 경로를 수립했다니. 우리에겐 그런 사람이 필요해. 움직임이 빠르고, 생각이 깊고, 무엇보다 두려움을 안다. 두려움을 아는 사람이 가장 신뢰할 수 있는 사람이거든." 이 말 한 마디에 수민은 자신이 이미 완전히 포착되었음을 깨닫는다. 도망칠 수 없다. 앞으로 몇 개월간, 자신의 움직임은 모두 감시될 것이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep28_el_patrons_eye_c05"
+      content: |
+        엘 파트론의 철학적 발언. "당신 말대로 신뢰가 수직이라면, 아래는 늘 질식합니다. 계급제 조직에서 가장 약한 링크는 항상 마지막 사다리 위의 사람이에요. 그래서 우리는 수평적 상호 감시 구조를 선호합니다. 각각이 다른 누군가를 감시하고, 누군가에게 감시받는 구조 말이에요. 그러면 누구도 음모를 꾸밀 수 없거든."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep28_el_patrons_eye_c06"
+      content: |
+        엘 파트론의 최종 발언: "질식은 질서의 가격이지. 숨을 고를 시간은 힘 있는 자가 산소를 나눴을 때만 온다. 당신은 지금 우리 조직의 중요한 인물이 되었어요. 그러니 당분간은 산소를 넉넉하게 받을 거라 생각하셔도 좋습니다. 물론, 당신이 계속 우리에게 필요한 한은 말이에요."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep28_el_patrons_eye_c07"
+      content: |
+        회의 후 복도. 엘레나가 수민의 팔을 잡는다. 목소리가 낮고 급한다: "나, 그 사람 눈에 들으면... 못 빠져나가. 넌 지금 그 눈에 들었어. 저 사람은 12년 동안 날 놓지 않았어. 그리고 넌 이제 날보다 훨씬 더 중요한 사람이야. 우리... 뭘 해야 돼?" 엘레나의 손가락이 수민의 팔을 깊게 누른다. 두 사람 모두 함정 속에 있다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.75
+      inject_method: "npc_question"
+
+    - id: "clue_ep28_el_patrons_eye_c08"
+      content: |
+        수민의 깨달음. 자신의 노트 위에 새로운 방정식을 그린다. 이번엔 기술 공식이 아니다. X = 나 (자신의 가치). Y = 세 개의 기관 (NSA, 카르텔, CIA). 방정식: Y1이 X를 원함, Y2도 X를 원함, Y3도 X를 원함. 그렇다면 X의 가치는? X를 가진 자가 세 개의 세력을 동시에 통제할 수 있다는 뜻이다. 그리고 반대로, 세 개의 세력이 동시에 X를 감시한다는 뜻이기도 하다. '나는 이제 이 거대한 판의 한 말이 아니라, 판 위의 모든 말이 노리는 목표가 되었다.'
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.8
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 8000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 29

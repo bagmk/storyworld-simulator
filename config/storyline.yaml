@@ -1,0 +1,479 @@
+title: "Quantum Shadows"
+version: "director_bible_v1"
+format_intent: "Director AI control map (gates + constraints + episode positioning)"
+
+premise: >-
+  차세대 양자 제어/네트워크 연구가 국가기관과 카르텔의 권력 게임으로 빨려 들어간다.
+  주인공 김수민은 연구 가속(펀딩/장비)과 생존(비자/가족 협박) 사이에서 선택을 강요받고,
+  'Failsafe'라는 안전장치를 설계하지만, 최종적으로 Q-Day(실제+가짜 레일 동기화) 사건을
+  통해 RSA 붕괴가 현실이 된다.
+
+time_span:
+  start: "2041-05-21"
+  end: "2043-03-30"
+
+# Story Arc Structure: 6-act structure with episode distribution
+story_arcs:
+  setup:
+    episodes: 3
+    arc_position: "Act 1 - Introduction"
+    description: "학회 접촉, NSA 첫 제안, 유령 자금의 냄새"
+    emotional_trajectory: "호기심 → 유혹 → 불안"
+    key_reveals: ["NSA grant label", "Greyshore hints", "Lab budget mismatch"]
+
+  discovery:
+    episodes: 11
+    arc_position: "Act 2-3 - Infiltration & Allies"
+    description: "LST 벙커 발견, FBI 접촉, 엘레나 과거, 압박 증가"
+    emotional_trajectory: "경계 → 동맹 탐색 → 배신 감지"
+    key_reveals: ["LST bunker", "Greyshore 403", "Elena USB", "Phase-Guard"]
+
+  technical:
+    episodes: 16
+    arc_position: "Act 4-5 - Weaponization & Siege"
+    description: "RSA 붕괴 가능성 계산, 모레노 납치, Failsafe B, NSA-카르텔 백채널"
+    emotional_trajectory: "공포 → 강제 협력 → 중재자로 전락"
+    key_reveals: ["RSA 30일→수분", "El Patron face", "Moreno kidnap", "NSA-cartel link"]
+
+  crisis:
+    episodes: 14
+    arc_position: "Act 5-6 - Mock Q-Day & Real Demo"
+    description: "가짜 Q-Day 여론 조작, 엘레나 죽음, 진짜 QPU 데모"
+    emotional_trajectory: "배신의 충격 → 절망 → 최후의 선택"
+    key_reveals: ["Mock Q-Day rails", "Elena death", "Two-rail sync", "Bridge key"]
+
+  climax:
+    episodes: 3
+    arc_position: "Act 6 - Real Q-Day"
+    description: "실제 RSA 붕괴, 글로벌 후폭풍, 권력 게임의 정점"
+    emotional_trajectory: "파국 → 책임 직면 → 체념"
+    key_reveals: ["RSA actually broken", "Global chaos", "All factions exposed"]
+
+  resolution:
+    episodes: 2
+    arc_position: "Act 7 - Aftermath"
+    description: "FBI 보호 감금, 증언 압박, 수민의 최종 결정"
+    emotional_trajectory: "고립 → 성찰 → 모호한 미래"
+    key_reveals: ["Protective custody", "Grand jury", "Sumin's choice"]
+
+# Total episodes: 49 (3+11+16+14+3+2)
+
+core_entities:
+  factions:
+    quantumfront:
+      goal: "연구 성과/생존. 겉은 연구소, 속은 권력의 전장"
+    nsa_miller:
+      goal: "해독/독점(기술 게임). 혼란은 '관리' 가능하다고 믿음"
+    fbi_sophia:
+      goal: "법 집행/증거/대배심. (보호 약속은 종종 공허)"
+    cia_ethan:
+      goal: "지정학/협상/침투 라인. NSA에 뒤처지지 않으려 함"
+    cartel_el_patron:
+      goal: "자금/물자/여론/정보전을 한꺼번에 운용. '현실'과 '현실감'을 동시에 제작"
+    lst_logistics_scada_team:
+      goal: "물류/감시제어/내러티브 레일 실행(가짜 Q-Day 포함)"
+    greyshore_capital:
+      goal: "자금 레일(동결/해제)로 협상력 확보"
+    ofac_treasury:
+      goal: "제재 후보/동결 카드 준비"
+
+  main_characters:
+    sumin_kim:
+      role: "주인공/양자 제어 핵심 엔지니어"
+      drives: ["야망", "생존", "죄책감"]
+      hard_constraints:
+        - "ep8_showdown_quantum_part2 이전에는 'RSA가 실제로 몇 분 만에 깨졌다'를 확정적으로 말할 수 없다"
+        - "ep5_kidnap_moreno 이전에는 '모레노 납치'를 알거나 예고할 수 없다(단, 불길한 징후/감시는 가능)"
+    prof_moreno:
+      role: "멘토/알고리즘의 마지막 조각"
+      note: "납치/강제 계산의 중심 축"
+    christian_miller:
+      role: "NSA SIGINT/HyperConnect QI"
+      note: "기술적 결과만 집착. 다른 기관/법 집행과 단절"
+    sophia:
+      role: "FBI 접촉 창구"
+      note: "법적 절차(대배심/문서요구)와 보호의 한계"
+    ethan:
+      role: "CIA 담당"
+      note: "해외 자금흐름/지정학적 가치 강조, 협상 관점"
+    elena_ramirez:
+      role: "내부자/USB/과거(Zetanet) 연결"
+      fate_gate: "ep6_betrayal_elena_death 이전 사망 금지"
+    carlos:
+      role: "내부 관리자/협박/압박"
+    jonas_mehret:
+      role: "컨설턴트/모호한 충성"
+      note: "수민을 시험/감시/조율하는 느낌"
+    rafael_gutierrez_el_patron:
+      role: "카르텔 최고 책임자"
+      face_gate: "ep4_el_patrons_eye 이전 직접 대면/화상 노출 금지(간접 음성/전언은 가능)"
+    marcelo:
+      role: "현장 규율/폭력의 메시지"
+
+  critical_artifacts:
+    - id: "greyshore_ledger_marker"
+      meaning: "자금 레일의 존재(403/권한 차단 포함)"
+    - id: "lst_logo"
+      meaning: "Logistics/SCADA 팀 흔적"
+    - id: "phase_guard"
+      meaning: "위상 드리프트 봉인 루틴(수민이 만든 기술적 '자기보호')"
+    - id: "failsafe_v1"
+      meaning: "엿보기/미세보정/봉인 규칙 기반 안전장치"
+    - id: "failsafe_B_bridge_key"
+      meaning: "다섯 조각 키(분산/시간잠금/데드맨 스위치) — 균형 장치이자 협박 장치"
+    - id: "line_delta_private_session"
+      meaning: "백채널/타임락/포렌식 미끼"
+    - id: "qday_two_rails"
+      meaning: "현실(진짜 QPU) + 현실감(가짜 Q-Day) 동기화"
+    - id: "audit_delay_rail"
+      meaning: "측정체인 결과 공개 타이밍 통제(외부 삽입/조작)"
+
+director_control_model:
+  flags:
+    nsa_contacted: {default: false}
+    nsa_briefing_happened: {default: false}
+    greyshore_seen: {default: false}
+    lst_bunker_seen: {default: false}
+    failsafe_v1_designed: {default: false}
+    phase_guard_exists: {default: false}
+    fbi_contact_established: {default: false}
+    cia_overture_done: {default: false}
+    el_patron_face_revealed: {default: false}
+    moreno_kidnapped: {default: false}
+    nsa_cartel_backchannel_confirmed: {default: false}
+    failsafe_B_agreed: {default: false}
+    elena_dead: {default: false}
+    mock_qday_launched: {default: false}
+    qpu_demo_started: {default: false}
+    rsa_broken_real: {default: false}
+    global_aftermath_visible: {default: false}
+    sumin_removed_from_world: {default: false}
+
+  hard_forbidden_events:
+    - event: "direct_show_RSA_key_recovery_in_minutes"
+      not_before_flag: "qpu_demo_started"
+      rationale: "초반은 '가능성/추정/목표' 단계여야 긴장 유지"
+    - event: "moreno_kidnap_or_death"
+      not_before_flag: "moreno_kidnapped"
+      rationale: "모레노는 '마지막 조각'으로 ep5까지 살아있어야 함"
+    - event: "elena_death"
+      not_before_flag: "failsafe_B_agreed"
+      rationale: "배신/참극은 ep6 후반의 꺾이는 지점"
+    - event: "mock_qday_public_panic"
+      not_before_flag: "mock_qday_launched"
+      rationale: "여론 레일은 ep7에서 발화"
+    - event: "patron_face_to_face"
+      not_before_flag: "el_patron_face_revealed"
+      rationale: "파트론은 ep4까지는 '그림자/전언/음성'이 유효"
+    - event: "fbi_cutoff_protective_custody"
+      not_before_flag: "global_aftermath_visible"
+      rationale: "후폭풍 이후(사건 직후) 구금/차단이 들어가야 인과가 맞음"
+
+  soft_constraints:
+    - "각 에피소드에서 즉흥 대사는 가능하지만, 아래 'episode_exit_conditions'를 깨면 디렉터가 강제 리라이트"
+    - "로맨스/사이드 퀘스트는 가능하되, '키(열쇠)·레일(자금/물자/여론/정보)·QPU' 메인 축을 방해하면 컷"
+
+acts:
+  - id: "act1"
+    title: "Introduction and Set-Up"
+    description: >-
+      학회에서 시작해 NSA의 첫 접근과 유령 자금(benefactor)의 냄새가 쌓인다.
+      수민의 야망이 처음으로 '권력의 세계'와 접촉한다.
+    episodes: ["ep0"]
+    milestones:
+      - id: "ep0_academic_presentation"
+        description: "모레노 발표 + NSA 그랜트 라벨의 첫 단서"
+      - id: "ep0_nsa_funding"
+        description: "NSA 밀러의 첫 접근(국가안보 프로젝트의 그림자)"
+      - id: "ep0_ben_encounter"
+        description: "벤과 재회(성공/유혹/이동 제안)"
+      - id: "ep0_lab_whispers"
+        description: "CryoLab 장비·예산 불일치(투명하지 않은 흐름)"
+
+  - id: "act2"
+    title: "Infiltration and Doctrine"
+    description: >-
+      연구소 내부에서 LST 흔적이 포착되고, NSA 브리핑이 현실적인 위협으로 다가온다.
+      Greyshore 자금과 접근 차단, 계약/비자/가족을 통한 압박이 시작된다.
+    episodes: ["ep1"]
+    milestones:
+      - id: "ep1_nsa_briefing"
+        description: "RSA-2048 30일→3일 브리핑(기술이 곧 무기임을 각인)"
+      - id: "ep1_opening"
+        description: "Greyshore Capital 흔적 + 403 접근 차단"
+      - id: "ep1_lst_first_contact"
+        description: "지하 벙커/Logistics-SCADA 팀 실체 목격"
+      - id: "ep1_roots_slow_burn"
+        description: "Failsafe v1 설계(연구의 자기방어 논리)"
+      - id: "ep1_company_roots"
+        description: "Phase-Guard 개발(위상 봉인 루틴)"
+
+  - id: "act3"
+    title: "Allies, Spies, and Family"
+    description: >-
+      FBI 접촉이 생기며 '법 집행' 레일이 열리지만, 동맹은 여전히 불명확하다.
+      엘레나의 USB/과거가 드러나고, 요나스의 모호함이 수민을 흔든다.
+    episodes: ["ep2", "ep3"]
+    milestones:
+      - id: "ep2_first_contact_fbi"
+        description: "‘Ms. Green’ 라인으로 첫 통화 → FBI 소피아 접선"
+      - id: "ep3_elena_link"
+        description: "엘레나가 USB 전달(내부 증거/컷아웃 제안)"
+      - id: "ep3_elena_past"
+        description: "엘레나 과거(Zetanet/NSA의 어두운 프로젝트 목격)"
+
+  - id: "act4"
+    title: "Weaponization"
+    description: >-
+      RSA 붕괴 가능성이 계산으로 명문화되며 게임의 룰이 바뀐다.
+      CIA가 판에 들어오고, 파트론이 '얼굴'을 드러낸다.
+      마지막 조각(모레노)을 둘러싼 폭력적 전환이 시작된다.
+    episodes: ["ep4", "ep5"]
+    milestones:
+      - id: "ep4_tech_revelation"
+        description: "RSA-2048 30일(→수분 가능성) 계산이 내부 보고로 격상"
+      - id: "ep4_CIA_overture"
+        description: "CIA 이선의 극비 브리핑/지정학적 가치 강조"
+      - id: "ep4_el_patrons_eye"
+        description: "엘 파트론(라파엘) 첫 화상 대면"
+      - id: "ep5_kidnap_moreno"
+        description: "모레노 납치(알고리즘 마지막 조각 확보)"
+
+  - id: "act5"
+    title: "Siege and Q-Day Setup"
+    description: >-
+      NSA–카르텔 백채널이 드러나고, 수민은 중재자(브리지)로 끌려간다.
+      Failsafe-B(분산키/시간잠금/데드맨) 합의가 '균형'처럼 보이지만,
+      내부 배신과 엘레나의 죽음이 수민을 무너뜨린다.
+      이어서 카르텔은 '가짜 Q-Day'로 여론 레일을 점화한다.
+    episodes: ["ep6", "ep7"]
+    milestones:
+      - id: "ep6_backchannel_with_nsa"
+        description: "NSA–카르텔 물밑 타협의 씨앗 노출"
+      - id: "ep6_failsafe_contract"
+        description: "Failsafe-B(브리지 키) 합의"
+      - id: "ep6_betrayal_elena_death"
+        description: "엘레나 피살(내부 붕괴/수민의 신뢰 붕괴)"
+      - id: "ep7_mock_qday"
+        description: "가짜 Q-Day 실행(현실감 레일)"
+
+  - id: "act6"
+    title: "Showdown and Fallout"
+    description: >-
+      결전 직전 벤의 유혹, 가족 통화, NSA의 측정체인 조작이 겹친다.
+      QPU 시운전이 시작되고(진짜 레일), RSA가 실제로 붕괴한다.
+      사건 직후 수민은 '보호' 명목의 구금으로 세계에서 지워진다.
+    episodes: ["ep8", "ep9"]
+    milestones:
+      - id: "ep8_showdown_quantum_part1"
+        description: "노바그라드 항만 지하 QPU 시운전 개시 + 진입 지연"
+      - id: "ep8_showdown_quantum_part2"
+        description: "RSA 키 복구/군사 통신 해독 현실화"
+      - id: "ep8_fbi_cutoff"
+        description: "사건 직후 보호구금/연락 차단"
+      - id: "ep9_epilogue"
+        description: "세계 질서 재편 + 진상 은폐 + 수민의 유배"
+
+episodes:
+  - episode_id: "ep0"
+    title: "Academic Spark"
+    act: "act1"
+    date_range: {start: "2041-05-21T10:00", end: "2041-12-10T11:00"}
+    synopsis: >-
+      학회에서 모레노의 발표와 NSA 그랜트 단서가 등장한다.
+      밀러의 첫 접근과 벤의 유혹으로, 수민은 연구가 '권력의 도구'가 될 수 있음을 체감한다.
+    beats:
+      - {id: "ep0_academic_presentation", must_happen: true}
+      - {id: "ep0_nsa_funding", must_happen: true}
+      - {id: "ep0_ben_encounter", must_happen: true}
+      - {id: "ep0_lab_whispers", must_happen: true}
+    exit_conditions:
+      set_flags:
+        nsa_contacted: true
+
+  - episode_id: "ep1"
+    title: "Doctrine + Benefactor"
+    act: "act2"
+    date_range: {start: "2042-02-05T16:20", end: "2043-03-05T00:40"}
+    synopsis: >-
+      LST의 이상 징후와 NSA 브리핑이 겹치며 연구소는 이미 전장임이 드러난다.
+      Greyshore 자금의 흔적(권한 차단), 계약/비자 압박, 지하 벙커 목격,
+      그리고 수민의 Failsafe/Phase-Guard 개발이 진행된다.
+    beats:
+      - {id: "ep1_unexpected_visitors", must_happen: true}
+      - {id: "ep1_patrons_doctrine", must_happen: true}
+      - {id: "ep1_between_faction", must_happen: true}
+      - {id: "ep1_nsa_briefing", must_happen: true}
+      - {id: "ep1_opening", must_happen: true}
+      - {id: "ep1_personal_risk", must_happen: true}
+      - {id: "ep1_conflict_meeting", must_happen: true}
+      - {id: "ep1_cartel_shadow", must_happen: true}
+      - {id: "ep1_lst_first_contact", must_happen: true}
+      - {id: "ep1_roots_slow_burn", must_happen: true}
+      - {id: "ep1_company_roots", must_happen: true}
+    exit_conditions:
+      set_flags:
+        nsa_briefing_happened: true
+        greyshore_seen: true
+        lst_bunker_seen: true
+        failsafe_v1_designed: true
+        phase_guard_exists: true
+
+  - episode_id: "ep2"
+    title: "First Contact (FBI)"
+    act: "act3"
+    date_range: {start: "2043-03-05T15:20", end: "2043-03-09T11:30"}
+    synopsis: >-
+      수민에게 비밀 연락이 오고, FBI 소피아와 접선이 시작된다.
+      가족 통화는 감정적 완충이지만 동시에 약점(협박 가능성)을 다시 상기시킨다.
+    beats:
+      - {id: "ep2_elena_carlos_dynamic", must_happen: true}
+      - {id: "ep2_shadow_call", must_happen: true}
+      - {id: "ep2_family_call", must_happen: true}
+      - {id: "ep2_first_contact_fbi", must_happen: true}
+      - {id: "ep2_ambiguous_ally", must_happen: true}
+      - {id: "ep2_fbi_strategy", must_happen: true}
+    exit_conditions:
+      set_flags:
+        fbi_contact_established: true
+
+  - episode_id: "ep3"
+    title: "Elena's USB"
+    act: "act3"
+    date_range: {start: "2043-03-10T21:10", end: "2043-03-12T22:00"}
+    synopsis: >-
+      엘레나가 내부 증거를 넘기며 '협력'을 제안하고, 그녀의 과거가 드러난다.
+      동맹의 모호함(요나스/기관 간 알력)이 심리 압력을 키운다.
+    beats:
+      - {id: "ep3_double_agent", must_happen: true}
+      - {id: "ep3_elena_link", must_happen: true}
+      - {id: "ep3_elena_past", must_happen: true}
+    exit_conditions:
+      set_flags: {}
+
+  - episode_id: "ep4"
+    title: "RSA as a Weapon"
+    act: "act4"
+    date_range: {start: "2043-03-13T03:40", end: "2043-03-15T17:30"}
+    synopsis: >-
+      '가능성'이 '무기'로 격상된다. 내부 폭력 메시지가 터지고,
+      CIA가 개입하며, 파트론이 얼굴을 드러낸다.
+    beats:
+      - {id: "ep4_message_in_bodies", must_happen: true}
+      - {id: "ep4_tech_revelation", must_happen: true}
+      - {id: "ep4_CIA_overture", must_happen: true}
+      - {id: "ep4_el_patrons_eye", must_happen: true}
+    exit_conditions:
+      set_flags:
+        cia_overture_done: true
+        el_patron_face_revealed: true
+
+  - episode_id: "ep5"
+    title: "Kidnap the Last Piece"
+    act: "act4"
+    date_range: {start: "2043-03-15T23:10", end: "2043-03-16T19:00"}
+    synopsis: >-
+      엘레나가 탈출을 제안하지만 감시망은 더 촘촘하다.
+      카르텔은 모레노(마지막 조각)를 납치해 게임을 강제로 다음 단계로 넘긴다.
+    beats:
+      - {id: "ep5_elena_secret", must_happen: true}
+      - {id: "ep5_kidnap_moreno", must_happen: true}
+    exit_conditions:
+      set_flags:
+        moreno_kidnapped: true
+
+  - episode_id: "ep6"
+    title: "Bridge-Key Contract"
+    act: "act5"
+    date_range: {start: "2043-03-16T00:00", end: "2043-03-19T23:40"}
+    synopsis: >-
+      수민은 도망이 아니라 '게이트 설계자'가 되기로 한다.
+      NSA–카르텔 백채널이 보이고, Failsafe-B(브리지 키)로 균형을 만들려 하지만,
+      내부 배신과 엘레나의 죽음이 모든 것을 뒤집는다.
+    beats:
+      - {id: "ep6_failsafe_seed", must_happen: true}
+      - {id: "ep6_backchannel_with_nsa", must_happen: true}
+      - {id: "ep6_cartel_pressure", must_happen: true}
+      - {id: "ep6_failsafe_contract", must_happen: true}
+      - {id: "ep6_the_line", must_happen: true}
+      - {id: "ep6_betrayal_elena_death", must_happen: true}
+    exit_conditions:
+      set_flags:
+        nsa_cartel_backchannel_confirmed: true
+        failsafe_B_agreed: true
+        elena_dead: true
+
+  - episode_id: "ep7"
+    title: "Mock Q-Day"
+    act: "act5"
+    date_range: {start: "2043-03-21T18:20", end: "2043-03-22T16:30"}
+    synopsis: >-
+      수민은 기관들의 무능/위선을 보고 흔들리며, 카르텔 쪽으로 기울 가능성이 커진다.
+      카르텔은 진짜 QPU 없이도 공포를 퍼뜨리는 가짜 Q-Day로 협상 우위를 만든다.
+    beats:
+      - {id: "ep7_shift_allegiance", must_happen: true}
+      - {id: "ep7_mock_qday", must_happen: true}
+    exit_conditions:
+      set_flags:
+        mock_qday_launched: true
+
+  - episode_id: "ep8"
+    title: "Two Rails, One Collapse"
+    act: "act6"
+    date_range: {start: "2043-03-23T20:15", end: "2043-03-28T18:20"}
+    synopsis: >-
+      결전 전 마지막 유혹(벤), 마지막 인간성(가족), 마지막 조작(NSA 측정체인)이 겹친다.
+      지하에서 QPU 시운전이 시작되고, 결국 RSA가 실제로 붕괴한다.
+      이후 수민은 모든 기관에게 위험인물이 되어 '보호' 명목으로 세계에서 격리된다.
+    beats:
+      - {id: "ep8_ben_offer", must_happen: true}
+      - {id: "ep8_family_voice", must_happen: true}
+      - {id: "ep8_nsa_tampering", must_happen: true}
+      - {id: "ep8_compliance_demoe", must_happen: true}
+      - {id: "ep8_fbi_pressure", must_happen: true}
+      - {id: "ep8_patron_failsafe", must_happen: true}
+      - {id: "ep8_showdown_quantum_part1", must_happen: true}
+      - {id: "ep8_showdown_quantum_part2", must_happen: true}
+      - {id: "ep8_aftermath", must_happen: true}
+      - {id: "ep8_fbi_cutoff", must_happen: true}
+    exit_conditions:
+      set_flags:
+        qpu_demo_started: true
+        rsa_broken_real: true
+        global_aftermath_visible: true
+
+  - episode_id: "ep9"
+    title: "Epilogue: Exile"
+    act: "act6"
+    date_range: {start: "2043-03-30T23:15", end: "2043-03-30T23:15"}
+    synopsis: >-
+      RSA 붕괴의 여파로 학계/산업/정보기관 판도가 뒤집힌다.
+      진상은 은폐되고, 연구소는 역사에서 삭제되며, 수민은 사실상 연금/유배로 사라진다.
+    beats:
+      - {id: "ep9_epilogue", must_happen: true}
+    exit_conditions:
+      set_flags:
+        sumin_removed_from_world: true
+
+director_runtime_playbook:
+  episode_handout_protocol:
+    - "Director에게는 'episodes[episode_id]' 하나만 전달 가능"
+    - "그때 Director는 반드시 'acts'와 'director_control_model.hard_forbidden_events'를 함께 로드"
+    - "Director는 각 씬에서 발생 이벤트를 flags에 반영하고, not_before를 위반하면 즉시 씬을 리다이렉트"
+  redirect_strategies:
+    premature_reveal:
+      rsa_real_break_too_early:
+        do:
+          - "대사를 '가능성/추정/목표/시뮬레이션 결과'로 낮춤"
+          - "실측 로그/키 출력 화면은 금지(모니터는 노이즈/에러/부분 출력만)"
+      patron_face_too_early:
+        do:
+          - "전언/대리인/합성 음성/문서 서명으로 대체"
+      moreno_event_too_early:
+        do:
+          - "납치 대신 '이동 제한/감시/연락 두절 전조'로 다운그레이드"
+    alliance_drift:
+      sumin_turns_cartel_too_early:
+        do:
+          - "수민의 동기는 '생존'과 '통제 욕망' 사이에서 흔들리게만 유지"
+          - "결정적 배신(군사 키 전달)은 ep8_part2에서만 허용"

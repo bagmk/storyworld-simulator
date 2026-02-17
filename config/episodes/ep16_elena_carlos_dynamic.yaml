@@ -1,0 +1,62 @@
+# episodes/ep16_elena_carlos_dynamic.yaml
+# Episode 16: "Elena Carlos Dynamic"
+# source: ep2_elena_carlos_dynamic
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep16_elena_carlos_dynamic"
+  date: "2043-03-05T15:20"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    QuantumFront 회의실. 수민이 FAILSAFE 알고리듬으로 달성한 양자 프로세싱 속도 향상(약 83배)을 보고하자, 엘레나는 전략적 관심을 드러낸다. 카를로스는 노트북 스크린을 재빠르게 감싸며 "위에서 내려온 지시"라며 말을 꺼낸다. 그의 어투는 차갑고 결정적이다: "기존 자금 흐름을 지금부터 50% 더 가동해야 한다." 엘레나는 즉각 반발한다. "불가능해. 위험만 커지는 거야. 추적당할걸 모르나?" 카를로스는 미동 없이 응수한다. "불가능 따윈 없어. 이건 그냥 해야 하는 거다." 수민은 회의실 구석에서 이 대화를 더 이상 무시할 수 없다는 느낌으로 듣는다. 단순한 실험 관리를 넘어 뭔가 더 거대한 것의 소리가 들렸다. 그 순간, 카를로스가 잠깐 수민을 향해 눈을 돌린다. 엘레나도 눈치챈다. 대화는 즉시 끊긴다. "다음에 마저 얘기하지."
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep16_elena_carlos_dynamic_c01"
+      content: "수민의 FAILSAFE 알고리듬: 양자 프로세싱 속도 약 83배 향상. 카를로스의 눈빛이 이 수치에 반응함."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.45
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep16_elena_carlos_dynamic_c02"
+      content: "카를로스의 냉정한 지시: \"위에서 내려왔다. 기존 자금 루트에서 50% 더 가동해야 한다.\" 어투는 협상의 여지가 없음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep16_elena_carlos_dynamic_c03"
+      content: "엘레나의 즉각적 반발: \"불가능해. 늘리면 추적당한다.\" 그녀는 위험을 정확히 이해하고 있음을 암시."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep16_elena_carlos_dynamic_c04"
+      content: "카를로스의 차가운 응수: \"불가능 따윈 없어. 이건 그냥 해야 하는 거다.\" — 상급 지시의 압박감 전달."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep16_elena_carlos_dynamic_c05"
+      content: "수민의 직감: 기술 용어와 자금 수치가 뒤섞인 이 대화는 단순한 실험 관리를 훨씬 넘어선다. 뭔가 다른 체계가 작동 중."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep16_elena_carlos_dynamic_c06"
+      content: "카를로스가 수민을 향해 눈을 돌린다. 대화의 본질이 노출되기 전, 두 사람은 침묵한다. \"다음에 마저 얘기하지.\"라는 엘버무림만 남음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 11

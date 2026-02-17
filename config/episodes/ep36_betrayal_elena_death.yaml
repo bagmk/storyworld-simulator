@@ -1,0 +1,184 @@
+# episodes/ep36_betrayal_elena_death.yaml
+# Episode 36: "Betrayal Elena Death"
+# source: ep6_betrayal_elena_death
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep36_betrayal_elena_death"
+  date: "2043-03-19T23:40"
+  location: "Novograad Maritime Sub-48 — underground research facility / transit corridor"
+  summary: |
+    모레노 교수 납치 이후 QuantumFront 내부는 불안과 의심으로 술렁인다. 엘레나와 수민은 몰래 정보를 수집해왔지만, 그중 일부가 새어 나간 정황이 보여 엘파트론은 내부에 배신자가 있다고 의심한다. 기술팀 중 누구인가가 FBI나 CIA에 정보를 흘렸을 가능성. 또는 엘레나 자신이 이중 스파이라는 의심까지.
+
+    그리고 곧 비극이 찾아온다. 2043-03-19 23시 40분, 노바그라드 항만 지하 연구실 B-Level(-4층)에 긴급 경보가 울린다. LVOC 시스템이 '비정상 접근'을 감지했다는 신호. 엘레나가 핵심 기술 캐비닛에 접근하려던 것 같았다. 아니, 빠져나오려던 것 같았다. 비상 출구로 향하던 엘레나가 지하 측면 복도에서 무엇인가에 저격당해 쓰러진다. 총성은 한 번. suppressor가 물린 짧은 총구가 문 틈에서 반짝이고 사라진다. 비상등 깜빡임. 엘레나가 흘러내린다.
+
+    수민이 달려가지만 이미 그녀는 치명상을 입은 뒤였다. 뇌와 척수를 관통하는 사격. 의식은 있지만 신체는 마비 상태. 죽기 직전 엘레나는 떨리는 목소리로 수민의 통신기에 마지막 메시지를 남기려 한다. "요나스… 조심… 그가…" 음절이 끊긴다. 호흡음만 남는다. 그리고 신호가 끊긴다. 조직 내 불신과 공포가 극에 달한다. 수민의 내면도 한없이 흔들린다. 자신이 설계한 시스템이 사람을 죽였을까? 자신이 만든 '안전장치'가 되레 처형 도구가 되었을까?
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep36_betrayal_elena_death_c01"
+      content: |
+        엘레나가 총격당하기 직전 누군가에게 암호화된 메시지를 보내려다 실패한 흔적:
+        
+        /var/log/comms_bridge.txt (시각: 2043-03-19T23:38:07Z):
+        [ENCRYPTED] to: 084.32.241.58 (NSA infrastructure)
+        [SUBJECT] URGENT DEFECTION SIGNAL / OPERATION STEALTH-7 COMPROMISED
+        [STATUS] Message queued but not sent
+        [REASON] Network gateway blocked by Novograad firewall rules
+        [TIMESTAMP] 2043-03-19T23:38:12.445Z - connection timeout
+        
+        즉, 엘레나는 마지막 순간에 CIA 연락처(요나스가 아닌 진짜 상관)에게 '배신을 고백'하려고 했다. 자신이 수민을 보호했다는 것을, 기술을 구하려고 했다는 것을, 그리고 누군가가 자신을 죽이려 한다는 것을. 하지만 실패했다. 네트워크가 차단되어 있었다.
+
+        정보 누출자를 추리할 단서: 누가 통신 게이트웨이를 알고 있었나?
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep36_betrayal_elena_death_c02"
+      content: |
+        내부자 또는 통신 채널에서 정보가 새어 나갔을 가능성이 제기:
+        
+        라파엘의 음성 메모 (사후 FBI 절편):
+        "엘레나가 움직였다. 우리가 모르던 채널로 뭔가를 흘렸다. 정보 누수 패턴이 카를로스 이후로는 엘레나한테서만 나온다. 뭔가 이상해. 그 여자가 우리 편이 아닐 수도 있다."
+
+        라파엘의 판단: 내부자 처벌 작전 결정. "확인차 시험을 한다. 그리고 실패하면 제거한다."
+
+        내부자 여혐의와 정보 누출 가능성이 조직 내 의심과 공포를 고조시킨다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep36_betrayal_elena_death_c03"
+      content: |
+        노바그라드 항만 CCTV에 엘레나 뒤를 따라가는 그림자가 포착됨:
+        
+        CCTV timestamp: 2043-03-19T23:35:44 ~ 23:38:22 (total tracking: 2m38s)
+        Camera: Sub-48 Corridor-B LVOC feed
+        
+        그림자 분석:
+        - Height: 182cm ±5 (평균 남성 키)
+        - Gait: Military-trained (보행 패턴이 특수부대 스타일)
+        - Weapon: Clearly visible suppressed rifle (HK417 또는 유사 7.62x51)
+        - Posture: Professional assassin profile
+        
+        정체 불명의 인물이 엘레나를 의도적으로 추격했다. 이것은 우발적 총격이 아니라 '작전'이었다.
+        
+        누가 이를 지시했나?
+        - 라파엘? (배신자 제거라고 생각해서?)
+        - NSA? (엘레나가 정보를 흘렸다고 판단?)
+        - CIA 내부의 다른 파벌? (엘레나를 제거하려는 세력?)
+        - 아니면 요나스? (요나스가 누군가를 위해서?)
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep36_betrayal_elena_death_c04"
+      content: |
+        노바그라드 항만 지하 연구실에 실제로 긴급 폐쇄(락다운) 절차가 작동된 기록:
+        
+        System log: LVOC_CRITICAL_ALERT_LOG.bin
+        [TIMESTAMP] 2043-03-19T23:39:51.223Z
+        [ALERT_CODE] UNAUTHORIZED_ACCESS / TIER-1_PERIMETER_BREACH
+        [LOCATION] Sub-48 Core Lab, Cabinet M-7 (Quantum algorithm storage)
+        [ACTION] System lockdown initiated
+        [DOORS_SEALED] 12 bulkheads sealed remotely
+        [COMMS_JAMMED] All internal VoIP/radio channels blocked
+        [RESULT] All personnel isolated in their respective sections
+        
+        이 시간에, 수민은 위층에 고립되었고, 카를로스는 사령실에 고립되었고, 엘레나는 복도에서 죽어가고 있었다.
+        
+        누가 이 락다운을 트리거했나?
+        - 자동 시스템? (하지만 이렇게 정확한 타이밍은 우연이 아니다)
+        - 요나스? (그가 보안 관리자이므로 가능)
+        - 외부 해킹? (NSA 또는 CIA의 원격 접근?)
+        
+        이 락다운 덕분에 누구도 엘레나를 도울 수 없었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep36_betrayal_elena_death_c05"
+      content: |
+        모레노 교수가 일부 핵심 기술 실행을 강요받았던 흔적 확인:
+        
+        CryoLab quantum simulation log: qsim_runtime_2043-03-19.log
+        
+        런타임 프로세스 추적:
+        - 14:22 UTC: Moreno starts kernel compilation (forced?)
+        - 16:47 UTC: Algorithm validation begins (signature: Moreno_L_t_module_v4.2)
+        - 18:09 UTC: Real-time linear correction module executed
+        - 23:35 UTC: Sudden process termination (SIGKILL - abnormal)
+        
+        모레노의 알고리즘이 '실행되었다'. 아직 완전하지는 않지만, 기술의 핵심이 작동했다는 뜻이다.
+        
+        그리고 23:35분, 엘레나가 움직이기 시작한 바로 그 시간에, 모레노의 프로세스가 강제 종료되었다. 이것은 우연이 아니다.
+        
+        추측: 모레노를 고문/협박해서 알고리즘을 강제로 실행하게 했고, 그 다음 '더 이상 쓸모없다'고 판단해 제거(또는 격리)했을 가능성.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep36_betrayal_elena_death_c06"
+      content: |
+        요나스의 행동이 기이하다. 엘레나가 총격당하는 그 순간, 요나스는 어디에 있었나?
+
+        접근 로그 추적:
+        - 2043-03-19T23:35:00: Jonas enters Section-C (Moreno detention area)
+        - 2043-03-19T23:37:15: Jonas moves to Section-B (Corridor-B junction)
+        - 2043-03-19T23:38:40: Jonas logged out from LVOC system
+        - 2043-03-19T23:38:45: Elena shot (CCTV timestamp)
+        - 2043-03-19T23:39:51: Building-wide lockdown activated
+
+        요나스의 위치가 의심스럽다. 그는 마치 '총격 직후에 탈출'하기 위해 타이밍을 맞춘 것처럼 보인다. 또는 그가 총격을 지시했을 가능성. 또는 그가 총격범 자신일 수도.
+
+        그런데 요나스는 누구인가? 왜 신원이 공식적으로 존재하지 않나? 왜 그는 이 시스템의 모든 핵심 영역에 접근 가능한가?
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep36_betrayal_elena_death_c07"
+      content: |
+        엘레나의 시신에서 발견된 물증. 의료 팀이 수집:
+
+        [BALLISTIC_EVIDENCE]
+        탄환 모델: 7.62x51mm NATO (소비에트 규격) - Dragunov/Mosin-Nagant 호환
+        관통 패턴: 척수 완전 관통, 뇌간 손상 (일격 사망 확률: 98%)
+        거리: 총구 25~30m (정확한 집중사격 거리)
+        탄환 회수: 복도 벽판에서 함몰된 상태로 검출
+
+        암살 분석 결론: 전문 저격수. 일회용 계약 킬러 특징. 장거리 정밀사격 훈련 받은 특수부대 출신 가능성 95%.
+
+        총기는 그 자리에 남겨지지 않았다. 이것은 충동적 범죄가 아니라 '정확하게 계획된 처형'이었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep36_betrayal_elena_death_c08"
+      content: |
+        엘레나 사망 직후 수민의 정신 상태 기록. 격리실 CCTV 영상:
+
+        시각 23:45 ~ 23:52 (총격 7분 후):
+        - 수민, 엘레나의 시신 옆에서 움직이지 않음
+        - 호흡음: 얕고 빠른 과호흡 상태
+        - 손 떨림: 심각한 수준
+        - 중얼거림 (녹음 기록): "내가... 내가 만든 거네. 이 시스템이... 사람을 죽였어."
+        - 눈물 여부: 확인 불가 (화면 조도 낮음)
+
+        기술적 죄책감. 수민의 안전 시스템(LVOC)이 '의도하지 않게' 살인 도구가 되었다는 깨달음. 자신이 만든 락다운이 엘레나를 고립시키고, 자신이 설계한 보안이 암살자에게 완벽한 조건을 제공했다는 사실. 이것이 수민을 심각한 정신적 위기로 몬다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "엘레나의 사망 확인. 그리고 그것이 우발이 아니라 '작전'이었다는 의심"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 9000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 32

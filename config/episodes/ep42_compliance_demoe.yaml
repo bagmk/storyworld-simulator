@@ -1,0 +1,77 @@
+# episodes/ep42_compliance_demoe.yaml
+# Episode 42: "Compliance Demoe"
+# source: ep8_compliance_demoe
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep42_compliance_demoe"
+  date: "2043-03-25T15:30"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    QuantumFront 프로젝트 최종 단계, 노바그라드 항만 지하 연구실. 모레노 교수팀 20명이 극한의 실험 환경에 배치된다. 목표는 간단하다: 18시간 안에 RSA-2048 해독 알고리즘 완성형을 실시간으로 시연하는 것. 팀원들은 RF 차단실(RF shielding chamber) 안에서 100데시벨 이상의 고출력 RF 노이즈와 -196도의 액체질소 증기 속에서 일한다. 심박 모니터, 뇌파계, 산소포화도 센서로 모든 생체신호가 모니터링된다. 요나스(LST 팀 책임자)가 통제실에 서 있다.
+
+    16시간 후, 팀원들은 극도의 스트레스 상태에 빠진다. 셜리 양은 손가락이 떨려 키보드를 누르지 못한다. 톰은 환각 증상을 보인다. "코드가 움직여... 뱀처럼..." 하이코는 심박이 시간당 140회를 넘는다. 몸은 한계에 달했다. 알고리즘은 95% 완성되었지만, 마지막 5%를 위해선 이들의 상태가 악화되어야 한다는 게 카르텔의 계산이다.
+
+    그 순간, 요나스가 명령한다. "RF 출력을 30데시벨 올려라. 그리고 질소 분사를 가속시켜. 혼돈은 여기서부터 시작입니다." 그의 목소리에는 감정이 없다. 그는 단순히 지시 받은 대로 실행한다. 스피커에 고음의 신음이 울린다. 팀원들이 바닥에 쓰러진다. 한 명, 두 명, 세 명... 셜리가 비명을 질른다. 하지만 비상 탈출 문은 열리지 않는다. 잠겨 있다. 요나스가 밖의 보안문을 완전히 폐쇄한 것이다.
+
+    수민과 모레노 교수는 인접한 관찰실에서 모니터를 통해 이 장면을 직접 목격한다. 모레노의 얼굴이 하얀색으로 변한다. 20년을 함께한 제자들이 죽어간다. 구조 신호가 울리지만, 아무도 응하지 않는다. 이것은 이미 정해진 시나리오였다. 엘 파트론이 전한 메시지는 명확했다: "더 이상 필요 없다. 증거는 흩어져야 한다. 결과만 남긴다."
+
+    모레노 교수는 무릎을 꿇는다. 수민도 움직이지 못한다. 화면 속 팀원들의 생명 신호가 하나씩 0으로 떨어진다. 이것이 대가다. 이것이 기술의 무게다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep42_compliance_demoe_c01"
+      content: |
+        16시간 전, 노바그라드 항만 지하 B5층 'RF Shielding Lab-7'. 모레노 교수팀 20명이 배치된다. 생체신호 모니터(심박, 뇌파, 산소포화도)가 각자 에 부착되고, 통제실 화면 20개에는 실시간 바이탈 사인이 뜬다. RF 차단실 내부: 100데시벨 이상의 고출력 전자기파, -196도의 액체질소 증기, 압력 가변 챔버. 목표는 명확하다: 18시간 안에 RSA-2048 해독 알고리즘 완성형을 실시간으로 검증하는 것. 이 환경에서 정상적인 인간은 4시간이 한계다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.45
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep42_compliance_demoe_c02"
+      content: |
+        16시간 경과. RF 출력: 처음 80dB → 현재 110dB로 상향. 액체질소 분사: 30초 간격 → 10초 간격으로 가속. 온도 변동: -10도에서 +60도 사이를 반복 (심신 혼란 최대화). 셜리 양의 심박: 시간당 158회. 톰의 뇌파: Delta wave(의식 상실 신호) 점점 강해짐. 하이코: 혈중 산소 포화도 82% (정상 95-100%). 제임스: 손가락 경련으로 키보드 입력 불가. 환경적 압박을 극대화한 결과, 팀원들은 생리적 한계에 도달했지만 알고리즘은 95% 완성되었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep42_compliance_demoe_c03"
+      content: |
+        톰이 환각을 호소한다. "코드가... 움직여. 뱀처럼." 셜리는 지시에 응답하지 않는다. 심박 모니터는 맥박이 불규칙하게 뛰는 것을 보여준다. 하이코가 입에서 거품을 문다. 비상 경보가 울린다. 화재 감지기, 산소 부족 경고, 의료 응급 신호. 실험실 외부의 보안문이 열려야 한다. 비상 탈출 프로토콜이 실행되어야 한다. 하지만 아무것도 열리지 않는다. 문 위의 LED 불빛이 빨간색으로 점멸한다. "LOCKDOWN PROTOCOL - AUTHORIZED PERSONNEL ONLY."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep42_compliance_demoe_c04"
+      content: |
+        통제실에서 요나스의 목소리가 울린다. 감정 없이, 기계적으로. "RF 출력을 추가로 30데시벨 올려라. 그리고 질소 분사를 가속시켜. 지금 정신이 깨어날 가능성이 있다." 잠깐 있다가, 그가 선언한다. "혼돈은 여기서부터 시작입니다. (Chaos begins from here.)" 그는 버튼을 누른다. RF 출력이 이상한 음향으로 변한다. 공기 분사 사이렌이 울린다. 밖의 보안문이 FULLY SEALED 상태로 전환된다. 현장에 갇힌 20명은 아무도 나올 수 없다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep42_compliance_demoe_c05"
+      content: |
+        인접한 관찰실에서 수민과 모레노 교수는 모니터를 통해 이를 보고 있다. 화면 20개 중 하나씩 검은색으로 변한다. 모니터 1: 심박 신호 평탄선 (cardiac arrest). 모니터 4: 뇌파 활동 중단. 모니터 7: 생명 신호 완료(0 bpm). 모레노 교수의 얼굴이 완전히 창백해진다. 입에서 소리가 나오지 않는다. 수민도 마찬가지다. 20년을 함께한 제자들, 친구들, 그들이 모니터 위에서 죽어간다. 20명의 생명 신호가 15분 안에 모두 0으로 떨어진다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep42_compliance_demoe_c06"
+      content: |
+        모레노 교수의 휴대폰이 울린다. 라파엘(엘 파트론)의 목소리. "교수님, 안녕하세요. 나쁜 소식입니다. 당신의 팀원들은 더 이상 필요가 없습니다. 실험에 성공했으니까요. 이제 결과만 남기면 됩니다. 그리고 당신은—아직 가족이 남아 있지 않습니까? 서울의 딸분, 런던의 아드님. 그들도 필요 없다고 할 수도 있지만... 우리는 그럴 마음이 없습니다. 각 증거는 흩어져야 합니다. 그리고 결과만 남깁니다. 당신도 이제 결과를 만들 차례입니다. 알겠습니까?" 모레노 교수는 답할 수 없다. 전화를 떨어뜨린다. 그리고 무릎을 꿇는다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "파트론이 정보·심리전까지 총괄하는 전략가임을 확정"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 11

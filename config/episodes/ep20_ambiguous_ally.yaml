@@ -1,0 +1,56 @@
+# episodes/ep20_ambiguous_ally.yaml
+# Episode 20: "Ambiguous Ally"
+# source: ep2_ambiguous_ally
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep20_ambiguous_ally"
+  date: "2043-03-08T22:40"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    FBI 소피아와의 첫 통화 이후, 수민의 불안감은 가중된다. 밤 11시. QuantumFront 연구동 라운지. 요나스가 나타난다. 남색 후드. 술에 취한 듯 비틀거리며 수민 옆에 무너져 앉는다. 손에는 맥주 캔. "너 요즘… 재밌는 일 하더라." 그의 눈은 가늘게 떠 있다. 농담처럼 들리지만, 그 말은 여러 의미를 품고 있다. FBI와의 접촉을 눈치챈 건가? 아니면 QPU 실험 성과를 가리킨 건가? 수민은 순간 얼어붙는다. 요나스는 계속 비틀거린다. 그의 웃음—정체불명의 그 웃음 뒤에는 경고인지, 위협인지 알 수 없는 심연이 있다. 그 순간, 수민의 휴대폰 이 울렸다면. 하지만 울리지 않았다. 요나스는 그저 "나중에 얘기해"라며 자리를 떠난다. 뒷모습에서 이어팟 줄이 흔들린다. 수민의 가슴에는 차갑고 점성 있는 두려움만 남는다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep20_ambiguous_ally_c01"
+      content: "요나스의 모호한 말: \"너 요즘 재밌는 일 하더라.\" FBI 접촉을 눈치챈 건지, QPU 실험을 가리킨 건지 알 수 없다. 의도적 모호성."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep20_ambiguous_ally_c02"
+      content: "술 취한 척 하는 태도, 농담 같은 어투 뒤의 정체불명의 웃음. 경고와 위협이 뒤섞임. 수민을 흔드는 전술."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep20_ambiguous_ally_c03"
+      content: "수민의 내적 혼란: 발각되었나? 아니면 이것도 또 다른 감시자의 신호인가? 요나스가 누구를 위해 일하는가?"
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep20_ambiguous_ally_c04"
+      content: "요나스는 QuantumFront 내부 코드명(Phase-Guard / Line-Delta) 등 보안 수준의 정보를 정확히 알고 있다. 내부 네트워크 접근 권한 보유 암시."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.6
+      inject_method: "system_alert"
+
+    - id: "clue_ep20_ambiguous_ally_c05"
+      content: "요나스의 뒷모습에서 이어팟 줄이 흔들린다. 그가 누군가와 계속 통신 중일 가능성. 표면의 술 취함은 위장일 수 있음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2600
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

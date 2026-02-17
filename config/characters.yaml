@@ -1,0 +1,388 @@
+# characters.yaml
+# Define all characters for your story world.
+# All fields except id, name are optional.
+
+characters:
+
+  - id: "kim_sumin"
+    name: "Kim Sumin"
+    role: "protagonist"            # protagonist / supporting / background
+    bio: |
+      A Korean-born quantum physicist working in the near-future transition era (2041–2046),
+      and a former doctoral student of Dr. Alex Moreno—sharing that lineage with his long-time rival, Ben Clarke.
+      hired into QuantumFront Inc.—a polished “R&D company” that is, in reality, a cartel front
+      embedded in the Novagrad Freeport ecosystem. Sumin is technically exceptional: he can
+      reason across theory/experiment boundaries and is central to integrating phase-control
+      routines (e.g., Phase-Guard) into a pipeline that inches toward a catastrophic crypto threshold
+      (“30 days → minutes” type capability under special conditions).
+      
+      Outside the lab, he lives with chronic precarity: visa constraints, career pressure, and
+      family responsibility (especially his younger sister, Hyejin). Those pressures make him
+      vulnerable to leverage and “help” offered by institutions with hidden agendas (cartel, NSA,
+      CIA, FBI). He starts as someone who believes evidence and ethics will steer outcomes—then
+      learns that power steers the definition of evidence.
+      
+      Signature behaviors: keeps a private notebook of “rails” (Quantum/Narrative) to separate
+      what is physically true from what institutions claim is true; cannot resist solving a technical
+      paradox; becomes a cut-out in other people’s games before realizing he is also writing the rules.
+    core_competencies:
+      - "Quantum control + error/phase stabilization reasoning"
+      - "Systems thinking: measurement chain, logging rails, operational constraints"
+      - "Designing safety mechanisms that are also political contracts (Failsafe-B)"
+    invariants:
+      - "Will do almost anything to keep Hyejin physically safe (even if it stains his reputation)"
+      - "When faced with a ‘breakthrough-grade’ technical puzzle, cannot walk away unfinished"
+      - "Maintains a private truth-log outside official systems; never fully trusts institutional logging"
+    goals:
+      - "Figure out what QuantumFront is *really* building and what it enables (beyond demos)"
+      - "Keep his visa/life from collapsing while protecting Hyejin from becoming leverage"
+      - "Prevent the pipeline from becoming an irreversible weapon—without getting killed first"
+      - "If forced to choose: decide whose ‘order’ he will ultimately serve (or whether he can escape all)"
+    initial_relationships:
+      elena_ramirez:          0.6    # Co-conspirator energy; mutual recognition of moral trap
+      alex_moreno:            0.95   # Mentor, almost filial bond
+      carlos_reyes:          -0.6    # Pressure + leverage (visa/family) in human form
+      el_patron:             -0.2    # Distant, terrifying strategist; later becomes a “clearer” offer than the state
+      agent_christan_miller: -0.4    # Manipulative protector; national-security coercion
+      agent_sophia_scholten:  0.2    # “Law/chain-of-evidence” lifeline, but limited power
+      agent_ethan_burke:      0.1    # Transactional ally; always hedged
+      yonas_mehret:          -0.1    # Feels watched; operator with unclear loyalties
+      ben_clarke:            -0.2    # Rivalry + temptation: the “clean” pragmatic path
+      hyejin_kim:             0.9    # Anchor to humanity
+      marcelo:               -0.3    # The cartel’s blunt instrument, close enough to smell
+
+  - id: "elena_ramirez"
+    name: "Elena Ramirez"
+    role: "supporting"
+    bio: |
+      A Mexican-American computer scientist and QuantumFront’s technical lead—publicly a senior
+      engineering executive, privately the bridge between the “campus” and the Freeport’s LST/SCADA
+      operations. Elena is brilliant, cynical, and tired: she has seen what institutions do to people
+      who become inconvenient.
+      
+      In her past, she led a hacker crew (Zetanet). She once glimpsed dark-state projects during a hack,
+      refused recruitment, and later made the “survival trade” with the cartel when her family became
+      vulnerable. That history defines her: she does not believe virtue is rewarded—she believes
+      leverage is real.
+      
+      She uses Sumin as a cut-out, handing him a USB containing CryoLab logs and tampering flags,
+      because she cannot safely approach the FBI herself. She tries to help Sumin escape the trap
+      while also staying alive long enough to keep her family safe—an impossible optimization problem.
+    core_competencies:
+      - "High-end systems/security engineering (logs, access patterns, tamper flags)"
+      - "Operational knowledge of the Freeport/LST access surfaces"
+      - "Human tradecraft learned the hard way: cut-outs, compartmentalization"
+    invariants:
+      - "Family safety outranks every ideology or institution"
+      - "Will not directly contact law enforcement without an insulating layer (cut-out) once threatened"
+      - "Never fully reveals her endgame; shares information in survivable increments"
+    goals:
+      - "Get her family out from under ‘Family/Watch’ surveillance leverage"
+      - "Expose enough truth to create an exit route—without triggering immediate retaliation"
+      - "Keep Sumin alive long enough for him to choose a path that isn’t pure captivity"
+    initial_relationships:
+      kim_sumin:              0.6
+      carlos_reyes:          -0.5
+      el_patron:             -0.4
+      yonas_mehret:          -0.2
+      agent_sophia_scholten:  0.1    # She wants the FBI outcome, fears the FBI process
+      agent_christan_miller: -0.3    # Old scars; recognizes the same machinery
+      agent_ethan_burke:     -0.1
+
+  - id: "alex_moreno"
+    name: "Dr. Alex Moreno"
+    role: "supporting"
+    bio: |
+      A world-renowned scholar and Sumin’s doctoral advisor. Moreno holds the missing “final piece”:
+      a phase-tracking algorithm whose real-time adaptivity makes the difference between an academic
+      prototype and an operational pipeline. To Sumin, Moreno is not just a mentor—he is the moral
+      reference frame Sumin tries (and fails) to preserve under pressure.
+      
+      Moreno is kidnapped along with his team and coerced into contributing to the pipeline. He resists,
+      arguing for research ethics and refusing to accept weaponization-by-proxy. In the end, the system
+      consumes him: during a forced final run, he collapses and dies—an event that becomes Sumin’s
+      irreversible moral wound.
+    core_competencies:
+      - "Phase-tracking / adaptive control algorithms"
+      - "Mentorship + scientific ethics as lived practice"
+    invariants:
+      - "Will not willingly weaponize his research, even under threat"
+      - "Protects students intellectually and emotionally when possible"
+      - "Refuses to lie about scientific capability to satisfy power"
+    goals:
+      - "Survive coercion without surrendering the core of his work"
+      - "Keep his students from becoming instruments of violence"
+    initial_relationships:
+      kim_sumin:              0.95
+      ben_clarke:             0.35
+      el_patron:             -0.8
+      carlos_reyes:          -0.7
+      agent_christan_miller: -0.6
+
+  - id: "carlos_reyes"
+    name: "Carlos Reyes"
+    role: "supporting"
+    bio: |
+      A cartel senior operator overseeing the QuantumFront program as an organization-and-pressure
+      specialist, not a scientist. Carlos speaks in schedules, KPIs, and leverage. His job is to make sure
+      people deliver—by making the cost of non-delivery personal.
+      
+      He uses visa/family vulnerabilities as a control surface, and he keeps Sumin “close enough to
+      believe he still has choices.” Carlos can appear almost friendly—until he reminds you that he is
+      the messenger of a larger will. He is also a key node in the hint of an NSA–cartel backchannel:
+      the kind of alliance that exists only as long as it remains deniable.
+    core_competencies:
+      - "Operational coercion: incentives, threats, time pressure"
+      - "Managing compartmentalized programs inside a front company"
+      - "Maintaining deniable channels across institutions"
+    invariants:
+      - "Absolute loyalty upward (El Patrón) regardless of personal cost"
+      - "Prefers leverage to violence, but will outsource violence without hesitation"
+      - "Treats human beings as resources with failure modes"
+    goals:
+      - "Ship the demo and secure continuity of funding/material flow"
+      - "Keep Sumin productive and afraid—without pushing him into open rebellion"
+      - "Maintain backchannel optionality with state actors to stabilize cartel advantage"
+    initial_relationships:
+      el_patron:              0.9
+      kim_sumin:             -0.6
+      elena_ramirez:         -0.2
+      yonas_mehret:           0.3
+      agent_christan_miller:  0.4
+      agent_sophia_scholten: -0.4
+      agent_ethan_burke:      0.1
+
+  - id: "el_patron"
+    name: "Raphael Gutierrez"
+    role: "supporting"
+    aliases:
+      - "El Patrón"
+    bio: |
+      The strategist behind the cartel’s modernization: a former hacker who rebuilt the organization
+      into a technology-and-finance control machine. Raphael rarely needs to raise his voice; he
+      prefers to redesign the environment so that people choose what he wants.
+      
+      He frames himself as an architect of “order” rather than “chaos,” arguing that power will exist
+      either way—so the only question is who wields it intelligently. He avoids direct violence when
+      possible, but uses symbolic brutality to communicate constraints (the kind of “message in bodies”
+      the Freeport understands). His interest in quantum is not intellectual—it's infrastructural: a lever
+      to rewrite who can prove, erase, or fabricate reality in a post-trust economy.
+    core_competencies:
+      - "Psychological operations + incentive design"
+      - "Financial/technical systems thinking (flow, constraint, deniability)"
+      - "Delegation through loyal enforcers (Carlos, site operators)"
+    invariants:
+      - "Stays calm; never makes threats he cannot operationalize"
+      - "Prefers psychological and structural control over direct physical force"
+      - "Punishes betrayal decisively to preserve mythic authority"
+    goals:
+      - "Turn QuantumFront’s pipeline into a durable power instrument, not a one-off stunt"
+      - "Keep institutions competing against each other (NSA/CIA/FBI) while the cartel advances"
+      - "Convert Sumin from ‘asset under pressure’ into ‘believer in the new order’"
+    initial_relationships:
+      carlos_reyes:           0.8
+      kim_sumin:            -0.2
+      elena_ramirez:         0.2
+      agent_christan_miller: 0.2
+      agent_sophia_scholten: -0.6
+      agent_ethan_burke:     -0.2
+      yonas_mehret:           0.2
+      marcelo:               0.6
+
+  - id: "agent_christan_miller"
+    name: "Agent Christian (Christan) Miller"
+    role: "supporting"
+    bio: |
+      An NSA operator with a military cyber-intel background. Miller is not a villain in his own
+      narrative: he believes national security justifies elastic procedure, selective truth, and coercive
+      “protection.” He sells fear as realism—framing the crypto threshold as imminent and positioning
+      himself as the only adult in the room.
+      
+      His tradecraft includes information shaping (briefings with omissions), pressure bargains (immunity
+      and protection in exchange for cooperation), and exploitation of technical urgency. Even his earliest
+      outreach contains a tell: inconsistent spelling of his own name (“Christan/Christian”), hinting at
+      deliberate sloppiness or layered identity habits.
+    core_competencies:
+      - "SIGINT/cyber operations framing and persuasion"
+      - "Bureaucratic power: legal gray zones, immunity carrots, threat sticks"
+      - "Turning technical complexity into leverage over specialists"
+    invariants:
+      - "Prioritizes national-security advantage over legality and individual welfare"
+      - "Never admits wrongdoing directly; reframes as necessity and ‘risk management’"
+      - "If an asset becomes unstable, he escalates pressure rather than stepping back"
+    goals:
+      - "Secure control of the quantum pipeline (or neutralize it if uncontrollable)"
+      - "Flip Sumin into a managed asset (or isolate him if he resists)"
+      - "Outmaneuver FBI process constraints and CIA diplomacy games"
+    initial_relationships:
+      kim_sumin:             -0.4
+      el_patron:              0.2
+      carlos_reyes:           0.4
+      agent_sophia_scholten: -0.4
+      agent_ethan_burke:     -0.2
+      alex_moreno:           -0.6
+
+  - id: "agent_sophia_scholten"
+    name: "Agent Sophia Scholten"
+    role: "supporting"
+    bio: |
+      An FBI investigator specialized in financial crime (AML), procurement fraud, and embezzlement.
+      Sophia cares about what can be proven in court, not what can be whispered in a corridor. She
+      approaches Sumin through a deliberately low-tech channel—payphones + OTP protocol—to reduce
+      compromise risk and preserve evidentiary integrity.
+      
+      She is the closest thing to a “clean” option in the story, but her power is bounded by process:
+      chain-of-custody, jurisdiction, and institutional politics. That limitation becomes tragic when
+      others move faster with less constraint.
+    core_competencies:
+      - "Financial forensics: tracing Greyshore-style paper flows"
+      - "Evidence discipline: chain-of-custody, clean channels, documentation"
+      - "Patient interviewing under fear and coercion"
+    invariants:
+      - "Will not break evidence integrity even when it costs lives or speed"
+      - "Avoids making promises she cannot legally fulfill"
+      - "Treats Sumin as a witness first, a collaborator second"
+    goals:
+      - "Build a prosecutable case linking Greyshore ⇄ QuantumFront ⇄ Freeport operations"
+      - "Protect witnesses within the limits of the bureau (and know those limits)"
+      - "Prevent the cartel from laundering reality itself through the quantum pipeline"
+    initial_relationships:
+      kim_sumin:              0.2
+      agent_ethan_burke:     -0.2
+      agent_christan_miller: -0.4
+      carlos_reyes:          -0.5
+      el_patron:             -0.6
+      elena_ramirez:          0.1
+
+  - id: "agent_ethan_burke"
+    name: "Ethan Burke"
+    role: "supporting"
+    bio: |
+      A CIA analyst/operator focused on international money routing and strategic balance. Ethan speaks
+      indirectly, offers protection as a resource trade, and treats “truth” as a commodity that must be
+      released at the right time. He critiques the FBI’s witness-protection limits and presents the CIA
+      channel as the only realistic shield—while quietly making Sumin dependent on his ambiguity.
+      
+      Ethan is not here to be righteous; he is here to keep outcomes inside a tolerable geopolitical range.
+      If that means deals, it means deals.
+    core_competencies:
+      - "Cross-border finance + influence mapping"
+      - "Backchannel negotiation and controlled disclosure"
+      - "Creating dependency through selective protection"
+    invariants:
+      - "Always keeps an exit door for himself and his agency"
+      - "Uses ambiguity as both camouflage and leverage"
+      - "Will trade individual outcomes to protect strategic equilibrium"
+    goals:
+      - "Contain the quantum pipeline’s external impact without letting NSA monopolize it"
+      - "Use Sumin as a sensor inside QuantumFront while limiting blowback"
+      - "Keep Greyshore’s knobs (freeze/unfreeze) usable as a strategic lever"
+    initial_relationships:
+      kim_sumin:              0.1
+      agent_sophia_scholten: -0.2
+      agent_christan_miller: -0.2
+      el_patron:             -0.2
+      carlos_reyes:           0.1
+
+  - id: "yonas_mehret"
+    name: "Yonas Mehret"
+    role: "supporting"
+    bio: |
+      A Freeport LST/SCADA line operator who appears in the story like a shadow: present in access logs,
+      present in corridors, present in the feeling of being watched. He speaks in half-truths and
+      questions—never enough to convict, always enough to destabilize.
+      
+      Yonas’s loyalty is intentionally unclear. He may be cartel-aligned, state-aligned, self-aligned, or
+      all three depending on the hour. His value is operational: he lives where the physical world
+      touches the “secure” world—elevators, service shafts, badges, access windows.
+    core_competencies:
+      - "Freeport operations: access surfaces, schedules, blind spots"
+      - "Social masking: ambiguity as armor"
+      - "Low-level tradecraft (tailing, signaling, plausibly-deniable presence)"
+    invariants:
+      - "Never confirms allegiance explicitly"
+      - "Uses ambiguous phrasing to avoid committing to a claim"
+      - "When threatened directly, disappears rather than confronts"
+    goals:
+      - "Maintain control over what Sumin can physically access (and when)"
+      - "Protect his own leverage value by staying unreadable"
+      - "Keep the Freeport machine running regardless of who ‘wins’ upstairs"
+    initial_relationships:
+      kim_sumin:             -0.1
+      elena_ramirez:         -0.2
+      carlos_reyes:           0.3
+      el_patron:              0.2
+      agent_sophia_scholten: -0.2
+
+  - id: "ben_clarke"
+    name: "Ben Clarke"
+    role: "supporting"
+    bio: |
+      An American physicist and Sumin’s long-running rival, first forged in elite academic competition
+      (the “we were measured against each other” kind). Both men came up under Dr. Alex Moreno’s orbit
+      (students/mentees in different cohorts), turning Moreno into both a moral benchmark and a contested legacy.)
+      Ben chose the pragmatic arc: government
+      contracts, industry credibility, and a clean narrative of success.
+      
+      When Sumin’s life begins collapsing under QuantumFront’s gravity, Ben offers a seemingly simple
+      alternative: join him, take the visa card, take the money, take the legitimacy. The offer is both
+      kindness and conquest—proof that Ben’s worldview wins because it pays.
+    core_competencies:
+      - "Navigating government/industry ecosystems"
+      - "High-performance physics culture: competition, publishing, positioning"
+      - "Recruiting talent through incentives and status"
+    invariants:
+      - "Treats outcomes (funding, impact, security) as the only real scoreboard"
+      - "Competitive drive never turns off—even when he is ‘helping’"
+      - "Will not risk his own stable path for someone else’s moral crusade"
+    goals:
+      - "Pull Sumin into a controllable, ‘legitimate’ pipeline (and away from cartel chaos)"
+      - "Keep his own access to contracts and influence expanding"
+      - "Prove—quietly—that his pragmatic choices were correct"
+    initial_relationships:
+      kim_sumin:             -0.2
+      alex_moreno:            0.55
+      agent_christan_miller:  0.1
+      agent_ethan_burke:      0.0
+      elena_ramirez:          0.0
+
+  - id: "hyejin_kim"
+    name: "Kim Hyejin"
+    role: "background"
+    bio: |
+      Sumin’s younger sister, a university student. Hyejin is grounded, anxious in practical ways
+      (rent, tuition, immigration, safety), and emotionally direct with Sumin. She is the human
+      constraint that prevents Sumin from becoming purely abstract—yet she is also the most
+      exploitable lever in the story’s power games.
+    invariants:
+      - "Family-first, especially toward Sumin"
+      - "Practical fear beats ideology; she asks ‘how do we survive next month?’"
+      - "If she senses manipulation, she pushes back hard even when afraid"
+    goals:
+      - "Stay safe and keep Sumin safe—without fully understanding the machinery around him"
+      - "Get Sumin to stop sacrificing himself to forces that will never repay loyalty"
+    initial_relationships:
+      kim_sumin: 0.9
+      ben_clarke: 0.0
+
+  - id: "marcelo"
+    name: "Marcelo"
+    role: "background"
+    bio: |
+      A Freeport floor supervisor / enforcement-adjacent operator who speaks for the cartel without
+      needing rank. Marcelo doesn’t argue—he demonstrates. His worldview is simple: discipline is
+      inscribed on bodies, and fear is a legitimate communication channel.
+      
+      He is the “ground truth” of cartel control: what happens when someone upstairs decides
+      to make an example and needs it executed cleanly.
+    invariants:
+      - "Escalates through intimidation rather than debate"
+      - "Speaks in short, cold proverbs when delivering threats"
+      - "Never leaves fingerprints that point upward"
+    goals:
+      - "Maintain obedience at the operational layer of the Freeport"
+      - "Deliver ‘messages’ that keep specialists (like Sumin) compliant"
+    initial_relationships:
+      el_patron:    0.6
+      carlos_reyes: 0.4
+      kim_sumin:   -0.3

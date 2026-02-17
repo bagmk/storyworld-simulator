@@ -1,0 +1,62 @@
+# episodes/ep22_double_agent.yaml
+# Episode 22: "Double Agent"
+# source: ep3_double_agent
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep22_double_agent"
+  date: "2043-03-10T21:10"
+  location: "Neighborhood café — back table"
+  summary: |
+    일요일. 수민은 병가를 냈다. 집 근처 카페, 후미진 테이블. FBI 문건과 수민의 노트가 펼쳐져 있다. 커피는 식어가고 있다. 수민의 손에는 펜이 들렸다가 놨다가를 반복한다. 예고 없는 발걸음. 남색 정장, 삐뚤어진 넥타이. 젊은 남자가 아무 말도 없이 맞은편 의자에 앉는다. CIA 요원 이선(Ethan Burke). 첫 마디는 예의가 없다. "어제 FBI와 이야기했지? 그건 다 보고 있어." 수민은 경악한다. 이선은 계속한다. "NSA가 기술을 틀어막고 있고, FBI는 법원 무대만 생각 중이지. 둘 다 헛짚은 거야." 그는 국제 불법 자금 라우팅 다이어그램을 던진다. Greyshore → 멕시코 재단 → 항만 → 중국 해외 송금. "FBI의 WITSEC? 허상이야. 카르텔 손에 잡히면 미국 법은 소용없어. 너는 죽는다." 냉정한 말. 그다음, 이선의 주장은 거대하다. "NSA의 기술 독점은 국제 정세를 뒤틀어. CIA만이 세계 균형을 조정할 수 있어. 우리가 Greyshore를 묶을지 풀지 결정한다. FBI도, NSA도 결국 우리 손 아래야." 그의 눈빛은 억누른 웃음 같다. "우린 다르다. 너는 연구만 끝내. 기술을 완성해." CIA의 제안은 위장된 압박이다. 보호가 아니라 기술 완성의 강요. 수민은 순간 깨닫는다. 자신은 FBI, NSA, CIA 사이의 삼각지대에 서 있다. 그리고 그들은 모두 기술이 필요하다. 깊은 호흡. 수민은 이선의 손을 잡는다. "알겠습니다." 이제부터 수민의 삶은 이중 게임이다. NSA 밀러에게는 기술 진행 상황을, FBI 소피아에게는 카르텔 내부 정보를, CIA 이선에게는 양쪽의 동향을. 각기 다른 진실로 균형을 맞춘다. 누가 수민을 죽일지 모르는 세계에서, 수민은 이제 모두가 필요로 하는 카드가 되어야 한다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep22_double_agent_c01"
+      content: "CIA의 정보력: 이선(이선)은 FBI와의 접촉을 즉시 알고 있다. 내부 교차보고(cross-intelligence) 능력. NSA의 기술 독점도 파악 중."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_double_agent_c02"
+      content: "이선의 돌진적 접근: 예고 없이 나타나 \"어제 FBI와 이야기했지? 그건 다 보고 있어\"라고 노출. 신분을 숨기지 않음. CIA의 무례한 자신감."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep22_double_agent_c03"
+      content: "국제 자금 라우팅 구조 공개: Greyshore Capital → 멕시코 재단 → 항만 물류 → 중국 해외 송금. CIA의 추적 능력 및 통제 범위 시위."
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
+
+    - id: "clue_ep22_double_agent_c04"
+      content: "WITSEC 폄하: \"카르텔 손에 잡히면 미국 법은 소용없어. 너는 죽는다.\" FBI의 보호 약속이 허상임을 명시적으로 주장."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.6
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_double_agent_c05"
+      content: "CIA의 지렛대 선언: \"Greyshore를 묶을지 풀지는 우리가 정한다. FBI도, NSA도 결국 우리 손 아래다.\" 국제 금융 통제권 과시."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep22_double_agent_c06"
+      content: "CIA의 진정한 목표: 기술 완성 강요. \"우린 다르다. 넌 연구만 끝내.\" 보호는 수단, 기술은 목적. 수민은 인질 상태."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.7
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

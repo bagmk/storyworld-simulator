@@ -1,0 +1,86 @@
+# episodes/ep03_ben_encounter.yaml
+# Episode 3: "Ben Encounter"
+# source: ep0_ben_encounter
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep03_ben_encounter"
+  date: "2041-05-22T13:15"
+  location: "Conference venue — hallway café"
+  summary: |
+    컨퍼런스 2층 북쪽 복도 카페. 오후 1시 15분. 점심 시간이 끝나가는 시각이라 사람이 적었다. 에스프레소 머신 옆 하이탑 테이블 하나만 사용 중이었다. 벤 클라크가 그곳에 앉아 있었다. 수민을 보자마자 손짓으로 부른다. "수민! 오만. MIT 이후 봤다 하구 몇 년인데." 벤의 목소리는 친근했지만, 표정은 계산적이었다. 수민은 그 차이를 놓치지 않았다.
+
+    벤은 이제 프로젝트 리더였다. 그의 명함: 'Ben Clark, Quantum Packaging Team Lead, Advanced Microelectronics Research Division (AMRD)'. "Packaging Team Lead"라는 직책. 수민이 알기론 벤은 3년 전 박사 과정에 있었다. 지금 리더? 벤이 명함을 건네며 미소를 지었다. "놀랐지? 나도 놀랐어. 근데 DARPA 계약 따면 이렇게 되더라고." 명함 뒷면에 QR 코드가 인쇄되어 있었다. 벤이 휴대폰을 꺼내 스캔했다. 화면에 PDF가 떴다. "이 부분, 'Advanced Superconducting Assembly & Test Platform (ASATP) — Phase II'. 금액란: $3.2M/year, 3-year contract." 수민은 숨을 멈췄다. 연간 320만 달러. 3년. 거의 천만 달러 규모.
+
+    벤이 목소리를 낮췄다. "우린 초전도체 패키징에 특화했어. 그리고..." 벤이 주변을 둘러봤다. 카페에는 두 사람뿐이었다. "NSA가 자금을 댔어. 밀러라는 요원 알지? 그놈이 우리 팀에 붙어 있어." 밀러. 어제 점심을 같이 먹었던 그 사람. 벤이 이미 밀러와 관계가 있다는 것. 수민은 불안감을 느꼈다. 이건 우연이 아니었다. 밀러가 수민에게 접근한 것도, 벤이 여기서 기다리고 있던 것도.
+
+    벤의 제안이 시작되었다. "사실 우리 패키징 라인이 훨씬 정교해. 너의 제어 알고리즘이랑 우리 하드웨어가 붙으면..." 벤의 양손 검지가 테이블 위에서 마주쳤다. "게임 체인저가 돼. 큐비트당 제어 시간이 40% 단축돼." 40%. 그 수치는 절대 임의적이지 않았다. 측정된 수치였다. 벤이 이미 수민의 논문을 읽고 벤치마크를 돌렸다는 뜻.
+
+    "근데 혼자선 힘들 거야." 벤의 톤이 바뀌었다. 협력 제안에서 경고로. "비자 문제도 있고." 비자. 수민의 약점. 현재 수민은 F-1 학생 비자에서 OPT로 전환한 상태. 유효 기간은 1년. 그 후에는? H-1B를 받거나, 영주권을 신청하거나, 아니면 한국으로 돌아가거나. 벤이 휴대폰을 다시 꺼냈다. "EB-2 NIW, 알아? National Interest Waiver. 우린 이미 세 명 진행 중이야. 인수 조건도 좋고." EB-2 NIW—보통 대기 시간 2-3년. 벤이 말하는 건 그게 수개월로 단축된다는 뜻.
+
+    벤의 목소리가 더 낮아졌다. "기회는 지금이야. 3개월 더 가면 쿼터가 바뀌고, 새 리더가 들어와. 그럼 넌 더 이상 선택지가 없어." 협박이었다. 지금 선택하면 비자 처리를 도와주고, 나중에는 안 한다는 것. 수민의 손가락이 컵을 쥐었다. 세라믹이 약간 덥었다. 하지만 손바닥의 열기는 그보다 뜨거웠다.
+
+    수민은 대답하지 않았다. 벤이 명함을 하나 더 꺼냈다. 하지만 그건 명함이 아니라 메모였다. 뒷면에 손으로 쓴 글씨. 'ben.clark@amrd.gov / 202-555-0198 / Ask about "Greyshore"'. 마지막 줄 옆에 손가락 모양 이모지. "Greyshore"라는 단어는 벤의 이전 모든 언급에는 없었다. 이건 비공식 채널에서 나눌 내용이라는 뜻.
+
+    벤이 자리에서 일어났다. "생각해 봐. 시간 있으면 연락해." 벤이 떠나며 덧붙였다. "밀러는 좋은 사람이야. 신뢰할 수 있어." 그 말도 협박이었다. 벤이 이미 밀러와 관계가 있다는 것, 밀러를 통해 수민의 선택을 모니터링할 거라는 뜻.
+
+    수민은 메모를 포켓에 넣었다. 종이의 무게가 실제보다 무거웠다. 모레노의 말이 떠올랐다. "지원이 필요해. 알겠지?" 수민은 그제야 깨달았다. 지원은 자발적 선택이 아니라, 이미 예정된 단계라는 것. 거절하면? 기회를 잃는다. 받으면? 뭔가에 묶인다. 어느 쪽이든, 수민은 이미 선택의 여지가 없었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep03_ben_encounter_c01"
+      content: |
+        벤의 명함. 'Ben Clark, Quantum Packaging Team Lead, Advanced Microelectronics Research Division (AMRD)'. "Packaging Team Lead"라는 직책이 중요했다. 수민이 알기론 벤은 3년 전 박사 과정에 있었다. 지금 리더? 벤이 휴대폰을 꺼낸다. DARPA 계약서 사진. 제목: 'Advanced Superconducting Assembly & Test Platform (ASATP) — Phase II'. 금액란: $3.2M/year, 3-year contract. 그리고 부주: "NSA Quantum Intelligence Division 공동 펀딩". 벤은 대학원생이 아니라, 정부 프로젝트의 중급 간부였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep03_ben_encounter_c02"
+      content: |
+        벤의 기술 설명. "너의 제어 알고리즘이랑 우리 하드웨어가 붙으면... 게임 체인저가 돼." 그 말은 벤의 패키징 기술이 이미 성숙했다는 뜻. 즉, 초전도 큐비트 패키징은 더 이상 병목이 아니라는 것. 그렇다면 남은 병목은? 제어. 신호 처리. 뭔가를 더 빠르게 만들 수 있는 기술. 벤이 덧붙인다. "우린 이미 벤치마크 테스트를 봤어. 너의 알고리즘이 들어가면, 큐비트당 제어 시간이 40% 단축돼." 40%. 그 수치는 절대 임의적이지 않았다. 측정된 수치였다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep03_ben_encounter_c03"
+      content: |
+        벤의 비자 제안. "EB-2 NIW, 알아? 그레이트 탈렌트. 우린 이미 세 명 진행 중이야. 인수 조건도 좋고." EB-2 NIW—National Interest Waiver. 보통 대기 시간이 2-3년. 벤이 말하는 건 그게 수개월로 단축된다는 뜻. "기회는 지금이야. 3개월 더 가면 쿼터가 바뀌고, 새 리더가 들어와. 그럼 넌 더 이상 선택지가 없어." 그 말은 협박이었다. 지금 선택하면 비자 처리를 도와주고, 나중에는 안 한다는 것.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep03_ben_encounter_c04"
+      content: |
+        벤이 건넨 메모. 명함처럼 보이지만 뒷면에 손으로 쓴 글씨. 'ben.clark@amrd.gov', 전화번호, 그리고 마지막: 'Ask about "Greyshore"'. 화살표 옆에 손가락 모양 이모지. "Greyshore"라는 단어는 벤의 이전 모든 언급에는 없었다. 이건 비공식 채널에서 나눌 내용이라는 뜻. 수민이 휴대폰이나 기록에 남길 수 없는 주제라는 뜻. Greyshore—포트폴리오? 암호명? 프로젝트명? 명확하지 않다. 그게 더 위험했다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.6
+      inject_method: "document_artifact"
+
+    - id: "clue_ep03_ben_encounter_c05"
+      content: |
+        벤의 마지막 문장. "기술은 쇼야. 최종적으로 남는 건 계산서와 투자 흐름이야. 우리가 먼저 그걸 손에 넣으면, 나머지는 자동이야." 그것은 과학자의 말이 아니었다. 관료의 말이었다. 벤이 변했거나, 아니면 처음부터 이런 사람이었는데 수민이 못 본 것이거나. 모레노의 경고가 다시 들렸다. "지원이 필요해. 알겠지?" 수민은 그제야 깨달았다. 지원은 자발적 선택이 아니라, 이미 예정된 단계라는 것.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep03_ben_encounter_c06"
+      content: |
+        메모를 받는 그 순간, 수민의 손가락이 진동했다. 생리적 반응—호르몬 급증. 카페인은 마시지 않았는데, 심박수가 올라갔다. 벤의 눈이 그걸 포착했다. "생각해 봐. 시간 있으면 연락해." 벤이 자리를 떠나며 덧붙였다. "밀러는 좋은 사람이야. 신뢰할 수 있어." 그 말도 협박이었다. 벤이 이미 밀러와 관계가 있다는 것, 밀러를 통해 수민의 선택을 모니터링할 거라는 뜻. 수민은 메모를 포주머니에 넣었지만, 종이의 무게가 실제보다 무거웠다. 거절하면? 기회를 잃는다. 받으면? 뭔가에 묶인다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "벤과 수민의 과거 경쟁 관계가 다시 확인됨"
+    - "벤의 제안은 거절되지 않고 보류됨 (명함만 수락)"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 1200
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 18

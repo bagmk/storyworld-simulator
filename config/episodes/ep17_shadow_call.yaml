@@ -1,0 +1,56 @@
+# episodes/ep17_shadow_call.yaml
+# Episode 17: "Shadow Call"
+# source: ep2_shadow_call
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep17_shadow_call"
+  date: "2043-03-06T09:40"
+  location: "City streets — inside Sumin’s car"
+  summary: |
+    출근길 신호대기. 수민의 휴대폰이 울린다. 발신자표시제한. 약 8초간 낮고 차분한 여성의 목소리가 전달된다. "우린 너의 편이다. 내일 19시 10분, 시내 하버 라운지 공중전화로 전화해. 'Ms. Green, 내선 2129'를 요청해." 끝. 콜백 불가. 통화 기록은 블루투스 로그에만 남고, 라우팅 프리픽스는 정부 교환망(legacy switchboard) 스타일. 상대는 수민만 아는 MIT 시절 암구호를 한 번 사용했다. 내부자임을 과시하는 방식이었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep17_shadow_call_c01"
+      content: "낮고 차분한 여성 목소리. 첫 마디: \"우린 너의 편이다.\" 공식 정부 기관의 운영 방식과 부합."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep17_shadow_call_c02"
+      content: "발신자표시제한 / 통화 8초 정확 / 콜백 불가 / 시간·장소·신원(Ms. Green) 지정이 정확함."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_shadow_call_c03"
+      content: "차량 블루투스 로그: '발신 번호 비공개'로 표시되지만, 라우팅 프리픽스가 정부 교환망(legacy switchboard)과 일치. 민간 통신망이 아님."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_shadow_call_c04"
+      content: "상대는 수민만 알고 있던 MIT 시절 암구호를 한 번 사용했다. '내부자'임을 과시하는 전술. 신뢰를 형성하려는 의도."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep17_shadow_call_c05"
+      content: "배경에서 들리는 짧은 벨 데스크 종소리(호텔 로비 음향). 다음 지시 장소(하버 라운지)와 일치. 상대의 위치 추정 가능."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 1800
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 17

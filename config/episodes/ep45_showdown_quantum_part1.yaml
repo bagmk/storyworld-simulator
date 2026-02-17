@@ -1,0 +1,66 @@
+# episodes/ep45_showdown_quantum_part1.yaml
+# Episode 45: "Showdown Quantum Part 1"
+# source: ep8_showdown_quantum_part1
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep45_showdown_quantum_part1"
+  date: "2043-03-27T19:40"
+  location: "Novagrad Port — underground lab complex"
+  summary: |
+    노바그라드 항만 지하 B5층, 오후 7시 42분. 수민이 마지막 코드를 입력한다. BRIDGE_SLOT에 프로비저닝된 브리지 키(Bridge Key)를 삽입. 시스템이 3-of-5 Shamir Secret 검증을 실행한다. 32밀리초 안에 세 조건이 TRUE로 판정된다: 모레노의 알고리즘 무결성 확인, NSA 백도어 코드 바이패스, QPU 임계값 도달 허가. APPROVED. 타임락(Time-Lock) 펄스가 5초 윈도우로 송출된다.
+
+    동시에 지상에서는 FBI 특수부대 팀(이선 리더)이 진입 명령을 기다린다. 노바그라드 항만 진입로 3군데, 각각 차량 10대씩. 정해진 시간: 오후 7시 38분(T1). 하지만 뭔가 잘못됐다. 무전이 끊겼다. "All units, hold position. Coordinates verification in progress." 지연. 단 6분이지만, 이게 전부다.
+
+    그 6분 동안 무슨 일이 벌어지는가. 첫째, 지하의 QPU가 임계 상태에 진입한다(오후 7시 44분). 냉각 시스템이 -273도 극저온 영역으로 내려간다. 헬륨-3 액화. 초전도 상태 발생. 전자 간섭 패턴(quantum interference pattern)이 안정화된다. 두 번째, 지상에서는 LST 팀의 전파 교란(RF jamming)이 시작된다(오후 7시 45분). FBI의 통신 대역: 400-470MHz가 음성 노이즈로 뒤덮인다. 세 번째, NSA 밀러가 개입한다. FBI에 거짓 좌표를 전송한다. "Target location updated: Sector E-7 instead of B-5. Redirect all units." 이선은 의심한다. 하지만 NSA 코드 네임이 있다. 이선은 움직인다.
+
+    오후 7시 51분, FBI 특수부대가 E-7 섹터에 도착한다. 아무도 없다. 항만의 빈 창고. "거기 아니야!" 이선이 외친다. 하지만 무전은 여전히 끊겨 있다. 정확히 그 순간, 지하 B5층에서는—
+
+    QPU가 임계를 돌파한다. 양자 계산이 시작된다. 측정 아래 1,000개의 큐빗(qubit)이 동시에 얽혀(entangled) 진동한다. 냉각 시스템의 울림이 울려 퍼진다. 파이프 진동의 저주파음(~30Hz). 수민은 숨을 죽인다. 모니터가 깜빡인다. 그리고 정보가 흐르기 시작한다. RSA 키들이 하나씩 복원된다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep45_showdown_quantum_part1_c01"
+      content: |
+        수민의 직접 행위: BRIDGE_SLOT에 브리지 키 물리적 삽입 → 3-of-5 Shamir Secret Sharing 검증 자동 실행 → 세 조건이 동시에 TRUE (모레노 알고리즘 무결성 ✓, NSA 백도어 바이패스 ✓, QPU 임계값 ✓) → 타임락 해제 펄스가 5.0초 윈도우로 송출 (T+0ms부터 T+5000ms). 이 순간이 지나가면 다시는 기회가 없다. 해독 출력과 라우팅, 자금 이체는 LST 팀과 SIGINT가 자동으로 실행하도록 프로그래밍되어 있다. 수민의 손가락이 그 버튼을 누르는 순간, 더 이상 돌이킬 수 없는 선을 넘는다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep45_showdown_quantum_part1_c02"
+      content: "타이밍 실패의 연쇄. FBI 급습(T1 예정) 10분 전 무전 끊김. LST 전파 교란 (T2 후 2분). NSA 밀러 거짓 좌표 전송: E-7 섹터(실제: B-5). FBI 팀 도착 시 아무도 없음. 지하 B5는 QPU 임계 진입(19시 44분). 냉각 -273도 극저온, 액체질소 증기, RF 흡수 패널. 지표음 30Hz 울림.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep45_showdown_quantum_part1_c03"
+      content: "봇넷 Q-Day 연막 실행 로그 + 철자 오류 Time-Lock 신호 실시간 포착. NSA 통제권 구조적 차단 (시연 직전 수 초). QPU 임계 접근 시 경고음 + 모니터 수치 요동. 엘 파트론 전파 방해 (외부 통신 두절). NSA 밀러 QPU 가동 기술 지원 몰래 진행(흔적 남음). 무전: CIA 호출부호 섞였다가 끊김 "블루 채널 홀드".
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.65
+      inject_method: "system_alert"
+
+    - id: "clue_ep45_showdown_quantum_part1_c10"
+      content: "지상에서는 가짜 Q-Day 연막이 진행 중이고, 지하에서는 브리지 키로 실제 시운전 권한이 동시에 열리며 두 개의 레일이 겹쳐짐"
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep45_showdown_quantum_part1_c04"
+      content: "두 레일의 겹침. 지상: 가짜 Q-Day 연막(봇넷). 지하: 브리지 키로 실제 시운전 권한 동시 열림(QPU 임계 통과). FBI 이선 팀은 NSA 좌표와 다른 지도. 무전: CIA 호출부호 섞였다가 끊김 '블루 채널 홀드'. 혼돈의 정점: 누가 어디서 뭘 하는지 불명확. 더 이상 돌아갈 수 없는 지점. 수민 손가락이 브리지 키 삽입하는 순간 역사가 바뀐다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "법집행 기관의 개입 실패 → QPU 가동 직전까지 도달"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

@@ -1,0 +1,26 @@
+# OS/editor
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local environments and secrets
+.env
+.env.*
+.venv/
+.claude/
+
+# Runtime data and logs
+data/*.db
+data/*.db-shm
+data/*.db-wal
+output/
+output_backup_*/
+reports/
+*.log
+
+# Office temp files
+~$*.docx
