@@ -35,9 +35,9 @@ from datetime import datetime
 
 import yaml
 
-from config_loader import load_episode, load_world_facts, load_storyline
-from trial_runner import TrialRunner
-import database as db
+from src.novel_writer.config_loader import load_episode, load_world_facts, load_storyline
+from src.novel_writer.trial_runner import TrialRunner
+from src.novel_writer import database as db
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -93,8 +93,7 @@ def main() -> None:
     logger.info("=" * 60)
 
     # ── Override DB path ─────────────────────────────────────────────
-    import database
-    database.DB_PATH = args.db
+    db.DB_PATH = args.db
     db.init_db()
     logger.info("Database initialised at %s", args.db)
 

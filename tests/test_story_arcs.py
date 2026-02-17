@@ -5,9 +5,15 @@ Test script to verify story arc integration with Director AI.
 
 import yaml
 from pathlib import Path
-from director import DirectorAI
-from llm_client import LLMClient
-from models import ClueManager
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.novel_writer.director import DirectorAI
+from src.novel_writer.llm_client import LLMClient
+from src.novel_writer.models import ClueManager
 
 
 def load_yaml(path: str) -> dict:
@@ -37,7 +43,7 @@ def test_story_arc_loading():
     ]
 
     llm = LLMClient(
-        default_model="gpt-4o-mini",
+        model="gpt-4o-mini",
         premium_model="gpt-4o",
     )
 

@@ -8,6 +8,7 @@ with full persistence and no truncation.
 import sqlite3
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -316,38 +317,58 @@ def load_previous_episode_final_emotions(agent_id: str, current_episode_id: str)
     try:
         parts = current_episode_id.split('_')
         ep_prefix = parts[0]  # e.g., "ep05"
-        if ep_prefix.startswith('ep'):
-            current_num = int(ep_prefix[2:])  # e.g., 5
-            prev_num = current_num - 1
-            if prev_num < 1:
-                conn.close()
-                return {}  # No previous episode
-
-            # Find previous episode with pattern matching
-            prev_pattern = f"ep{prev_num:02d}_%"  # e.g., "ep04_%"
-
-            rows = conn.execute("""
-                SELECT emotion_type, intensity
-                FROM emotions
-                WHERE agent_id = ?
-                  AND episode_id LIKE ?
-                  AND turn = (
-                      SELECT MAX(turn)
-                      FROM emotions e2
-                      WHERE e2.agent_id = emotions.agent_id
-                        AND e2.episode_id LIKE ?
-                  )
-            """, (agent_id, prev_pattern, prev_pattern)).fetchall()
-
-            conn.close()
-
-            if rows:
-                return {row['emotion_type']: row['intensity'] for row in rows}
-            else:
-                return {}  # Previous episode not found in DB
-        else:
+        if not ep_prefix.startswith("ep"):
             conn.close()
             return {}  # Can't parse episode number
+
+        current_num = int(ep_prefix[2:])  # e.g., 5
+        if current_num <= 1:
+            conn.close()
+            return {}  # No previous episode
+
+        # Find the latest prior episode number that actually has emotion rows
+        # for this agent. This allows continuity even if episodes are skipped.
+        rows = conn.execute("""
+            SELECT DISTINCT episode_id
+            FROM emotions
+            WHERE agent_id = ?
+        """, (agent_id,)).fetchall()
+
+        prev_num: Optional[int] = None
+        for row in rows:
+            eid = str(row["episode_id"])
+            m = re.match(r"^ep(\d+)_", eid)
+            if not m:
+                continue
+            ep_num = int(m.group(1))
+            if ep_num < current_num and (prev_num is None or ep_num > prev_num):
+                prev_num = ep_num
+
+        if prev_num is None:
+            conn.close()
+            return {}  # No prior episode rows found
+
+        prev_pattern = f"ep{prev_num:02d}_%"
+
+        # Pull descending by turn/timestamp and keep first row per emotion_type.
+        # This preserves each emotion's most recent value instead of only
+        # emotions present at the single final turn.
+        rows = conn.execute("""
+            SELECT emotion_type, intensity
+            FROM emotions
+            WHERE agent_id = ?
+              AND episode_id LIKE ?
+            ORDER BY turn DESC, timestamp DESC
+        """, (agent_id, prev_pattern)).fetchall()
+        conn.close()
+
+        latest_by_emotion: dict[str, float] = {}
+        for row in rows:
+            emo = str(row["emotion_type"])
+            if emo not in latest_by_emotion:
+                latest_by_emotion[emo] = float(row["intensity"])
+
+        return latest_by_emotion
     except (ValueError, IndexError):
         conn.close()
         return {}  # Malformed episode_id

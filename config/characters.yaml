@@ -192,6 +192,17 @@ characters:
   - id: "agent_christan_miller"
     name: "Agent Christian (Christan) Miller"
     role: "supporting"
+    aliases:
+      - "Christian Miller"
+      - "Christan Miller"
+      - "Agent Christian"
+      - "Agent Miller"
+      - "Miller"
+      - "밀러"
+      - "에이전트 밀러"
+      - "에이전 밀러"
+      - "에이전 크리스천"
+      - "크리스천 밀러"
     bio: |
       An NSA operator with a military cyber-intel background. Miller is not a villain in his own
       narrative: he believes national security justifies elastic procedure, selective truth, and coercive

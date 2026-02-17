@@ -27,8 +27,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from llm_client import LLMClient
-from scene_distiller import DistilledScene
+from .llm_client import LLMClient
+from .scene_distiller import DistilledScene
 
 logger = logging.getLogger(__name__)
 

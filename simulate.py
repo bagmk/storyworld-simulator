@@ -24,14 +24,14 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from config_loader import (
+from src.novel_writer.config_loader import (
     load_characters, load_episode, load_world_facts,
     load_storyline, build_world_state, build_clue_manager,
 )
-from llm_client import LLMClient
-from director import DirectorAI
-from orchestrator import SimulationOrchestrator
-import database as db
+from src.novel_writer.llm_client import LLMClient
+from src.novel_writer.director import DirectorAI
+from src.novel_writer.orchestrator import SimulationOrchestrator
+from src.novel_writer import database as db
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -86,8 +86,7 @@ def main() -> None:
     logger.info("═" * 60)
 
     # ── Override DB path ────────────────────────────────────────────────
-    import database
-    database.DB_PATH = args.db
+    db.DB_PATH = args.db
 
     # ── Init database ───────────────────────────────────────────────────
     db.init_db()
@@ -100,6 +99,21 @@ def main() -> None:
 
     logger.info("Loading characters: %s", args.characters)
     agents = load_characters(args.characters)
+
+    # Emotion continuity: seed each agent with the latest prior episode state.
+    loaded_count = 0
+    for agent in agents:
+        prev_emotions = db.load_previous_episode_final_emotions(
+            agent_id=agent.id,
+            current_episode_id=episode_id,
+        )
+        if prev_emotions:
+            agent.memory.emotional_state = prev_emotions
+            loaded_count += 1
+    if loaded_count:
+        logger.info("Loaded previous emotion states for %d agents", loaded_count)
+    else:
+        logger.info("No prior emotion states found to preload")
 
     logger.info("Loading world facts: %s", args.world)
     world_facts = load_world_facts(args.world)
@@ -218,7 +232,7 @@ def main() -> None:
     )
 
     logger.info("═" * 60)
-    logger.info("  Done! Run generate_novel.py to create the chapter.")
+    logger.info("  Done! Run generate_chapter.py to create the chapter.")
     logger.info("═" * 60)
 
 

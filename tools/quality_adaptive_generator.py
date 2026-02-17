@@ -17,6 +17,7 @@ import re
 from quality_analyzer import QualityAnalyzer
 
 logger = logging.getLogger(__name__)
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class QualityAdaptiveGenerator:
@@ -155,17 +156,15 @@ class QualityAdaptiveGenerator:
     ) -> str:
         """Run generate_chapter.py subprocess"""
         try:
-            output_file = f"output/{episode_id}_iter{iteration}_chapter.md"
-
             cmd = [
                 sys.executable,
-                "generate_chapter.py",
+                str(REPO_ROOT / "generate_chapter.py"),
                 "--episode", episode_id,
                 "--episode-config", episode_config_path,
                 "--protagonist", protagonist,
                 "--words", str(target_words),
                 "--scenes", str(num_scenes),
-                "--output", "output"
+                "--output", str(REPO_ROOT / "output")
             ]
 
             logger.info(f"Generating: {' '.join(cmd)}")
@@ -174,7 +173,8 @@ class QualityAdaptiveGenerator:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=300,
+                cwd=str(REPO_ROOT),
             )
 
             if result.returncode != 0:
@@ -182,7 +182,7 @@ class QualityAdaptiveGenerator:
                 return None
 
             # Find generated chapter
-            output_dir = Path("output")
+            output_dir = REPO_ROOT / "output"
             candidates = list(output_dir.glob(f"{episode_id}*chapter.md"))
 
             if not candidates:

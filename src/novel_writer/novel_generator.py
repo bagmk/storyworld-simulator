@@ -21,8 +21,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from llm_client import LLMClient
-import database as db
+from .llm_client import LLMClient
+from . import database as db
 
 logger = logging.getLogger(__name__)
 

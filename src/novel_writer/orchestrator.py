@@ -20,10 +20,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from models import Agent, WorldState, ClueManager, Interaction, Memory, SteeringContext
-from director import DirectorAI
-from llm_client import LLMClient
-import database as db
+from .models import Agent, WorldState, ClueManager, Interaction, Memory, SteeringContext
+from .director import DirectorAI
+from .llm_client import LLMClient
+from . import database as db
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class SimulationOrchestrator:
     ) -> None:
         self.agents       = agents
         self.agent_map    = {a.id: a for a in agents}
+        self._agent_reference_index = self._build_agent_reference_index()
         self.director     = director
         self.world        = world
         self.llm          = llm
@@ -115,6 +116,19 @@ class SimulationOrchestrator:
 
         # Initial world state snapshot
         db.save_world_state(self.episode_id, 0, self.world.to_dict())
+        # Persist carried-over emotional state at turn 0 so cross-episode
+        # continuity is visible directly in DB plots.
+        for agent in self.agents:
+            for emotion, intensity in agent.memory.emotional_state.items():
+                if intensity > 0:
+                    db.save_emotion(
+                        agent.id,
+                        self.episode_id,
+                        0,
+                        emotion,
+                        intensity,
+                        None,
+                    )
 
         while self.turn < self.max_turns:
             self.turn += 1
@@ -592,6 +606,7 @@ class SimulationOrchestrator:
         # Parse JSON fields
         emotions    = self._parse_json_field(raw, "EMOTION")
         rel_deltas  = self._parse_json_field(raw, "RELATIONSHIPS")
+        rel_deltas  = self._normalize_relationship_deltas(rel_deltas, source_agent_id=agent.id)
 
         # Clue references
         clue_text = self._extract_field(raw, "CLUES") or "(none)"
@@ -606,6 +621,89 @@ class SimulationOrchestrator:
             self._agent_agendas[agent.id] = agenda
 
         return text, emotions, rel_deltas, clues, turn_mode, exit_scene
+
+    @staticmethod
+    def _normalize_ref(value: str) -> str:
+        # Keep Hangul tokens too so Korean aliases can be matched if provided.
+        return re.sub(r"[^0-9a-z가-힣]+", "_", (value or "").lower()).strip("_")
+
+    def _build_agent_reference_index(self) -> dict[str, str]:
+        index: dict[str, str] = {}
+        for agent in self.agents:
+            candidates = {
+                agent.id,
+                agent.id.replace("_", " "),
+                agent.name,
+                agent.name.replace("(", " ").replace(")", " "),
+            }
+            if agent.id.startswith("agent_"):
+                candidates.add(agent.id[len("agent_"):])
+            if agent.name.lower().startswith("agent "):
+                candidates.add(agent.name[6:])
+            for alias in getattr(agent, "aliases", []) or []:
+                candidates.add(str(alias))
+
+            for candidate in candidates:
+                norm = self._normalize_ref(str(candidate))
+                if norm:
+                    index.setdefault(norm, agent.id)
+        return index
+
+    def _resolve_agent_reference(self, raw_key: str) -> Optional[str]:
+        if not isinstance(raw_key, str):
+            return None
+        key = raw_key.strip()
+        if not key:
+            return None
+        if key in self.agent_map:
+            return key
+
+        norm = self._normalize_ref(key)
+        if not norm:
+            return None
+
+        direct = self._agent_reference_index.get(norm)
+        if direct:
+            return direct
+
+        # Fallback fuzzy containment for noisy strings (e.g., "Agent Christian Miller").
+        candidates = {
+            aid for ref, aid in self._agent_reference_index.items()
+            if norm in ref or ref in norm
+        }
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        return None
+
+    def _normalize_relationship_deltas(
+        self,
+        rel_deltas: dict,
+        source_agent_id: str,
+    ) -> dict[str, float]:
+        if not isinstance(rel_deltas, dict):
+            return {}
+
+        cleaned: dict[str, float] = {}
+        for raw_key, raw_delta in rel_deltas.items():
+            target_id = self._resolve_agent_reference(str(raw_key))
+            if not target_id:
+                logger.debug(
+                    "Turn %d: ignored unknown relationship target '%s' from %s",
+                    self.turn, raw_key, source_agent_id,
+                )
+                continue
+            if target_id == source_agent_id:
+                continue
+
+            try:
+                delta = float(raw_delta)
+            except (TypeError, ValueError):
+                continue
+
+            delta = max(-1.0, min(1.0, delta))
+            cleaned[target_id] = round(cleaned.get(target_id, 0.0) + delta, 4)
+
+        return cleaned
 
     @staticmethod
     def _extract_field(text: str, field: str) -> Optional[str]:

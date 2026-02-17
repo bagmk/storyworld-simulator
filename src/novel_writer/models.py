@@ -118,6 +118,7 @@ class Agent:
     bio: str
     invariants: list[str]
     goals: list[str]
+    aliases: list[str] = field(default_factory=list)
     memory: Memory = field(default_factory=Memory)
     persona: dict = field(default_factory=dict)  # dynamic personality state
 
@@ -129,6 +130,7 @@ class Agent:
             name=cfg["name"],
             role=cfg.get("role", "supporting"),
             bio=cfg.get("bio", ""),
+            aliases=cfg.get("aliases", []),
             invariants=cfg.get("invariants", []),
             goals=cfg.get("goals", []),
         )
@@ -138,6 +140,7 @@ class Agent:
         # Build base persona
         a.persona = {
             "name": a.name,
+            "aliases": a.aliases,
             "bio": a.bio,
             "invariants": a.invariants,
             "goals": a.goals,
@@ -151,6 +154,7 @@ class Agent:
             "name": self.name,
             "role": self.role,
             "bio": self.bio,
+            "aliases": self.aliases,
             "invariants": self.invariants,
             "goals": self.goals,
             "persona": self.persona,

@@ -17,7 +17,7 @@ from typing import Any
 
 import yaml
 
-from models import Agent, WorldState, ClueManager
+from .models import Agent, WorldState, ClueManager
 
 logger = logging.getLogger(__name__)
 

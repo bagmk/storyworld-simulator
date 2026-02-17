@@ -14,7 +14,7 @@ episode:
 
     벤이 계속 말한다. "너도 알겠지만, 이건 단순한 취직이 아니야. 우리 팀에 들어오면 넌 보호받아. 시민권도 내년 안에 확정되고, 가족도 이주를 도와줄 거야." 수민은 유혹에 잠시 흔들린다. 어둡고 작은 연구실이 아닌, 넓은 사무실과 팀원들. 그러나 손을 위로 들었다 놨다. 계약서를 밀쳐냈다. "이것도 안 됩니다. 벤, 고마워도 이건... 아니다."
 
-    벤의 얼굴이 순식간에 경직된다. "그래, 그럼 이건 어때. 우린 이미 '보험' 걸어뒀다. Q-Day, 기억하지? 너 없이도 우린 진행할 수 있다는 뜻이야." 밀러와 똑같은 문장이었다. 벤이 빠져나가며 마지막으로 뱉는다. "Greyshore에서 넌 더 이상 유용하지 않아. 너한테 가할 수 있는 방법들도 많고..."
+    벤의 얼굴이 순식간에 경직된다. "그래, 그럼 이건 어때. 우린 이미 '보험' 걸어뒀다. Q-Day, 기억하지? 너 없이도 우린 진행할 수 있다는 뜻이야." 밀러와 똑같은 문장이었다. 벤이 빠져나가며 마지막으로 뱉는다. "이 업계에서 혼자 버티려고? 현실을 봐, 수민. MIT 때도 그랬잖아. 이론만 가지고는 안 돼."
 
     수민은 자리를 박차고 나간다. 복도엔 호텔 보안 카메라만 있었다. 그리고 그 카메라 뒤, 어디 빌딩에선가 누군가 이 영상을 보고 있을 거다. 수민은 이제 정말 돌아갈 곳이 없음을 실감했다.
 
@@ -58,25 +58,10 @@ episode:
 
     - id: "clue_ep39_ben_offer_c06"
       content: |
-        벤이 빠져나가며 마지막 경고. "Greyshore에서 넌 더 이상 유용하지 않아. 그리고..." 카드 한 장을 테이블에 떨어뜨린다. 회사 카드가 아니라 그냥 검은 카드. 뒷면엔 숫자만 있다. '+1-555-0147'. 벤의 음성이 낮아진다. "너한테 가할 수 있는 방법들이 많다는 건 아니지. 그냥... 생각해봐. 우린 친구였잖아. 그게 끝나는 게 싫었어." Greyshore. 벤이 그 이름을 꺼냈다. 정부가 아니라.
+        벤이 빠져나가며 마지막 경고. "이 업계에서 살아남으려면 현실을 봐야 해. 너 혼자서는 무리야." 카드 한 장을 테이블에 떨어뜨린다. 회사 명함. 'Ben Clark, CEO, Neuro-Quantum Ventures'. 뒷면엔 손글씨로 '+1-555-0198'. 벤의 음성이 낮아진다. "생각해봐. 우린 MIT 때부터 경쟁했지만, 이젠 협력할 때야. 내 제안은 진심이야." 하지만 그 말투에는 여전히 우월감이 배어 있었다. 벤은 수민을 동등한 파트너가 아니라, 자신이 구원해줄 대상으로 보고 있었다.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.5
       inject_method: "environmental_cue"
-
-    - id: "clue_ep39_ben_offer_c07"
-      content: |
-        벤의 진정한 정체. 호텔 엘리베이터에서 수민이 우연히 본 벤의 휴대폰 화면 반사:
-
-        벤의 이메일 클라이언트 열린 상태:
-        TO: R.Gutierrez@greyshore.mx
-        FROM: B.Clark@neuro-quantum-ventures.com
-        SUBJECT: "Acquisition complete—Soomin declined. Initiate Plan B."
-        DRAFT (unsent): "Target unwilling. Leverage available: family in Seoul (mother, sister). Visa status vulnerable. Academic records flagged. Recommend pressure escalation..."
-
-        더 깊은 진실: 벤은 단순한 스타트업 CEO가 아니었다. 그는 Greyshore(카르텔의 금융 브랜드)의 모집 담당자였다. 라파엘 구티에레즈에게 직접 보고하는 요원. 벤의 MIT 라이벌 관계, 친구 호칭—모두 '신뢰 형성 작전'의 일부였다.
-      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
-      inject_threshold: 0.55
-      inject_method: "system_alert"
 
   # Items carried over from a previous episode that should be addressed.
   resolved: []

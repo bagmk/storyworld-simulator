@@ -10,6 +10,9 @@
 # 4. Iteratively improves until target quality is met
 
 set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "$ROOT_DIR"
 
 EPISODE_ID="$1"
 
@@ -52,7 +55,7 @@ fi
 
 # Step 1: Check if simulation data exists
 echo "📊 Step 1: Checking simulation data..."
-DB_FILE="data/simulation.db"
+DB_FILE="${ROOT_DIR}/data/simulation.db"
 
 if [ ! -f "$DB_FILE" ]; then
     echo "❌ Database not found: $DB_FILE"
@@ -100,11 +103,11 @@ if p.exists():
 
     if [ -z "$SIMULATION_JSON" ]; then
         echo "   Running simulation..."
-        python3 trial_simulate.py \
+        python3 "${ROOT_DIR}/trial_simulate.py" \
             --episode "$EPISODE_CONFIG" \
-            --characters "config/characters.yaml" \
-            --world "config/world_facts.yaml" \
-            --storyline "config/storyline.yaml" \
+            --characters "${ROOT_DIR}/config/characters.yaml" \
+            --world "${ROOT_DIR}/config/world_facts.yaml" \
+            --storyline "${ROOT_DIR}/config/storyline.yaml" \
             --max-trials 3 \
             --output "$OUTPUT_DIR"
 
@@ -218,7 +221,7 @@ fi
 echo ""
 echo "📝 Step 2: Generating chapter with quality control..."
 
-python3 quality_adaptive_generator.py \
+python3 "${ROOT_DIR}/tools/quality_adaptive_generator.py" \
     --episode-id "$EPISODE_ID" \
     --episode-config "$EPISODE_CONFIG" \
     --protagonist "kim_sumin" \
@@ -235,11 +238,11 @@ LATEST_CHAPTER=$(ls -t "${OUTPUT_DIR}/${EPISODE_ID}"*chapter.md 2>/dev/null | he
 
 if [ -n "$LATEST_CHAPTER" ]; then
     echo "   Analyzing: $LATEST_CHAPTER"
-    python3 quality_analyzer.py "$LATEST_CHAPTER"
+    python3 "${ROOT_DIR}/tools/quality_analyzer.py" "$LATEST_CHAPTER"
 
     # Save quality report
     QUALITY_REPORT="${OUTPUT_DIR}/${EPISODE_ID}_quality_report.json"
-    python3 quality_analyzer.py "$LATEST_CHAPTER" --json --output "$QUALITY_REPORT"
+    python3 "${ROOT_DIR}/tools/quality_analyzer.py" "$LATEST_CHAPTER" --json --output "$QUALITY_REPORT"
     echo "   Quality report saved: $QUALITY_REPORT"
 else
     echo "❌ No chapter found"

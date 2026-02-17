@@ -24,7 +24,7 @@ Output:
     output/<episode_id>_chapter.md     Literary novel chapter
     output/<episode_id>_scenes.json    Distilled scene data (debug)
 
-The old generate_novel.py (using novel_generator.py) still works for comparison.
+The old generate_chapter.py (using novel_generator.py) still works for comparison.
 """
 
 import argparse
@@ -34,11 +34,11 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from config_loader import load_episode
-from llm_client import LLMClient
-from scene_distiller import SceneDistiller
-from prose_generator import ProseGenerator
-import database as db
+from src.novel_writer.config_loader import load_episode
+from src.novel_writer.llm_client import LLMClient
+from src.novel_writer.scene_distiller import SceneDistiller
+from src.novel_writer.prose_generator import ProseGenerator
+from src.novel_writer import database as db
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -99,8 +99,7 @@ def main() -> None:
     logger.info("=" * 60)
 
     # Override DB path
-    import database
-    database.DB_PATH = args.db
+    db.DB_PATH = args.db
     db.init_db()
 
     # Load episode config from YAML
