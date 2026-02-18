@@ -1,0 +1,72 @@
+# episodes/ep07_opening.yaml
+# Episode 9: "Opening"
+# source: ep1_opening
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep07_opening"
+  date: "2042-02-26T14:00"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    밀러와의 회의 다음 날 오전, 수민은 연구동 2층 책상에서 사내 재무봇 대시보드를 열다가 'Benefactor - Greyshore Capital'이라는 낯선 항목을 발견한다. 날짜는 3개월 전, 금액은 €487,300. 그가 클릭하면 시스템은 즉각 "403 Forbidden - Access Denied"만 표시한다. 스크린샷을 저장하려다 말고, 인보이스 아카이브를 뒤져본다. 거기엔 고가의 초저온 앰프, 양자 진공 펌프가 'Greyshore 계좌 자금'으로 결제된 기록들이 숨어 있었다—회사 장부에는 일절 나타나지 않은 흔적들.
+
+    한 시간 뒤, 그는 카를로스의 사무실로 간다. 문을 닫기도 전에 NSA 미팅 사실을 흥분 섞여 전한다. "밀러가 EB-2 비자를 약속했고, 30일 안에 기술을 완성하면..." 카를로스의 얼굴이 순간 창백해진다. "잠깐, 뭐라고? NSA? 그들이 뭐라고 했는데?" 수민이 설명하려 하자 카를로스는 갑자기 "진정해. 넌 정부와 거래하고 싶어?"라며 거세게 반발한다. 그 순간, 휴대폰이 울린다. 카를로스는 떨리는 손으로 전화를 받고, 30초 동안 말없이 듣다가 끊는다. 그의 얼굴 표정이 180도 바뀌었다.
+
+    "알았어. 받아도 좋대. 하지만 책임은 네 거야, 수민. 모든 책임." 그의 목소리는 낮고 단단했다. 여기서 끝이 아니었다. 그는 서 있는 수민을 붙잡고, 눈빛으로 못을 박는다. "그리고 다시는—다시는 외부와 직접 대화하지 마. 앞으로 뭐든 물어봐야 한다면 나한테만 얘기해. 좋지?" Greyshore Capital이 뭔지 묻는 수민의 질문에 카를로스는 답하지 않는다. 대신, 그의 창백한 얼굴과 손등에 흐르는 식은 땀은, Greyshore 뒤에 훨씬 더 크고 어두운 존재가 있음을 명백히 드러냈다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep07_opening_c01"
+      content: |
+        재무봇 대시보드 첫 페이지, 이번 달 미지급 항목 아래에 3개월 전 거래 기록이 있다. 항목명: 'Benefactor - Greyshore Capital'. 금액: €487,300. 날짜: 2042-11-26. 클릭하자마자 화면이 붉게 변한다. "403 Forbidden - Access Denied - Insufficient Privileges for Category: [CONFIDENTIAL_FINANCIAL_PATRON]". 수민은 이 에러를 본 적이 없다. 일반 직원은 도달할 수 없는 허가 레벨이다. 그가 스크린샷을 저장하려다 문득 생각을 바꾼다. 누군가가 이 조회를 기록할 수도 있다. 하지만 이미 늦었다. 뭔가 매우 큰 것의 일부를 본 것 같은 식은 땀이 손등에 맺혔다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep07_opening_c02"
+      content: |
+        인보이스 아카이브로 들어가자, 파일 목록은 2만여 건. 수민은 'Greyshore'로 검색한다. 16개 항목이 뜬다. 2042년 1월부터 3개월 전까지. 각 항목을 펼쳐본다. 초저온 증폭기 2대, €156,000. 양자 진공 펌프, €98,500. SCADA 로직 게이트웨이 (상용 부품인데 '특주 사양'), €129,800. 하나하나의 납품일이 이상하다—연구 로그에는 이 부품들이 특정 날짜에 도착했다고 나와 있지만, 송장에는 2-3일 전 날짜가 찍혀 있다. 그리고 모든 인보이스의 결제처는 '미지정 중계 계좌'이다. 금융 용어로는 '세탁'이라고 부르는 흐름이 정확히 맞아떨어진다. 수민은 이 기록들을 몰랐다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.48
+      inject_method: "document_artifact"
+
+    - id: "clue_ep07_opening_c03"
+      content: |
+        카를로스의 사무실 문을 열자, 그는 모니터에서 눈을 떼지 않는다. 수민이 "NSA 미팅이 있었어요"라고 말하자, 카를로스는 1초 동안 움직이지 않는다. 그 다음 천천히 돌아본다. 그의 얼굴색이 돌같이 변해 있었다. "뭐라고? NSA가 너한테..." 수민이 흥분해서 설명하기 시작한다—밀러, 30일 안에 3일로, RSA-2048, EB-2 비자, 기술 완성. 카를로스는 중간에 "그 사람, 이름이 뭐였어?"라며 끼어든다. "밀러. NSA 소속. 이름도..." 그 순간, 카를로스가 떨리는 손으로 휴대폰을 들고 복도로 나간다. 수민은 홀로 의자에 남겨진다. 10분 뒤 돌아온 카를로스의 얼굴은 창백했고, 눈빛은 다시 돌아온 사람 것이 아니었다. "알았어. 받아도 좋대. 하지만 그 대신..." 그의 목소리가 낮아졌다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.50
+      inject_method: "npc_question"
+
+    - id: "clue_ep07_opening_c04"
+      content: |
+        카를로스는 수민의 눈을 잠시 마주친다. "책임은 네 거야. 모든 책임." 그의 말투에는 동정이 없었다. "NSA와의 계약, 비자 문제, 기술 유출, 보안 위반—뭐든 문제가 생기면 넌 책임자야. 우리 회사는 아무 관여도 안 했다는 뜻이지." 수민이 "그건... 불공평하지 않습니까?"라고 항변하자, 카를로스는 멀리 보는 표정으로 돌아선다. "공평함이 뭐지? 이 일 하고 싶어? 아니면 서울로 돌아갈래?" 선택지는 없다. 수민은 침을 삼킨다. "그리고 다시는—다시는 외부와 직접 통신하지 마. 뭐든 물어야 할 일 있으면 나한테만 와. 좋지?" 이건 질문이 아니었다. 명령이었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep07_opening_c05"
+      content: |
+        카를로스의 손끝이 떨리고 있었다. 수민이 처음 NSA 미팅을 자랑스럽게 설명할 때, 카를로스는 "축하해"라는 말을 입으로는 내뱉지 못했다. 그 대신 "뭐 하는 거야"라는 두려움에 찬 목소리가 나왔다. 이 극적 변화는 한 통의 전화로 완성된다. 전화 중 그는 아무 말도 하지 않았다. 그저 듣기만 했다. 귀에 댄 손이 불었다가 쥐었다가를 반복했고, 호흡이 가빠졌다. 전화를 끊은 뒤, 카를로스는 더 이상 '멘토'가 아니었다. 그는 뭔가에 쫓기는 사람이 되어 있었다. 그리고 그 '뭔가'가 이제 수민까지 건드렸다는 사실을 깨닫는 순간, 수민은 처음으로 진정한 공포를 느낀다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.60
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep07_opening_c06"
+      content: |
+        카를로스는 수민을 바라본다. "Greyshore가 뭐냐고? 그건 넌 몰라도 괜찮아. 아니, 몰라야 한다." 그의 눈은 수민을 스쳐 지나, 사무실 벽을 뚫어본다. "저 이름을 처음 들었니? 그럼 잊어. 영구적으로." 수민이 "하지만 회사 자금을 쓴 걸..." 이라고 말하려 하자, 카를로스는 손을 들어 그친다. "우리는 이제부터 뭘 봤고 뭘 안 봤는지 구분을 해야 한다. 넌 Greyshore를 봤어. 이제 봤으니까... 그 다음은 뭐가 될까? 그냥 생각하지 말고, 일이나 해. 기술만 완성하면 다 괜찮아질 거야. 살아남으면 말이지." 마지막 문장은 거의 중얼거림에 가까웠다. 살아남다니. 이게 무슨 말인가. 하지만 카를로스는 더 이상 설명하지 않는다. 수민을 나가라는 제스처를 한다. 문을 닫기 직전, 수민은 카를로스가 책상 아래에서 뭔가를 집어 들려는 것을 본다. 손에 들린 것은 휴대폰이었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.70
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3200
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 12

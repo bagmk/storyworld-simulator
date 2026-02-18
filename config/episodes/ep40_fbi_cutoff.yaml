@@ -1,0 +1,150 @@
+# episodes/ep40_fbi_cutoff.yaml
+# Episode 48: "FBI Cutoff"
+# source: ep8_fbi_cutoff
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep40_fbi_cutoff"
+  date: "2043-03-28T09:00"
+  location: "Encrypted 3-way video conference — CIA Langley / Cartel facility / Neutral location"
+  summary: |
+    Q-Day +12시간. 3자 화상회의.
+
+    화면 3개:
+    - 왼쪽: 이선 (CIA, Langley 본부)
+    - 가운데: 수민 (중립 지역, 감시하에)
+    - 오른쪽: El Patrón (멕시코시티 Cartel 본부)
+
+    이선이 정리한다:
+    "현황 정리하겠습니다.
+    CIA: 2개 키 보유 (Greyshore + Elena)
+    Cartel: 2개 키 보유 (El Patrón + Carlos)
+    수민: 1개 키 보유
+
+    Shamir 3-of-5 구조상, 3개가 모여야 작동.
+    누구도 단독 실행 불가능합니다."
+
+    El Patrón: "Soomin, 당신이 우리를 선택하면 3개. 작동 가능해."
+
+    수민: "3개 모여도... 72시간마다 제 password 필요해요. Brain-only. 기록 안 함."
+
+    이선: "그리고 당신이 죽으면?"
+
+    수민: "Deadman switch 작동. 알고리즘 자동으로 전세계 공개. 암호화폐 시장 붕괴. RSA 기반 금융 시스템 전부 마비. 여러분 모두... 파산합니다."
+
+    긴 침묵.
+
+    El Patrón: "협박인가?"
+
+    수민: "아뇨. 사실입니다. 그리고 제안이에요."
+
+    ---
+
+    수민의 제안:
+    "셋이 협력하거나, 셋 다 망하거나. 선택하세요.
+
+    협력 조건:
+    - 72시간마다 3자 화상회의
+    - 각자 키 삽입 + 제 password 입력
+    - Algorithm 재활성화
+    - 수익 3등분: CIA / Cartel / 수민
+
+    거부 조건:
+    - 72시간 후 automatic shutdown
+    - Deadman switch 대기 상태
+    - 제가 죽으면 즉시 발동"
+
+    이선이 El Patrón을 본다.
+    El Patrón이 이선을 본다.
+
+    그리고 둘 다... 수민을 본다.
+
+    ---
+
+    [FBI subplot]
+
+    같은 시각, FBI 소피아는 State Secrets Privilege로 수사 중단 명령을 받는다.
+    DOJ 메모: "NSS-2043-0327-CLASSIFIED. All proceedings suspended. National Security Hold."
+
+    소피아가 파일을 파쇄함에 넣는다. 3년치 증거. 전부 봉인.
+
+    소피아 (전화, 수민에게):
+    "너 알겠지? 넌 너무 커졌어.
+    개인이 아니라 국가 자산이 되어버렸어.
+    FBI는 손을 뗀다.
+    우린 법을 택했고, 넌... 다른 걸 택했어.
+    Good luck, Sumin."
+
+    ---
+
+    [NSA subplot]
+
+    Miller (NSA)는 아무것도 하지 못한다.
+    키도 없고, 협상 테이블에도 없다.
+
+    이선 (CIA)이 Miller에게 메시지를 보낸다:
+    "Desk job만 하는 사람들은 너무 순진해요, Miller.
+    POC 지원만 하려고 했죠?
+    현장은 그렇게 안 돌아갑니다."
+
+    Miller는 회신하지 않는다.
+    NSA는 완전히 배제되었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep40_fbi_cutoff_c01"
+      content: |
+        3자 화상회의. 화면 3개: 이선 (CIA, Langley), 수민 (중립 지역), El Patrón (멕시코시티). 이선이 정리한다: "CIA: 2개 키 보유 (Greyshore + Elena). Cartel: 2개 키 보유 (El Patrón + Carlos). 수민: 1개 키 보유. Shamir 3-of-5 구조상, 3개가 모여야 작동. 누구도 단독 실행 불가능합니다." El Patrón: "Soomin, 당신이 우리를 선택하면 3개." 수민: "3개 모여도 72시간마다 제 password 필요해요. Brain-only. 기록 안 함." 이선: "그리고 당신이 죽으면?" 수민: "Deadman switch. 알고리즘 전세계 공개. 암호화폐 시장 붕괴. 여러분 모두 파산."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep40_fbi_cutoff_c02"
+      content: |
+        수민의 제안: "셋이 협력하거나, 셋 다 망하거나. 협력 조건: 72시간마다 3자 화상회의, 각자 키 삽입 + 제 password 입력, Algorithm 재활성화, 수익 3등분: CIA / Cartel / 수민. 거부 조건: 72시간 후 automatic shutdown, Deadman switch 대기 상태, 제가 죽으면 즉시 발동." 이선이 El Patrón을 본다. El Patrón이 이선을 본다. 그리고 둘 다... 수민을 본다. 긴 침묵. 이게 수민이 만든 균형이다. 누구도 독점할 수 없고, 누구도 배신할 수 없다. 완벽한 교착 상태.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep40_fbi_cutoff_c03"
+      content: |
+        [FBI subplot] 같은 시각, FBI 소피아는 State Secrets Privilege로 수사 중단 명령을 받는다. DOJ 메모: "NSS-2043-0327-CLASSIFIED. All proceedings suspended. National Security Hold." 소피아가 파일을 파쇄함에 넣는다. 3년치 증거. CCTV 영상, 통화 기록, 은행 기록. 전부 봉인. 소피아 (전화, 수민에게): "너 알겠지? 넌 너무 커졌어. 개인이 아니라 국가 자산이 되어버렸어. FBI는 손을 뗀다. 우린 법을 택했고, 넌... 다른 걸 택했어. Good luck, Sumin." 전화가 끊긴다. FBI는 완전히 배제되었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep40_fbi_cutoff_c04"
+      content: |
+        [NSA subplot] Miller (NSA)는 아무것도 하지 못한다. 키도 없고, 협상 테이블에도 없다. 이선 (CIA)이 Miller에게 메시지를 보낸다: "Desk job만 하는 사람들은 너무 순진해요, Miller. POC 지원만 하려고 했죠? 현장은 그렇게 안 돌아갑니다." Miller는 회신하지 않는다. NSA는 완전히 배제되었다. Miller가 믿었던 "POC 지원 → 나중에 통제"라는 계획은... 처음부터 불가능했다. 현장은 책상에서 생각한 대로 돌아가지 않았다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep40_fbi_cutoff_c05"
+      content: |
+        수민은 깨닫는다. 자신이 이제 3개 조직 사이의 유일한 연결고리라는 것을. CIA는 수민 없이 못 돌린다 (72시간 password). Cartel도 수민 없이 못 돌린다 (72시간 password). 그리고 수민은... 둘 다 없이 살 수 없다. El Patrón이 hardware 관리하고, CIA가 intelligence oversight 하고, 수민이 algorithm 통제한다. 누구 하나 빠지면 전부 무너진다. 이게 Mutual Assured Dependence다. 핵 억지력의 경제판. 배신하면 다 같이 망한다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep40_fbi_cutoff_c06"
+      content: |
+        수민의 내면 독백: "자유는 없다. 하지만 권력은 있다. 72시간마다 세상에서 가장 위험한 두 조직을 묶어둘 수 있다. 그들은 나를 죽일 수 없다. 죽이면 다 같이 망하니까. 그들은 나를 놓을 수 없다. 놓으면 상대가 독점하니까. 그리고 나는... 이 교착 상태에 평생 갇혀 있어야 한다. 이게 내가 선택한 생존이다. Elena, 미안해. 이게 내가 만든 세상이야."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.7
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "FBI와 손 못 잡은 결과”가 법적·절차적 손실로 구체화(보호·면책 불가, 관계 단절)"
+    - "법적·윤리적 책임선의 흐림. 수민의 지연이 결과를 바꿨다는 심리적 책임이 수민에게 고착."
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2600
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "fast"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 10

@@ -1,0 +1,85 @@
+# episodes/ep09_conflict_meeting.yaml
+# Episode 11: "Conflict Meeting"
+# source: ep1_conflict_meeting
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep09_conflict_meeting"
+  date: "2042-03-02T09:00"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    3월 2일 아침 9시, 연구동 회의실. 카를로스가 "우리 프로젝트를 감사할 외부 컨설턴트를 모셨다"며 한 남자를 소개한다. 이름은 요나스 메흐렛, 주의깊게 정장을 입은 30대 중반. 그의 첫 말은 모두를 경직시킨다. "수민 박사, 현장에서 본 적 있어요. 2월 말 재고 검수 때." 수민은 그날을 기억한다. 저녁 10시쯤 실험실에 들어갔던 흔적 없는 사람. 요나스는 계속한다. 구글 슬라이드 대신, 그는 별도 폴더를 꺼낸다. 인보이스, 청구서, 반입 로그.
+
+    "이건 지난 분기 냉각기 컨트롤러 구매 기록입니다." 요나스가 가리킨 수치는 충격적이다. 1월 8일 구매 명령(QC-001): 12대. 1월 12일 배송 기록: 11대. 1월 14일 재고 확인: 10대. "어디 간 거죠?" 요나스의 질문이 편하지 않다. "그리고 여기, 2월 17일. 라벨 제거 기록이 있어요. 초저온 펌프(SCP-4472), 제조사 시리얼 'NZ-447200-β'. 라벨을 왜 제거했나요?" 수민이 대답할 기회를 주지 않고, 요나스가 다음 문서를 펼친다.
+
+    "그리고 이것. ERP 번호와 실제 B/L(선하증권) 번호가 안 맞아요. ERP 시스템엔 'SHP-19304'인데, 항만 기록은 'NOVA-92847'이에요. 왜 번호가 다를까요?" 카를로스가 "그건 전산 오류일 거..." 라고 개입하려 하자, 요나스는 손을 든다. "아니에요, 카를로스. 이건 체계적이에요." 그는 자신의 배지를 살짝 들어 보인다. 'Novagrad Port Authority – Level D Access – Logistics & Inspection'. 항만의 공식 심사자다. 그리고 그 배지는 지하 구역까지의 출입권을 의미한다.
+
+    "저는 지난 3개월간 Novagrad 항만의 모든 컨테이너 움직임을 추적했어요. 여기 아홉 건의 거래가 QuantumFront의 이름으로 들어왔어요. 그런데 여섯 건은 공식 세관 신고서가 없었어요." 요나스가 한 장을 더 내민다. 항만 작업자들의 이름과 ID. "이 사람들, 근무 일지엔 '정상 하역'이라고 했는데, 비디오 기록은 다른 거더라고요. 자재를 옮기는 게 아니라, 옮기는 척하면서 다른 곳으로 빼돌렸어요."
+
+    카를로스의 얼굴이 창백해진다. "요나스, 이건... 이건..." 요나스는 침착하다. "넌 뭐라고 하려는데?" 그 순간, 카를로스는 입을 다물고 뒤로 물러난다. 그리고 신기하게도, 그는 요나스에게 대항하지 않는다. 대신, 그를 마치 자신의 상사처럼 대한다. "네. 알겠습니다." 이 변화는 수민이 놓치지 않는다. 카를로스가 갑자기 존댓말을 쓴다. 요나스는 단순한 '감시자'가 아니라, 더 높은 조직의 '대표'인 것이다.
+
+    회의실 문이 닫힌 후, 실험실은 침묵으로 가득 찬다. 동료들은 수군거린다. "뭐... 뭐가 됐어?" 엘레나는 수민 곁을 지나가며 시선을 맞춘다. 그리고 고개를 아주 살짝 흔든다. 경고다. 말하지 말라. 묻지 말라. 그리고 수민은 깨닫는다—QuantumFront는 단순한 연구소가 아니라, 훨씬 더 복잡한 무언가의 외부 포장일 뿐이라는 것을.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep09_conflict_meeting_c01"
+      content: |
+        요나스가 꺼낸 첫 문서는 재고 기록이다. 엑셀 시트, 사내 로고가 찍혀 있다. 컬럼을 읽으면: PO_DATE, PO_QTY, RECEIVED_QTY, INVENTORY_QTY. 1월 8일, 12대 구매. 1월 12일, 11대 도착. 1월 14일, 재고 10대. 산술이 맞지 않는다. "이거 뭐예요?" 수민이 묻는다. 요나스는 담담하다. "컨트롤러 12대를 주문했는데, 11대만 받았다고 기록돼 있어요. 그런데 재고는 10대예요. 누가 하나를 빼돌렸다는 뜻이죠." 그것도 아니다. 더 깊이 보면, 1월 14일 이후의 기록이 없다. "그리고 여기, 1월 22일부터 3월까지. 재고 기록이 안 나와요. 왜 아무도 확인 안 했을까요?"
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep09_conflict_meeting_c02"
+      content: |
+        "그리고 이것." 요나스가 다음 페이지를 펼친다. 라벨 제거 기록. 날짜: 2월 17일 오전 3시 47분. 장비명: SCP-4472 (초저온 양자 펌프). 제조사 시리얼: NZ-447200-β. 제거 사유: "(공란)". 실행자: "(접근 권한 부족으로 숨김)". 요나스가 설명한다. "이 펌프는 €124,000짜리 고가 장비예요. 왜 라벨을 깠을까요? 라벨에는 제조 날짜, 성능 스펙, 추적 코드가 있거든요. 라벨을 깨면, 중고 장비처럼 보여요. 혹은 다른 곳으로 파는 거죠." 수민은 그 장비가 실험실에 있는 걸 본다. 하지만 라벨을 본 기억은 없다. 즉, 그게 온전한 장비가 아니었다는 뜻이다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.48
+      inject_method: "document_artifact"
+
+    - id: "clue_ep09_conflict_meeting_c03"
+      content: |
+        요나스가 세 번째 문서를 펼친다. 이건 좀 더 기술적이다. ERP 시스템의 출하 기록과 항만 통관 기록을 나란히 놓은 스프레드시트. 왼쪽: QuantumFront의 내부 시스템. SHP-19304, SHP-19305, SHP-19306... 오른쪽: Novagrad Port Authority의 공식 기록. NOVA-92847, NOVA-92846, NOVA-92845... 번호가 완전히 다르다. "이건 비정상이에요. 정상적인 거래라면, ERP 번호와 항만 B/L 번호가 연동되어야 해요. 하나의 문서로 추적 가능해야 하니까요. 그런데 여기선 번호를 바꿔서 기록한 거예요. 왜? 자재 출처를 숨기기 위해서죠." 요나스의 목소리는 수사적이지 않다. 단순히 사실을 진술할 뿐이다. 하지만 그 사실이 얼마나 심각한지는, 실시간으로 카를로스의 얼굴에 드러난다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.52
+      inject_method: "document_artifact"
+
+    - id: "clue_ep09_conflict_meeting_c04"
+      content: |
+        요나스의 배지를 다시 본다. 사진은 흑백이고 프린트된 것 같지만, 문자는 정확하다. 'Novagrad Port Authority – Level D Access – Logistics & Inspection Division'. Level D는 무엇인가. 항만에는 일반적으로 4개 레벨이 있다. Level A: 공개 구역. Level B: 반제한 구역. Level C: 제한 구역. Level D는... 지하다. 항만 지하 구역. 그곳은 정식 통관을 거치지 않은 물품들이 보관되는 곳이다. 혹은 이미 통관을 거쳤지만, 공식 기록에서 빠진 물품들. 요나스가 Level D 배지를 들 때, 카를로스는 눈을 떴다. 그것은 공포였다. 그리고 그것은 인정이었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep09_conflict_meeting_c05"
+      content: |
+        요나스가 마지막 문서를 낸다. 항만 작업자 명부와 함께, 각 작업자들의 근무 기록, 그리고 CCTV 스크린샷 병렬 비교. 작업자 #2841 (김준호), 2월 17일 오전 3시 47분 "하역 작업" 기록. 하지만 CCTV에 찍힌 것은 다르다. 그는 장비를 트럭에 실으려는 게 아니라, 다른 트럭으로 옮기고 있다. 그 트럭의 번호판은... 흐릿하다. 요나스가 설명한다. "이 자료는 세관에 있는 거예요. 공식 확인이거든요. 여기 여섯 건의 거래가, 공식 신고 없이 이루어졌어요. 수치로 환산하면, €680,000어치의 고가 장비가 보고서에 없다는 뜻이에요." 그는 카를로스를 본다. "저는 이걸 어디로 보내야 할까요? 당신한테? 아니면 아래로?"
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.60
+      inject_method: "npc_question"
+
+    - id: "clue_ep09_conflict_meeting_c06"
+      content: |
+        요나스의 질문들은 하나의 패턴을 따른다. 그것은 기술이 아니라 물류에 관한 것이다. 어떻게 양자 컴퓨터를 설계했는가, 가 아니라, 어떻게 장비를 숨겼는가. 어떻게 알고리듘을 개선했는가, 가 아니라, 어떻게 기록을 조작했는가. 이것은 연구 감시가 아니라 **자재 추적**이다. QuantumFront는 표면적으로는 양자 컴퓨터 연구 회사다. 하지만 실제로는, 고가 전자 장비를 불법적으로 이동·은닉하는 물류 네트워크의 일부인 것이다. 그리고 연구는, 단지 그 네트워크를 정당화하기 위한 위장에 불과하다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep09_conflict_meeting_c07"
+      content: |
+        회의가 끝나고 실험실로 돌아오자, 엘레나가 복도에서 수민을 잡는다. 말은 없다. 그저 눈으로 수민을 본다. 무언가를 전달하려는 시선이다. 그리고 고개를 아주 살짝 흔든다. '쉬. 말하지 말아.' 그 순간, 수민은 깨닫는다—엘레나도 알고 있다는 것을. 그리고 그것은 비밀이라는 것을. 가장 위험한 비밀은 공식적으로 존재하지 않는 것이다. 아무도 말하지 않은 것. 아무도 인정하지 않은 것. 하지만 모두가 아는 것. 수민의 손끝이 차갑해진다. 이제 그도 그 비밀의 일부가 되었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.70
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 11

@@ -1,0 +1,141 @@
+# episodes/ep33_nsa_tampering.yaml
+# Episode 41: "NSA Tampering"
+# source: ep8_nsa_tampering
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep33_nsa_tampering"
+  date: "2043-03-25T13:40"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    최종 QPU 시연을 18시간 앞두고, 수민은 측정 체인의 하드웨어 로그를 최종 검증한다. 깊게 들어가보니 심상치 않다. 신호 아날로그-디지털 변환 단계(ADC) 직후에, 타이밍 벡터를 5.2밀리초씩 지연시키는 코드가 숨겨져 있었다. 주석엔 'jitter-adjustment—field test, Y.M.'이라는 표기가 있었다. 하지만 커밋 로그는 NSA 보안 하청사 계정(user: LST_automation_v2.7)이었다. 더 파고들자, 이 모듈은 밀러가 제공한 'quantum-readout-calibration-kit-v3.1.4'에 포함되어 있었다.
+
+    수민의 손이 떨린다. NSA가 우리 연구를 은밀히 통제해왔다는 증거다. 측정 체인 그 자체를 조작해서, 결과가 나올 때마다 그 타이밍만 지연시킨다. 그럼 누가 해독 결과를 받는가? NSA다. 우리 시연이 끝나고 5밀리초 후, 그들이 이미 데이터를 읽고 있다는 뜻이다. 엘레나가 말했던 '우릴 이용하고 있어'라는 게 이런 뜻이었나.
+
+    수민은 깊게 들어간다. 추가 문서를 찾는다. LST 팀의 필드 테스트 로그. 거기엔 '고의적 데이터 지연 및 왜곡' 항목이 적혀 있었다. 한국어로 번역된 부분도 있다: '신호 처리 중 5.2ms 동기화 지연으로 결과 출력을 NSA 수신 완료 후로 설정. (목적: 카르텔의 조기 확산 방지, 미국 정부 이권 보호)'
+
+    더 깊은 곳에 다른 문서가 있었다. 밀러의 손으로 쓴 메모: "Sumin doesn't need to know about the signal delay. The QPU will run, the data will decode, but we'll read it first. By the time his team sees the results, we'll have secured the first 1,000 RSA keys and copied them to TEMPEST-shielded storage. The Cartel thinks they're getting live feeds—but they're getting our edited version. Control the feed, control the outcome."
+
+    수민은 가슴이 철렁한다. NSA만 그런 게 아니었다면? 카르텔도? 그 누구도 순수한 결과를 보지 못하는 건가? 엘레나는 이미 알고 있었던 걸까. "정부도 우릴 이용하고 있어. 그리고 카르텔도. 넌 그 사이의 칩일 뿐이야."
+
+    ---
+
+    하지만 수민은 또 다른 사실을 깨닫는다.
+
+    Miller의 계획은... 실패했다.
+
+    Failsafe 키 분배에서 NSA는 완전히 배제되었다.
+    - CIA: 2개 (Greyshore + Elena)
+    - Cartel: 2개 (El Patrón + Carlos)
+    - 수민: 1개
+    - NSA: 0개
+
+    Miller는 POC 지원만 하려고 했다.
+    "단지 작동하는지 확인만 하면 돼요."
+
+    하지만 현장은 그렇게 돌아가지 않았다.
+    CIA가 먼저 움직였고,
+    Cartel이 수민을 확보했고,
+    Miller는... 아무것도 못 했다.
+
+    Desk job만 하는 사람들은 너무 순진하다.
+    현장의 복잡성을 이해 못 한다.
+
+    ---
+
+    수민은 확실해진다. 이제 정부를 믿을 수 없다. 정부도, 카르텔도, 벤도. 그 누구도 신뢰할 수 없는 세상에서, 수민은 오직 자신의 기술과 결정만 믿기로 한다.
+
+    그리고 Failsafe를 설계할 때...
+    NSA Miller를 완전히 배제하기로 결정했다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep33_nsa_tampering_c01"
+      content: |
+        수민이 QPU 측정 체인 하드웨어 로그를 파고든다. ADC(아날로그-디지털 변환) 직후, 신호 타이밍 벡터를 정확히 5.2밀리초씩 지연시키는 코드가 숨겨져 있다. 주석: 'jitter-adjustment—field test, Y.M.' 그런데 커밋 로그는 LST_automation_v2.7 계정. NSA 하청사 자동화 계정이다. 더 역추적하면, 이 모듈은 밀러가 직접 제공한 'quantum-readout-calibration-kit-v3.1.4'에 원래부터 포함되어 있었다. NSA가 우리 측정 체인 자체를 조작했다는 뜻이다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep33_nsa_tampering_c02"
+      content: |
+        LST 팀 필드 테스트 로그. 한국어와 영어가 섞여 있다. '신호 처리 중 5.2ms 동기화 지연으로 결과 출력을 NSA 수신 완료 후로 설정. (목적: 카르텔의 조기 확산 방지, 미국 정부 이권 보호)' 그리고 추가 항목: '데이터 1~30번 항목 고의적 왜곡 적용 (해독 결과 신뢰도 감소용)'. 요나스의 서명이 있다. 하지만 요나스의 이름 위에는 NSA 감독자의 스탬프가 찍혀 있다. 요나스는 도구였고, NSA가 조종자였다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep33_nsa_tampering_c03"
+      content: |
+        밀러의 손으로 쓴 메모를 수민이 발견한다. 기밀 문서 보관소에서 우연히 본 것. "Sumin doesn't need to know about the signal delay. The QPU will run, the data will decode, but we'll read it first. By the time his team sees the results, we'll have secured the first 1,000 RSA keys and copied them to TEMPEST-shielded storage. The Cartel thinks they're getting live feeds—but they're getting our edited version. Control the feed, control the outcome." NSA는 우리를 이용한 게 아니라, 우리를 바꿔친 것이다. 카르텔도 우리를 속인다. 수민은 그 사이의 칩일 뿐이다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep33_nsa_tampering_c04"
+      content: |
+        메모의 다음 문단: 'If Sumin finds out, frame it as necessary security measures. "We had to protect the data from falling into enemy hands." He'll understand. He's smart enough to see the bigger picture. And if he doesn't cooperate voluntarily, we have leverage: his family, his visa status, his academic future—all in our hands. The choice is his: play ball or watch everything collapse.' 수민의 손이 떨린다. 밀러는 이미 모든 걸 계획했다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep33_nsa_tampering_c05"
+      content: |
+        엘레나가 죽기 전에 했던 말이 생생하게 떠오른다. "정부도 우릴 이용하고 있어. 넌 그 사이의 칩이야. 그리고 한 번 칩이 되면, 다시는 칩이 아닐 수 없어." 수민은 지금 깨닫는다. 엘레나는 이미 알고 있었다. 아마 밀러에게서 직접 들었을 수도 있다. 혹은 다른 방식으로 발견했을 수도. 어쨌든, 이것이 엘레나를 자살로 몰아간 이유 중 하나였을 거다. 통제 불가능한 기술 앞에서, 정부와 카르텔 사이에서, 선택의 여지가 없다는 절망감.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep33_nsa_tampering_c06"
+      content: |
+        밀러는 나중에 (가상의 대화에서) 말할 것이다. "국가를 위해선 이 정도 조작은 필요해. 테러를 막고, 전쟁을 예방하고, 경제를 지키기 위해." 그 논리는 그럴듯하다. 하지만 그 속에 숨겨진 진실은 다르다. 우리가 '국가'라고 부르는 것은 사실 '권력'이다. 그리고 권력은 자기 보전을 위해 모든 걸 정당화한다. 밀러도 그걸 안다. 그래서 그 말을 한다. 그리고 수민은 더 이상 그 말을 믿을 수 없다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep33_nsa_tampering_c07"
+      content: |
+        NSA 백도어 코드 상세 분석. 수민이 역컴파일한 양자 측정 모듈 내부:
+
+        [CODE_SEGMENT: quantum_readout_calibration_kit_v3.1.4]
+        Line 847-851 (Hidden subroutine):
+        ```
+        void apply_signal_delay(float* data_buffer, int frame_count) {
+          for(int i=0; i<frame_count; i++) {
+            data_buffer[i] = apply_gaussian_jitter(data_buffer[i], 5.2e-3); // 5.2ms delay
+            timestamp_shift(SYSTEM_CLOCK, -5.2); // Timestamp rewind
+          }
+          transmit_to_NSA_buffer(data_buffer); // Send BEFORE returning to user
+        }
+        ```
+
+        이 함수는 모든 양자 측정 결과를 NSA 수신 버퍼로 먼저 보낸 후, 원래 사용자(카르텔)에게 5.2밀리초 지연된 버전만 전달한다. 즉, NSA는 카르텔보다 5밀리초 먼저 모든 해독 결과를 본다. 국가 차원의 데이터 탈취 기술.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep33_nsa_tampering_c08"
+      content: |
+        엘레나의 과거 경고를 이제 수민이 이해한다. ep15와 ep30에서 엘레나가 남긴 메모:
+
+        "They're using us. Both sides. NSA reads first, Cartel reads second. You're just the antenna."
+
+        그리고 ep22 마지막 대사: "정부도 우릴 이용하고 있어. 그리고 카르텔도. 넌 그 사이의 칩일 뿐이야."
+
+        이제 그 말의 정확한 의미가 드러난다. 엘레나는 이미 NSA의 백도어를 발견했고, 밀러의 진의를 알고 있었다. 그래서 절망했고, 그래서 (ep36에서) 도망치려다 죽었다. 그녀의 죽음은 수민에 대한 경고였다. "이 길의 끝은 죽음이야."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "NSA가 QuantumFront 기술을 몰래 조작·통제하려 했다는 명백한 증거를 수민이 확보함"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 8000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 29

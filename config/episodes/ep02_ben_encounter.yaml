@@ -1,0 +1,89 @@
+# episodes/ep02_ben_encounter.yaml
+# Episode 3: "Ben Encounter"
+# source: ep0_ben_encounter
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep02_rival_and_ghosts"
+  date: "2041-05-22T13:15"
+  location: "Conference venue corridors / QuantumFront HQ — CryoLab"
+  summary: |
+    컨퍼런스 마지막 날. 벤 클라크가 복도에서 수민을 잡는다. "어제 발표 봤어. 시뮬레이션 결과 괜찮더라. 근데 실제 하드웨어로는 언제쯤 테스트할 건데?" MIT 시절부터 익숙한 우월한 톤. 벤은 자신의 DARPA 계약, 실제 하드웨어 2.8ms 달성을 과시한다. 그리고 제안: "우리 쪽으로 와. 비자도 해결해줄 수 있고, 연봉도 네 현재의 세 배는 될 거야." 유혹이었다. 깨끗하고, 합법적이고, 안전한 길.
+
+    하지만 벤의 눈이 한 번 Miller가 사라진 방향을 추적했다. "그 사람, 누구야?" 수민은 대답하지 않았다. 벤이 고개를 끄덕였다. "조심해. 저런 사람들은 항상 뭔가를 원하거든." 경고인지, 질투인지 알 수 없었다. 벤이 명함을 건넨다. 'Greyshore'라는 이름이 명함 뒷면에 연필로 적혀있다. "혹시 이 이름 들어봤어? 네 회사 투자자 중에 있을 텐데." 수민은 고개를 저었다. 벤이 어깨를 으쓱했다. "알아보면 재밌을 거야."
+
+    [2주 후 — QuantumFront HQ, CryoLab]
+
+    컨퍼런스에서 돌아온 수민은 연구실에서 이상한 점들을 발견하기 시작한다. 첫 번째: 예산 대시보드. 올해 장비 예산이 작년 대비 340% 증가했다. $800K가 'Benefactor Grant'라는 항목으로 잡혀있다. 수민이 검색해도 이 Benefactor의 정체를 알 수 없다. 재무 포털에서 'Greyshore Capital'이 나타난다. 벤이 말했던 그 이름. 접근하려 하자: 403 Forbidden.
+
+    두 번째: 장비 수령 사진. 초저온 펌프 €124,000 × 2대 구매 기록인데, 자산 등록부에는 한 대만 있다. 사진 파일 크기가 다르다—2.8MB vs 0.84MB. 조작의 흔적.
+
+    세 번째: 실험실 장비 목록에 수민이 요청하지 않은 부품들이 있다. 특히 신호 중계 박스 3개. 수민의 연구에 필요 없는 것들. "이건 뭐지?" 옆에 있던 기술자가 어깨를 으쓱한다. "위에서 내려온 거예요. 우리 업무 아닙니다."
+
+    수민은 노트북을 열고, 모레노 교수의 말을 떠올린다. "지원이 필요해. 알겠지?" 그때는 조언인 줄 알았다. 지금은 경고로 들린다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep02_ben_encounter_c00"
+      content: |
+        벤과 수민의 경쟁 관계는 MIT Moreno 세미나실에서 시작됐다. 위상 안정성 문제를 놓고 3시간 동안 논쟁했던 날. 벤이 먼저 해법을 찾았고, Moreno는 "우아한 접근"이라고 칭찬했다. 수민은 그날 밤 연구실에 남아 다른 방법을 찾았지만, 벤의 방법이 더 실용적이라는 걸 인정할 수밖에 없었다. Moreno는 두 사람을 "두 마리 독수리"라고 불렀다. "둘 다 먹이를 원하지만, 하늘은 하나뿐"이라고. 이 경쟁이 지금까지 이어졌다. 벤은 실용적 성공을 택했고, 수민은 학문적 순수성을 택했다. 하지만 지금 벤이 더 앞서 있다.
+      trigger: "protagonist reflects on past or notices familiar pattern"
+      inject_threshold: 0.35
+      inject_method: "internal_memory"
+
+    - id: "clue_ep02_ben_encounter_c01"
+      content: |
+        벤의 명함. 'Ben Clark, CEO, Neuro-Quantum Ventures'. 수민이 알기론 벤은 3년 전 박사 과정에 있었다. 지금 CEO? 벤이 휴대폰을 꺼낸다. DARPA 계약서 사진. 제목: 'Advanced Superconducting Assembly & Test Platform (ASATP) — Phase II'. 금액란: $3.2M/year, 3-year contract. 그리고 부주: "NSA Quantum Intelligence Division 공동 펀딩". 벤은 대학원생이 아니라, NSA/DARPA 펀딩을 받은 스타트업의 CEO가 되어 있었다. 정부 자금으로 키운 회사.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep02_ben_encounter_c02"
+      content: |
+        벤의 기술 설명. "너의 제어 알고리즘이랑 우리 하드웨어가 붙으면... 게임 체인저가 돼." 그 말은 벤의 패키징 기술이 이미 성숙했다는 뜻. 즉, 초전도 큐비트 패키징은 더 이상 병목이 아니라는 것. 그렇다면 남은 병목은? 제어. 신호 처리. 뭔가를 더 빠르게 만들 수 있는 기술. 벤이 덧붙인다. "우린 이미 벤치마크 테스트를 봤어. 너의 알고리즘이 들어가면, 큐비트당 제어 시간이 40% 단축돼." 40%. 그 수치는 절대 임의적이지 않았다. 측정된 수치였다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep02_ben_encounter_c03"
+      content: |
+        벤의 비자 제안. "EB-2 NIW, 알아? 그레이트 탈렌트. 우린 이미 세 명 진행 중이야. 인수 조건도 좋고." EB-2 NIW—National Interest Waiver. 보통 대기 시간이 2-3년. 벤이 말하는 건 그게 수개월로 단축된다는 뜻. "기회는 지금이야. 3개월 더 가면 쿼터가 바뀌고, 새 리더가 들어와. 그럼 넌 더 이상 선택지가 없어." 그 말은 협박이었다. 지금 선택하면 비자 처리를 도와주고, 나중에는 안 한다는 것.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep02_ben_encounter_c04"
+      content: |
+        벤이 건넨 메모. 명함처럼 보이지만 뒷면에 손으로 쓴 글씨. 'ben.clark@amrd.gov', 전화번호, 그리고 마지막: 'Ask about "Greyshore"'. 화살표 옆에 손가락 모양 이모지. 벤이 설명했다. "Greyshore는 나도 자세히는 몰라. DARPA 브리핑에서 암호명으로만 들었어. 하지만 우리 계약과 연결돼 있다는 건 확실해." 벤조차 제대로 모르는 주제. 이건 비공식 채널에서만 나눌 내용이라는 뜻. Greyshore—포트폴리오? 암호명? 프로젝트명? 벤도 모르고, 수민도 모른다. 그게 더 위험했다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.6
+      inject_method: "document_artifact"
+
+    - id: "clue_ep02_ben_encounter_c05"
+      content: |
+        벤의 마지막 문장. "기술은 쇼야. 최종적으로 남는 건 계산서와 투자 흐름이야. 우리가 먼저 그걸 손에 넣으면, 나머지는 자동이야." 그것은 과학자의 말이 아니었다. 관료의 말이었다. 벤이 변했거나, 아니면 처음부터 이런 사람이었는데 수민이 못 본 것이거나. 모레노의 경고가 다시 들렸다. "지원이 필요해. 알겠지?" 수민은 그제야 깨달았다. 지원은 자발적 선택이 아니라, 이미 예정된 단계라는 것.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep02_ben_encounter_c06"
+      content: |
+        메모를 받는 그 순간, 수민의 손가락이 진동했다. 생리적 반응—호르몬 급증. 카페인은 마시지 않았는데, 심박수가 올라갔다. 벤의 눈이 그걸 포착했다. "생각해 봐. 시간 있으면 연락해." 벤이 자리를 떠나며 덧붙였다. "비자 문제 해결하고 싶으면, 현실적이어야 해. 혼자서는 안 돼." 그 말투에는 MIT 시절부터 변하지 않은 우월감이 배어 있었다. 벤은 수민을 여전히 아래로 보고 있었다. 수민은 메모를 포주머니에 넣었지만, 종이의 무게가 실제보다 무거웠다. 거절하면? 기회를 잃는다. 받으면? 뭔가에 묶인다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "벤과 수민의 과거 경쟁 관계가 다시 확인됨"
+    - "벤의 제안은 거절되지 않고 보류됨 (명함만 수락)"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

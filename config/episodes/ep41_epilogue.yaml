@@ -1,0 +1,215 @@
+# episodes/ep41_epilogue.yaml
+# Episode 49: "Epilogue"
+# source: ep9_epilogue
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep41_epilogue"
+  date: "2043-06-15T09:00"
+  location: "Mexico City — Sumin's office (38th floor)"
+  summary: |
+    Q-Day + 80일. 2043년 6월 15일 화요일 오전 9시.
+
+    수민의 사무실. 멕시코시티 38층. 창밖으로 도시 야경이 보인다.
+
+    노트북 화면:
+    "72-hour re-authentication required.
+     Current timer: 00:03:47
+     Next authentication: 2043-06-15 09:00:00"
+
+    수민이 키보드 앞에 앉는다.
+
+    화상 연결 2개가 켜진다:
+    - 왼쪽: 이선 (CIA, Langley)
+    - 오른쪽: El Patrón (Cartel 본부)
+
+    이선: "준비됐습니다."
+    El Patrón: "시작하죠."
+
+    세 사람이 동시에 USB 키를 삽입한다.
+
+    "Key #1: ✓ Authenticated (CIA - Greyshore)"
+    "Key #2: ✓ Authenticated (CIA - Elena)"
+    "Key #3: ✓ Authenticated (Cartel - El Patrón)"
+
+    [Waiting for passphrase...]
+
+    수민이 타이핑한다.
+    아무도 모르는, 그녀의 머릿속에만 있는 암호.
+    42자. 특수문자, 숫자, 대소문자 혼합.
+
+    "✓ Passphrase accepted.
+     System unlocked for 72 hours.
+     Next authentication: 2043-06-18 09:00:00"
+
+    Algorithm이 재가동된다.
+    RSA-2048 키들이 무너진다.
+    암호화폐 거래가 추적된다.
+    군사 통신이 해독된다.
+
+    거래가 실행된다.
+    8분 만에 수백만 달러가 움직인다.
+
+    수익 분배:
+    - CIA account: $2,347,820
+    - Cartel account: $2,347,820
+    - Soomin Kim account: $2,347,820
+
+    El Patrón: "다음 주 화요일에."
+    이선: "같은 시간에."
+
+    화상이 끊긴다.
+
+    ---
+
+    수민이 창밖을 본다.
+
+    Jonas가 문 앞에 서 있다.
+    "커피 드릴까요?"
+
+    수민: "고마워요, Jonas."
+
+    Jonas.
+    El Patrón의 부하였다가,
+    CIA 이중 스파이였다가,
+    지금은... 수민의 보호자.
+
+    수민: "Jonas, 당신은 결국 누구 편이에요?"
+
+    Jonas: "살아남은 사람 편입니다."
+
+    잠시 침묵.
+
+    Jonas가 커피를 건넨다.
+    그리고 조용히 말한다.
+
+    "참고로... Bella는 잘 살고 있습니다."
+
+    수민이 멈춘다.
+    "뭐라고요?"
+
+    Jonas: "Elena의 여동생. Bella. 12년 전 사라진."
+
+    수민의 눈이 커진다.
+    "어떻게... 그걸 알아요? 그건 Elena와 저만 나눈 대화였는데..."
+
+    Jonas가 미소 짓는다.
+    "우리는... 많은 걸 압니다."
+
+    Jonas가 문을 닫고 나간다.
+
+    수민은 그 자리에 얼어붙는다.
+    Jonas의 정보력.
+    둘만의 대화였는데도 알고 있다.
+
+    아무도 믿을 수 없다.
+    하지만 그래도... Bella가 살아있다는 건 다행이다.
+
+    ---
+
+    [수민의 독백]
+
+    수민이 노트북을 닫는다.
+    타이머: 71:59:43
+
+    창밖을 바라본다. 멕시코시티의 야경. 수백만 개의 불빛.
+
+    Q-Day + 80일. 나는 여전히 살아 있다. 하지만 자유롭지 않다.
+
+    이 도시를 떠날 수 없다. 72시간마다 이 의식을 반복해야 한다. 내가 죽으면 세계 경제가 붕괴한다. 세상에서 가장 위험한 두 조직을 72시간마다 묶어두는 것. CIA도 카르텔도 나 없이는 못 돌린다. 그리고 나는... 둘 다 없이 살 수 없다. 완벽한 교착 상태. Mutual Assured Dependence.
+
+    밀러가 처음 말했었다. 기술은 도구라고. 카를로스도 말했다. 기술에 선악은 없다고. 그때는 뭔가 불편했지만 말로 표현하지 못했다. 35시간의 계산 끝에 알았다—도구는 놓으면 멈추지만, 이건 멈추지 않는다고. Failsafe를 설계하면서 깨달았다—기술을 통제하는 것도 결국 기술이라고. 엘레나가 죽은 날 알았다—칼은 놓을 수 있지만 손은 뗄 수 없다고. QPU가 돌아간 순간 알았다—내 손이 수술을 하는지 살인을 하는지 아직도 모르겠다고.
+
+    그리고 지금, 80일이 지난 지금, 마침내 하나의 문장이 된다.
+
+    기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다.
+
+    나는 손을 씻으려고 했다. 하지만 이미 피가 너무 많이 흘렸다.
+
+    Elena. 미안해. Moreno 교수님. 미안합니다. 내가 만든 세상이... 이렇게 되었어요.
+
+    이제는 손을 씻을 수 없다. 이 무게를 평생 짊어지고 살아가야 한다.
+
+    ---
+
+    [마지막 장면]
+
+    타이머: 71:58:21
+
+    수민이 눈을 감는다. 다시 뜬다.
+    창밖을 본다.
+
+    멕시코시티 야경.
+    수백만 개의 불빛.
+
+    그 불빛 하나하나가...
+    RSA 암호화로 보호받고 있던 거래들.
+    그리고 지금은...
+    수민의 algorithm으로 해독되고 있는 거래들.
+
+    자유는 없다.
+    하지만 권력은 있다.
+
+    그리고 그 권력으로...
+    72시간마다 세상을 멈추거나 돌릴 수 있다.
+
+    "3일 후에 또 만나요, 여러분."
+
+    [끝]
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep41_epilogue_c01"
+      content: "30일 후. NSA-카르텔 협력 루머(진상 불투명). 학계/산업계 재편: 중요 인물 사라지거나 등장(판도 뒤집힘). 밀러 국장: "양자 위협 파악·완화. 포스트-양자 암호로 전환." (거짓. 라파엘은 여전히 RSA 해독 기술 소유. 독점 가치 저하로 '협력' 자세로 전환. 비공식 거래: "post-quantum 개발 주도하는 동안 조용히 있겠다.") 노바그라드 항만 "구조적 붕괴로 안전 폐쇄". 증거 청소됨. 모레노 교수, 팀원 20명, 실종. 요나스: 3개월 후 파나마 컨설팅 법인 이사회 "Carlos" 이름 등록(사진 없음). 신원 불명. 라파엘이 숨김. QuantumFront: MIT 기록 "defunct". 모든 논문·발표 삭제. 수민 이름 어떤 논문에도 없음.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep41_epilogue_c05"
+      content: |
+        김수민의 보호 거주지 침대 옆 일기장. 손으로 쓴 글씨(필체에 떨림이 있음):
+        "사건 후 167일. 나는 여전히 살아 있다. 하지만 죽었다. 엘레나는 진짜로 죽었다. 모레노 교수도. 그들의 팀원 20명도. 그들의 시신은 어디에 있나? 노바그라드 항만 지하? 아니면 바다?
+
+        내가 누른 버튼이 이 모든 걸 시작했다. 브리지 키를 삽입했을 때, 나는 이미 알았다. 이건 돌아갈 수 없는 선이라는 걸. 그리고 나는 그 선을 넘었다. 눈 뜨고.
+
+        기술은 칼이 아니다. 칼은 도구일 뿐이다. 기술은 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다. 나는 손을 씻으려고 했다. 하지만 이미 피가 너무 많이 흘렸다. 이제는 손을 씻을 수 없다.
+
+        이 무게를 평생 짊어지고 살아가야 한다."
+
+        일기는 여기서 끝난다. 다음 페이지는 비어 있다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep41_epilogue_c02"
+      content: "밀러 직위 상승('혼란 최소화 공로'). 축하 서한 짧고 건조. 모레노/연구실 실종으로 전세계 경악했으나 기밀로 처리, 서서히 잊혀짐. 엘 파트론(라파엘): 그림자에서 벗어남. 양지의 더 깊은 곳에서, 정부·기업 권력 너머로 조직 새롭게 설계 시작. 라파엘이 수민을 보호하기 시작한 이유: "넌 없으면 아무것도 작동하지 않아. 그래서 난 너를 보호해야 해."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep41_epilogue_c10"
+      content: "독자도 과학 기술 윤리에 대해 생각해보는 계기가 될 수 있게 독백 "기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다. 나는 손을 씻을 수 없게 됐다.""
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.85
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep41_epilogue_c11"
+      content: |
+        Jonas: "참고로... Bella는 잘 살고 있습니다." 수민: "뭐라고요?" Jonas: "Elena의 여동생. Bella. 12년 전 사라진." 수민의 눈이 커진다. "어떻게... 그걸 알아요? 그건 Elena와 저만 나눈 대화였는데..." Jonas가 미소 짓는다. "우리는... 많은 걸 압니다." 이 한마디로 Jonas의 정보력이 드러난다. 둘만의 대화였는데도 알고 있다. 감청? 도청? 아니면 Elena 자체가 Jonas에게 말했을까? 수민은 깨닫는다. 아무도 믿을 수 없다. 하지만 그래도... Bella가 살아있다는 건 다행이다. Elena의 12년 고통이 헛되지 않았다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.8
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "초기 루즈 스레드 일부 정리(납치·자금 루트)"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 5000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 18

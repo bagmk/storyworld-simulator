@@ -1,0 +1,67 @@
+# episodes/ep17_message_in_bodies.yaml
+# Episode 25: "Message In Bodies"
+# source: ep4_message_in_bodies
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep17_message_in_bodies"
+  date: "2043-03-13T03:40"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    엘레나가 USB를 넘긴 다음 날 2043년 3월 13일 오전 9시 47분. QuantumFront 내부망 시스템 메시지. 빨간 글씨. "INCIDENT ALERT - Port Authority Facility (Novagrad)". 상세 내용: "창고 3번 위치에서 하역 인부(신원: 미상)가 대형 화물 적재 중 기계 압착으로 사망. 사망 시각: 09:15 KST. 시신 상태: 우측 흉부 규칙적 압박 자국 1분 이상 지속. 사망 원인: 기술 조사 중. CCTV 스틸컷 첨부." 화면에는 피로 반쯤 덮인 영상이 보인다.
+
+    수민의 분석. 포트 시스템 로그: 사고 직전 09:13:22~09:14:45 (1분 23초간) CCTV 카메라 12번·15번 영상 공백. 마스터 로그: "자동 유지보수 모드 활성화 (시스템 동의 없음)". 비정상 항목: PLC_Valve_17에서 09:12:58에 'PRESSURE_OVERRIDE' 발생, 09:13:04 자동 소거. 정확히 1분 뒤 사람이 기계 아래에서 압착됨. 기술 범죄였다.
+
+    오후 2시 15분, 마르셀로가 엘레나를 찾아온다. "그 인부는 누가의 친구였어. 친구는 이미 우리에 많으니까." 그는 침묵한다. "규율은 말로 설명하지 않는다. 몸으로 새기는 거야. 메시지는 모두에게 전달돼야 한다." 엘레나의 얼굴이 창백해진다. USB 이후 사망. 경고였다.
+
+    밤 11시 3분, 엘 파트론의 화상 회의. 참여자: 라파엘 구티에레즈(부에노스아이레스, 화상), 카를로스, 요나스, 엘레나, 마르셀로. 엘 파트론의 음성: "실수는 결과를 낳습니다. 그리고 결과는 모두가 똑같이 느껴야 합니다. 이건 개인의 문제가 아닙니다. 이건 체계의 문제입니다." 수민은 그 말이 자신을 향한 것이라 느낀다. USB를 받은 자신도 이제 타겟이 될 수 있다."
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep17_message_in_bodies_c01"
+      content: |
+        CCTV 로그 분석. 사고 시각 09:15 KST 직전, 카메라 12번(창고 북쪽 입구)과 카메라 15번(상부 모니터링 포인트)의 영상이 정확히 09:13:22부터 09:14:45까지 1분 23초간 공백. 이후 다시 정상 영상 복귀. 마스터 로그에 기록된 항목: "자동 유지보수 모드 활성화 (시스템 동의 없음)". 이것은 자동이 아니라 '누군가'가 의도적으로 덮어씌운 흔적이었다. 같은 시간, 엘레나의 세션 로그에는 '관리자 권한 획득 시도' 기록이 남아 있었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_message_in_bodies_c02"
+      content: |
+        내부 사고 공지에 대한 직원 열람 기록. 목록에 여러 아이디가 있다: admin_carlos (09:18), elena_r (09:21), sumin_k (09:25)... 그 외에 하나의 정체불명 아이디: 'Y_monitor' (09:14). 공지가 09:47에 발송되었는데, 'Y_monitor'는 09:14에 이미 이 내용을 열람했다는 뜻이다. 즉, '누군가'는 사고 발생 33분 전에 이미 이 사건을 알고 있었다. 요나스. USB 기록에 따르면 요나스의 시스템 별명은 'Y_mon'이었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_message_in_bodies_c03"
+      content: |
+        노바그라드 항만 LST(Logistics Surveillance Terminal) 시스템 로그. 시각 09:12:58, 알람: 'PLC_Valve_17 - PRESSURE_OVERRIDE - Manual_Control_Engaged'. 즉시 09:13:04에 알람 자동 소거. 기록상으로는 '시스템 오류로 인한 자동 복구'로 표기. 하지만 물리적 실제는? 화물 적재 기계의 압력 조절 밸브가 수동으로 제어되었다는 뜻. 그리고 정확히 1분 뒤, 사람이 그 기계 아래에서 꼬깟혔다. 죽음은 완벽한 기술 범죄였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_message_in_bodies_c04"
+      content: |
+        피해자(신원: 알 수 없음)의 소지품 목록. 지갑, 담배, 휴대폰(파손), 그리고 하나의 출입 토큰. 플라스틱 카드 크기의 RFID 토큰, 표면에 인쇄: 'NOVAGRAD_PORT_AUTHORITY - 하청업체 3급 - 유효기간 2043-06-30'. 뒷면에 손으로 쓴 글씨: '02-권'. 경찰 조사 기록에 따르면 이 카드의 신청자는 포항항만공사 이름으로 등록되어 있으나, 실제 지급 담당자는 '미상'. QuantumFront의 공식 기록에는 이 하청업체에 대한 언급이 없다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.6
+      inject_method: "system_alert"
+
+    - id: "clue_ep17_message_in_bodies_c05"
+      content: |
+        시신의 상태 기술서에서 발견된 이상한 표현. 의료 검사관의 보고서 일부: "압착으로 인한 신체 손상. 특이점: 우측 흉부에 규칙적인 압박 자국, 마치 기계가 아닌 인간적 힘으로 제압된 듯한 패턴. 생전 고통의 흔적. 추정 시간: 1분 이상 지속됨." 이것을 Phase-Guard 보안 시스템의 에러 로그와 비교하면, 로그 패턴이 발견된다: 'INTEGRITY_FAIL - COMPRESSION_SEQUENCE - DURATION: 1:23 - STATUS: COMPLETED'. 정확히 같은 구조, 같은 수치. 이것은 우연이 아니었다. 카르텔은 사람의 죽음을 '로그'로, '데이터'로 디자인했다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2200
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "fast"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

@@ -1,0 +1,140 @@
+# episodes/ep38_showdown_quantum_part2.yaml
+# Episode 46: "Showdown Quantum Part 2"
+# source: ep8_showdown_quantum_part2
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep38_showdown_quantum_part2"
+  date: "2043-03-27T20:05"
+  location: "Offsite secure location — intelligence briefing room"
+  summary: |
+    Q-Day. 2043년 3월 27일 오후 8시.
+
+    El Patrón이 Carlos에게 지시한다. "Failsafe 키를 삽입해. 3개면 된다."
+
+    Carlos가 USB 슬롯에 키를 삽입한다:
+    - Slot 1: El Patrón's key ✓
+    - Slot 2: Carlos's key ✓
+    - Slot 3: Greyshore key (FBI 압수 후 복구한 복제본)
+
+    [ERROR]
+    화면에 붉은 경고:
+    "Shamir Secret Sharing verification failed.
+     2 of 5 keys authenticated.
+     Key #3: INVALID (forensic copy detected - cryptographic signature mismatch)
+     Require 1 additional ORIGINAL key for activation."
+
+    El Patrón의 얼굴이 굳는다. "복제 키를 감지했어?"
+
+    Carlos: "Elena의 키가 있습니다. Jonas가 회수했다고 보고했습니다."
+
+    El Patrón: "그럼 그걸 써!"
+
+    [30분 후]
+    Jonas를 찾았지만... USB가 없다.
+
+    El Patrón (Jonas에게): "키는 어디 있어?!"
+
+    Jonas (차분하게): "금고에 넣었습니다."
+
+    금고를 연다. 비어있다.
+
+    El Patrón: "누가 가져갔어?!"
+
+    Jonas: "모르겠습니다. 보안 로그를 확인해보겠습니다."
+
+    ---
+
+    [같은 시각, 워싱턴 DC - CIA 본부]
+
+    이선이 모니터를 본다.
+    화면:
+    "Shamir Secret Sharing verification in progress...
+     2 of 5 keys authenticated.
+     Source: CIA_SECURE_NODE_12
+
+     Key #3 (Greyshore): ✓ VALID (original)
+     Key #4 (Elena/Jonas): ✓ VALID (original)
+
+     Status: 2 keys verified. Waiting for 1 additional key..."
+
+    이선이 미소 짓는다.
+    "우리가 2개. 그들이 2개. 수민씨... 당신이 마지막입니다."
+
+    ---
+
+    El Patrón이 진실을 깨닫는다.
+
+    "Elena의 키가... CIA로 넘어갔어?"
+
+    Jonas는 침묵한다.
+
+    El Patrón: "너... 이중 스파이였어?"
+
+    Jonas (차분하게): "저를 쏘시면, CIA가 즉시 알고리즘을 전세계에 공개합니다. 암호화폐 시장 붕괴. 당신의 Greyshore 자산... 전부 무용지물이 됩니다."
+
+    El Patrón의 손이 떨린다.
+
+    "...협박하는 거야?"
+
+    Jonas: "아뇨. 사실을 말씀드리는 겁니다. 이제 선택하세요. 협력하거나, 전부 잃거나."
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep38_showdown_quantum_part2_c01"
+      content: |
+        El Patrón이 Carlos에게 지시한다. "Failsafe 키 삽입. 3개면 충분해." Carlos가 USB 슬롯에 키를 넣는다: Slot 1 (El Patrón's key) ✓, Slot 2 (Carlos's key) ✓, Slot 3 (Greyshore key - FBI 압수 후 복구한 복제본). 하지만 화면에 붉은 경고가 뜬다: "Shamir Secret Sharing verification failed. 2 of 5 keys authenticated. Key #3: INVALID (forensic copy detected - cryptographic signature mismatch). Require 1 additional ORIGINAL key for activation." El Patrón의 얼굴이 굳는다. "복제 키를 감지했어?" 그는 Elena의 키를 찾으려 하지만... Jonas가 "금고에 넣었습니다"라고 했던 그 키가 사라졌다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep38_showdown_quantum_part2_c02"
+      content: |
+        같은 시각, 워싱턴 DC CIA 본부. 이선이 모니터를 본다. 화면: "Shamir Secret Sharing verification in progress... 2 of 5 keys authenticated. Source: CIA_SECURE_NODE_12. Key #3 (Greyshore): ✓ VALID (original). Key #4 (Elena/Jonas): ✓ VALID (original). Status: 2 keys verified. Waiting for 1 additional key..." 이선이 미소 짓는다. "우리가 2개. 그들이 2개. 수민씨... 당신이 마지막입니다." CIA는 Greyshore 키(FBI 압수품)와 Elena 키(Jonas가 전달)를 모두 확보했다. El Patrón은 이 사실을 모른다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep38_showdown_quantum_part2_c03"
+      content: |
+        El Patrón이 Jonas를 심문한다. "Elena의 키는 어디 있어?!" Jonas (차분하게): "금고에 넣었습니다." 금고를 연다. 비어있다. El Patrón: "누가 가져갔어?!" Jonas: "모르겠습니다. 보안 로그를 확인해보겠습니다." 하지만 Jonas의 표정은 너무 차분하다. El Patrón이 깨닫는다. "너... 이중 스파이였어?" Jonas는 침묵한다. 그 침묵이 답이다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep38_showdown_quantum_part2_c04"
+      content: |
+        Jonas가 차분하게 말한다. "저를 쏘시면, CIA가 즉시 알고리즘을 전세계에 공개합니다. 암호화폐 시장 붕괴. 당신의 Greyshore 자산 3조 2천억 달러... 전부 무용지물이 됩니다." El Patrón의 손이 떨린다. 총을 겨누고 있지만 쏠 수 없다. Jonas: "아뇨, 협박이 아닙니다. 사실을 말씀드리는 겁니다. 이제 선택하세요. 협력하거나, 전부 잃거나." El Patrón은 깨닫는다. 자신이 독점할 수 있다고 믿었던 게임이... 처음부터 CIA와 나눠 가져야 하는 게임이었다는 것을.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.6
+      inject_method: "npc_question"
+
+    - id: "clue_ep38_showdown_quantum_part2_c05"
+      content: |
+        수민은 멀리서 이 모든 걸 지켜본다. El Patrón 2개, CIA 2개. 2:2 대치. 그리고 마지막 1개 키가 자신에게 있다. 수민은 깨닫는다. 자신이 캐스팅 보트라는 것을. 어느 쪽에 키를 주느냐에 따라 세계의 균형이 바뀐다. 하지만 수민은 어느 쪽도 선택하지 않는다. 대신, 양쪽 모두에게 조건을 건다: "72시간마다 내 password가 없으면 시스템이 멈춘다. 나를 죽이면 deadman switch가 발동되어 모든 해독 결과가 전세계에 공개된다. 양쪽 모두 나 없이는 못 돌린다." 이 2:2 대치 상황에서 수민이 코디네이터가 된다. 독재자가 아니라 중재자. 어느 쪽도 혼자서는 시스템을 운영할 수 없고, 수민을 제거할 수도 없는 구조. 이게 수민이 EP30에서 설계한 균형의 최종 실현이다. 손이 움직였다. 내 손이. 수술인지 살인인지 아직 모르겠다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep38_showdown_quantum_part2_c06"
+      content: |
+        El Patrón이 수민에게 전화를 건다. "Soomin, 우리가 협력하면..." 수민이 끊는다. 그리고 다시 전화가 온다. 이번엔 이선 (CIA). "수민씨, 우리가 함께하면..." 수민이 또 끊는다. 그리고 세 번째 전화를 건다. 자신이 먼저. 컨퍼런스 콜. El Patrón과 이선이 동시에 연결된다. "둘 다 들으세요. 72시간마다 저한테 와야 합니다. 둘 다. 동시에. 한쪽이라도 빠지면 시스템이 멈춥니다. 저를 죽이면 모두가 끝납니다. 이게 제 조건입니다." 침묵. 그리고 El Patrón이 먼저 말한다. "... 받아들이지." 이선: "동의합니다." 수민이 전화를 끊는다. 손이 움직였다. 내 손이. 수술인지 살인인지 아직 모르겠다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "QPU가 최종 가동되어 RSA 암호 해독이 현실화됨"
+    - "첫 군사 네트워크 통신이 해독되어 수민이 카르텔에 그 결과를 넘김 (수민의 배신 완성)"
+    - "NSA/CIA 등 정부 기관은 사태를 막지 못하고 속수무책으로 남음"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

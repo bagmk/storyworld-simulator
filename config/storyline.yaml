@@ -8,6 +8,39 @@ premise: >-
   'Failsafe'라는 안전장치를 설계하지만, 최종적으로 Q-Day(실제+가짜 레일 동기화) 사건을
   통해 RSA 붕괴가 현실이 된다.
 
+core_themes:
+  cartel_evolution: |
+    카르텔은 양자컴퓨터 회사를 원래 회계조작용(가치 부풀리기)으로 만들었지만,
+    수민이 NSA 펀딩을 받으면서 기술의 실제 가능성을 나중에 이해하게 된다.
+    처음에는 매우 반대했으나(외부 관심 = 감사 위험), 점차 올인하게 된다.
+    이미 항만에는 불법 처리/차단용 카르텔 보안팀(LST)이 있었고,
+    LST + 양자컴퓨터의 시너지로 가능성을 보게 된다.
+
+  failsafe_balance: |
+    수민이 설계한 Failsafe-B는 세 가지 차원의 균형을 동시에 구현한다:
+    (1) 카르텔과 정부 사이의 정치적 균형 (3-of-5 키 분산)
+    (2) 양자키 공격에 대한 기술적 균형 (72시간 재인증 + 데드맨 스위치)
+    (3) 물리학적 균형 (측정-붕괴-제어의 양자역학적 원리 자체가 은유)
+
+  agency_conflict: |
+    FBI(소피아): 법적 절차/증거/대배심 → 느리지만 정당
+    CIA(이선): 지정학적 균형/거래 → 유연하지만 비도덕적
+    NSA(밀러): 기술 독점/국가안보 우선 → 빠르지만 위험
+    세 기관의 대립이 카르텔 못지않게 수민을 위협한다.
+
+  mock_qday_strategy: |
+    카르텔의 교란작전: 일반 해킹(HSM 테스트키 유출 + BGP/DNS 조작 + 봇넷)으로
+    마치 양자컴퓨터가 이미 RSA를 깨뜨린 것처럼 세상을 속이는 가짜 Q-Day.
+    이후 진짜 기술을 배경으로 협상력을 확보하려는 전략.
+    Narrative Rail(가짜 공포) + Quantum Rail(진짜 기술)의 동기화.
+
+  philosophical_arc: |
+    "기술은 손이다" 개념이 EP41 일기에만 등장하는 것이 아니라, 전체 스토리에 걸쳐
+    3단계로 심화된다. 일기나 노트가 아닌 수민의 내면 독백으로 표현:
+    Phase 1 씨앗 (EP06-13): 밀러와 Carlos의 "기술은 도구" 발언에 대한 불편함
+    Phase 2 성장 (EP18-28): "도구는 놓으면 멈춘다. 이건 멈추지 않는다" → "손이다"
+    Phase 3 완성 (EP37-41): "손이 움직였다. 수술인지 살인인지 아직 모르겠다"
+
 time_span:
   start: "2041-05-21"
   end: "2043-03-30"
@@ -15,21 +48,21 @@ time_span:
 # Story Arc Structure: 6-act structure with episode distribution
 story_arcs:
   setup:
-    episodes: 3
+    episodes: 2
     arc_position: "Act 1 - Introduction"
     description: "학회 접촉, NSA 첫 제안, 유령 자금의 냄새"
     emotional_trajectory: "호기심 → 유혹 → 불안"
     key_reveals: ["NSA grant label", "Greyshore hints", "Lab budget mismatch"]
 
   discovery:
-    episodes: 11
+    episodes: 10
     arc_position: "Act 2-3 - Infiltration & Allies"
     description: "LST 벙커 발견, FBI 접촉, 엘레나 과거, 압박 증가"
     emotional_trajectory: "경계 → 동맹 탐색 → 배신 감지"
     key_reveals: ["LST bunker", "Greyshore 403", "Elena USB", "Phase-Guard"]
 
   technical:
-    episodes: 16
+    episodes: 10
     arc_position: "Act 4-5 - Weaponization & Siege"
     description: "RSA 붕괴 가능성 계산, 모레노 납치, Failsafe B, NSA-카르텔 백채널"
     emotional_trajectory: "공포 → 강제 협력 → 중재자로 전락"
@@ -56,7 +89,7 @@ story_arcs:
     emotional_trajectory: "고립 → 성찰 → 모호한 미래"
     key_reveals: ["Protective custody", "Grand jury", "Sumin's choice"]
 
-# Total episodes: 49 (3+11+16+14+3+2)
+# Total episodes: 41 (2+10+10+14+3+2)
 
 core_entities:
   factions:
@@ -172,6 +205,9 @@ director_control_model:
   soft_constraints:
     - "각 에피소드에서 즉흥 대사는 가능하지만, 아래 'episode_exit_conditions'를 깨면 디렉터가 강제 리라이트"
     - "로맨스/사이드 퀘스트는 가능하되, '키(열쇠)·레일(자금/물자/여론/정보)·QPU' 메인 축을 방해하면 컷"
+    - "'기술은 손이다' 철학 아크: EP06에서 씨앗이 뿌려지고, EP18-28에서 성장하고, EP38-41에서 완성된다. 이 철학적 독백은 일기/노트가 아닌 수민의 내면 독백으로만 표현한다."
+    - "수민의 캐릭터 아크: EP01-13는 수동적 놀라움/관찰, EP18-22에서 능동적 전환, EP27-41에서 게임 메이커. 각 단계의 전환점이 명확해야 한다."
+    - "카르텔의 원래 목적(회계조작)에서 양자 올인으로의 전환이 스토리 초반에 분명히 드러나야 한다. El Patrón이 처음에 NSA 펀딩에 반대했다가 기술의 가능성을 보고 입장을 바꾸는 과정."
 
 acts:
   - id: "act1"

@@ -1,0 +1,94 @@
+# episodes/ep10_cartel_shadow.yaml
+# Episode 12: "Cartel Shadow"
+# source: ep1_cartel_shadow
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep10_cartel_shadow"
+  date: "2042-03-03T00:30"
+  location: "QuantumFront HQ — basement access gate"
+  summary: |
+    3월 3일, 새벽 2시 30분. 실험이 끝나고 수민은 실험실 2층에 남아 있다. 냉각 시스템 재부팅 로그를 보다가 이상을 발견한다. 컨트롤러 카운트 이상. 하드웨어 풀에서는 12개여야 하는데, 로그는 9개만 인식했다. 그것도 8개월 동안 변하지 않았다. 그가 서버실로 가서 직접 세어보자, 정말 9개다. 그러면 3개는 어디로 갔을까.
+
+    수민은 재무 포털을 열어본다. 조달 기록을 찾는다. 초저온 펌프의 구매 기록, €124,000 × 2대. 배송은 확인되지만, 장부에는 한 대만 기록되어 있다. 또 다른 불일치. 그리고 인증사진들—장비 수령 시 찍은 사진들—을 확인해본다. 날짜는 같지만, 파일 크기가 이상하다. 대부분의 사진은 2-3MB인데, 특정 사진들은 0.8MB. 해상도가 다르다는 뜻이다. 혹은 조작되었다는 뜻이다.
+
+    출입 기록을 확인한다. 어제 저녁 6시부터 지금까지. 자신 외에 한 명이 더 있다: 엘레나. 오후 6시 15분 입실, 출실 기록 없음. 그녀는 아직 건물 내에 있다. 수민은 이상한 기분을 느낀다. 이 시간에 엘레나가 여기 있을 이유가 있을까.
+
+    그 순간, 복도 끝에서 발걸음 소리가 난다. 수민은 몸을 숨기고 봐본다. 엘레나다. 그녀는 정장 재킷을 벗고, 반팔 검정 티셔츠만 입고 있다. 손에는 검은 폴더철을 들고 있다. 제목이 보인다: 'LST – Q4 Operations Log'. 엘레나는 복도의 끝, 서비스 엘리베이터 옆 문으로 간다. 그 문은 평소엔 잠겨 있었다. AUTHORIZED PERSONNEL ONLY라는 표지가 붙어 있다. 그런데 오늘은 열려 있다. 엘레나는 열린 문으로 들어가고, 그 뒤로는 계단이 보인다. 내려가는 계단.
+
+    수민은 몸을 굽혀 그를 따라간다. 계단 입구에 도달하자, 냉기가 나온다. 공기가 차갑고, 습도가 높다. 그리고 소음—전자음, 바람음, 무언가가 회전하는 소리. 엘레나의 발걸음이 아래로 사라진다. 수민은 문틈에 손을 놓고 망설인다. 들어가야 할까? 안 들어가야 할까? 그 순간, 복도의 불이 꺼진다. 자동 센서식인데, 아무도 움직이지 않자 꺼졌다. 어둠이 수민을 밀어낸다. 그리고 그 어둠 속에서, 그는 엘레나의 이름을 부른다. 아주 작게. "엘레나?"
+
+    목소리는 어둠 속으로 사라진다. 아무도 대답하지 않는다. 하지만 계단 아래에서, 무언가가 멈췄다. 발걸음이 멈췄다. 엘레나가 들었다는 뜻이다. 그리고 잠시 후, 위로 올라오는 발걸음이 들린다.
+
+    다음 날 오전, 카를로스가 수민을 복도에서 세운다. 아무것도 아닌 듯 웃으며. "수민, 어젯밤 늦게까지 있었더라? 연구에 열정적이구만." 수민은 대답을 얼버무린다. 카를로스가 걸어가면서 뒤도 안 보고 말한다. "기술에 선악은 없어. 쓰는 사람이 결정하는 거야. 너는 좋은 사람이니까 좋은 쪽으로 쓰겠지." 카를로스의 뒷모습이 사라진 후, 수민의 내면에서 반발이 올라온다. 그건 너무 편한 말이다. 선악이 없다고? 그러면 칼에도 선악이 없나? 칼을 만든 사람은 책임이 없나? 하지만 그 생각은 아직 형태가 없었다. 불편함만 남았다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep10_cartel_shadow_c01"
+      content: |
+        서버실의 냉각 시스템 대시보드. 실시간 모니터링 화면. 컨트롤러 풀 상태: [CTRL-001 OK] [CTRL-002 OK] ... [CTRL-009 OK] [CTRL-010 OFFLINE] [CTRL-011 OFFLINE] [CTRL-012 OFFLINE]. 빨간 X 세 개. 문제는, 이 화면이 8개월 동안 변하지 않았다는 것이다. OFFLINE 날짜: 2042-07-15. 3개월 전부터 고장난 상태로 멈춰 있다. 수민이 직접 백업 브레이커 박스로 가서 센다. 하드웨어가 물리적으로 9개다. 그러면 3개는 어디로 갔을까. 로그를 거슬러 올라가면 2042년 1월까지 가야 한다. 그 1월, 무언가가 있었다. "Equipment Transfer – Level D – Authorized by C.Rodriguez". 카를로스의 서명. 3개의 컨트롤러가 'Level D'로 '전송'되었다. 그리고 그 이후로 기록은 없다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.45
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep10_cartel_shadow_c02"
+      content: |
+        재무 포털, 조달 탭. 초저온 증폭기(Cryogenic Amplifier) 수령 기록. PO 번호 CRYO-22401. 날짜: 2042-01-09. 수량: 2대. 금액: €124,000 × 2 = €248,000. 하지만 자산 등록부(Asset Registry)로 들어가면? 등록된 장비: CRYO-22401-A만 있다. B는 없다. 그리고 송장 이미지들—수령 당시 찍은 인증사진. 첫 번째 사진, 파일 크기: 2.8MB, 해상도 4096×2730. 두 번째 사진, 파일 크기: 0.84MB, 해상도 1024×682. 저해상도 사진은 공식 아카이브에 없는 이미지다. 즉, 나중에 대체된 것이다. 원본은 뭘 보였을까. 아마도, 장비가 아니라 다른 것을 받는 장면일 수도 있다. 혹은, 두 대 모두를 받는 사진. 하지만 지금은 한 대만 받는 사진으로 위장되어 있다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.48
+      inject_method: "document_artifact"
+
+    - id: "clue_ep10_cartel_shadow_c03"
+      content: |
+        출입 기록 시스템. Timestamp, Badge ID, Person, Location, Event. 오늘 오후 6시부터 지금까지: 수민(Badge SUMIN-042), 6시 01분 입실, 진행 중. 엘레나(Badge ELENA-041), 6시 15분 입실, 아직 내부. 다른 기록은 없다. 왜 엘레나가 이런 시간에 실험실에 있을까. 그녀의 근무 시간은 오전 8시부터 오후 6시인데. 그리고 더 이상한 것은, 그녀가 로그아웃(출실) 기록이 없다는 것이다. 시스템상 그녀는 아직도 건물 내에 있다. 어디에?
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.52
+      inject_method: "document_artifact"
+
+    - id: "clue_ep10_cartel_shadow_c04"
+      content: |
+        복도의 어둠 속에서, 발걸음 소리가 난다. 그것은 지금까지 들어본 엘레나의 발걸음과는 다르다. 평소엔 밝고 가볍다. 하지만 지금은 다르다. 결연하고, 빠르고, 정해진 목적을 향해 걷는 발걸음. 그리고 옷. 평소엔 정장 재킷과 행정용 셔츠. 하지만 지금 그녀는 검은색 반팔 티셔츠에 어두운 색의 카고 팬츠. 일하기 편한 복장. 그리고 손에 든 폴더철. 'LST – Q4 Operations Log'. LST가 뭘까. 수민이 본 문서나 회의에서 그런 약자는 나온 적이 없다. 하지만 엘레나는 그것을 들고, 밤 2시에 제한 구역으로 간다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep10_cartel_shadow_c05"
+      content: |
+        AUTHORIZED PERSONNEL ONLY. 서비스 엘리베이터 옆 문. 평소엔 항상 잠겨 있었다. 카드리더기가 있었다. 하지만 오늘은 다르다. 문이 열려 있다. 그리고 그 뒤에는 계단. 내려가는 계단. 보통 연구동에는 지상 4층, 지하 1층. 표준 구조다. 하지만 이 계단은? 엘레나가 들어가자, 계단이 계속된다. 한 층, 두 층... 분명 건축 도면에는 없는 계단이다. 그리고 공기가 변한다. 냉기와 습도. 아래로 내려갈수록, 기계음이 커진다. 펌프음, 냉각팬음, 뭔가의 회전음. 이것은 데이터센터의 음향이다. 엄청난 크기의 컴퓨터 시스템이 작동하는 소리.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.60
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep10_cartel_shadow_c06"
+      content: |
+        계단 입구의 표지판. 어떤 글씨로도 쓰여 있지 않다. 대신, 심볼만 있다. 빨간색 네모. 그리고 그 안에, 흰색의 기호. 일반적인 '차단' 기호가 아니라, 더 구체적인 뭔가. 보안을 나타내는 기호일 수도, 군사 시설을 나타내는 기호일 수도 있다. 계단의 벽은 콘크리트가 아니라 강철이다. 녹슨 강철. 오래되었다는 뜻이다. 이 시설은 최근에 지어진 게 아니라, 오랫동안 숨겨져 있었다. 그리고 계단의 온도가 뚝 떨어진다. 아래로 갈수록 더 차갑다. 냉각 시스템이 있다는 뜻이다. 그리고 냉각은 데이터센터에만 필요하다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.65
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep10_cartel_shadow_c07"
+      content: |
+        엘레나가 계단 아래에서 멈춘다. 그녀가 들었다. "엘레나?" 수민의 목소리. 미세하고 떨리는 목소리. 침묵. 아래에서 아무 소리도 나지 않는다. 10초. 15초. 20초. 그 동안 수민은 뭘 생각할까. 엘레나가 나올까? 화낼까? 아니면 그냥 무시할까? 그런데 그 침묵이 깨진다. 발걸음. 하지만 내려가는 발걸음이 아니라, **올라오는** 발걸음이다. 엘레나가 돌아온다. 그리고 그녀의 얼굴 표정이 처음 내려갔을 때와 완전히 다르다. 처음엔 목적 있는 표정, 지휘관의 표정이었다면, 지금은 뭔가를 결정하는 표정이다. 그리고 그 결정은, 그리 좋지 않은 결정처럼 보인다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.70
+      inject_method: "npc_question"
+
+    - id: "clue_ep10_cartel_shadow_c08"
+      content: |
+        카를로스의 철학적 씨앗: "기술에 선악은 없어. 쓰는 사람이 결정하는 거야." 이 말은 EP06 밀러의 "기술은 도구일 뿐"과 같은 맥락이지만, 카르텔 측에서 나온다는 점이 다르다. 수민의 내면에서 "그건 너무 편한 말이다"라는 반발이 일어나지만, 아직 자신의 철학으로 발전시키지 못한다. 이 불편함이 EP26에서 "도구는 놓으면 멈춘다. 이건 멈추지 않는다"로 성장한다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 15

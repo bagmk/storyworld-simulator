@@ -1,0 +1,102 @@
+# episodes/ep12_roots_slow_burn.yaml
+# Episode 14: "Roots Slow Burn"
+# source: ep1_roots_slow_burn
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep12_roots_slow_burn"
+  date: "2042-04-12T21:10"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    4월 12일, 지하 LST를 본 지 정확히 40일이 지났다. 그 40일 동안, 수민은 하루도 빠짐없이 실험실에 있었다. 아침 8시부터 밤 11시까지. 주말도 없었다. 처음엔 충격으로 인한 도주 행동이었다면, 이제는 습관이 되었다. 마약 중독자처럼, 연구에 빠져들었다. 왜? 왜냐하면 연구 중에만 생각하지 않을 수 있으니까.
+
+    NSA 자금이 계좌에 들어온 날(4월 2일), 팀 슬랙 채널은 이상했다. 흥분이나 축하 메시지 없었다. 대신 카를로스의 한 줄: "부품 리스트 업데이트 완료. 추가 주문 시작." 그리고 며칠 뒤, 초저온 앰프 2대가 들어왔다. 초고속 광학 레이저. 전력 조절 장치. 수민은 물었다. "이거 뭐예요?" 카를로스의 대답은 짧았다. "그냥 써." 더 이상 질문하지 않기로 결정했다.
+
+    프로젝트의 정식 목표는 명확했다: 초전도 QPU(양자 처리 장치)와 광학 네트워크를 '안전하게' 연결하기. 하지만 'safe'가 뭘 의미하는지는, 이제 다르게 읽힌다. 단순히 기술적 안정이 아니라, 정보 보안. 그리고 정보 보안이란, 감시 불가능성이다. 이 장비들이 정말로 양자컴퓨터 연구용일까, 아니면 다른 무언가일까.
+
+    어쨌든, 과학은 과학이다. 코드는 코드다. 수민은 핵심 문제로 몰두한다: 위상 드리프트(phase drift). 초전도 큐빗이 시간에 따라 미세하게 진동한다. 이 떨림이 심하면, 계산이 무너진다. 코히런스(데이터 일관성)가 붕괴된다. 수민은 해결책을 설계한다: Failsafe 알고리듘.
+
+    세 가지 단순한 규칙—엿보기(상태 관측, 파괴 없이), 미세 보정(드리프트 감지 후 즉시 조정), 봉인(임계값 초과 시 개별 격리). 첫 런은 매끈했고, 두 번째 런에서 이상값이 튀자 Failsafe가 작동했다. 화면에 초록색 봉인 아이콘이 떠오르고 사라진다. 로그: 타임스탬프 14.273초, 시드 0x7F4A, 파형 해시 4bc2e917.
+
+    결과는 극적이었다. 충실도 99.2% → 99.996%. 코히런스 0.84ms → 1.2ms. 우연이 아니라는 건 반복이 말해줬다. 세 번째, 네 번째 런—매번 같은 결과. 수민은 모니터 구석의 가족 메시지를 본다. 어머니: "밥은 먹고 있니?" 일주일 전 메시지. 대답할 말이 없었다.
+
+    대신, Failsafe의 파라미터를 다시 본다. 세 줄의 코드와 주석: "// Where to stop before the entire system breaks." 이 알고리듘은 물리학이 아니라 은유다. 실패를 제어하고, 손실을 최소화하고, 계속 나아가는 방법. 성공은 보장하지 못하지만, 적어도 무너지지 않을 수 있도록. Failsafe는 단순한 실험 규칙이 아니라—앞날의 외침이었다. '실패할 때 어디서 멈춰야 할지 먼저 정해. 그래야 남는 게 있다.'
+
+    아침이 올 때까지, 수민은 계속 코드를 짜고, 실험을 돌린다. 그리고 매번 Failsafe가 작동할 때마다, 조금씩 더 깊이 빠져든다. 이 조직의 일원으로.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep12_roots_slow_burn_c01"
+      content: |
+        4월 2일 오전 10시. 수민의 인사 포털에 알림이 나타난다. "NSA Contract Funding – Authorization Complete – €3,750,000 deposited to QuantumFront account". 금액이 크다. 그것도 한 번에. 이 규모의 자금은 일반 연구 프로젝트가 아니라는 뜻이다. 정부 안보 프로젝트. 그리고 금액이 금액인 만큼, 무언가 매우 중요한 것을 개발하라는 신호다. 하지만 팀 슬랙은 침묵했다. 아무도 축하 메시지를 보내지 않았다. 대신 카를로스의 한 줄: "부품 리스트 업데이트 완료. 오늘 오후부터 추가 주문 시작." 축하 없이 업무만. 이건 뭔가 비정상의 신호였다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep12_roots_slow_burn_c02"
+      content: |
+        새로 들어온 장비들을 본다. 초저온 증폭기 2대(€156,000 × 2). 초고속 광학 레이저 모듈 (€89,000). 전력 조절 장치 (€45,300). 모두 양자컴퓨터 연구에는 필요 없는 것들이다. 초저온 증폭기는 항공우주 통신에 쓰인다. 광학 레이저는 원거리 센서에 쓰인다. 전력 조절 장치는... 비표준형이다. 일반 실험실 규격이 아니라, 독립형 시스템용이다. 즉, 이 장비들은 함께 어떤 독립된 시스템을 구성하려는 것이다. 그것이 뭔지 수민은 묻지 않기로 했다. 묻는 것 자체가 위험해 보였다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.50
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep12_roots_slow_burn_c03"
+      content: |
+        위상 드리프트 문제. 초전도 큐빗 시스템에서, 시간에 따라 신호가 미묘하게 떨어진다. 이것을 '드리프트'라고 부른다. 온도 변화, 자기장 변동, 혹은 광자의 우연한 영향으로 인해 발생한다. 보통 이런 문제는 통계적 방법으로 처리한다. 여러 번 반복해서 평균을 낸다. 하지만 이 방법은 느리다. 시간이 걸린다. 그리고 정보 보안 작업에는 시간이 없다. 빠른 처리가 필수다. 수민이 설계한 Failsafe는 다르다. 드리프트를 즉시 감지하고, 즉시 수정한다. 그리고 수정할 수 없으면, 즉시 격리한다. 이것은 기술적으로 완벽한 해결책이다. 그리고 정확히 LST가 필요로 할 만한 해결책이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep12_roots_slow_burn_c04"
+      content: |
+        Failsafe 알고리듘의 세 가지 규칙을 설계하면서, 수민은 무언가를 깨닫는다. 이것은 물리학이 아니라 관리(Management)의 규칙이라는 것을. 첫 번째 규칙 '엿보기(Peek)'—상태를 파괴하지 않고 관측한다. 이것은 보안 시스템에서 '감시 불가능하게 감시한다'는 뜻이다. 누가 언제 어디서 뭘 했는지 알아내되, 그 사실을 은폐한다는 뜻. 두 번째 규칙 '미세 보정'—문제가 감지되면 즉시 조정한다. 이것은 '오작동을 발견하면 즉시 중단하고 수정한다'는 뜻. 세 번째 규칙 '봉인'—개별 격리. 한 부분이 오염되면, 그 부분만 끊어낸다. 전체에 영향을 주지 않도록.
+
+        이 세 규칙은 양자 물리학이 아니라, 비밀 조직이 필요로 하는 운영 원칙이다. 감시, 수정, 격리. 보안, 통제, 보호.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.60
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep12_roots_slow_burn_c05"
+      content: |
+        테스트 결과. 첫 번째 런: 완벽. 코히런스 0.89ms, 충실도 99.2%. 두 번째 런: 14.273초 시점에 이상 감지. 큐빗 #3에서 드리프트 0.047rad 초과 감지. Failsafe 자동 작동. 녹색 봉인 아이콘 화면에 표시. 로그 기록: TIMESTAMP[14.273], SEED[0x7F4A], HASH[4bc2e917], STATUS[QUARANTINE]. 결과: 코히런스 1.2ms (!), 충실도 99.996% (!).
+
+        세 배 이상의 성능 향상. 이것은 알고리듬의 효율성만이 아니라, 알고리듐이 정확히 뭘 하고 있는지를 보여준다. 그것은 문제를 '해결'하는 게 아니라, '통제'하는 것이다. 문제를 숨기고, 기록하고, 나머지 시스템은 정상인 척한다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.65
+      inject_method: "system_alert"
+
+    - id: "clue_ep12_roots_slow_burn_c06"
+      content: |
+        밤 9시. 모니터 구석에 있는 메시지들을 본다. 어머니(Seoul): "수민아, 너 밥은 먹고 있니? 한 달인데 연락이 없다. 엄마 걱정되고... 잘 지나고 있니?" (7일 전) 언니(Seoul): "수민, 휴가 언제 나와? 전 회사 바꿨어. 너도 좋은 기회 많이 생겼으면 좋겠다." (4일 전) 아버지(Seoul): "수민. 학위 논문 나왔다고 들었다. 축하한다. 부모님도 자랑스럽다. 빨리 집에 와라." (3일 전)
+
+        모두 대답하지 않은 메시지들. 수민은 답변할 말을 못 찾았다. 'I'm fine, don't worry'는 거짓이고, 진실을 말할 수 없고, 그 사이 중간 지점의 말은 존재하지 않는다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.70
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep12_roots_slow_burn_c07"
+      content: |
+        Failsafe의 코드를 다시 본다. 세 줄: `rule_1: observe_without_collapse();` `rule_2: fine_adjust_phase();` `rule_3: isolate_on_threshold();`
+
+        그리고 주석: `// Failure point: Where to stop before the entire system breaks.`
+
+        이 주석은 누가 썼을까. 수민 자신이다. 하지만 이 주석을 쓰는 순간, 수민은 깨닫는다. 이것은 단순한 기술 문제가 아니라, 도덕적 문제라는 것을. 언제 멈춰야 할지를 미리 정하는 것. 언제 자신의 책임이 끝나는지를 미리 정하는 것. 그것은 도덕적 약속이다. 하지만 그 약속을 지킬 수 있을까?
+
+        Failsafe는 단순한 실험 규칙이 아니라—앞날을 비추는 거울이었다. 실패할 때 어디서 멈춰야 할지 먼저 정하는 방식. 그것이 생존하는 유일한 방법이라면.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "코히런스(일관성)가 기존보다 확실히 개선 → 연구팀이 '이게 살아남는 방법이다'라는 감각을 갖게 됨."
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 18

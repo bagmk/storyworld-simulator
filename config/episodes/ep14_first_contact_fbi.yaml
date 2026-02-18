@@ -1,0 +1,137 @@
+# episodes/ep14_first_contact_fbi.yaml
+# Episode 19: "FBI Contact" (Consolidated)
+# MERGED from: ep17_shadow_call + ep18_family_call(interlude) + ep19_first_contact_fbi + ep20_ambiguous_ally + ep21_fbi_strategy
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep14_fbi_contact"
+  date: "2043-03-08T10:00"
+  location: "City streets — Sumin's car (shadow call + family call) / Harbor Lounge payphone / Hotel lobby / QuantumFront lounge"
+  summary: |
+    출근길, 발신자표시제한 전화 — 여성 목소리 "우린 너의 편이다", 하버 라운지 공중전화로 연락 지시, MIT 암구호 사용. 8초 통화, 정부 교환망 라우팅.
+
+    [짧은 인터루드 — 가족 전화] 그 직후 여동생 혜진에게서 전화. "오빠, 요즘 어때? 목소리가 피곤해 보이는데." 엄마가 걱정한다는 말, "미국에서 위험한 일 하는 건 아니지?"라는 농담 속 진심. 수민은 아무렇지 않은 척 웃지만 가슴이 철렁 내려앉는다 — 가족은 아무것도 모른다. "힘들면 언제든 한국으로 돌아와. 우리가 있으니까." 그 말이 더 무겁다. 마지막에 "벤 클라크 알지? 그 친구 스타트업으로 크게 성공했대" — 벤의 이름에 수민이 순간 얼어붙는다. MIT 동문. 뭔가가 맞물리는 느낌.
+
+    하버 라운지 공중전화 — 소피아와의 첫 접촉. 가명만 사용, 다음 주 토요일 대면 약속. 로비 유리면에 비친 요나스 포착. 파라데이 파우치 지시.
+
+    그날 밤 QuantumFront 라운지 — 요나스 접근. "너 요즘 재밌는 일 하더라." 술 취한 척, 모호한 경고. 이어팟 줄, 누군가와 통신 중 암시. 수민의 공포.
+
+    토요일 호텔 라운지 — 소피아 정체 공개 "FBI입니다". QuantumFront 자금세탁 3단계 구조 폭로 (배치→은닉→통합). LST 해킹 셀, 문서 증거. WITSEC 제안. "법의 테두리 안에서 싸워야 해." 도청 경고.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    # --- From EP14: Shadow Call (c01–c04) ---
+    - id: "clue_ep14_fbi_contact_c01"
+      content: "낮고 차분한 여성 목소리. 첫 마디: \"우린 너의 편이다.\" 공식 정부 기관의 운영 방식과 부합."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.40
+      inject_method: "npc_question"
+
+    - id: "clue_ep14_fbi_contact_c02"
+      content: "발신자표시제한 / 통화 8초 정확 / 콜백 불가 / 시간·장소·신원(Ms. Green) 지정이 정확함."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.43
+      inject_method: "system_alert"
+
+    - id: "clue_ep14_fbi_contact_c03"
+      content: "차량 블루투스 로그: '발신 번호 비공개'로 표시되지만, 라우팅 프리픽스가 정부 교환망(legacy switchboard)과 일치. 민간 통신망이 아님."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.46
+      inject_method: "system_alert"
+
+    - id: "clue_ep14_fbi_contact_c04"
+      content: "상대는 수민만 알고 있던 MIT 시절 암구호를 한 번 사용했다. '내부자'임을 과시하는 전술. 신뢰를 형성하려는 의도."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.49
+      inject_method: "environmental_cue"
+
+    # --- From EP14: Family Call (interlude) ---
+    - id: "clue_ep14_fbi_contact_c04b"
+      content: "혜진의 따뜻한 조언 '힘들면 언제든 한국으로 돌아와'가 오히려 수민을 더 무겁게 만든다. 가족을 지키기 위해 견뎌야 한다는 책임감. 벤 클라크 — MIT 출신. 그도 이 생태계에 연결되어 있을 수 있다는 불안감."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.50
+      inject_method: "npc_question"
+
+    # --- From EP14: First Contact FBI (c05–c07) ---
+    - id: "clue_ep14_fbi_contact_c05"
+      content: "소피아의 지시: \"지금은 내보내지 말고, 확인만 하고 적어둬.\" 증거 조작 우려를 피하려는 신중함. 법정 제출 준비."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.52
+      inject_method: "npc_question"
+
+    - id: "clue_ep14_fbi_contact_c06"
+      content: "로비 외부 유리면에 비친 남색 후드의 인물—요나스다. 이어팟 줄을 왼손 검지에 감는 식별 시그니처. 누군가가 수민을 미행 중이라는 신호."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.55
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep14_fbi_contact_c07"
+      content: "소피아의 지시: 휴대폰을 파라데이 파우치에 넣고, 모든 통신은 유선 공중전화만 사용하라. 정부 기관의 신호 추적 회피 전술."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.58
+      inject_method: "npc_question"
+
+    # --- From EP14: Ambiguous Ally (c08–c10) ---
+    - id: "clue_ep14_fbi_contact_c08"
+      content: "요나스의 모호한 말: \"너 요즘 재밌는 일 하더라.\" FBI 접촉을 눈치챈 건지, QPU 실험을 가리킨 건지 알 수 없다. 의도적 모호성."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.61
+      inject_method: "npc_question"
+
+    - id: "clue_ep14_fbi_contact_c09"
+      content: "요나스는 QuantumFront 내부 코드명(Phase-Guard / Line-Delta) 등 보안 수준의 정보를 정확히 알고 있다. 내부 네트워크 접근 권한 보유 암시."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.64
+      inject_method: "system_alert"
+
+    - id: "clue_ep14_fbi_contact_c10"
+      content: "요나스의 뒷모습에서 이어팟 줄이 흔들린다. 그가 누군가와 계속 통신 중일 가능성. 표면의 술 취함은 위장일 수 있음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.67
+      inject_method: "environmental_cue"
+
+    # --- From EP14: FBI Strategy (c11–c15) ---
+    - id: "clue_ep14_fbi_contact_c11"
+      content: "QuantumFront = 카르텔 자금세탁 프런트. 구조: 배치(고가 장비·용역)→은닉(멕시코 재단·Greyshore Capital)→통합(특허 양도·라이선스). 현물은 항만 야간 하역·라벨 스와핑으로 분리."
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.70
+      inject_method: "document_artifact"
+
+    - id: "clue_ep14_fbi_contact_c12"
+      content: "'LST' 내부 해킹 셀: 벤더 마스터·승인 라우팅·서버 로그를 '합법적 자동화'로 위장. SIEM 로그의 타임스탬프 재정렬, 폐기된 감시 모듈의 '유령 헤더' 간헐적 출현."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.73
+      inject_method: "system_alert"
+
+    - id: "clue_ep14_fbi_contact_c13"
+      content: "소피아의 신원 공개 및 원칙: \"저는 소피아, FBI입니다.\" \"우린 법의 테두리 안에서 싸워야 해. 그렇지 않으면 그들과 다를 게 없어.\""
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.76
+      inject_method: "npc_question"
+
+    - id: "clue_ep14_fbi_contact_c14"
+      content: "WITSEC(증인보호 프로그램) 오퍼: 신변보호·임시 거주·이동 경호·신분 관리·법정 동행. 그러나 증언대 출석 시 발각·보복 위험은 명시적으로 회피되지 않음."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.79
+      inject_method: "npc_question"
+
+    - id: "clue_ep14_fbi_contact_c15"
+      content: "증거 규칙과 증인 딜레마: 업무상 접근 범위 내 증거 수집, 원본 보존·사본 사용, 개인정보 마스킹으로 법적 정당성 확보. 그러나 수민은 법정에서 직접 내부 증언과 기술 증거를 공개 증인으로서 제시해야 함. 익명성 없음. 기술적 양심 vs. 현실적 생명 위험의 충돌."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.82
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "FBI 첫 접촉: 소피아 신원 확인 및 QuantumFront 실태 파악"
+    - "FBI 목적=횡령·세탁 입증(자금·현물·로그 3축 연결로 체인 완성)"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 24

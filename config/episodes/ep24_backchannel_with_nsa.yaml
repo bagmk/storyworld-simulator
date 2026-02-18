@@ -1,0 +1,124 @@
+# episodes/ep24_backchannel_with_nsa.yaml
+# Episode 32: "Backchannel With NSA"
+# source: ep6_backchannel_with_nsa
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep24_backchannel_with_nsa"
+  date: "2043-03-18T08:50"
+  location: "Offsite secure location — intelligence briefing room"
+  summary: |
+    카를로스가 격리된 보안실에서 비밀 통화를 하는 장면. NSA 지국장 밀러와의 백채널 협상이 드러난다. 밀러는 암호화된 VPN 회선을 통해 "RSA 2048-bit 키 분해 우선순위 권한만 우리가 먼저 지정하게 해달라. 처음 100개 키는 우리 타겟에 맞춰. 그 정도면 충분하다"는 조건을 조심스럽게 제시한다. 그는 OFAC Greyshore 자금 동결 상황이나 FBI 수사 진행 상황은 전혀 언급하지 않는다. 오직 '기술 우선순위'에만 집중한다.
+
+    밀러: "우리는 단지 POC(Proof of Concept)를 지원하려는 겁니다. 수민의 연구가 실제로 작동하는지 확인만 하면 돼요. 그 이후는... 여러분이 알아서 하시죠."
+
+    카를로스가 웃는다. 비웃음이다.
+
+    카를로스: "POC? Miller, 당신은 정말 순진하네요. Desk job만 하는 사람들은 다 그래요. 현장이 어떻게 돌아가는지 몰라."
+
+    밀러: "무슨 뜻입니까?"
+
+    카를로스: "당신은 Failsafe 키 분배에서 빠졌어요. CIA가 이미 2개 확보했고, 우리가 2개 보유 중입니다. 수민이 마지막 1개. 당신? 0개. 아무것도 못 해요."
+
+    밀러: "그건... 제가 알던 계획이 아닙니다."
+
+    카를로스: "계획은 현장에서 바뀌는 겁니다, Miller. 당신은 이미 게임에서 졌어요."
+
+    ---
+
+    대화의 무게중심이 금융·시간·협상 쪽으로 급격히 기울어진다. 수민은 이 통화 녹음본을 신호 해독과 함께 분석하다가 깨닫는다: NSA는 FBI나 CIA의 움직임을 거의 모르고 있다. 또는 고의로 모르는 척한다. Miller는 단순히 POC 지원만 하려고 했다. 하지만 실제 권력 구조는 CIA와 Cartel이 장악했다. Miller는 완전히 배제되었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep24_backchannel_with_nsa_c01"
+      content: |
+        NSA–카르텔 백채널 음성 기록 (암호화된 VPN 회선, 수민이 신호 해독):
+
+        밀러: "카를로스, 이제 실질적인 협상을 할 시간이다. 우리가 원하는 건 단순하다."
+        카를로스: "좋아. 말해봐."
+        밀러: "처음 100개의 RSA-2048 키. 우리가 목표를 정하게 해달라. 정부 통신 링크부터 시작. 나머지는 너희가 원하는 대로 해."
+        카를로스: "100개? 그건 장난이다. Greyshore 계좌를 동결 해제하고, 2주 내 기술 전이를 보장해줄 수 있는 구체적인 타이밍을 제시하지 않으면 협상은 끝이다. 그리고 우리는 대체 바이어를 찾을 거다."
+        밀러: "그럴 경우 우리는 당신들의 위치를 공개한다."
+        카를로스: "시도해봐. 우린 이미 5개국에 사본을 보냈어."
+
+        이 대화에는 FBI의 기소 검토, CIA의 추적 작전, OFAC의 추가 제재 움직임에 대한 언급이 없다. NSA만 자신의 기술 이익을 챙기고 있었다. 그들은 전체 그림을 보지 못하고 있다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep24_backchannel_with_nsa_c02"
+      content: |
+        밀러의 명확한 주문 (NSA 내부 지시사항, 사후 FBI 정보 탈취):
+        "우리가 원하는 키만 먼저 풀게 하라. 1순위: NSA 감시 타겟 리스트 (약 100개 키). 코드명 CRYPTOBLIND. 2순위: FBI 기소 사안 관련 암호 (약 50개). 3순위: CIA 작전 관련 통신. 마지막으로 나머지는 너희 마음대로 해."
+
+        이는 기술 독점이 아니라 '전략적 정보 우위 확보'다. NSA는 카르텔의 RSA 해독 기술을 통해 자신들의 감시 대상을 실시간으로 복호화할 수 있게 된다. 법적 근거 없이. 영장 없이. 국회 보고 없이. 이는 권력의 극치다.
+
+        기술 활용 타이밍: 2043년 3월 22일–25일 (현재+6~9일). 대통령 결정이 있기 전에 실시되어야 한다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep24_backchannel_with_nsa_c03"
+      content: |
+        카를로스의 강경 대응. 테이블 위 문서를 튕겨서 보인다:
+        《OFAC Notice of Blocking Designation — Greyshore Financial Holdings》
+        "Date issued: 2043-02-28"
+        "Blocked accounts: 47 / Total assets frozen: $862.3M USD, €437M EUR, ¥89.2B JPY"
+        "Reason: Material Support to Narcotics Trafficking Organizations"
+
+        카를로스: "이걸 해제하지 않으면 우린 21일 안에 현금화할 수 없어. 근데 우리가 이 기술을 누구한테 판다고 생각해? 베이징은 지금 이 순간도 신호를 보내고 있어. 이탈리아, 이란, 인도—모두 줄 서 있다. 일주일. 그게 우리 시간이야. 아니면 우린 아예 다른 길을 생각한다."
+
+        밀러는 조용해진다. 그는 NSA 자체로는 이 동결을 해제할 수 없다. 재무부 OFAC에 항의해야 한다. 그런데 항의 사유가 뭐라고 할 것인가? "카르텔과 협상 중입니다"?
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep24_backchannel_with_nsa_c04"
+      content: |
+        수민이 기계적으로 받아쓴 메모—통화 녹음을 청취하며 작성한 분석표:
+
+        ┌─────────────────────────────────────────┐
+        │ WHO HOLDS WHAT? (누가 뭘 쥐고 있나?)   │
+        ├─────────────────────────────────────────┤
+        │ NSA (밀러): 기술 우선순위권 (100 keys)  │
+        │ FBI: 법적 기소권 (모레노 등 증거 보유) │
+        │ CIA: 협상 중개역 (엘레나 연줄 통제)    │
+        │ OFAC: 자금 동결권 (Greyshore $862M)   │
+        │ 카르텔: 핵심 기술 & 모레노 인질         │
+        │ 수민: ??? (자신의 위치 불명확)         │
+        └─────────────────────────────────────────┘
+
+        여백에 손으로 쓴 질문들:
+        "누가 얼리고, 누가 푼다? NSA는 정보 독점만 보고, FBI는 법적 족쇄만 생각하고, CIA는 중개료만 챙기고, OFAC는 동결 버튼만 누른다. 그 사이에 진짜 돈은 카르텔이 벌어먹는다. 그리고 기술은? 수민. 내가 움직이지 않으면 모두 정지한다. 그게 내 힘이고, 동시에 내 약점이다."
+
+        마지막 줄, 밑줄: "그렇다면 나는 누구편인가? 아니, 누구의 인질인가?"
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep24_backchannel_with_nsa_c05"
+      content: |
+        이 통화 녹음을 본 CIA 분석가의 의견 (내부 회의록):
+
+        "NSA는 기술만 본다. RSA 100개 키. FBI는? 족쇄다. 모레노 교수를 찾고, 법적 기소를 완성하려면 증거가 필요하다. 그래서 FBI는 NSA의 기술을 원한다. CIA는? 중개역이다. 우리는 엘레나를 심어뒀다. 엘레나를 통해 수민을 통해 카르텔 내부를 본다. 그리고 카르텔은? 오직 돈이다. OFAC 동결 해제. 1주일.
+
+        문제는 우린 다 다른 목표를 추구한다는 거다. NSA는 자신의 감시 정보를 보호하고 싶고, FBI는 법적 승리를 원하고, CIA는 첩보 우위를 유지하고 싶고, 카르텔은 돈을 원한다.
+
+        그 가운데 수민? 그녀는 누구를 도와야 하나? 그리고 그녀가 누구를 거절하면 어떻게 될까? NSA는 그녀를 보호할 수 있지만 소비할 것이고, FBI는 기소할 수 있지만 증인으로 써먹을 것이고, 카르텔은 협박할 것이다."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "NSA와 카르텔 간에 물밑 타협이 시작됨 (후반부에 노골적 협박으로 이어질 씨앗)"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 3000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 11

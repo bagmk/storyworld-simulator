@@ -1,0 +1,62 @@
+# episodes/ep04_lab_whispers.yaml
+# ⚠️ MERGED INTO ep03_ben_encounter.yaml (now ep03_rival_and_ghosts)
+# This episode's content has been absorbed into EP02 for pacing improvement.
+# Keep this file for reference but it should be SKIPPED during generation.
+# Episode 4: "Lab Whispers"
+# source: ep0_lab_whispers
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep04_lab_whispers"
+  date: "2041-12-10T11:00"
+  location: "QuantumFront HQ — CryoLab service corridor & equipment storage"
+  summary: |
+    QuantumFront HQ, 4층 CryoLab 보관실. 수민이 초저온 장비 인벤토리를 확인하던 중, 카를로스(장비 관리자)와 요나스(설치 기술자)가 나타난다. 카를로스가 새 순환기(circulator) 박스를 가리킨다. "이건 안 풀어도 돼. 직접 설치하고 바로 금고에 넣어둬." 요나스가 라벨을 떼고 있었다. 상자 옆 대장: 《QuantumFront 장비 기록》. 수민이 페이지를 넘기자 항목이 이상했다. 회로 품질 계수(Q값) 수치가 시중 가격보다 30% 높음. 예산 란에는 'Benefactor'라는 미지의 자금 출처가 반복됨. 8월부터 10월까지 3개월간, 총 지출 $1.2M이지만 공식 DARPA 예산에는 $400K만 계상. $800K는 어디서?
+
+    휴게실에서 엘레나(동료 박사)와 대화. 수민: "순환기 개수가 맞지 않아. 수령장에선 6개인데..." 엘레나: "아, 그건 그래. 다른 데서 빌려온 거 섞여 있어. 신경 쓸 필요 없어." 장비 기록장을 들었을 때, 카를로스가 뒤에서 나타나 몸으로 차단한다. "우리가 알아서 할 거야. 넌 그냥 알고리즘에 집중해." 그의 목소리는 "착각하지 마, 넌 여기선 손님이야"라는 신호였다.
+
+    창고 깊숙한 곳. 요나스가 검은 펜으로 '브리지 슬롯' 관련 메모를 일부 지우고 있었다. 수민을 본 순간, 요나스의 손가락이 이어폰 줄을 감으며 짧게 웃는다. "별로 없어. 그냥 루틴이야." 요나스의 노트북 모서리: 'Y.M' 라벨. 그것이 요나스의 이니셜인지, 아니면 프로젝트 코드인지 불명확했다. 하지만 '브리지 슬롯'이라는 단어, 아무도 명시하지 않는 자금 출처, 그리고 증거를 지우는 행동—이들이 단순한 기술자가 아니라는 게 명백했다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep04_lab_whispers_c01"
+      content: |
+        QuantumFront HQ 4층 보관실. 새 순환기 상자와 장비 기록. 품목 가격 편차: 순환기 (Model XC-4000) 단가 $48,000 vs. 시중 $35,000 (37% 초과). 감쇠기 $22,000 vs. $16,500. 광학 필터 $67,000 (수량 표기 불명). 8월-10월 3개월 예산 데이터: 공식 DARPA $400K vs. 실제 청구 $1.2M. 차액 $800K 항목에 'Benefactor — NSA Special Access Funds (SAF)' 표기. 그 옆 작은 서명, 손글씨로 "El P." 승인 도장. 손가락 신호와 적색 펜 주석: '외부 보고서 포함 금지'. 카를로스 명령: "이 작업은 운영 일지에 안 써도 돼. 우리가 정리할 테니까." — CryoLab 운영과 분리된 자금 채널 존재의 증거.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep04_lab_whispers_c02"
+      content: |
+        엘레나의 경고적 대답과 카를로스의 즉각적 차단. 수민: "순환기 개수가 맞지 않아. 수령장에서 6개인데..." 엘레나: "다른 데서 빌려온 거 섞여 있어. 신경 쓸 필요 없어." 대답은 "정상"이 아니라 "이 질문은 하면 안 된다"는 신호. 카를로스가 나타나 기록장을 몸으로 차단. "장비 관리는 우리가 알아서 할 거야. 넌 그냥 알고리즘에 집중해." 손가락으로 페이지 번호를 덮음. 메시지: "넌 여기서 질문권이 없다."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep04_lab_whispers_c03"
+      content: |
+        창고에서 요나스가 검은 펜으로 기록장을 지우고 있었다. "브리지 슬롯" 관련 주석 여러 줄이 지워짐. 수민을 본 순간 요나스는 펜을 내려놓고 이어폰 줄을 손가락으로 한 번 감음—습관이 아닌 신호. "별로 없어. 그냥 루틴이야." 거짓 대답. 요나스의 노트북 라벨: 'Y.M' (Jonas Martinez가 아님). 노트북 내용: 시뮬레이션 이미지, 회로도, 손글씨 메모. 페이지 제목: "Phase-Guard Protocol — Timing Compensation Layer". Phase-Guard는 이전에 모레노와 벤이 언급한 단어. 공식 학술 용어가 아니라 암호명.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
+
+
+    - id: "clue_ep04_lab_whispers_c04"
+      content: |
+        수민이 기록장 사진을 몰래 찍으려 할 때 카메라 셔터음 발생 (스마트폰 음소거 상태인데도). 누군가 통신을 감지한 신호. 요나스가 그쪽을 봤지만 언급하지 않고, 더 기록을 지우며 수민을 향해 "나도 봤어"라는 미소. 요나스가 화내지 않은 것이 더 위험한 신호: 이미 모든 게 기록되고 보고되고 있다는 뜻. 그 밤, 수민이 이전 자료들을 연결한다: 모레노 "위상 드리프트 보상 회로", 벤의 메모 "Greyshore", 요나스의 노트북 "Phase-Guard Protocol". 세 단어가 하나의 목표를 가리킴. CryoLab 자금 흐름, 신비로운 Benefactor, 지워지는 기록—모두 무언가를 숨기기 위한 것. 수민은 알고 싶지만, 동시에 알고 싶지 않음. 한 번 알면 돌아올 수 없을 것 같기 때문.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 600
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 12

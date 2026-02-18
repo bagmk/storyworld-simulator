@@ -1,0 +1,86 @@
+# episodes/ep05_between_faction.yaml
+# Episode 7: "Between Faction"
+# source: ep1_between_faction
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep05_between_faction"
+  date: "2042-02-06T08:40"
+  location: "QuantumFront HQ — office & comms nodes"
+  summary: |
+    교신을 듣고 3일 뒤. 수민은 출입 기록과 인벤토리를 다시 확인했다. 모든 것이 깨끗했다. LST 설치팀의 흔적도, Benefactor의 기록도, 교신 로그도. 누군가가 이미 삭제했거나, 처음부터 없던 것처럼 위장했다. 손에 쥔 건 추측뿐이었다. 증거 없는 의심.
+
+    그날 오후 3시 42분, 메일 알림. 발신자: "Christian Miller <c.miller@nsa.gov>" / 프로젝트: "HyperConnect Quantum Initiative" / 제목: "QuantumFront Briefing — Feb 25, 19:30". 본문은 짧았다:
+
+    "수민,
+
+    2월 25일 오후 7시 30분, QuantumFront 회의실에서 만나기를 원합니다.
+    주제: 연구 가속화 및 자금 지원 방안
+
+    회신 바랍니다.
+
+    Christian Miller
+    NSA Signals Intelligence Division
+    HyperConnect Quantum Initiative"
+
+    이름 철자: 'Christan'이 아니라 'Christian'. 하지만 도메인은 공식 NSA. 그리고 날짜 시간은 "제안"이 아니라 "통보"였다. 회신 칸에는 "회신 바랍니다"—선택지가 없다는 뜻. 수민은 처음 대답을 썼다. "일정을 검토하겠습니다"... 하지만 삭제했다. 대신: "제안하신 일정에 뵙겠습니다." 보낸다. 손가락이 마우스 위에서 떨렸다. 그 순간, 수민은 이해했다. 자신은 이미 기울어진 판에 올려진 말이었다.
+
+    노트에 적는다: "나는 질문부터 할 것. 밀러에게, 엘 파트론에게, 모두에게." 하지만 손끝은 땀으로 젖어 있었다. 손가락 하나하나가 떨리고 있었다. 이제 돌아올 수 없는 경계를 넘었다는 생각이 들었다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep05_between_faction_c01"
+      content: |
+        메일 발신자: "Christian Miller <c.miller@nsa.gov>". 도메인은 @nsa.gov—공식 NSA 이메일. 하지만 이전에 제네바에서 받은 명함의 이름은 'Christian'이었고, 여기서도 'Christian'이다. 그렇다면 이전의 'Christan'은 오타가 아니었나? 또는 일부러 오타를 낸 건가? 프로젝트명: "HyperConnect Quantum Initiative". 공개 데이터베이스에 검색해도 나오지 않는다. 이것은 공식 프로젝트가 아니거나, DARPA 이상의 비밀 프로젝트였다. 메일 포맷도 공식적이었다. 서명에는 직책과 부서가 명확히 기록되어 있다. 하지만 내용은 딱 3문장. 제안이 아니라 통보였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.45
+      inject_method: "system_alert"
+
+    - id: "clue_ep05_between_faction_c02"
+      content: |
+        메일 본문의 시간 표기: "오후 7시 30분". 이전 메일과 다른 점. 이전 메일은 "다음 주 월요일"이나 "가능하신 시간"이라는 선택지가 있었다. 이번 메일은 정확한 날짜와 시간이 명시되어 있다. "2월 25일 오후 7시 30분". 그리고 회신 칸 문구: "회신 바랍니다" (respond please). 이건 정중한 청이 아니라 요구였다. 더 정확히 말하면, 응답이 없으면 그것도 응답으로 간주한다는 뜻이었다. 침묵은 동의. 수민이 회신하지 않아도 그날 그 시간에 그곳에 나타나야 한다는 뜻.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep05_between_faction_c03"
+      content: |
+        수민의 첫 번째 회신 초안: "메일 감사합니다. 일정을 검토하겠습니다. 확정 여부는 이번 주 목요일까지 알려드리겠습니다." 하지만 아마도 3초 동안 화면을 본 후, 수민은 삭제했다. 그 다음 버전: "제안하신 일정에 뵙겠습니다. 감사합니다." 두 문장뿐. 그리고 "보내기"를 누르는 순간, 수민은 깨달았다. 이것은 회신이 아니라 항복이었다. 자신이 자발적으로 거기 가겠다고 약속했다. 누군가가 강제한 게 아니라, 자신이 선택했다. 그래서 더 위험했다. 법적으로는 강제가 아니었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep05_between_faction_c04"
+      content: |
+        메일을 보낸 직후, 수민은 출입 기록을 다시 검토했다. 모든 게 깨끗했다. LST 설치팀의 기록도, Benefactor의 지출 기록도, 그 이후의 수정 흔적도. 누군가가 전문적으로 삭제했다. 로그 백업? 아마 여러 단계에서 제거되었을 것이다. 로컬 기록, 서버 기록, 클라우드 백업까지. 이것은 개인이나 단일 부서로는 불가능하다. 시스템 관리자 권한과 물리적 접근 권한 모두 필요하다. 그리고 그 권한을 가진 사람은? 모레노? 벤? 카를로스? 요나스? 아니면 모두? 수민은 이제 누구를 신뢰할 수 없었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep05_between_faction_c05"
+      content: |
+        출입 기록 검토 중, 수민은 이상한 것을 발견했다. 엘레나의 배지가 지난 3일 동안 한 번도 출입 센서를 통과하지 않았다. 하지만 같은 시간대에 엘레나의 사무실 문이 열렸다는 기록이 있다. 문 센서는 기록되어 있는데, 배지 센서는 없다. 이것은 불가능해 보였다. 두 가지 가설: 첫째, 엘레나가 다른 사람의 배지를 사용했다. 둘째, 누군가가 엘레나의 출입 기록을 삭제했지만 문 센서 기록은 누락했다. 더 위험한 해석: 엘레나는 QuantumFront에 없고, 그녀의 가상 출입만 기록되었다. 아니면 그 반대. 엘레나는 공식 기록과 무관하게 언제든지 접근할 수 있다는 뜻.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.65
+      inject_method: "system_alert"
+
+    - id: "clue_ep05_between_faction_c06"
+      content: |
+        내부 메신저 로그. 벤에게서 온 메시지: "수민, 잠깐. Greyshore에 대해 더 얘기하고 싶어. 2월 25일 이후로 연락해." 보낸 시간: 2월 6일, 오후 2시 35분. 그런데 이 메시지의 상태는 '자동 삭제 — 보존 기간 0'. 다른 메시지들은 보존 기간이 14일인데, 이것만 0이었다. 이것은 수동으로 설정해야 하는 옵션이다. 벤이 설정했나, 아니면 시스템 관리자가 설정했나. 그리고 "Greyshore"라는 단어는 보안 필터링 목록에 있는 것 같았다. 더 이상의 메시지에서 그 단어가 나타나지 않았다. 누군가가 적극적으로 대화를 차단하고 있었다. 수민이 회신할 타이밍을 주지 않기 위해.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "NSA가 공식적으로 수민에게 펀딩 제안을 위한 첫 접촉을 시도함"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 2000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 12

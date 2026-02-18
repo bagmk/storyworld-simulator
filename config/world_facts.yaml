@@ -9,13 +9,31 @@ world_facts:
   # These define the ground truth the story is building toward.
   hidden:
     - content: |
-        QuantumFront is not a legitimate “research company” but a tech–finance front
-        architected by El Patrón (Raphael) and Carlos. The public campus at Seaview
-        Research Park exists for PR, hiring, and audit-facing compliance theater.
-        The real program runs inside a Novagrad Freeport underground site
-        (harbor_underground_lab). The underground operation is less about “science”
-        and more about: (1) laundering justification for capital flows, (2) evading
-        sanctions/freezes, and (3) building leverage over crypto and communications.
+        QuantumFront was ORIGINALLY created as a tech–finance front by El Patrón
+        (Raphael) and Carlos purely for accounting fraud—inflating valuations of
+        "quantum R&D" to launder cartel money through fabricated tech investments.
+        The public campus at Seaview Research Park exists for PR, hiring, and
+        audit-facing compliance theater. The cartel had NO intention of actually
+        building quantum capability; "Quantum" was just a buzzword to justify cash flows.
+
+        TURNING POINT: When Sumin secured NSA funding (Miller's $2M/year offer),
+        El Patrón initially STRONGLY OPPOSED it—outside attention threatened their
+        laundering operation. But as Sumin's research showed genuine RSA-breaking
+        potential, El Patrón's strategic mind recognized a far greater opportunity:
+        the technology itself could become an instrument of power worth more than
+        any laundering scheme. The cartel pivoted from "fake quantum for money
+        laundering" to "real quantum as geopolitical weapon."
+
+        This pivot was accelerated by the fact that the Novagrad Freeport already
+        housed the cartel's security/logistics team (LST) for processing and
+        blocking illegal operations at the port. The existing LST infrastructure +
+        quantum computing potential created a synergy the cartel couldn't ignore.
+
+        The real program now runs inside a Novagrad Freeport underground site
+        (harbor_underground_lab). The underground operation evolved from pure
+        laundering to: (1) targeted key recovery/exfiltration using hybrid quantum,
+        (2) leveraging quantum capability for geopolitical negotiation power, and
+        (3) building a permanent "mutual assured dependence" structure with state actors.
 
     - content: |
         The capability is not “a quantum computer that cleanly breaks RSA-2048.”
@@ -56,6 +74,39 @@ world_facts:
         “If you halt, your family pays” removed voluntary termination as an option.
         The final narrative is pre-framed so that Sumin’s non-stop run becomes a
         moral/legal stain—complicity by design.
+
+    - content: |
+        The Mock Q-Day (EP30) is a cartel DISINFORMATION operation: using conventional
+        hacking (leaked HSM test keys, BGP/DNS manipulation, botnet amplification) to
+        create the ILLUSION that quantum computing has already broken RSA, without
+        actually using the quantum computer. The purpose is to generate panic (financial
+        markets, government response) and use that panic as negotiation leverage BEFORE
+        the real QPU demo. The cartel controls both "rails": the Narrative Rail (fake
+        fear) and the Quantum Rail (real technology), and synchronizes them with a
+        precisely calculated 17-second phase offset.
+
+    - content: |
+        The three U.S. intelligence agencies are in ACTIVE CONFLICT with each other:
+        - FBI (Sophia): Prioritizes legal prosecution, evidence chains, grand jury.
+          Limited by procedure. Wants to dismantle the cartel through courts.
+        - NSA (Miller): Prioritizes technology acquisition and national-security
+          monopoly. Willing to work WITH the cartel via backchannel if it means
+          controlling the quantum pipeline. Actively undermines FBI timing.
+        - CIA (Ethan): Prioritizes geopolitical balance and cross-border finance.
+          Uses Yonas as a double agent inside the cartel. Seeks to prevent ANY
+          single faction (including NSA) from monopolizing the technology.
+        This inter-agency conflict is as dangerous to Sumin as the cartel itself.
+
+    - content: |
+        Sumin's Failsafe-B system embodies THREE levels of balance simultaneously:
+        (1) POLITICAL balance: cartel vs. government—no single faction can monopolize
+            the quantum capability without the others' cooperation (3-of-5 key sharing).
+        (2) TECHNICAL balance: the 72-hour re-authentication + deadman switch ensures
+            no one can eliminate Sumin without triggering mutual destruction.
+        (3) PHILOSOPHICAL balance: Sumin's evolving understanding that "technology is
+            a hand, not a knife"—the same system that can break RSA can also prevent
+            its misuse, depending on who controls it and how.
+        The Failsafe is simultaneously Sumin's prison and his only protection.
 
   # ── Discoverable facts ────────────────────────────────────────────────
   # Agents CAN learn these through appropriate actions/dialogue.
@@ -128,6 +179,18 @@ world_facts:
     - id: "clue_backchannel_phrase"
       content: "Intercepted notes repeat a phrase like 'the freezing hand, the unfreezing hand'; Greyshore freeze/unfreeze actions and export-control signals move with the same header style."
       trigger: "agent correlates intercepted comms, fax headers, and financial freeze notices"
+
+    - id: "clue_cartel_original_purpose"
+      content: "Early QuantumFront financial records show zero actual R&D expenditure for the first 18 months—all 'quantum research' line items were redirected to Greyshore-linked accounts. The company was a pure valuation-inflation vehicle before Sumin's arrival."
+      trigger: "agent audits historical financial records or founding documents of QuantumFront"
+
+    - id: "clue_patron_opposition_to_nsa"
+      content: "Intercepted voice memo from El Patrón (pre-pivot era): 'NSA 자금을 받는다고? 미쳤어. 우리한테 감사가 들어오면 끝이야. 당장 끊어.' This shows the cartel initially tried to BLOCK NSA involvement before recognizing the technology's true potential."
+      trigger: "agent reviews intercepted cartel communications from early timeline"
+
+    - id: "clue_mock_qday_mechanics"
+      content: "The 'Q-Day breakthrough' reported on March 22 used only 2 leaked HSM test keys (marked 'TEST - DO NOT USE') combined with BGP hijacking and a 500K-node botnet for social amplification. No actual quantum computation was involved in the public-facing demonstration."
+      trigger: "agent analyzes the technical evidence behind the Q-Day news reports"
 
   # ── Public facts ─────────────────────────────────────────────────────
   # All agents are aware of these from the start.

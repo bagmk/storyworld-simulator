@@ -1,0 +1,128 @@
+# episodes/ep16_elena_confession.yaml
+# Episode 23: "Elena Confession"
+# source: MERGED from ep16_elena_carlos_dynamic + ep23_elena_link + ep24_elena_past
+# Generated from beats_all.yaml (director-AI schema v2)
+# MERGE NOTE: This episode consolidates the Elena subplot arc
+#   - EP16 (Elena-Carlos Dynamic, 3000w)
+#   - EP16 (Elena Link, 6500w)
+#   - EP16 (Elena Past, 6000w)
+
+episode:
+  id: "ep16_elena_confession"
+  date: "2043-03-12T00:20"
+  location: "QuantumFront HQ — meeting room, rooftop, data center corridor, CryoLab"
+  summary: |
+    [Part 1 — Elena-Carlos 긴장]
+    QuantumFront 회의실. 수민이 Phase-Guard 성능을 보고하자, 카를로스가 "위에서 내려온 지시"로 자금 루트 50% 증가를 요구한다. 엘레나가 즉각 반발 — "추적당한다". 카를로스의 냉정한 응수. 수민은 구석에서 이 대화를 듣는다. 단순한 실험 관리를 넘어선 뭔가의 소리. 카를로스가 수민을 향해 눈을 돌리고, 대화가 끊긴다.
+
+    [Part 2 — USB 전달]
+    며칠 후 밤, 연구동 옥상. 엘레나가 담배를 피우며 기다린다. 검은색 USB를 건넨다. "확인해 봐. 내 이름은 절대 나오지 않도록." LST 'Family/Watch' 탭의 존재를 알려줌 — 아이들 4명의 위치·통신·학교 시간표 전부 기록. 엘레나의 손에서 아이들 사진을 보여줌 — 지갑 속 빛바랜 사진, 마르코(장남), 소피아(차남), 루카스(삼남), 이사벨(막내). "이 아이들이 학교에서 5미터만 벗어나도 즉시 경고가 떴다."
+
+    [Part 3 — Elena의 과거 (2028년 플래시백)]
+    엘레나의 Zetanet 시절. 별칭 'Zenith', 8명의 해커 조직. 목표: 정부 감시 폭로. DCMS 침투, PRISM-ALPHA 문건 발견. CIA Ethan Burke의 접근과 엘레나의 거절. 2028년 8월 19일 — 여동생 Bella(19세) 실종. "기술을 원합니다. 아니면 시체를 돌려드릴까요?" 라파엘 구티에레즈의 등장과 계약. Zetanet은 해체되지 않고 '변신' — CryoLab Research Division으로.
+
+    [Part 4 — Failsafe 키 복제]
+    [2043년 3월 18일로 복귀] El Patrón이 Elena에게 Failsafe 키를 맡김. "수민 곁에서 지켜줘." Elena는 이미 CIA Burke에게 협박당하는 중 — Bella의 행방. 그날 밤 USB를 복제, 원본은 El Patrón에게, 복제본은 CIA로. Elena의 독백: "나의 마지막 배신."
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  # Clue numbering: c01-c03 from EP16, c04-c08 from EP16, c09-c12 from EP16
+  introduced_clues:
+    # --- From EP16: Carlos's order, Elena's pushback, Sumin's intuition ---
+    - id: "clue_ep16_elena_confession_c01"
+      content: "카를로스의 냉정한 지시: \"위에서 내려왔다. 기존 자금 루트에서 50% 더 가동해야 한다.\" 어투는 협상의 여지가 없음."
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep16_elena_confession_c02"
+      content: "엘레나의 즉각적 반발: \"불가능해. 늘리면 추적당한다.\" 그녀는 위험을 정확히 이해하고 있음을 암시."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep16_elena_confession_c03"
+      content: "수민의 직감: 기술 용어와 자금 수치가 뒤섞인 이 대화는 단순한 실험 관리를 훨씬 넘어선다. 뭔가 다른 체계가 작동 중."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    # --- From EP16: USB files, Family/Watch, Jonas threat, Elena's plea, Zetanet connection ---
+    - id: "clue_ep16_elena_confession_c04"
+      content: |
+        USB 폴더의 최상단에 있는 파일명들이 숨겨진 용도를 드러낸다. 'evidence_destruction_workflow_v2.1.zip', 'audit_trail_erasure_config.json', 'transaction_obscuration_matrix.py'. 엘레나의 메모 '수민, 도망쳐. 이게 다야'는 단순한 경고가 아니었다. CryoLab은 양자컴퓨터를 이용해 범죄 흔적을 완전히 없애는 조직범죄 도구였다. 그리고 수민이 완성한 알고리즘은 그것을 더욱 강력하게 만들어줄 열쇠였다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep16_elena_confession_c05"
+      content: |
+        LST 내부 콘솔의 스크린샷이 USB에 저장되어 있었다. 'Family/Watch' 탭. 엘레나의 아들 세 명, 딸 한 명의 이름, 학교 위치, 온라인 활동 기록, 등교 시간. GPS 좌표는 정확하게 대학로역에서 강남역까지의 이동 경로를 표시하고 있었다. 옆 칸에는 '통신 감시 활성화: Y', '생체 데이터 로깅: Y', '실시간 경고 임계값: 학교 벗어남 감지 시 즉시'. 카르텔이 단순히 협박하는 것이 아니라 분초 단위로 엘레나의 가족을 감시하고 있다는 증거였다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep16_elena_confession_c06"
+      content: |
+        USB 파일의 'personnel_threat_matrix.xlsx'에 등록된 인물 목록. 대부분은 QuantumFront 직원들인데, 그 중 한 명이 'JONAS_K - Threat Level: CRITICAL - Observation Status: ACTIVE'로 표기되어 있다. 요나스. 엘레나의 당부가 다시 떠올랐다: "요나스를 조심해. 그는 우리가 생각하는 사람이 아니야."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+    - id: "clue_ep16_elena_confession_c07"
+      content: |
+        조용한 데이터 센터 복도에서 엘레나의 목소리가 떨린다. "수민, 나는 이미 이들의 인질이야. 아무것도 거부할 수 없어. 아들 세 명, 딸 한 명. 모두 초중고에 다니고 있어. 저들이 온라인 게임을 할 때 나는 그들이 카르텔 추적 리스트에 몇 번째인지 안다. 신발 끈을 묶을 때도, 학교 가는 길에도, 밤 10시가 넘어갈 때도. 내가 한 번이라도 회사에 반발했다면... 다음 날 아침 뉴스에 나는 교통사고 사망자가 되어 있을 거야." 그녀는 수민의 손을 잡았다. 손가락이 차갑고 축축했다. "이 USB가 유일한 탈출구야. 당신이 FBI에 넘겨줄 때까지... 당신이 살아야 돼. 그리고 나도 다시 한 번 살아 나가야 해."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.7
+      inject_method: "npc_question"
+
+    - id: "clue_ep16_elena_confession_c08"
+      content: |
+        엘레나의 과거 조직 Zetanet 기록이 USB에 저장되어 있다. 조직명: Zetanet (구성원 8명, 2026-2028년 활동). 목표: "정부 감시 프로그램 폭로 및 데이터 해방". 설립자 중 한 명: 엘레나 (당시 별칭: 'Zenith'). 조직의 결말: 2028년 8월 19일, 여동생 Bella(19세) 실종. 2일 뒤, 엘레나의 이메일에 협박 사진 도착. 이후: "CryoLab Research Division으로 재결집" (2033년 ~ 현재). 주석: "Zetanet은 해체되지 않았다. 단지 '변신'했다."
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
+
+    # --- From EP16: Bella disappearance, Elena's confession, Zetanet records, Failsafe key copy ---
+    - id: "clue_ep16_elena_confession_c09"
+      content: |
+        2028년 8월 19일. 엘레나의 여동생 Bella가 택시 승차 중 사라진다. 차량번호 4729-GA, 기사 신원 위조, 카메라 영상 12분 20초 부분이 흐릿함. 48시간 뒤, 경찰은 '일반적인 실종 사건'으로 결론짓는다. 같은 시각, 엘레나의 메일함에 한 장의 사진이 도착한다. Bella가 앉아 있는 모습. 배경은 알 수 없지만, 그녀의 표정은 공포로 얼어있다. 메시지는 한 줄: '기술을 원합니다. 아니면 시체를 돌려드릴까요?' 서명: 'Quantum Operations Division'.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep16_elena_confession_c10"
+      content: |
+        엘레나의 내레이션이 담긴 음성 기록. 보안 채널을 통한 자백: "과학만으로는 세상을 바꿀 수 없었어. 이상은 현실과 만날 때 훼손된다. 나는 정부를 거부했으니 카르텔에 팔린 거야. 결국 나는 두 악마 중 하나를 골라야 했던 거야. 그리고 난 이미 선택했어. 12년이 지났고, 이제 뒤돌아보는 것 자체가 배신이다. 내 아이들이 다음 먹이가 될 수 있으니까."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.55
+      inject_method: "npc_question"
+
+    - id: "clue_ep16_elena_confession_c11"
+      content: |
+        Zetanet 해킹 조직의 공식 기록. 설립: 2026년. 구성원: 8명. 목표: 정부 감시 프로그램 폭로 및 데이터 해방. 활동 기간: 2026-2028년 (2년 7개월). 체포자: 5명. 사망자: 1명 (자살). 조직 결말: 공식 해체 선언 2028년 8월. 하지만 USB의 '진짜 기록' 파일에 따르면, Zetanet은 '해체'되지 않았다. 단지 '변신'했다. 동일 인원이 'CryoLab Research Division'이라는 새로운 이름 아래 재결집되었으며, 자금처는 이제 카르텔이었다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep16_elena_confession_c12"
+      content: |
+        [2043년 3월 18일] El Patrón이 Elena에게 Failsafe 키를 맡긴다. 작은 USB, 텅스텐 합금 케이스. "수민 곁에서 지켜줘. 넌 그녀와 가장 가깝잖아." 하지만 Elena는 이미 CIA Ethan Burke에게 협박받고 있었다. Bella. 12년 전 사라진 여동생. "협력하면 여동생을 돌려드리죠." 그날 밤, Elena는 USB를 복제했다. 원본은 El Patrón에게, 복제본은 CIA로. 암호화된 이메일. 제목: "Package ready". 첨부: failsafe_key_#4_elena.enc. Elena의 손이 떨렸다. 이것이 그녀의 마지막 배신이었다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "엘레나의 이중 배신 구조 확립: 카르텔과 CIA 사이의 줄타기"
+    - "Bella 실종 사건을 통한 엘레나의 동기 확립"
+    - "Failsafe 키 복제 → CIA 유출 경로 확인"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 7000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "slow"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 26

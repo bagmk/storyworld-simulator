@@ -1,0 +1,130 @@
+# episodes/ep22_failsafe_seed.yaml
+# Episode 30: "Failsafe Seed"
+# source: ep6_failsafe_seed
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep22_failsafe_seed"
+  date: "2043-03-15T24:00"
+  location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
+  summary: |
+    2043년 3월 16일 14:23 ~ 3월 18일 18:47 (72시간 24분). 수민은 엘레나 USB 전체 분석에 할애한다. 데이터 구조 해석(시간 38.2시간), 각 세력 움직임 추적(시간 21.5시간), 약점 매핑(시간 12.3시간). 카페인 섭취: 4.8리터. 수면: 0분(정신 자극제 사용).
+
+    깨달음 1(시간 26): NSA의 약점. RSA-2048 해독 기술 없이는 정보 수집 능력 100% 마비(CIA 평가 99.8% 확률). 그들은 수민을 필요로 한다. 더 이상 선택이 아니라 생존.
+
+    깨달음 2(시간 44): 카르텔의 약점. Greyshore 자산 3조 2천억 달러 동결 상태(IEEPA § 1705, 2019년부터). CIA가 부분 해제 가능하면, 카르텔의 자금줄 차단 가능. 라파엘은 자산 해제를 위해 누군가를 필요로 한다.
+
+    깨달음 3(시간 58): CIA의 약점. NSA와 카르텔 사이 권력 균형 붕괴 시 국제 정세 불안정. 제3의 중재자 필요.
+
+    깨달음 4, 가장 중요(시간 62): 세 세력 모두 같은 사람을 원함. 수민. 이 순간, 수민은 깨닫는다. 자신이 '피해자'에서 '플레이어'로, '게임 메이커'로 변신할 수 있다는 것을.
+
+    전략: '상호 잠금(Mutual Interlock)' 구조 설계. CryoLab의 BRIDGE_SLOT(물리적 광학 커넥터, 생체 인식 + RFID 이중 인증). 거기에 분산 키 시스템 설계: Shamir's 3-of-5 Secret Sharing. 5개 키 중 3개 이상 필요해야만 작동.
+
+    키 분배 계획:
+    - Key #1: El Patrón (직접 보관)
+    - Key #2: Carlos (El Patrón 신뢰하는 부하)
+    - Key #3: Greyshore (표면적으로 중립, 실제로는 추후 통제권 변동 가능)
+    - Key #4: Elena (가장 가까운 친구)
+    - Key #5: 수민 본인 (Biometric lock + 72시간 re-auth password)
+
+    수민의 의도: NSA Miller는 POC(Proof of Concept)만 원했지만, 실제 키 분배에서는 완전히 배제됨. 책상에 앉아서 일하는 사람들은 현장의 복잡성을 이해 못 한다. 진짜 권력 게임은 CIA와 Cartel 사이에서 벌어질 것이다. 그리고 수민 자신이 최종 캐스팅 보트가 된다.
+
+    수민은 잠시 손을 멈추고 생각한다. 내가 이걸 왜 만드는 거지? 엘레나의 말이 떠오른다—"룰을 만드는 사람이 되어야 해." 하지만 그것만이 아니다. 내가 이걸 만들지 않으면, 누군가가 더 나쁜 걸 만든다. 밀러는 NSA가 독점하는 버전을 만들 것이다. 라파엘은 카르텔이 독점하는 버전을 만들 것이다. 둘 다 통제장치가 없다. 적어도 내가 만들면, 균형이 있다. 3-of-5. 아무도 독재할 수 없고, 아무도 완전히 무력하지 않다. 기술을 통제하는 기술을 만든다. 하지만 그것도 결국 기술이다. 무한 퇴행. 이 생각이 수민을 잠시 멈추게 한다. 하지만 결국 손가락이 움직인다. 3월 18일 18:47, 마지막 키를 BRIDGE_SLOT에 꽂는다. 시스템 로그: "Master Chain Activated. Failsafe protocol: ENGAGED". 돌아올 수 없는 지점."
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep22_failsafe_seed_c01"
+      content: |
+        엘레나의 최종 조언이 수민의 정신을 관통한다. 직접 인용: "이 판에서 살아남으려면 게임의 룰을 알아야 해. 그리고 가능하면... 룰을 만드는 사람이 되어야 해. 도망치는 건 졌다는 거야. 하지만 중간에서 모두를 조종한다면? 그럼 이길 수 있어." 이 말이 수민의 모든 생각을 바꾼다. 수민은 더 이상 피해자가 아니라, 자신의 운명을 설계하는 건축가가 되기로 결심한다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.45
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_failsafe_seed_c02"
+      content: |
+        엘레나 USB의 '세력 의존성 지도'. 차트와 분석: NSA의 약점 - RSA-2048 해독 기술 없이는 전체 정보 수집 능력 0% (99.2% 확률). 카르텔의 약점 - Greyshore 자산 3조 2천억 달러 동결로 인한 자금줄 차단. CIA의 약점 - NSA와 카르텔의 권력 균형 붕괴로 인한 국제 정세 불안정화. 그리고 모든 약점의 중심에 한 명: 수민. 그의 기술과 지능이 이들 모두를 연결하고, 동시에 모두를 위협할 수 있다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep22_failsafe_seed_c03"
+      content: |
+        USB에 숨겨진 '상호 견제 구조' 기록. NSA-카르텔 사이의 백채널 통화 녹음 파일. 통화 날짜: 2043-03-10 02:34 UTC. 참여자: NSA 담당자 (음성 위조 추정), 카르텔 대리인 (요나스 추정). 내용: "이 기술은 우리 둘 다의 생존을 좌우한다. 당신들이 급히 진행하면 우리가 먼저 손에 넣는다. 우리가 급히 진행하면 당신들이 우리를 차단한다. 평형은 단 하나: 제3자 중재자가 필요해." 이 대화는 수민의 역할을 명확히 했다. 중재자. 그리고 중재자는 모든 당사자에게 필수불가결하다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_failsafe_seed_c04"
+      content: |
+        수민의 레버리지 점검. (1) 기술적 레버리지: 모레노 알고리즘 없이는 RSA-2048 해독이 불가능. 모레노의 유일한 접촉처인 수민을 통하지 않고는 NSA도 카르텔도 그를 찾을 수 없다. (2) 물리적 레버리지: CryoLab의 BRIDGE_SLOT 포트에 대한 물리적 접근 권한. 이것은 양자컴퓨터와 외부 장비를 연결하는 유일한 통로다. (3) 지적 레버리지: 분산키 시스템의 설계와 구현은 오직 수민만이 할 수 있다. 세 가지 레버리지를 합치면, 수민은 이 게임에서 '불가대체한 존재'가 된다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
+    - id: "clue_ep22_failsafe_seed_c05"
+      content: |
+        수민의 전략 노트. 제목: '파워 밸런스 재설계'. 내용: "각 세력이 모두 나를 원한다. NSA는 기술을, 카르텔은 보호를, CIA는 균형을 원한다. 만약 내가 이들 셋을 동시에 만족시킬 수 있다면? 그들은 나를 절대 놓지 않을 것이다. 그리고 나를 놓지 않는 것이 바로, 그들 서로를 놓지 않는 것이 된다. 내가 중심이면, 나를 중심으로 세 세력이 균형을 유지한다."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_failsafe_seed_c06"
+      content: |
+        수민의 USB 분석이 도출한 '약점 활용 지도'. NSA: "RSA 해독 일정 72시간 단축. 대가: Greyshore 자산 10% 부분 해제 (3200억 달러)". 카르텔: "기술 완성 보장. 대가: NSA 정보 차단 해제 (경제 정보 한정)". CIA: "양 세력 간 권력 균형 유지. 대가: 수민의 중재역할 인정 + 망명 신청권 제공". 이 세 가지 약점과 대가는 상호 연쇄적이다. 하나가 빠지면 나머지도 성립하지 않는다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.7
+      inject_method: "system_alert"
+
+    - id: "clue_ep22_failsafe_seed_c07"
+      content: |
+        수민이 구상한 '두 개의 레일' 시스템. (1) Quantum Rail (기술 경로): 실제 RSA-2048 해독 알고리즘 개발. 담당: 수민 + 모레노 (찾아야 함). 통제: NSA가 감시, 카르텔이 실행. (2) Narrative Rail (정치 경로): 국제 미디어 및 정부 기관에 기술 완성 소식 흘림. 담당: CIA. 역할: 국제 동향 조성. 그리고 이 두 레일은 수민의 '동기화 키'로 연결된다. 둘 중 하나가 가속되면 다른 하나도 가속되고, 하나가 멈추면 다른 하나도 멈춘다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.75
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep22_failsafe_seed_c08"
+      content: |
+        'Control Matrix' 설계: Shamir 3-of-5 Secret Sharing. 5개 키: El Patrón, Carlos, Greyshore, Elena, Sumin. failsafe_b 프로젝트, 2043-03-17 14:23:45 생성. 언어: Quantum-Native Assembly + Lattice. 함수: threshold_validator(), key_distribution(), sync_orchestrator().
+
+        핵심 메커니즘:
+        - 3개 키 모여야 startup 가능
+        - 하지만 72시간마다 수민의 brain-only password 재입력 필요
+        - 수민 없으면 72시간 후 자동 shutdown
+        - Biometric deadman switch: 수민 심박 24시간 감지 안 되면 algorithm 전세계 공개
+
+        NSA는 이 구조에서 완전히 배제됨. Miller는 POC 지원만 하려 했지만, 실제 권력 구조에는 들어오지 못함.
+
+        BRIDGE_SLOT 포트 (CryoLab 양자컴퓨터): 물리적 광학 커넥터 + 전자기 인터페이스. 접근: 수민/엘레나만. 생체 인식 + RFID 이중 인증. 포트의 통제자가 전체 시스템 통제.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.8
+      inject_method: "system_alert"
+
+    - id: "clue_ep22_failsafe_seed_c09"
+      content: |
+        엘레나 (옥상, 2043-03-17 23:55): "조건을 분산시키면 독점을 막을 수 있어. 조건을 만드는 사람이 가장 안전해." 수민: "내가 조건을 만들면?" 엘레나: "넌 게임이 끝날 때까지 살아 있을 수 있어. 게임 자체가 너를 보호하니까. 넌 없으면 아무것도 작동하지 않으니까." 수민의 내적 독백: "나는 더 이상 피해자가 아니다. 강압, 유혹, 위협을 거쳐 이제는 선택한다. 피해자→플레이어→게임 메이커. 내 길이 이들 모두의 길이 된다."
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.85
+      inject_method: "npc_question"
+
+    - id: "clue_ep22_failsafe_seed_c10"
+      content: |
+        수민의 '정보 무기화' 계획과 물리적 실행. 전략: NSA에게 Greyshore 자산 정보 유출(기술 지원 대가), 카르텔에게 CIA 동결 해제 조건 공개(보안 강화 대가), CIA에게 NSA-카르텔 한계점 공개(망명권 대가). 각 세력이 이미 아는 정보지만, 수민이 중개하면 '협상의 도구'가 됨. 물리적 키 제작: 텅스텐 + 초전도 재료, 손톱 크기, 5가지 광학 신호 내재. BRIDGE_SLOT에 꽂아야만 마스터 체인 활성화. 모든 분산 키 작동. 2043-03-18 18:47:33, CryoLab 메인실. 키 삽입 3.2초. LED 녹색. 시스템 로그: "Master Chain Activated. Failsafe protocol: ENGAGED". 더 이상 돌아갈 수 없는 지점.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.85
+      inject_method: "system_alert"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved:
+    - "수민이 엘레나 USB 정보로 각 세력의 의존성과 약점을 파악"
+    - "단순한 도피가 아닌 '게임 중심에 서기' 전략으로 방향 전환"
+    - "수민의 역할. 피동적 협력자에서 능동적 균형 조율자로 변화"
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 4500
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "normal"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 16

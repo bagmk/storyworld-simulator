@@ -1,0 +1,223 @@
+# episodes/ep29_shift_allegiance.yaml
+# Episode 37: "Shift Allegiance"
+# source: ep7_shift_allegiance
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep29_shift_allegiance"
+  date: "2043-03-21T18:20"
+  location: "Offsite secure location — intelligence briefing room / QuantumFront HQ"
+  summary: |
+    며칠 사이 벌어진 참극들에 수민은 완전히 혼란에 빠진다. 엘레나의 죽음은 그에게 엄청난 충격이었고, 이제까지 믿으려 했던 정부 측마저 신뢰하기 어려워졌다. FBI와 CIA는 엘레나 피살 책임을 서로 떠넘기며 내분을 보였고, 수민과 모레노 누구도 끝내 지켜주지 못했다. 밀러에게서 받은 NSA 브리핑 자료를 다시 검토해보니 일부 정보 누락과 편향이 의심되었다. 특히 엘레나의 CIA 신분에 대한 기록이 '분류 삭제'되어 있었다. 마치 엘레나가 처음부터 '존재하지 않는 사람'이었던 것처럼.
+
+    오후 3시, 벤 클라크(Ben Clarke)로부터 전화가 온다. "수민, 혹시 모레노 교수님이랑 연락된 적 있어? 나 며칠째 교수님한테 연락이 안 돼. 이메일도 안 읽히고, 전화도 안 받으시고..." 벤의 목소리에는 불안이 섞여 있다. 수민은 이미 모레노가 납치당했다는 것을 알고 있지만, 벤에게는 말할 수 없다. "나도 몰라, 벤. 바쁘신가 보지 뭐." 벤: "그런 것 같진 않은데... 학회 끝나고 사라지셨거든. 좀 이상해."
+
+    그로부터 2시간 후, FBI 소피아 스콜튼(Sophia Scholten)에게서 전화가 온다. 목소리는 긴박하다. "수민, 모레노 교수의 연구실 전체가 사라졌습니다. 직원들 전부요. 8명. 아무도 출근 안 하고, 집에도 없고. 이건 납치입니다. 조직적인." 수민의 심장이 내려앉는다. 소피아가 계속한다. "당신도 위험합니다. 지금 어디 계세요? 즉시 안전한 곳으로 이동하세요. 우리가 보호 조치를 취하겠습니다."
+
+    하지만 수민은 안다. FBI의 '보호'가 얼마나 공허한 약속인지. 엘레나도 보호받는다고 했지만 결국 죽었다. 소피아의 경고는 진심이지만, 그녀의 힘으로는 아무것도 막을 수 없다. 수민은 전화를 끊는다. "괜찮습니다. 제가 알아서 할게요."
+
+    이 와중에 엘 파트론, 즉 라파엘 구티에레즈는 수민에게 비밀 채널을 통해 메시지를 보낸다. "우린 혼돈 대신 질서를 세우려는 거야. 네 기술이 그 열쇠다. 함께하자, 김 박사. FBI는 너를 죽일 수도 있다. 우린 너를 살릴 수 있다." 수민은 점차 정부보다는 엘 파트론이 말하는 '새 질서' 쪽이 현실적일지 모른다는 생각을 하게 된다. 정의를 외치던 정부 기관들은 무능하거나 위선적으로 보였고, 오히려 카르텔 쪽이 분명한 목적 아래 자신을 대우해주는 듯한 아이러니 속에 수민의 마음은 어둠을 향해 기울어 간다. 이것이 Q-Day 이전의 마지막 도덕적 전환점이다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep29_shift_allegiance_c00"
+      content: |
+        벤 클라크의 전화: "수민, 혹시 모레노 교수님이랑 연락된 적 있어? 나 며칠째 교수님한테 연락이 안 돼. 이메일도 안 읽히고, 전화도 안 받으시고..." 벤의 목소리에는 불안이 섞여 있다. 벤은 모레노가 납치당했다는 사실을 모른다. 그는 단지 "학회 끝나고 사라지셨거든. 좀 이상해"라고만 말한다. 2시간 후, FBI 소피아 스콜튼에게서 전화가 온다. "수민, 모레노 교수의 연구실 전체가 사라졌습니다. 직원들 전부요. 8명. 이건 납치입니다. 조직적인." 소피아의 경고: "당신도 위험합니다. 즉시 안전한 곳으로 이동하세요." 하지만 수민은 안다. FBI의 보호가 얼마나 공허한지. 엘레나도 보호받는다고 했지만 죽었다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.4
+      inject_method: "npc_question"
+
+    - id: "clue_ep29_shift_allegiance_c01"
+      content: |
+        FBI와 CIA가 서로 책임을 전가하며 갈등하는 내부 회의 내용을 수민이 듣게 됨 (비밀 채널 도청):
+
+        FBI 담당자: "엘레나 아르바이도는 CIA의 자산이었어. 우리가 정보를 달라고 했을 때, CIA는 '그럴 수 없다'고 거부했다. 왜? 엘레나가 우리 기관을 신뢰하지 않았기 때문이다."
+
+        CIA 담당자: "그건 거짓이다. FBI가 너무 성급했다. 엘레나가 노바그라드에서 탈출을 시도한 것도 FBI의 압박 때문이다. 우리는 그녀를 서서히 빼낼 예정이었다."
+
+        FBI: "그럼 왜 지켜주지 못했나? 우리는 정보를 줬다. 엘레나의 위치, 움직임 패턴 다 줬어. 그리고?"
+
+        CIA: "그리고... 엘레나가 죽었다. 우리도 이유를 모른다."
+
+        수민이 들은 대화는 여기서 끝난다. 하지만 핵심은 명백하다: 정부 기관들이 내분으로 인해 엘레나를 '버렸다'는 것. 또는 '희생시켰다'는 것. 정의도, 보호도, 약속도 없었다. 오직 관료적 무능만 있었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.45
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c02"
+      content: |
+        라파엘의 비밀 메시지 (암호화된 채널로 전송):
+
+        "우린 법을 어기지 않아. 우린 창을 닫지 않을 뿐이야. 그들이 도망칠 문을 우리가 정해 주는 거지.
+
+        너(수민)는 다른 선택지가 없다고 생각해. FBI는 너를 보호할 수 없다. CIA도 마찬가지다. NSA? 그들은 너를 자산으로만 본다. 쓸모 있을 때까진.
+
+        하지만 우리는 다르다. 우리는 맹렬하지만 정직하다. 우리는 '질서'를 만들려고 한다. 혼돈이 아니라. 기술로. 그 기술은 너야. 그리고 우린 그 가치를 안다."
+
+        이 메시지는 라파엘의 '설득'이자 '협박'이다. 하지만 수민이 듣기에는 '진심'처럼 들린다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c03"
+      content: |
+        NSA가 제공한 정보 중 일부가 의도적으로 누락 또는 왜곡되었을 가능성을 수민이 감지:
+
+        밀러로부터 받은 브리핑 자료:
+        - 페이지 1-40: 기술 분석 (정확함)
+        - 페이지 41-65: 조직도 (일부 누락)
+        - 페이지 66-78: [REDACTED] - 전체 블랙아웃
+        - 페이지 79: CIA 관련 정보 (페이지 넘버링 건너뜀)
+
+        특히 의심스러운 부분: 엘레나의 CIA 신분에 대한 모든 기록이 '분류 삭제(Classified Redacted)' 처리되어 있다. 마치 엘레나가 처음부터 '존재하지 않는 사람'이었던 것처럼. 이는 NSA가 의도적으로 정보를 은폐했다는 뜻이다.
+
+        왜? 아마도 NSA 자체가 엘레나의 죽음에 관여했거나, 또는 그 이유를 알고도 침묵하기로 결정했을 가능성.
+
+        NSA의 정보 조작 확인. 밀러는 자신의 말을 거짓말로 만들었다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c04"
+      content: |
+        라파엘 구티에레즈가 수민에게 보낸 비밀 메시지 (2043-03-20 03:15 UTC):
+
+        "우린 기술로 새 질서를 만든다. 함께하자, 김 박사.
+        
+        너는 이미 Failsafe를 설계했다. 그것으로 충분하다. 이제 우리는 다음 단계로 간다.
+        
+        RSA가 깨진다. 며칠 안에.
+        
+        그 다음? 그 다음은 세상이 바뀐다. 이전 세계의 규칙은 더 이상 작동하지 않는다. 새로운 지배 질서가 필요하다. 암호로 기반한 질서. 투명한 질서. 그리고 그것의 건축자는 너다.
+        
+        우리(카르텔)와 함께하면, 너는 역사의 건축자가 된다. 정부와 함께하면, 넌 도구일 뿐이다."
+
+        이 메시지에는 수민의 '자존감'을 자극하는 부분이 있다. 그녀를 '도구'로 취급한 정부에 대한 분노, 그리고 '건축자'로 대우하는 카르텔의 제안. 이것이 수민을 흔드는 가장 강력한 무기다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c05"
+      content: |
+        수민 독백. 엘레나의 시체를 안고 있던 수민이 처음 입을 연다:
+
+        "내 지연 하나가 사람을 죽였다.
+
+        내가 Failsafe를 더 단단하게 설계했으면, 라파엘이 엘레나를 의심하지 않았을 것이다.
+        
+        내가 FBI나 CIA에 정보를 줬으면, 그들이 엘레나를 빼낼 수 있었을 것이다.
+        
+        내가... 내가 처음부터 이 모든 것에 참여하지 않았으면, 엘레나는 지금도 살아있을 것이다.
+        
+        그래서 내가 책임진다. 내가 결정한다."
+
+        이 독백이 수민의 도덕적 전환점이다. 그녀는 더 이상 '피해자'가 아니라 '책임자'가 되기로 선택한다. 그리고 책임자로서의 결정은... 어둠을 향한다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.65
+      inject_method: "npc_question"
+
+    - id: "clue_ep29_shift_allegiance_c06"
+      content: |
+        요나스의 정체와 충성 대상이 여전히 불분명하여 수민의 혼란 가중:
+
+        요나스에 대한 기록들:
+        - NSA에 의한 신원 생성: 2041-08-15 (정확한 출생지 기록 없음)
+        - 이전 직업: [CLASSIFIED - REDACTED]
+        - CIA 연계: [CLASSIFIED - REDACTED]
+        - 카르텔 내 역할: Operations director (공식)
+        - 실제 역할: ??? (수민도 모른다)
+
+        요나스는 누구인가? 정부의 첩자인가? 카르텔의 진정한 리더인가? 아니면 제3의 조직을 위해 일하고 있는 것인가?
+
+        그리고 가장 불안한 질문: 요나스가 엘레나를 죽게 내버려뒀는가?
+
+        수민은 답을 얻지 못한다. 그저 의심만 쌓인다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.7
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c07"
+      content: |
+        미 재무부 OFAC의 내부 슬라이드에서 Greyshore 관련 제재 후보 명단 초안이 작성됨:
+
+        《OFAC DESIGNATION REVIEW — GREYSHORE HOLDINGS》
+        Date: 2043-03-20
+        Status: DRAFT (Not yet approved by Secretary)
+
+        Proposed actions:
+        1. Extend freeze: Additional 90 days (total: 180 days from Feb 28)
+        2. New entity designations: 12 shell companies linked to Greyshore
+        3. Personal sanctions: Named individuals (23 names, including 'Rafael Gutierrez')
+        4. Consequence: All global financial transactions blocked indefinitely
+
+        이것은 '정부의 최종 결정'이 거의 다 되었다는 뜻이다. 1주일 안에 Greyshore 계좌는 완전히 동결될 것이고, 카르텔은 자금이 끊길 것이다.
+
+        동시에, 이것은 협상의 '최후 통첩'이 되기도 한다. 카르텔이 정부와의 협상을 포기하고 다른 길(중국 판매 등)을 택하도록 강요하는 메시지다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep29_shift_allegiance_c08"
+      content: |
+        NSA 내부 보고서에서 엘레나 관련 핵심 사실이 누락되고 수민에게 유리한 정보만 편집된 것을 수민이 알아챔:
+
+        Original CIA report (수민이 백도어로 얻은 기록):
+        "Elena Arbaido was terminated on 2043-03-19T23:38:45Z. Cause: 'Suspected defection / asset betrayal'. Authorization: [CLASSIFIED]"
+
+        NSA edited version (밀러가 준 자료):
+        "Elena Arbaido's status: [REDACTED]. Circumstances under investigation. No findings to report at this time."
+
+        이것은 NSA가 의도적으로 진실을 은폐했다는 뜻이다. 엘레나가 CIA에 의해 제거되었다는 사실. 그리고 밀러는 이를 알고도 수민에게 거짓 보고를 한 것이다.
+
+        NSA의 정보 조작 확인. 그들도 '살인자'일 수 있다. 또는 살인자를 보호하는 조직이다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.5
+      inject_method: "document_artifact"
+
+    - id: "clue_ep29_shift_allegiance_c09"
+      content: |
+        FBI가 약속한 수민 보호 조치가 실질적이지 않음이 드러남:
+
+        FBI 보호 제안 (원본):
+        "We will provide 24/7 protection. Safe house location. New identity if necessary."
+
+        실제 조치:
+        - Safe house: Disclosed location (비밀이 아님)
+        - Protection: 2명의 에이전트 (불충분)
+        - New identity: "Process takes 6-12 months" (Q-Day까지 시간이 없음)
+
+        FBI가 약속한 것들은 모두 '공약'일 뿐이었다. 실제로는 수민을 보호할 능력도, 의지도 없었다.
+
+        공허한 약속. 정부의 무능을 여실히 드러낸다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.85
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep29_shift_allegiance_c10"
+      content: |
+        CIA 요원들 교신에서 "NSA가 작전을 망쳤다"는 불만이 포착됨:
+
+        CIA secure channel (수민이 도청):
+        Agent A: "NSA doesn't know what it's doing. They wanted Elena to stay inside, but we needed her out. Miller prioritizes technical access, not human lives."
+
+        Agent B: "And now? Elena's dead. Our asset is gone. And Miller still talks about 'timeline optimization' and 'technical priorities'."
+
+        Agent A: "Exactly. NSA values algorithms over people. CIA values people over algorithms. But now? Both of us got nothing."
+
+        기관 간 알력으로 인해 작전이 실패했고, 엘레나가 희생되었다. 정부는 더 이상 '질서'를 제공하지 않는다. 오직 내분과 무능만 있다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 7000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 25

@@ -1,0 +1,90 @@
+# episodes/ep31_ben_offer.yaml
+# Episode 39: "Ben Offer"
+# source: ep8_ben_offer
+# Generated from beats_all.yaml (director-AI schema v2)
+
+episode:
+  id: "ep31_ben_offer"
+  date: "2043-03-23T20:15"
+  location: "Downtown Ritz-Carlton Hotel — private lounge (38th floor)"
+  summary: |
+    결전의 날을 3일 앞두고, MIT 시절 라이벌이었던 벤 클라크가 갑자기 수민에게 이메일로 연락해온다. 제목: "Old friend—let's talk about your future." 학회 이후 스타트업 CEO로 승승장구하던 벤은 "너의 성과를 주시해왔다"며 다운타운의 고급 호텔 라운지에서 만나자고 한다. 저녁 8시 15분, 38층 프라이빗 라운지. 유리창 너머로는 도시의 저녁 불빛이 깜박이고, 테이블 위엔 이미 분할 계약서가 펼쳐져 있다.
+
+    벤은 만난 자리에서 바로 말을 꺼낸다: "Soomin, we've prepared this. Annual 12 million, complete RSA division leadership, 2.5 million stock options vesting over four years. We want you—not the code, YOU." 벤의 태도는 예전 대학원 라이벌의 경쟁심이 아니라, 정확한 계획을 수행하는 영업인의 차갑고 전문적인 톤이었다. 그는 계약서의 각 항목을 손가락으로 가리키며 설명한다. "Next 5 years, quantum market is ours. RSA implementation, government contracts, DARPA co-funding—all locked in. You're the missing piece."
+
+    벤이 내민 파트너 목록. Palantir, Northrop Grumman, Booz Allen Hamilton, Lockheed Martin—정부 계약 다 받은 국방 거인들이다. 그 목록 아래엔 주석이 있었다: "All cleared for TS/SCI compartments—DARPA co-funding pre-negotiated." 벤이 계속 말한다. "너도 알겠지만, 이건 단순한 취직이 아니야. 우리 팀에 들어오면 넌 보호받아. 시민권도 내년 안에 확정되고, 가족도 이주를 도와줄 거야."
+
+    하지만 수민은 조용히 듣고만 있다. 예전 같았으면 유혹에 흔들렸을 것이다. 어둡고 작은 연구실이 아닌, 넓은 사무실과 팀원들. 하지만 지금 수민은... 다르다. 엘레나의 죽음, 모레노의 납치, 카르텔과 CIA 사이에서 살아남기 위한 싸움. 벤은 이 모든 걸 모르고 있다.
+
+    수민이 입을 연다. 목소리는 낮고, 차갑다. "벤, 연봉 1,200만 달러?" 수민이 계약서를 집어든다. 그리고 천천히 찢기 시작한다. 한 장, 두 장. "이게 나한테 무슨 의미가 있을까?" 벤의 얼굴이 굳는다. "수민, 뭐 하는 거야—"
+
+    수민이 찢어진 계약서를 테이블에 던진다. "너 지금 나한테 '보호'를 약속했지? 시민권? 가족 이주?" 수민이 벤을 똑바로 쳐다본다. "벤, 난 지난 3주 동안 사람이 죽는 걸 봤어. 내 동료가 머리에 총 맞고 죽었어. 내 스승은 납치당했고, 아마 죽었을 거야. 그리고 너는 지금 여기 앉아서 '취직 제안'을 하고 있어?"
+
+    벤이 당황한다. "수민, 무슨 소리를—" 수민이 벤의 말을 끊는다. "닥쳐, 벤. MIT 때도 그랬지. 넌 항상 현실을 몰라. 책상 앞에서 DARPA 계약서나 보고, 파트너 목록이나 자랑하고. 진짜 현장은 그렇게 안 돌아가."
+
+    수민이 자리에서 일어난다. 벤을 내려다본다. "너 지금 Q-Day가 뭔지 알아? 너네 회사가 준비한 'RSA division'이 뭘 하게 될지 알아?" 벤이 입을 다문다. 수민이 냉소적으로 웃는다. "몰라, 그치? 넌 그냥 정부 돈 받아서 회사 키우고, 주식 상장하면 되는 거니까."
+
+    "난 달라, 벤. 난 이 기술이 뭘 할 수 있는지 알아. 세상의 모든 은행 계좌, 모든 정부 통신, 모든 암호가 무너지는 거야. 그리고 그 한가운데 내가 있어. 넌? 넌 그냥 '파트너'일 뿐이지."
+
+    벤의 얼굴이 창백해진다. 수민이 벤에게 한 걸음 더 다가간다. "그래서 말인데, 벤. 네가 만약 정말로 이 시장을 '접수'하고 싶다면..." 수민이 벤의 명함을 집어 든다. 그리고 천천히 찢는다. "나한테 구걸하러 와. 계약서 들고 오지 말고."
+
+    수민이 돌아서서 나간다. 벤은 자리에 그대로 얼어붙어 있다. 찢어진 계약서와 명함만 테이블 위에 남았다.
+
+    복도로 나온 수민은 손이 떨리는 것을 느낀다. 엘레베이터 문이 닫히고, 거울에 비친 자신의 얼굴을 본다. 낯설다. 이게 나인가? 하지만 되돌릴 수 없다. 이미 너무 멀리 왔다.
+
+  # Clues that MUST surface during this episode.
+  # The Director AI monitors and injects trigger events if they go unnoticed.
+  introduced_clues:
+    - id: "clue_ep31_ben_offer_c01"
+      content: |
+        벤이 내민 분할 계약서: 첫 페이지에 "Executive Position, Quantum Engineering Division Lead" 직함과 "Annual Compensation: USD $12.0M (base) + $2.5M in stock options (vesting 4 years)" 명시. 하단엔 "TS/SCI compartment access provisioned — valid through March 2044" 각인. 수민은 그 수치들을 본다. 1,200만 달러. 거액이다. 자신의 거기 라이벌과는 다른 세계. 그러나 그 수치들 아래 쓰인 파트너 명단은 더 큰 그림을 가리킨다.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.45
+      inject_method: "document_artifact"
+
+    - id: "clue_ep31_ben_offer_c02"
+      content: |
+        벤. "수민, 이건 단순한 제안이 아니야. Palantir, Northrop, Lockheed—다 이미 네 기술의 가능성을 봤어. 그리고 우리가 먼저 손을 제시했어. 정부도 백업으로 우리한테 자금을 붙였고. 다음 5년이 우리 거야. 양자컴퓨팅 시장을 우리가 접수하면, 넌 그 무게의 일부를 나눠갖는 거다." 벤의 목소리엔 설득이 아니라 압박이 묻어난다.
+      trigger: "an NPC raises the point in conversation or asks a leading question"
+      inject_threshold: 0.5
+      inject_method: "npc_question"
+
+    - id: "clue_ep31_ben_offer_c03"
+      content: |
+        수민이 계약서를 찢기 시작한다. 한 장, 두 장, 세 장. 벤의 얼굴이 점점 굳어진다. "수민, 뭐 하는 거야—" 수민: "이게 나한테 무슨 의미가 있을까? 연봉 1,200만 달러? 시민권? 가족 이주?" 수민의 목소리는 낮고 차갑다. "벤, 난 지난 3주 동안 사람이 죽는 걸 봤어. 내 동료가 머리에 총 맞고 죽었어. 내 스승은 납치당했고. 그리고 너는 지금 여기 앉아서 '취직 제안'을 하고 있어?" 벤은 이 순간 깨닫는다. 수민이 더 이상 MIT 시절의 그 순진한 대학원생이 아니라는 것을.
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
+
+    - id: "clue_ep31_ben_offer_c04"
+      content: |
+        수민: "닥쳐, 벤. MIT 때도 그랬지. 넌 항상 현실을 몰라. 책상 앞에서 DARPA 계약서나 보고, 파트너 목록이나 자랑하고. 진짜 현장은 그렇게 안 돌아가." 수민이 자리에서 일어나 벤을 내려다본다. "너 지금 Q-Day가 뭔지 알아? 너네 회사가 준비한 'RSA division'이 뭘 하게 될지 알아?" 벤이 입을 다문다. 수민이 냉소적으로 웃는다. "몰라, 그치? 넌 그냥 정부 돈 받아서 회사 키우고, 주식 상장하면 되는 거니까." 이 순간 힘의 역전이 일어났다. MIT 시절 벤이 수민을 내려다봤다면, 지금은 수민이 벤을 내려다보고 있다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep31_ben_offer_c05"
+      content: |
+        수민: "난 달라, 벤. 난 이 기술이 뭘 할 수 있는지 알아. 세상의 모든 은행 계좌, 모든 정부 통신, 모든 암호가 무너지는 거야. 그리고 그 한가운데 내가 있어. 넌? 넌 그냥 '파트너'일 뿐이지." 수민이 벤의 명함을 집어 들어 천천히 찢는다. "그래서 말인데, 벤. 네가 만약 정말로 이 시장을 '접수'하고 싶다면... 나한테 구걸하러 와. 계약서 들고 오지 말고." 벤의 얼굴이 창백해진다. 수민이 돌아서서 나간다. 벤은 자리에 그대로 얼어붙어 있다. 찢어진 계약서와 명함만 테이블 위에 남았다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep31_ben_offer_c06"
+      content: |
+        복도로 나온 수민은 손이 떨리는 것을 느낀다. 엘레베이터 문이 닫히고, 거울에 비친 자신의 얼굴을 본다. 낯설다. 이게 나인가? 계약서를 찢고, 벤을 내려다보고, "구걸하러 와"라고 말한 사람이 정말 자신인가? 엘레나의 죽음 이후 뭔가 바뀌었다. 두려움이 분노로 바뀌었고, 분노는 냉소로 굳어졌다. 수민은 더 이상 보호받기를 바라는 연구자가 아니다. 이제 그는... 게임의 플레이어다. 하지만 되돌릴 수 없다. 이미 너무 멀리 왔다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.5
+      inject_method: "environmental_cue"
+
+  # Items carried over from a previous episode that should be addressed.
+  resolved: []
+
+  # Approximate target word count for the generated novel chapter
+  recommended_length: 6000
+
+  # Pacing style: slow / normal / tense / fast
+  pacing: "tense"
+
+  # Hard cap on simulation turns (auto-computed from recommended_length)
+  max_turns: 22

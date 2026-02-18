@@ -49,7 +49,31 @@ characters:
       yonas_mehret:          -0.1    # Feels watched; operator with unclear loyalties
       ben_clarke:            -0.2    # Rivalry + temptation: the “clean” pragmatic path
       hyejin_kim:             0.9    # Anchor to humanity
-      marcelo:               -0.3    # The cartel’s blunt instrument, close enough to smell
+      marcelo:               -0.3    # The cartel's blunt instrument, close enough to smell
+    character_arc:
+      phase_1_passive: |
+        EP01-EP13: 수민은 학자로서의 호기심과 두려움 사이에서 흔들린다.
+        NSA 브리핑(EP06)에서 RSA-2048 30일→3일 슬라이드를 보고 충격과 놀라움을 느끼지만,
+        아직 자아가 깨기 전이라 적극적으로 반박하지 못한다. 기술이 무기가 될 수 있다는
+        불안감을 느끼면서도 연구자로서의 정체성을 유지하려 한다.
+      phase_2_awakening: |
+        EP18-EP22: RSA 붕괴 가능성을 스스로 계산한 후, "이건 더 이상 과학이 아니라 무기다"라는
+        깨달음에 도달한다. 엘레나의 조언("룰을 만드는 사람이 되어야 해")을 듣고,
+        피해자에서 플레이어로 전환한다. Failsafe-B를 설계할 때, 압박에 의한 반응이 아니라
+        "내가 이걸 만들지 않으면 누군가가 더 나쁜 걸 만든다"는 능동적 판단으로 시작한다.
+      phase_3_architect: |
+        EP27-EP41: 게임 메이커로서 균형을 설계하지만, Elena의 죽음으로 인해 자신이 만든
+        시스템이 사람을 죽일 수 있다는 것을 깨닫는다. EP37-38에서 마지막 코드를 바꿀 수
+        있는 선택의 순간이 있지만, 2:2 대치 상황에서 캐스팅 보트로서의 역할을 선택한다.
+        최종적으로 72시간마다 세계를 멈추거나 돌릴 수 있는 권력을 얻지만, 자유는 잃는다.
+    philosophical_evolution: |
+      EP06: 밀러가 "기술은 도구일 뿐"이라 할 때 → 놀라움과 충격 (아직 자아 깨기 전)
+      EP10: Carlos가 "기술에 선악은 없어"라 할 때 → 내면에서 "그건 너무 편한 말이다" 반발
+      EP18: RSA 붕괴 계산 완성 후 → 독백: "기술은 도구가 아니다. 도구는 놓으면 멈춘다. 이건 멈추지 않는다."
+      EP22: Failsafe 설계 중 → 독백: "기술을 통제하는 기술을 만든다. 하지만 그것도 결국 기술이다. 무한 퇴행."
+      EP28: Elena 사망 직후 → 독백: "기술은 칼이 아니다. 칼은 놓을 수 있다. 이건... 손이다. 내 손에 붙어있다. 뗄 수가 없다."
+      EP38: QPU 시운전 RSA 붕괴 순간 → 독백: "손이 움직였다. 내 손이. 수술인지 살인인지 아직 모르겠다."
+      EP41: 최종 일기 → "기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다."
 
   - id: "elena_ramirez"
     name: "Elena Ramirez"
@@ -88,6 +112,13 @@ characters:
       agent_sophia_scholten:  0.1    # She wants the FBI outcome, fears the FBI process
       agent_christan_miller: -0.3    # Old scars; recognizes the same machinery
       agent_ethan_burke:     -0.1
+    tragic_depth: |
+      Elena의 비극은 12년간 여동생 Bella를 찾지 못한 채 카르텔과 CIA 양쪽에 이용당한 것.
+      EP16에서 수민에게 USB를 건넬 때, 단순한 정보 전달이 아니라 아이들 사진을 보여주며
+      "이 아이들이 커서 엄마가 뭘 했는지 알면 어떡하지?"라는 인간적 두려움을 드러낸다.
+      EP28 직전, 수민과의 마지막 대화: "12년 전 여동생이 사라진 날, 나는 세상이 끝났다고
+      생각했어. 근데 세상은 안 끝나더라. 그냥 내가 끝난 거지." 이 대화가 사후 수민의
+      트라우마를 10배 증폭시키는 역할을 한다.
 
   - id: "alex_moreno"
     name: "Dr. Alex Moreno"
@@ -118,6 +149,13 @@ characters:
       el_patron:             -0.8
       carlos_reyes:          -0.7
       agent_christan_miller: -0.6
+    inner_conflict: |
+      모레노는 단순한 납치 피해자가 아니라, 제자들을 지키려는 인간으로서 극한의 딜레마에
+      직면한다. EP23 납치 장면에서 학생들에게 "괜찮다, 내가 해결한다"라고 거짓말하면서
+      손이 떨린다. EP36에서 강제 실행을 당할 때, 키보드 앞에서 "이걸 실행하면 내 연구가
+      무기가 된다. 하지만 안 하면 학생들이..."라는 딜레마를 겪고, 결국 학생들을 위해
+      실행을 진행한다. 그의 죽음은 기술적 과로사로 위장되지만, 실제로는 카르텔이 설계한
+      근-암살이다.
 
   - id: "carlos_reyes"
     name: "Carlos Reyes"
@@ -188,6 +226,14 @@ characters:
       agent_ethan_burke:     -0.2
       yonas_mehret:           0.2
       marcelo:               0.6
+    human_cracks: |
+      EP20 (첫 화상 대면): 격언과 냉철한 분석 사이에서 한 순간 손이 떨린다. 수민이 이를
+      포착한다. 그리고 엘 파트론이 한 줄을 말한다: "나도 처음엔 기술자였어. 내 손으로
+      만든 것이 나를 삼킬 줄 몰랐지." 이 순간 그는 단순한 악당이 아니라, 자신의 창조물에
+      갇힌 사람으로 드러난다.
+      EP36: 혼자 있을 때 거울을 보며 잠시 멈추는 장면. 2초. 55세의 얼굴에 30년의 피로가
+      드러난다. 그리고 다시 가면을 쓰듯 표정을 바꾸고 돌아간다. 전략가이기 전에 인간이었던
+      흔적이 잠시 보이는 순간.
 
   - id: "agent_christan_miller"
     name: "Agent Christian (Christan) Miller"
