@@ -213,15 +213,9 @@ class TrialRunner:
         # Fresh agents from raw config (clean memory each trial)
         agents = [Agent.from_config(c) for c in self.characters_config]
 
-        # EMOTION CONTINUITY: Load final emotional state from previous episode
+        # Cross-episode continuity: restore lightweight memory state.
         for agent in agents:
-            prev_emotions = db.load_previous_episode_final_emotions(
-                agent_id=agent.id,
-                current_episode_id=self.base_episode_id
-            )
-            if prev_emotions:
-                agent.memory.emotional_state = prev_emotions
-                logger.info(f"Loaded previous emotions for {agent.id}: {prev_emotions}")
+            self._restore_cross_episode_memory(agent)
 
         # Deep copy world_facts to prevent cross-trial mutation
         trial_world_facts = copy.deepcopy(self.world_facts)
@@ -266,6 +260,54 @@ class TrialRunner:
         )
 
         return result, clue_mgr, director, agents
+
+    def _restore_cross_episode_memory(self, agent: Agent) -> None:
+        """
+        Restore continuity signals from prior completed episodes.
+        Keeps trial state lightweight while preserving character carry-over.
+        """
+        prev_emotions = db.load_previous_episode_final_emotions(
+            agent_id=agent.id,
+            current_episode_id=self.base_episode_id,
+        )
+        if prev_emotions:
+            agent.memory.emotional_state = prev_emotions
+
+        prev_relationships = db.load_previous_episode_relationships(
+            agent_id=agent.id,
+            current_episode_id=self.base_episode_id,
+        )
+        if prev_relationships:
+            agent.memory.relationship_matrix.update(prev_relationships)
+
+        prev_clues = db.load_previous_episode_known_clues(
+            agent_id=agent.id,
+            current_episode_id=self.base_episode_id,
+        )
+        if prev_clues:
+            agent.memory.known_clues.update(prev_clues)
+
+        persona_history = db.load_previous_episode_persona_deltas(
+            agent_id=agent.id,
+            current_episode_id=self.base_episode_id,
+            max_entries=40,
+        )
+        if persona_history:
+            agent.memory.persona_deltas.extend(persona_history)
+            for delta in persona_history:
+                changes = delta.get("changes", {})
+                if isinstance(changes, dict):
+                    agent.persona.update(changes)
+
+        if prev_emotions or prev_relationships or prev_clues or persona_history:
+            logger.info(
+                "Restored memory for %s | emotions=%d relationships=%d clues=%d persona_deltas=%d",
+                agent.id,
+                len(prev_emotions),
+                len(prev_relationships),
+                len(prev_clues),
+                len(persona_history),
+            )
 
     # ------------------------------------------------------------------ #
     # Trial Evaluation

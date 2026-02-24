@@ -8,11 +8,13 @@ Iteratively regenerates scenes until quality targets are met.
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 import subprocess
 import sys
 import re
+import yaml
 
 from quality_analyzer import QualityAnalyzer
 
@@ -50,7 +52,9 @@ class QualityAdaptiveGenerator:
             'scene_progression': 0.5,
             'information_novelty': 0.8,
             'subordinate_clause_depth': 0.8,
-            'opening_line_quality': 0.7
+            'opening_line_quality': 0.7,
+            'pov_consistency': 0.9,
+            'timeline_coherence': 0.75,
         }
 
     def generate_with_quality_control(
@@ -71,10 +75,13 @@ class QualityAdaptiveGenerator:
         best_score = 0.0
         best_chapter_path = None
         best_results = None
-        safe_episode_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", episode_id or "unknown")
-        feedback_path = Path(f"output/quality_feedback_{safe_episode_id}.json")
-        if feedback_path.exists():
-            feedback_path.unlink()
+        config_episode_id = self._load_episode_config_id(episode_config_path) or episode_id
+
+        for eid in {episode_id, config_episode_id}:
+            safe_episode_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", eid or "unknown")
+            feedback_path = Path(f"output/quality_feedback_{safe_episode_id}.json")
+            if feedback_path.exists():
+                feedback_path.unlink()
 
         while iteration < self.max_iterations:
             iteration += 1
@@ -86,6 +93,7 @@ class QualityAdaptiveGenerator:
             chapter_path = self._generate_chapter(
                 episode_id,
                 episode_config_path,
+                config_episode_id,
                 protagonist,
                 target_words,
                 num_scenes,
@@ -124,7 +132,7 @@ class QualityAdaptiveGenerator:
 
             # Write reinforcement feedback for next iteration
             self._write_reinforcement_feedback(
-                episode_id=episode_id,
+                episode_id=config_episode_id,
                 weak_metrics=weak_metrics,
                 results=results,
                 iteration=iteration
@@ -149,6 +157,7 @@ class QualityAdaptiveGenerator:
         self,
         episode_id: str,
         episode_config_path: str,
+        config_episode_id: str,
         protagonist: str,
         target_words: int,
         num_scenes: int,
@@ -156,12 +165,19 @@ class QualityAdaptiveGenerator:
     ) -> str:
         """Run generate_chapter.py subprocess"""
         try:
+            output_dir = REPO_ROOT / "output"
+            pre_existing = {
+                p.resolve(): p.stat().st_mtime for p in output_dir.glob("*_chapter.md")
+            }
+            started_at = time.time()
+
             cmd = [
                 sys.executable,
                 str(REPO_ROOT / "generate_chapter.py"),
                 "--episode", episode_id,
                 "--episode-config", episode_config_path,
                 "--protagonist", protagonist,
+                "--style", "third_person_close",
                 "--words", str(target_words),
                 "--scenes", str(num_scenes),
                 "--output", str(REPO_ROOT / "output")
@@ -181,9 +197,30 @@ class QualityAdaptiveGenerator:
                 logger.error(f"Generation failed: {result.stderr}")
                 return None
 
-            # Find generated chapter
-            output_dir = REPO_ROOT / "output"
-            candidates = list(output_dir.glob(f"{episode_id}*chapter.md"))
+            # Find generated chapter. Prefer files created/updated by this run.
+            all_chapters = list(output_dir.glob("*_chapter.md"))
+            changed_since_start = [
+                p for p in all_chapters
+                if p.stat().st_mtime >= started_at - 1.0
+            ]
+            newly_created = [
+                p for p in all_chapters if p.resolve() not in pre_existing
+            ]
+            updated_existing = [
+                p for p in all_chapters
+                if p.resolve() in pre_existing and p.stat().st_mtime > pre_existing[p.resolve()] + 0.5
+            ]
+
+            candidates = []
+            candidates.extend(newly_created)
+            candidates.extend(updated_existing)
+            candidates.extend(changed_since_start)
+
+            # Fallback to prefix matching if runtime-based detection is sparse.
+            candidates.extend(list(output_dir.glob(f"{episode_id}*chapter.md")))
+            if config_episode_id and config_episode_id != episode_id:
+                candidates.extend(list(output_dir.glob(f"{config_episode_id}*chapter.md")))
+            candidates = list(dict.fromkeys(candidates))
 
             if not candidates:
                 logger.error("No chapter file found after generation")
@@ -206,6 +243,14 @@ class QualityAdaptiveGenerator:
         except Exception as e:
             logger.error(f"Generation error: {e}")
             return None
+
+    @staticmethod
+    def _load_episode_config_id(episode_config_path: str) -> str:
+        try:
+            cfg = yaml.safe_load(Path(episode_config_path).read_text(encoding="utf-8")) or {}
+            return str(cfg.get("id", "")).strip()
+        except Exception:
+            return ""
 
     def _analyze_quality(self, chapter_path: str) -> Dict:
         """Analyze chapter quality"""
@@ -317,6 +362,25 @@ class QualityAdaptiveGenerator:
                     "Stay in scenes longer. Develop moments. Target 2-3 per 50 lines."
                 )
 
+        if 'pov_consistency' in weak_metrics:
+            pov = results.get('pov_consistency', {})
+            directives.append(
+                "CRITICAL: POV inconsistency detected "
+                f"(first={pov.get('first_person_markers', 0)}, third={pov.get('third_person_markers', 0)}). "
+                "Use ONLY third-person close centered on 수민. "
+                "Do NOT use first-person pronouns: 나는/내/저/제. "
+                "Protagonist is male: NEVER use '그녀' for 수민."
+            )
+
+        if 'timeline_coherence' in weak_metrics:
+            tl = results.get('timeline_coherence', {})
+            directives.append(
+                "CRITICAL: Timeline clarity is weak "
+                f"(time_markers={tl.get('time_markers', 0)}, jumps={tl.get('jump_markers', 0)}). "
+                "Keep chronological order. When time shifts, mark explicitly: 잠시 후/그날 밤/다음 날/며칠 후. "
+                "When locations shift, bridge with explicit movement text."
+            )
+
         return directives
 
     def _write_reinforcement_feedback(
@@ -362,7 +426,9 @@ class QualityAdaptiveGenerator:
             ('scene_progression', '🎬 Scene Progression'),
             ('information_novelty', '✨ Info Novelty'),
             ('subordinate_clause_depth', '🌲 Clause Depth'),
-            ('opening_line_quality', '🚀 Opening Line')
+            ('opening_line_quality', '🚀 Opening Line'),
+            ('pov_consistency', '👁️ POV Consistency'),
+            ('timeline_coherence', '🕒 Timeline Coherence'),
         ]
 
         for metric_key, label in metrics:

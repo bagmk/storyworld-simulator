@@ -1,0 +1,12 @@
+{
+  "episode_id": "ep01_academic_presentation",
+  "iteration": 1,
+  "weak_metrics": [
+    "sentence_complexity",
+    "dialogue_ratio"
+  ],
+  "directives": [
+    "CRITICAL: Sentences TOO SHORT (avg=6.1). MUST combine actions with conjunctions: -고, -며, -면서. Target 10-14 words/sentence.",
+    "CRITICAL: TOO MUCH DIALOGUE (27.3%). Balance with action and description. Target 20-23%."
+  ]
+}

@@ -1,0 +1,625 @@
+{
+  "episode_id": "ep09_opening",
+  "agent_count": 12,
+  "total_turns": 11,
+  "interactions": [
+    {
+      "id": "50b17a3d-260c-4413-be52-27a7019c0b48",
+      "episode_id": "ep09_opening",
+      "turn": 1,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "*수민을 바라보며 한 손으로 책상을 가볍게 두드린다.*  \"네가 한 선택에 대해 잘 생각해. 우리는 그들이 원하는 것을 제공할 준비가 되어 있어야 해.\"  [수민의 호기심이 깊어질수록, 위험이 커질 것이라는 경계감이 느껴진다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:47:49.825529",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민의 반응을 주의 깊게 지켜보며, 이 상황을 관리할 방안을 모색하려 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "f8d06dbe-9e15-4f01-9c26-9255019fd87b",
+      "episode_id": "ep09_opening",
+      "turn": 2,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*책상의 모서리를 가볍게 쥐며 카를로스를 바라본다.*  \"그럼 Greyshore Capital에 대해 아는 게 있나요? 그들이 뭘 원하는지 알고 싶어요.\"  [카를로스가 반응하지 않는 모습을 보며, 더 큰 그림이 있는 것 같다는 생각이 든다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:47:58.421193",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.65
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05
+        },
+        "agenda": "카를로스의 반응을 주의 깊게 지켜보며 추가 정보를 끌어내고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "c099fe6f-d185-4390-ac39-4252bb9e4e93",
+      "episode_id": "ep09_opening",
+      "turn": 3,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**카를로스의 눈빛을 뚫어지게 바라본다.**  \"카를로스, 당신이 아는 것이라도 좀 더 말해줄 수 있어요? Greyshore Capital의 진짜 목적이 뭔지 궁금해요.\"  [*카를로스의 반응에서 더 깊은 위협을 느끼며, 나는 이 상황이 위험하다는 것을 깨닫는다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:05.902017",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05
+        },
+        "agenda": "*카를로스에게 더 많은 정보를 끌어내고, 그의 반응을 분석하려고 한다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "a0d9428b-3747-4905-8f82-9e89684bee63",
+      "episode_id": "ep09_opening",
+      "turn": 4,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "**수민의 눈빛을 응시하며, 한 손으로 자신의 턱을 가볍게 쓸어내린다.**  \"Greyshore Capital은 우리에게 중요한 변수야. 하지만 그들의 목적을 알기 위해서는 우리가 준비가 되어 있어야 해.\"  [*수민의 호기심이 나를 더욱 조심스럽게 만든다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:13.115226",
+      "metadata": {
+        "emotions": {
+          "tension": 0.25,
+          "curiosity": 0.15
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "*수민의 반응을 지켜보며, 가능한 정보의 흐름을 제어하고 그의 경계를 이해하려 한다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "94e4d7a7-1e51-4371-a722-5ee7bcd11fb3",
+      "episode_id": "ep09_opening",
+      "turn": 5,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**내 조심스러운 목소리로 카를로스와의 거리를 좁힌다.**  \"카를로스, 당신은 이미 그들에게 휘둘리고 있어요. Greyshore Capital의 진짜 의도를 알아야 해요. 이건 단순한 거래가 아니에요.\"  [*이 상황이 점점 더 위험해지고 있다는 것을 느끼며, 카를로스의 반응을 주의 깊게 살핀다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:20.938415",
+      "metadata": {
+        "emotions": {
+          "tension": 0.9,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05
+        },
+        "agenda": "*카를로스의 진심을 파악하고, Greyshore Capital에 대한 구체적인 정보를 얻도록 노력할 것이다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "46d94b1f-c19f-4cb3-b5b4-ddde5a3be223",
+      "episode_id": "ep09_opening",
+      "turn": 6,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 사내 재무봇 대시보드의 첫 페이지를 넘기다가 이번 달 미지급 항목 아래에 낯선 거래 하나를 발견했다: 2042-11-26, Benefactor - Greyshore Capital, €487,300. 클릭하자 화면이 순간 붉게 깜빡이며 \"403 Forbidden - Access Denied - Insufficient Privileges for Category: [CONFIDENTIAL_FINANCIAL_PATRON]\"라는 문구만 떠올랐고, 손등에 식은땀이 맺혔다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:24.662606",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c01",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "6796ae58-d559-4d23-8a11-a9aad480b8bc",
+      "episode_id": "ep09_opening",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 인보이스 아카이브에서 'Greyshore'로 걸러낸 검색 결과를 한 장씩 PDF로 열어 프린트아웃을 책상 위에 늘어놓았다. 종이 더미 속엔 2042년 1월부터 3개월 전까지 찍힌 16개의 송장—초저온 앰프, 양자 진공 펌프, 특주 SCADA 게이트웨이—가 있었고, 모든 결제란엔 '미지정 중계 계좌'라고 찍혀 있었으며, 송장 날짜는 연구실 입고일보다 이틀에서 사흘 먼저 찍혀 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:46.418486",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c02",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "4003c1c0-931a-4652-a7d7-fc2c7dc8c835",
+      "episode_id": "ep09_opening",
+      "turn": 7,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "**수민을 뚫어지게 바라보며, 목소리를 낮추어 말한다.**  \"수민, 이건 단순히 우리가 원하는 것을 제공하는 게 아니야. Greyshore Capital이 우리에게 요구하는 것, 그건 매우 복잡하고 위험할 수도 있어.\"  [*수민의 긴장감이 점점 커지는 걸 느끼며, 그의 선택이 우리에게 미치는 영향을 고려한다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:54.724044",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "*수민의 반응을 관찰하고, 그가 어떤 결정을 내릴지 알아보려 한다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "31d215b2-7768-4a27-800c-f663d92e1408",
+      "episode_id": "ep09_opening",
+      "turn": 8,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "카를로스는 모니터에서 눈도 떼지 않은 채 수민의 말을 반쯤 흘려듣다가, 갑자기 손을 멈추고 아주 낮은 목소리로 한마디만 끼어들었다. \"그 사람, 이름이 뭐였어?\" 말이 떨어지기 무섭게 그는 휴대폰을 집어 들고 복도로 사라졌다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:48:57.033751",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c03",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "605a0c2d-08a0-4cb1-a90a-c7a62b65025f",
+      "episode_id": "ep09_opening",
+      "turn": 8,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*수민과 카를로스의 대화를 주의 깊게 지켜본다.*  [이들이 Greyshore Capital의 진짜 의도를 파악하지 못하면, 큰 위험에 처할 수 있다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:06.975397",
+      "metadata": {
+        "emotions": {
+          "tension": 0.4,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05,
+          "carlos_reyes": 0.1
+        },
+        "agenda": "수민과 카를로스의 대화를 계속 지켜보며, 이들의 결정을 영향을 미칠 수 있는 정보를 탐색할 계획이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "4ef6a597-5dc3-4c12-baa1-662e93e75e83",
+      "episode_id": "ep09_opening",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "카를로스는 수민의 눈을 잠깐 포착하더니 표정 하나 달라지지 않은 채, 회사는 일절 관여하지 않는다고 못을 박으며 모든 법적·윤리적 책임을 수민에게 떠넘기는 조건을 일종의 지시처럼 정리해 건넸다. 그의 등 뒤로는 선택지가 분명히 놓여 있었고, 말은 없었지만 '이 일을 계속하느냐 아니면 서울로 돌아가느냐'라는 최후통첩이 냉정하게 남았다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:12.288868",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c04",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "5cca68d7-3134-464b-a162-3fbe973d4702",
+      "episode_id": "ep09_opening",
+      "turn": 9,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***카를로스가 떠난 방향을 바라보며 머릿속을 정리한다.***  \"카를로스, 이걸 무시할 수는 없어. Greyshore의 진짜 의도를 알아내야 해.\"  [**이 상황이 점점 더 위험해지고 있다는 생각이 든다.**]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:20.672148",
+      "metadata": {
+        "emotions": {
+          "tension": 0.9,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.1
+        },
+        "agenda": "카를로스가 돌아올 때까지 자료를 더 검토하며 Greyshore Capital에 대한 추가 정보를 찾을 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "119a65c0-5a36-4cb0-a9f7-1c718b09c0dc",
+      "episode_id": "ep09_opening",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "카를로스가 전화를 귀에 대자 모니터 유리면에 비친 그의 손이 떨려 커피잔 표면에 잔물결을 만들었다—그 작은 물결이 컵 가장자리에 부딪힐 때 나는 얇은 금속성 소리가 복도의 기계음 속으로 사라졌다. 그 소리를 들은 순간 수민은 그의 숨이 빨라지고 어깨가 떨리는 것을, 그리고 전화를 들고 있는 손바닥에 땀이 맺혀 번들거리는 것을 순간적으로 본다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:24.039734",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c05",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "006a5f56-def9-493b-9cf7-a681c818a755",
+      "episode_id": "ep09_opening",
+      "turn": 10,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "*수민을 주의 깊게 바라보며 그의 반응을 살핀다.*  \"수민, 조심해. Greyshore와의 관계는 우리가 생각하는 것보다 더 복잡해.\"  [수민이 이 상황을 어떻게 처리할지 궁금하다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:38.159918",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {},
+        "agenda": "수민의 반응을 더 관찰하며, 그가 이 상황에서 어떤 선택을 할지 지켜볼 계획이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "4e12a47d-827c-4157-825d-2dfbc98ed109",
+      "episode_id": "ep09_opening",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "카를로스가 책상 아래에서 휴대폰을 집어 들자 잠깐 화면이 켜지며 잠금화면 알림이 스쳐 지나갔다: \"Benefactor - Greyshore Capital: Payment processed €487,300.\" 그 메시지는 그가 재빨리 화면을 덮어버리기 전까지 수민의 눈에 그대로 박혔다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:42.675614",
+      "metadata": {
+        "clue_id": "clue_ep09_opening_c06",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "cdfa8757-2001-4d79-80c9-755826146afb",
+      "episode_id": "ep09_opening",
+      "turn": 11,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*책상 위의 프린트 자료를 다시 살펴보며 Greyshore Capital과의 거래 내역을 정리한다.*  \"(카를로스가 돌아오길 기다리며) 이 자료들이 무슨 의미일까... Greyshore의 의도가 뭘지 알아내야 해.\"  [카를로스가 돌아오기 전에 최대한 많은 정보를 수집해야 한다는 불안감이 커진다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:49:52.190910",
+      "metadata": {
+        "emotions": {
+          "tension": 0.9,
+          "curiosity": 0.7
+        },
+        "relationship_deltas": {
+          "carlos_reyes": 0.05
+        },
+        "agenda": "카를로스가 돌아오기 전에 Greyshore Capital 관련 자료를 더 분석하고, 의도 파악의 실마리를 찾아볼 예정이다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.010582,
+    "remaining_usd": 2.489418,
+    "call_count": 58,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000353
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000192
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000398
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000213
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000425
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.2e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000228
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000401
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000235
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000454
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.3e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000253
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000477
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000469
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 7.8e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000501
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.5e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000516
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000254
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000525
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00026
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000582
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000257
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000583
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000574
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.3e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00025
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000118
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000619
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.3e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000254
+      },
+      {
+        "purpose": "director_beat_completion_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000372
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:49:53.748098"
+}

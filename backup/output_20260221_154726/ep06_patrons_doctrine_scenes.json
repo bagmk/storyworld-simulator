@@ -1,0 +1,172 @@
+[
+  {
+    "scene_number": 1,
+    "title": "눈치",
+    "turn_range": [
+      1,
+      4
+    ],
+    "location": "CryoLab, 주변",
+    "characters_present": [
+      "Kim Sumin",
+      "Yonas Mehret",
+      "Carlos Reyes"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "(엘 파트론의 정체를 파악해야 해.)"
+      },
+      {
+        "speaker": "Yonas Mehret",
+        "line": "(무엇을 발견했는지에 따라 달라지겠군.)"
+      }
+    ],
+    "key_actions": [
+      "수민이 주변과 동료들을 살피며 은밀히 정보를 정리한다",
+      "요나스와 카를로스가 수민의 반응을 관찰하며 긴장감을 유지한다"
+    ],
+    "discoveries": [
+      "수민이 중요한 정보를 포착했고, 동료들이 그 반응을 주시하고 있음"
+    ],
+    "emotional_arc": "경계 → 계산된 불안",
+    "beat_references": [],
+    "narrative_summary": "수민은 동료들의 시선을 피해 발견한 단서를 곱씹는다. 요나스와 카를로스는 그녀의 표정과 행동에서 무언가를 감지하고 조심스레 지켜본다.",
+    "pacing": "opening",
+    "raw_turn_count": 4
+  },
+  {
+    "scene_number": 2,
+    "title": "잡음의 패턴",
+    "turn_range": [
+      5,
+      5
+    ],
+    "location": "CryoLab, 모니터링 스테이션",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [],
+    "key_actions": [
+      "수민이 냉각 소음 위 잡음을 역분해해 스펙트럼을 얻음",
+      "로그 대조 결과, CryoLab 모니터링 포트에서 항만 게이트웨이로 매주 자정 전송되는 암호화된 아웃바운드 핸드셰이크가 발견됨"
+    ],
+    "discoveries": [
+      "주기적 전송(매주 자정)과 'PH-GRD'라는 프로세스명(희미하게 기록)"
+    ],
+    "emotional_arc": "호기심 → 확신",
+    "beat_references": [
+      "clue_ep06_patrons_doctrine_c01",
+      "clue_ep06_patrons_doctrine_c02",
+      "clue_ep06_patrons_doctrine_c03"
+    ],
+    "narrative_summary": "수민은 냉각음 속 잔여 잡음을 분석해 CryoLab에서 항만 게이트웨이로 매주 자정 전송되는 암호화 신호와 'PH-GRD' 흔적을 잡아낸다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 3,
+    "title": "백업의 그림자",
+    "turn_range": [
+      6,
+      6
+    ],
+    "location": "CryoLab, 로그 화면 앞",
+    "characters_present": [
+      "Minji"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Minji",
+        "line": "월요일 자정이 정기 백업 윈도우 아닌가요?"
+      }
+    ],
+    "key_actions": [
+      "민지가 로그 타임스탬프와 백업 스케줄을 교차 확인함",
+      "PH-GRD 프로세스와 정기 백업 윈도우가 완벽히 겹침을 지적함"
+    ],
+    "discoveries": [
+      "전송 시간(월요일 자정)이 정기 백업 시간과 겹침 — 추출 신호가 시스템 활동으로 위장될 가능성"
+    ],
+    "emotional_arc": "의심 → 경악",
+    "beat_references": [
+      "clue_ep06_patrons_doctrine_c02"
+    ],
+    "narrative_summary": "민지가 PH-GRD 전송 시점이 정기 백업 윈도우와 일치한다는 걸 확인하고, 이 전송이 정상 활동으로 위장될 수 있음을 암시한다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "환기구의 증거",
+    "turn_range": [
+      7,
+      8
+    ],
+    "location": "CryoLab, 환기구",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이 데이터, 월요일 자정에 전송되는 걸로 보입니다. PH-GRD라는 프로세스도 확인했습니다."
+      }
+    ],
+    "key_actions": [
+      "수민이 환기구를 들여다보며 바다 냄새와 소금 결정을 감지함",
+      "젖은 봉투에서 장부 인쇄물과 로그 스냅샷을 발견함"
+    ],
+    "discoveries": [
+      "환기구에서 항만에서 불어온 공기 흔적(소금 결정, 냄새)",
+      "장부에 적힌 'Benefactor' 항목 합계 $800,000과 CryoLab 정기 백업 스케줄 옆에 연필로 적힌 'PH-GRD'"
+    ],
+    "emotional_arc": "충격 → 분노의 각성",
+    "beat_references": [
+      "clue_ep06_patrons_doctrine_c03",
+      "clue_ep06_patrons_doctrine_c04"
+    ],
+    "narrative_summary": "환기구에서 항만의 흔적을 확인한 수민은 젖은 봉투 속 장부를 발견한다. 장부는 익명의 'Benefactor' 자금과 PH-GRD가 연결되어 있음을 가리킨다.",
+    "pacing": "climax",
+    "raw_turn_count": 2
+  },
+  {
+    "scene_number": 5,
+    "title": "Phase‑Guard의 의미",
+    "turn_range": [
+      9,
+      11
+    ],
+    "location": "CryoLab, 모니터 앞",
+    "characters_present": [
+      "Kim Sumin",
+      "Yonas Mehret"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이 정보를 활용해 다음 단계로 나아가야 합니다. PH-GRD가 월요일 자정에 전송된다는 건 분명히 계획의 일부입니다."
+      },
+      {
+        "speaker": "Yonas Mehret",
+        "line": "정보는 언제나 힘을 가집니다. 하지만 그 힘을 어떻게 사용할지는 당신에게 달려 있습니다."
+      }
+    ],
+    "key_actions": [
+      "로그에서 'Phase‑Guard' 파일명과 'Phase 1: Seal' 항목을 확인",
+      "요나스가 수민의 선택이 중요함을 경고하며 상황을 관망함"
+    ],
+    "discoveries": [
+      "Phase‑Guard 관련 메모(Phase 1: Seal 및 'Phase 2: operator sync?' 가능성)",
+      "계획은 이미 일부 단계가 진행되었고, 다음 단계 진입 조건이 충족될 조짐"
+    ],
+    "emotional_arc": "결의의 시작 → 무거운 책임감",
+    "beat_references": [
+      "clue_ep06_patrons_doctrine_c05",
+      "clue_ep06_patrons_doctrine_c02"
+    ],
+    "narrative_summary": "수민은 로그에서 Phase‑Guard 관련 흔적을 확인하고, 지금의 발견이 더 큰 프로토콜의 일부임을 깨닫는다. 요나스는 정보를 어떻게 쓸지 수민에게 결정을 맡긴다.",
+    "pacing": "resolution",
+    "raw_turn_count": 3
+  }
+]

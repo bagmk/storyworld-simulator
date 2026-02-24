@@ -1050,15 +1050,29 @@ class DirectorAI:
                     return carried
 
         # Conservative no-guess fallback:
-        # when explicit evidence is absent, keep the cast minimal.
+        # when explicit evidence is absent, keep the cast minimal unless runtime
+        # policy asks for a slightly wider fallback to improve continuity.
+        runtime_cfg = self.episode_config.get("_rl_runtime", {}) if isinstance(self.episode_config, dict) else {}
+        fallback_size = 1
+        if isinstance(runtime_cfg, dict):
+            try:
+                fallback_size = max(1, int(runtime_cfg.get("director_fallback_cast_size", 1)))
+            except (TypeError, ValueError):
+                fallback_size = 1
+
         fallback = [protagonist.id] if protagonist else [agents[0].id]
+        if fallback_size > 1:
+            candidate_pool = [a.id for a in agents if a.id not in fallback]
+            fallback.extend(candidate_pool[: max(0, fallback_size - len(fallback))])
+            fallback = self._dedupe_preserve_order(fallback)
         self._log(
             "cast_selection",
             "director",
-            "No explicit cast evidence found; using minimal fallback cast",
+            f"No explicit cast evidence found; using fallback cast size={len(fallback)}",
             {
                 "active_agents": fallback,
                 "source": "strict_fallback_minimal",
+                "fallback_size_policy": fallback_size,
             },
         )
         return fallback

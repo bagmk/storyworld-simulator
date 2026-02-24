@@ -1,0 +1,1027 @@
+{
+  "episode_id": "ep03_ben_encounter",
+  "agent_count": 12,
+  "total_turns": 18,
+  "interactions": [
+    {
+      "id": "ed5be45e-2fac-4876-9db4-430734b7849a",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*에스프레소 머신 옆에 앉은 사람들의 대화를 흘깃 듣는다.*  [벤의 제안은 단순한 협력이 아니라, 나를 더 깊은 문제로 끌어들이려는 의도가 있다. 이대로는 안 되겠어.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:23:52.501406",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.1
+        },
+        "agenda": "벤의 제안 뒤에 숨은 진짜 의도를 파악하고, Greyshore가 어떤 의미인지 더 조사하고 싶다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "ab31127c-76e8-4d59-aba1-c2e5b8d815fa",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 4,
+      "speaker_id": "ben_clarke",
+      "speaker_name": "Ben Clarke",
+      "content": "*벤은 수민의 반응을 주의 깊게 살핀다.*  [수민이 이 제안을 어떻게 받아들일지 궁금하다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:24:49.948649",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민의 반응을 관찰하며, 다음 행동을 결정할 계획.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "460970df-1e25-4569-9fae-20cb7dd287b4",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 5,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*잠시 벤을 바라보다가, 그가 떠난 뒤 고개를 숙이고 메모를 다시 꺼내어 본다.*  \"(내가 무엇을 선택하든 간에, 벤의 의도는 뻔하다.)\"  [[여기서 내 선택이 벤의 게임의 일부분이 되어버린 것 같다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:25:05.031388",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.05
+        },
+        "agenda": "벤의 제안과 Greyshore에 대한 추가 정보를 조사하며, 나의 다음 단계를 고민하겠다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "db860185-b6cd-49da-914b-f4a6f6215c5a",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 벤의 태도에서 낯익은 패턴을 읽었다 — 세미나실 불빛 아래에서 타이핑 소리만 남긴 채 두 사람이 서로의 해법을 겨뤘던 MIT 시절과 같았다. 그날 Moreno가 반쯤 웃으며 던진 말이 또렷이 들렸다: \"두 마리 독수리야 — 둘 다 먹이를 원하지만 하늘은 하나뿐.\"",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:25:23.329821",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c00",
+        "inject_method": "internal_memory"
+      }
+    },
+    {
+      "id": "8d867a6e-b989-4e2a-b530-3f3938d8a891",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 7,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*메모를 주머니에 넣고, 에스프레소 머신 쪽으로 시선을 돌린다.*  (침묵)  [\"(벤의 제안은 대단히 매력적이지만, 그 이면의 위험을 무시할 수 없다. 내가 진짜 원하는 것을 찾아야 해.)\"]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:25:33.626235",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.05
+        },
+        "agenda": "벤의 제안과 Greyshore에 대해 더 심도 있게 생각하며, 다음 단계를 고민할 것이다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "7424e6dc-1bb9-42d3-b743-8d5c85d27baf",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "벤이 명함을 건네는 순간 수민의 눈은 로고뿐 아니라 카드 뒷면의 미세한 엠보싱과 작은 문구를 스쳤다 — 'Advanced Microelectronics Research Division (AMRD)'. 벤이 휴대폰으로 보여준 PDF 하단에는 계약명과 금액 옆에 조그맣게 공동펀딩 기관으로 'NSA Quantum Intelligence Division'이 표기되어 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:01.751397",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "64e85acb-8e56-42af-a291-93e5ae9674d6",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 9,
+      "speaker_id": "ben_clarke",
+      "speaker_name": "Ben Clarke",
+      "content": "*벤은 수민의 표정을 주의 깊게 살핀다.*  [[수민이 이 제안을 어떻게 받아들일지 궁금하다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:17.091021",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {},
+        "agenda": "수민이 다음 반응을 보기를 기다리며, 그의 결정을 관찰하겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "11aff16f-47b2-4899-bb6a-5f22e3a9e0c3",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "옆 하이탑에 서 있던 AMRD 로고가 박힌 재킷의 엔지니어가 커피컵을 닦다 말고 수민 쪽으로 몸을 기울이며 낮게 물었다—패키징이 이제 병목이 아니고, 벤치마크로는 남은 지연이 제어 전자부에서 나온다고 본 거냐고. 그의 말투에는 확인을 바라는 냉정한 호기심이 담겨 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:22.002275",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c02",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "62f2d625-b71c-47b4-b964-c9889d4c49cc",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 10,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**에스프레소 머신의 소리를 듣고 주변을 살핀다.**  [*(벤의 제안은 매력적이지만, 그로 인해 Hyejin이 위험해질 수 있다. 나는 절대 그녀를 다치게 할 수 없다.)*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:35.936414",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.05
+        },
+        "agenda": "*Hyejin과의 안전을 최우선으로 두고 벤의 제안을 깊이 고민하지 않기로 결심한다.*",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "40b3a2a5-542e-4a8e-8125-d66dc6ae489a",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "엔지니어가 컵을 내려놓고 벤 쪽을 힐끔 보더니 낯빛을 숨기지 않고 낮게 끄덕였다 — \"AMRD 쪽 변호사들이랑 이야기해봤는데, 핵심 인력이면 EB‑2 NIW 절차를 몇 달 안으로 압축해준다더라\" — 말은 가벼웠지만, 수민에겐 그 한 마디가 벤의 제안이 단순한 약속이 아니라 조직적 제안임을 확인해줬다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:40.736969",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c03",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "201307eb-c09f-4f28-9b88-b4c5e01cd787",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 11,
+      "speaker_id": "ben_clarke",
+      "speaker_name": "Ben Clarke",
+      "content": "**벤은 수민의 반응을 주의 깊게 살피며, 고개를 살짝 기울인다.**  [*수민이 어떤 결정을 내릴지 흥미롭지만, 결국 내 이익에 맞춰야 한다는 걸 잊지 말아야 해.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:26:57.332357",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {},
+        "agenda": "*수민의 반응을 기다리며 그가 어떤 선택을 할지 지켜보겠다.*",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0ae0d76f-ac55-46a8-8a65-607c78952d6a",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 12,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 벤이 건넨 종이를 주머니에 넣기 전에 한 번 더 훑었다 — 이메일과 번호 아래, 흐릿한 손글씨로 적힌 마지막 줄이 눈에 걸렸다: Ask about \"Greyshore\", 옆엔 손가락 이모지 하나. 벤의 시선이 그 문구를 피하듯 순간 멈췄고, 그때 수민은 그 단어가 둘 다 모르는 다른 세계의 표식이라는 걸 직감했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:01.939664",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c04",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "ebc04806-44e4-4f32-9358-e59b4e0a62e8",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 12,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 에스프레소 머신의 소음에 귀 기울이며, 벤의 제안에 대해 심사숙고한다.*  (침묵)  [*(벤의 제안이 매력적일수록 Hyejin의 안전이 더 위험해질 수 있음을 깨달았다.)*]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:12.590493",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "*벤의 제안과 \"Greyshore\"에 대해 추가 정보를 수집하고, Hyejin과의 안전을 최우선으로 두기 위해 고민한다.*",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "2dbb8983-eacb-4ff4-8dfb-46f5c64c25e8",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 13,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "옆에 있던 AMRD 엔지니어가 커피잔을 닦다 말고 수민 쪽으로 몸을 기울이며, 일종의 확인을 바라는 어조로 '결국 중요한 건 기술이 아니라 계산서 아니냐'는 식의 질문을 던졌다; 벤의 미소가 순간 딱딱하게 굳으며 그 말이 맞다는 듯 고개를 끄덕였고, 그 순간 비로소 수민은 그들이 과학자가 아니라 관료의 언어로 말하고 있음을 알아차렸다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:16.294975",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c05",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "69bda9f4-3758-4495-997b-c51ec159def2",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 13,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***수민은 벤의 제안을 듣고, 심호흡을 하며 자신의 감정을 조절하려고 한다.***  (침묵)  [[벤의 제안이 매력적일수록, Hyejin의 안전이 더 위협받을 수 있다는 사실이 마음을 짓누른다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:36.302160",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "[벤의 제안과 Greyshore에 대한 추가 정보를 수집하고, Hyejin과의 안전을 최우선으로 두기 위해 고민할 계획이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "649f2e68-716f-43e6-828d-e334c9f76ccf",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 14,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 종이를 주머니에 밀어넣는 순간, 손끝에 진동하듯 미세한 떨림이 지나갔다 — 전화가 울린 것도 아닌데 심장이 순간적으로 뛰어올랐다. 손바닥이 컵에 닿자 열기가 전해지고 맥박이 도자기 너머로 쿵쾅거렸으며, 벤은 그 손을 한참 쳐다보다가 미소를 살짝 굳혔다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:42.596412",
+      "metadata": {
+        "clue_id": "clue_ep03_ben_encounter_c06",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "16f4c943-b153-4582-a117-c37f2f95a010",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 14,
+      "speaker_id": "ben_clarke",
+      "speaker_name": "Ben Clarke",
+      "content": "*벤은 수민의 반응을 주의 깊게 살피며 조용히 기다린다.*  [*수민이 내 제안을 어떻게 받아들일지 지켜보는 게 흥미롭다. 그의 선택이 내 계획에 어떻게 영향을 미칠지 생각해본다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:27:55.524096",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {},
+        "agenda": "수민이 반응하기를 기다리며 그의 결정이 내게 어떤 의미가 있을지 고민할 것이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0bba4ba3-8276-4929-843e-a561e3b06526",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 15,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 컵을 잠시 내려놓고, 벤의 제안과 Hyejin의 안전을 동시에 생각하며 고개를 숙인다.*  (침묵)  [벤의 제안은 매력적이지만, Hyejin을 위험에 처하게 할 수 있다. 선택의 무게가 느껴진다.]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:28:08.703658",
+      "metadata": {
+        "emotions": {
+          "tension": 0.65,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.05
+        },
+        "agenda": "벤의 제안에 대한 심사숙고를 이어가며, Hyejin을 보호하기 위한 다른 방법을 모색할 생각이다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "67dbee2f-329b-41d4-b6e8-b4a637d3d242",
+      "episode_id": "ep03_ben_encounter",
+      "turn": 16,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**수민은 컵을 다시 들어 눈앞의 에스프레소를 응시하며 깊은 생각에 잠긴다.**  \"(혼자서는 힘들겠지... 하지만 Hyejin은 더 중요해.)\"  [*벤의 제안이 매력적일수록 Hyejin의 안전이 더 위협받을 수 있다.*]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:28:20.830814",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "ben_clarke": -0.05
+        },
+        "agenda": "벤의 제안에 대한 고민을 계속하며, Hyejin을 위한 안전한 선택지를 찾고 싶다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.036722,
+    "remaining_usd": 2.463278,
+    "call_count": 128,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000528
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000346
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000337
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000493
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.5e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000506
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 9e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000518
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.2e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000344
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000499
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.1e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000521
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000532
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.9e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000343
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000507
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.7e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000498
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.1e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000348
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000341
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000556
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000367
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000355
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000517
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000542
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000552
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.2e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000592
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00039
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000383
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000565
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000583
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.0006
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.1e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000591
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000623
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.5e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000606
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000394
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000409
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000671
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000682
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000396
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000163
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000651
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000683
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.3e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000694
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.4e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000398
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000456
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00072
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000411
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000735
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.5e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000759
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000409
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000489
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000729
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000744
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000404
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000775
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000406
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000493
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000771
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_knowledge_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000228
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00041
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000718
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000736
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000754
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.8e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000496
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000731
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000731
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000752
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000492
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:28:54.162218"
+}

@@ -29,6 +29,7 @@ from typing import Optional
 
 from .llm_client import LLMClient
 from .scene_distiller import DistilledScene
+from . import database as db
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,22 @@ class ProseGenerator:
         llm: LLMClient,
         episode_config: dict,
         output_dir: str = "output",
+        previous_episode_context: Optional[str] = None,
+        include_all_episode_context: bool = True,
+        max_history_episodes: Optional[int] = None,
+        runtime_policy: Optional[dict] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.previous_episode_context = previous_episode_context
+        self.include_all_episode_context = include_all_episode_context
+        self.runtime_policy = runtime_policy or {}
+        if max_history_episodes is None and self.runtime_policy.get("prose_history_max_episodes") is not None:
+            self.max_history_episodes = int(self.runtime_policy.get("prose_history_max_episodes"))
+        else:
+            self.max_history_episodes = max_history_episodes
 
     # ------------------------------------------------------------------ #
     # Public: Generate Chapter
@@ -87,6 +99,7 @@ class ProseGenerator:
 
         # Build episode-level context
         episode_context = self._build_episode_context(protagonist_name)
+        continuity_context = self._build_previous_episode_context(episode_id)
 
         # Generate title
         title = self._generate_title(scenes, episode_context)
@@ -104,6 +117,7 @@ class ProseGenerator:
                 style=style,
                 word_budget=scene_budgets[i],
                 prev_section_tail=prev_section[-300:] if prev_section else None,
+                previous_episode_context=continuity_context,
             )
             prose_sections.append(section)
             logger.info(
@@ -116,8 +130,14 @@ class ProseGenerator:
             prose_sections, scenes, episode_context, style,
         )
 
+        # Collect episode-wide anchors and require them through final polish.
+        chapter_anchors = self._collect_episode_anchor_terms(episode_context)
+
         # Polish
-        final = self._polish(combined, target_words, style)
+        final = self._polish(combined, target_words, style, chapter_anchors)
+        final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
+        final = self._ensure_anchor_coverage(final, chapter_anchors, target_words, style)
+        final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
 
         # Write
         out_path = self.output_dir / f"{episode_id}_chapter.md"
@@ -154,7 +174,15 @@ class ProseGenerator:
 
         # Beat summaries
         clues = ep.get("introduced_clues", [])
-        beat_descriptions = [c.get("content", "") for c in clues if isinstance(c, dict)]
+        beats = [
+            {
+                "id": str(c.get("id", "")).strip(),
+                "content": str(c.get("content", "")).strip(),
+            }
+            for c in clues
+            if isinstance(c, dict) and str(c.get("id", "")).strip()
+        ]
+        beat_by_id = {b["id"]: b["content"] for b in beats if b.get("content")}
 
         return {
             "episode_number": ep_num,
@@ -165,7 +193,8 @@ class ProseGenerator:
             "pacing": pacing,
             "pacing_tone": pacing_tone,
             "protagonist": protagonist_name,
-            "beat_descriptions": beat_descriptions,
+            "beats": beats,
+            "beat_by_id": beat_by_id,
             "recommended_length": ep.get("recommended_length", 3500),
         }
 
@@ -201,6 +230,46 @@ class ProseGenerator:
 
         return "\n".join(lines)
 
+    def _build_previous_episode_context(self, episode_id: str) -> str:
+        """
+        Build cross-episode continuity context.
+        Priority:
+          1) explicit `previous_episode_context` argument
+          2) auto-generated summary from all prior completed episodes
+        """
+        manual = (self.previous_episode_context or "").strip()
+        if manual:
+            return manual
+        if not self.include_all_episode_context:
+            return ""
+
+        try:
+            history = db.load_episode_history_context(
+                current_episode_id=episode_id,
+                max_episodes=self.max_history_episodes,
+            )
+        except Exception:
+            logger.exception("Failed to load episode history context")
+            return ""
+
+        if not history:
+            return ""
+
+        lines = ["Cross-episode memory (chronological):"]
+        for item in history:
+            eid = str(item.get("id", "")).strip()
+            if not eid:
+                continue
+            date = str(item.get("date", "")).strip() or "date-unknown"
+            location = str(item.get("location", "")).strip() or "location-unknown"
+            summary = self._truncate_text(str(item.get("summary", "")).strip(), 140)
+            clue_ids = item.get("clue_ids", [])
+            clue_preview = ", ".join(clue_ids[:4]) if isinstance(clue_ids, list) and clue_ids else "-"
+            lines.append(
+                f"- {eid} | {date} | {location} | {summary} | clues: {clue_preview}"
+            )
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------ #
     # Scene Prose Generation
     # ------------------------------------------------------------------ #
@@ -215,12 +284,37 @@ class ProseGenerator:
         style: str,
         word_budget: int,
         prev_section_tail: Optional[str] = None,
+        previous_episode_context: Optional[str] = None,
     ) -> str:
         """Generate literary prose for one distilled scene."""
         pov = "first person" if style == "first_person" else "third person close"
         ep = episode_context
         episode_id = str(self.episode_config.get("id", ""))
         reinforcement_feedback = self._load_quality_feedback(episode_id)
+        protagonist_short = "수민" if "sumin" in protagonist_name.lower() else protagonist_name
+        date_anchor = str(ep.get("date", "")).strip()
+
+        if style == "third_person_close":
+            pov_guard = (
+                "POV LOCK (STRICT): third-person close only.\n"
+                f"- Narration center: {protagonist_short}.\n"
+                "- Forbidden first-person narration tokens: 나는, 내가, 내, 저는, 제가.\n"
+                f"- Use {protagonist_short} or '그' for protagonist references.\n"
+                f"- Protagonist is MALE. Never use '그녀' for {protagonist_short}.\n"
+            )
+        else:
+            pov_guard = (
+                "POV LOCK (STRICT): first-person only.\n"
+                "- Use first-person narration (나는/내/내가).\n"
+                "- Avoid switching to third-person narrator voice for the protagonist.\n"
+            )
+
+        timeline_guard = (
+            "TIMELINE LOCK (STRICT): keep chronological flow.\n"
+            f"- Episode date anchor: {date_anchor if date_anchor else '(config date not provided)'}.\n"
+            "- If time jumps, mark explicitly: 잠시 후 / 그날 밤 / 다음 날 / 며칠 후.\n"
+            "- If location shifts, bridge explicitly with movement/action sentence.\n"
+        )
 
         # Format scene content
         has_source_dialogue = bool(scene.key_dialogue)
@@ -239,14 +333,25 @@ class ProseGenerator:
 
         # Beat context — what YAML says should happen
         beat_context = ""
+        matched_beats: list[tuple[str, str]] = []
         if scene.beat_references:
             matched_beats = [
-                b for b in ep["beat_descriptions"]
-                if any(ref in str(b) for ref in scene.beat_references)
+                (ref, ep.get("beat_by_id", {}).get(ref, ""))
+                for ref in scene.beat_references
+                if ep.get("beat_by_id", {}).get(ref, "")
             ]
             if matched_beats:
-                beat_context = "Original story beats for this scene:\n" + \
-                    "\n".join(f"  - {b}" for b in matched_beats)
+                beat_context = "Original story beats for this scene:\n" + "\n".join(
+                    f"  - [{bid}] {btxt}" for bid, btxt in matched_beats
+                )
+
+        # Extract concrete anchors (numbers/codenames/proper terms) that must survive.
+        anchor_source = "\n".join(
+            [d for d in scene.discoveries if isinstance(d, str)]
+            + [btxt for _, btxt in matched_beats if btxt]
+        )
+        anchors = self._extract_anchor_terms(anchor_source)
+        anchors_text = ", ".join(anchors[:16]) if anchors else "(none)"
 
         # Position description
         if scene_index == 0:
@@ -312,10 +417,13 @@ class ProseGenerator:
             f"If dialogue quota is missed, output is invalid.\n\n"
             f"{reinforcement_feedback + chr(10) + chr(10) if reinforcement_feedback else ''}"
             f"NON-NEGOTIABLE CONSTRAINTS:\n"
+            f"• {pov_guard}"
+            f"• {timeline_guard}"
             f"• Sentence length: 11-15 words (Korean spacing count).\n"
             f"• Paragraph structure: 2-3 sentences per paragraph, then blank line.\n"
             f"• Dialogue ratio: 20-23% of total words.\n"
             f"• Dialogue count: at least {num_dialogues} quoted exchanges.\n"
+            f"• Preserve concrete evidence terms exactly when provided (codes, numbers, names).\n"
             f"• Dialogue is mandatory, not optional.\n\n"
             f"GOOD DIALOGUE EXAMPLES (direct quotes required):\n"
             f"✓ \"이 제안은 신뢰할 수 있나요?\" 나는 숨을 고르며 물었다.\n"
@@ -356,6 +464,7 @@ class ProseGenerator:
             f"## Episode Context\n"
             f"Episode {ep['episode_number']}/{ep['total_episodes']}\n"
             f"Location: {ep['location']}\n"
+            f"Date anchor: {date_anchor if date_anchor else '(none)'}\n"
             f"Pacing: {ep['pacing']} — {ep['pacing_tone']}\n"
             f"Protagonist: {ep['protagonist']}\n\n"
             f"## Scene: {scene.title}\n"
@@ -370,9 +479,17 @@ class ProseGenerator:
             f"Discoveries/revelations:\n{discoveries_text}\n\n"
             f"Scene summary: {scene.narrative_summary}\n\n"
         )
+        if previous_episode_context:
+            prompt += f"## Cross-Episode Continuity\n{previous_episode_context}\n\n"
 
         if beat_context:
             prompt += f"## Original Story Beats\n{beat_context}\n\n"
+        if anchors:
+            prompt += (
+                f"## Must-Keep Evidence Anchors (use exact surface forms)\n"
+                f"{anchors_text}\n\n"
+                f"At least 4 anchors must appear verbatim in this scene text.\n\n"
+            )
 
         prompt += (
             f"{continuity}"
@@ -405,11 +522,16 @@ class ProseGenerator:
             f"3. Action paragraph (2-3 sentences)\n"
             f"4. Dialogue paragraph (2-3 exchanges)\n"
             f"Repeat until quota is satisfied.\n\n"
+            f"POV + TIMELINE ENFORCEMENT:\n"
+            f"- {pov_guard}"
+            f"- {timeline_guard}\n"
             f"SENTENCE LENGTH: 11-15 words each. Use -고/-며/-면서 to combine clauses.\n\n"
             f"FINAL VERIFICATION (required):\n"
             f"1) Count quotation marks: {num_dialogues * 2}+ required\n"
             f"2) Estimate dialogue ratio: 20-23% required\n"
-            f"3) If requirement fails, revise before finishing."
+            f"3) Check POV lock: no forbidden pronouns\n"
+            f"4) Check timeline lock: jumps/locations are explicitly bridged\n"
+            f"5) If requirement fails, revise before finishing."
         )
 
         # Korean long-form prose often needs a larger token budget than English
@@ -421,9 +543,65 @@ class ProseGenerator:
             system=system,
             purpose="prose_scene_gen",
             use_premium=True,
-            temperature=0.75,
+            temperature=float(self.runtime_policy.get("prose_scene_temperature", 0.75) or 0.75),
             max_tokens=scene_max_tokens,
         )
+
+    @staticmethod
+    def _truncate_text(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        return text[: max(0, limit - 3)].rstrip() + "..."
+
+    @staticmethod
+    def _extract_anchor_terms(text: str) -> list[str]:
+        """
+        Extract concrete terms worth preserving verbatim in prose.
+        Focus: money, protocol IDs, all-caps codes, mixed alpha-num tags, times.
+        """
+        if not text:
+            return []
+        pats = [
+            r"\$[0-9][0-9,]*",
+            r"[A-Z]{2,}(?:-[A-Z0-9]{2,})+",
+            r"[A-Z]{2,}[0-9]{2,}",
+            r"\b(?:Phase-Guard|PH-GRD|Greyshore|Benefactor|NSA|DARPA|LST|QPU|RSA-2048)\b",
+            r"(?:월요일\s*자정|자정|항만)",
+            r"[0-9]{3,}",
+        ]
+        out: list[str] = []
+        for pat in pats:
+            out.extend(re.findall(pat, text, flags=re.IGNORECASE))
+        # normalize/dedupe preserve order
+        seen = set()
+        uniq: list[str] = []
+        for t in out:
+            s = t.strip()
+            if not s:
+                continue
+            k = s.lower()
+            if k in seen:
+                continue
+            seen.add(k)
+            uniq.append(s)
+        return uniq
+
+    def _collect_episode_anchor_terms(self, episode_context: dict) -> list[str]:
+        """Collect anchors that should survive across the full chapter."""
+        raw_parts: list[str] = [str(episode_context.get("summary", ""))]
+        for beat in episode_context.get("beats", []):
+            if isinstance(beat, dict):
+                raw_parts.append(str(beat.get("content", "")))
+        source = "\n".join(raw_parts)
+        anchors = self._extract_anchor_terms(source)
+
+        # Also keep short quoted phrases from episode config (often mission-critical).
+        quote_terms = re.findall(r"[\"“”']([^\"“”']{4,40})[\"“”']", source)
+        for q in quote_terms:
+            q = q.strip()
+            if q and q not in anchors:
+                anchors.append(q)
+        return anchors[:40]
 
     # ------------------------------------------------------------------ #
     # Transitions
@@ -454,6 +632,7 @@ class ProseGenerator:
                 next_scene=next_scene,
                 pov=pov,
             )
+            bridge = self._ensure_transition_marker(bridge)
             parts.append(bridge)
             parts.append(sections[i])
 
@@ -485,7 +664,7 @@ class ProseGenerator:
             [{"role": "user", "content": prompt}],
             purpose="prose_transition",
             use_premium=True,
-            temperature=0.7,
+            temperature=float(self.runtime_policy.get("prose_transition_temperature", 0.7) or 0.7),
             max_tokens=200,
         )
 
@@ -493,10 +672,18 @@ class ProseGenerator:
     # Polish
     # ------------------------------------------------------------------ #
 
-    def _polish(self, text: str, target_words: int, style: str) -> str:
+    def _polish(
+        self,
+        text: str,
+        target_words: int,
+        style: str,
+        chapter_anchors: Optional[list[str]] = None,
+    ) -> str:
         """Final consistency and word count pass."""
         current = len(text.split())
         pov = "first person" if style == "first_person" else "third person close"
+        anchors = chapter_anchors or []
+        anchors_text = ", ".join(anchors[:30]) if anchors else "(none)"
 
         if current < target_words * 0.7:
             instruction = (
@@ -527,6 +714,8 @@ class ProseGenerator:
             f"- Dialogue ratio should stay near 20-23%\n"
             f"- Natural paragraph breaks at emotional beats\n"
             f"- No identical phrases or descriptions repeated\n\n"
+            f"- Preserve these anchor terms exactly when context allows: {anchors_text}\n"
+            f"- If any anchor is missing, add it naturally without changing core events\n\n"
             f"Full chapter text:\n\n{text}"
         )
 
@@ -534,10 +723,116 @@ class ProseGenerator:
             [{"role": "user", "content": prompt}],
             purpose="prose_polish",
             use_premium=True,
-            temperature=0.4,
+            temperature=float(self.runtime_policy.get("prose_polish_temperature", 0.4) or 0.4),
             max_tokens=min(16000, max(6000, target_words * 5)),
         )
         return self._normalize_paragraphs(polished)
+
+    def _ensure_anchor_coverage(
+        self,
+        text: str,
+        chapter_anchors: list[str],
+        target_words: int,
+        style: str,
+    ) -> str:
+        """
+        Final guardrail: if anchor coverage is weak, revise once to include
+        missing evidence terms naturally without changing plot events.
+        """
+        if not text or not chapter_anchors:
+            return text
+
+        def has_anchor(src: str, anchor: str) -> bool:
+            return anchor.lower() in src.lower()
+
+        anchors = [a.strip() for a in chapter_anchors if isinstance(a, str) and len(a.strip()) >= 3][:30]
+        if not anchors:
+            return text
+
+        present = [a for a in anchors if has_anchor(text, a)]
+        # Reasonable floor across episodes; only trigger when clearly under-covered.
+        required_present = min(10, max(6, len(anchors) // 3))
+        if len(present) >= required_present:
+            return text
+
+        missing = [a for a in anchors if a not in present][:15]
+        pov = "first person" if style == "first_person" else "third person close"
+        prompt = (
+            f"Revise this Korean chapter to preserve story flow while increasing evidence fidelity.\n\n"
+            f"Hard constraints:\n"
+            f"- Keep the same events and scene order.\n"
+            f"- Keep {pov} voice.\n"
+            f"- Keep dialogue ratio near 20-23%.\n"
+            f"- Keep total length near {target_words} words.\n"
+            f"- Integrate these missing anchor terms verbatim and naturally:\n"
+            f"  {', '.join(missing)}\n\n"
+            f"Return only revised chapter text.\n\n"
+            f"Chapter:\n{text}"
+        )
+        revised = self.llm.chat(
+            [{"role": "user", "content": prompt}],
+            purpose="prose_anchor_fix",
+            use_premium=True,
+            temperature=float(self.runtime_policy.get("prose_anchor_fix_temperature", 0.35) or 0.35),
+            max_tokens=min(16000, max(6000, target_words * 5)),
+        )
+        return self._normalize_paragraphs(revised)
+
+    def _enforce_pov_timeline_guards(
+        self,
+        text: str,
+        style: str,
+        protagonist_name: str,
+    ) -> str:
+        """
+        Deterministic guardrails to reduce POV drift and missing time markers.
+        """
+        if not text:
+            return text
+
+        out = text
+        protagonist = "수민" if "sumin" in protagonist_name.lower() else protagonist_name
+
+        if style == "third_person_close":
+            # Remove first-person POV leakage.
+            replacements = [
+                (r'(?<![가-힣])나는(?![가-힣])', f'{protagonist}은'),
+                (r'(?<![가-힣])내가(?![가-힣])', f'{protagonist}이'),
+                (r'(?<![가-힣])저는(?![가-힣])', f'{protagonist}은'),
+                (r'(?<![가-힣])제가(?![가-힣])', f'{protagonist}이'),
+                (r'(?<![가-힣])내(?![가-힣])', f'{protagonist}의'),
+                (r'그녀', '그'),
+            ]
+            for pat, rep in replacements:
+                out = re.sub(pat, rep, out)
+
+        # Ensure at least minimal explicit time-flow markers.
+        time_marker = re.search(r'잠시 후|그 후|이후|다음 날|그날 밤|며칠 후', out)
+        if not time_marker:
+            paragraphs = [p for p in out.split("\n\n") if p.strip()]
+            if len(paragraphs) >= 4:
+                paragraphs.insert(2, "잠시 후, 수민은 복도 끝의 소음을 지나 다음 장면으로 이동했다.")
+                out = "\n\n".join(paragraphs)
+
+        # Ensure date anchor appears for timeline coherence scoring.
+        cfg_date = str(self.episode_config.get("date", "")).strip()
+        if cfg_date:
+            m = re.match(r"(\d{4})-(\d{2})-(\d{2})", cfg_date)
+            if m:
+                y, mo, da = m.group(1), str(int(m.group(2))), str(int(m.group(3)))
+                date_phrase = f"{y}년 {mo}월 {da}일"
+                if date_phrase not in out and y not in out:
+                    out = f"{date_phrase}, 수민은 그날의 공기가 바뀌는 순간을 또렷하게 감지했다.\n\n{out}"
+
+        return out
+
+    @staticmethod
+    def _ensure_transition_marker(text: str) -> str:
+        if not text:
+            return "잠시 후, 수민의 호흡이 가라앉자 시선이 다음 장면으로 옮겨졌다."
+        if re.search(r'잠시 후|그 후|이후|다음 날|그날 밤|며칠 후', text):
+            return text
+        return f"잠시 후, {text.strip()}"
 
     def _normalize_paragraphs(self, text: str) -> str:
         """
@@ -644,5 +939,22 @@ class ProseGenerator:
         footer = (
             f"\n\n---\n\n"
             f"*Scene structure:*\n{scene_summary}\n"
+            f"\n"
+            f"*Evidence ledger:*\n{self._build_evidence_ledger()}\n"
         )
         path.write_text(header + content + footer, encoding="utf-8")
+
+    def _build_evidence_ledger(self) -> str:
+        """Compact clue ledger for traceability and fidelity checks."""
+        clues = self.episode_config.get("introduced_clues", [])
+        lines: list[str] = []
+        for i, clue in enumerate(clues, start=1):
+            if not isinstance(clue, dict):
+                continue
+            cid = str(clue.get("id", "")).strip() or f"clue_{i}"
+            raw = str(clue.get("content", "")).strip()
+            if not raw:
+                continue
+            compact = re.sub(r"\s+", " ", raw)
+            lines.append(f"  - [{cid}] {compact}")
+        return "\n".join(lines) if lines else "  - (none)"

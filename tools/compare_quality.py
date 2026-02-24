@@ -58,7 +58,9 @@ def print_comparison_table(results: List[Dict]):
         ('scene_progression', 'Scene/50 lines', 'rate_per_50'),
         ('information_novelty', 'Info Novelty %', 'novelty_percentage'),
         ('subordinate_clause_depth', 'Deep Nesting %', 'percentage'),
-        ('opening_line_quality', 'Opening Words', 'word_count')
+        ('opening_line_quality', 'Opening Words', 'word_count'),
+        ('pov_consistency', 'POV Dominance', 'dominance'),
+        ('timeline_coherence', 'Timeline Marks', 'time_markers'),
     ]
 
     for metric_key, label, detail_key in metrics:
@@ -193,6 +195,22 @@ def print_improvement_recommendations(results: List[Dict]):
                     f"   • Too many transitions ({rate:.1f} per 50 lines) - "
                     "Stay in scenes longer"
                 )
+
+        pov = r.get('pov_consistency', {})
+        if pov and not pov.get('pass', True):
+            issues.append(
+                f"   • POV mixed (first={pov.get('first_person_markers', 0)}, "
+                f"third={pov.get('third_person_markers', 0)}) - "
+                "Use one POV only and keep male pronoun consistency for 수민"
+            )
+
+        timeline = r.get('timeline_coherence', {})
+        if timeline and not timeline.get('pass', True):
+            issues.append(
+                f"   • Timeline clarity low (time={timeline.get('time_markers', 0)}, "
+                f"jumps={timeline.get('jump_markers', 0)}) - "
+                "Use explicit time/location bridge phrases for jumps"
+            )
 
         if issues:
             for issue in issues:

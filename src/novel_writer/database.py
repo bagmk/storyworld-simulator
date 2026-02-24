@@ -11,7 +11,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 DB_PATH = os.environ.get("DB_PATH", "data/simulation.db")
 
@@ -372,6 +372,228 @@ def load_previous_episode_final_emotions(agent_id: str, current_episode_id: str)
     except (ValueError, IndexError):
         conn.close()
         return {}  # Malformed episode_id
+
+
+# ---------------------------------------------------------------------------
+# Cross-episode memory loaders
+# ---------------------------------------------------------------------------
+
+def _episode_number(episode_id: str) -> Optional[int]:
+    match = re.match(r"^ep(\d+)(?:_|$)", str(episode_id))
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _is_trial_episode_id(episode_id: str) -> bool:
+    return bool(re.search(r"_trial\d+$", str(episode_id)))
+
+
+def _completed_story_episode_ids(conn: sqlite3.Connection) -> list[str]:
+    rows = conn.execute("""
+        SELECT id
+        FROM episodes
+        WHERE status = 'complete'
+    """).fetchall()
+    return [str(r["id"]) for r in rows]
+
+
+def _prior_story_episode_ids(conn: sqlite3.Connection, current_episode_id: str) -> list[str]:
+    current_num = _episode_number(current_episode_id)
+    if current_num is None:
+        return []
+
+    prior: list[tuple[int, str]] = []
+    for eid in _completed_story_episode_ids(conn):
+        if _is_trial_episode_id(eid):
+            continue
+        num = _episode_number(eid)
+        if num is None or num >= current_num:
+            continue
+        prior.append((num, eid))
+
+    prior.sort(key=lambda x: (x[0], x[1]))
+    return [eid for _, eid in prior]
+
+
+def load_previous_episode_relationships(agent_id: str, current_episode_id: str) -> dict[str, float]:
+    """
+    Load latest known relationship values for agent_id from all prior episodes.
+    Returns {other_agent_id: value}.
+    """
+    conn = _connect()
+    try:
+        prior_ids = _prior_story_episode_ids(conn, current_episode_id)
+        if not prior_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in prior_ids)
+        rows = conn.execute(f"""
+            SELECT episode_id, agent2_id, value
+            FROM relationships
+            WHERE agent1_id = ?
+              AND episode_id IN ({placeholders})
+        """, [agent_id, *prior_ids]).fetchall()
+    finally:
+        conn.close()
+
+    episode_order = {eid: idx for idx, eid in enumerate(prior_ids)}
+    rel_rows = sorted(
+        [dict(r) for r in rows],
+        key=lambda r: episode_order.get(str(r.get("episode_id", "")), -1),
+    )
+    latest: dict[str, float] = {}
+    for row in rel_rows:
+        other = str(row.get("agent2_id", "")).strip()
+        if not other:
+            continue
+        latest[other] = float(row.get("value", 0.0))
+    return latest
+
+
+def load_previous_episode_known_clues(agent_id: str, current_episode_id: str) -> set[str]:
+    """
+    Load all clue IDs previously discovered by this agent in prior episodes.
+    """
+    conn = _connect()
+    try:
+        prior_ids = _prior_story_episode_ids(conn, current_episode_id)
+        if not prior_ids:
+            return set()
+
+        placeholders = ",".join("?" for _ in prior_ids)
+        rows = conn.execute(f"""
+            SELECT clue_id
+            FROM agent_knowledge
+            WHERE agent_id = ?
+              AND episode_id IN ({placeholders})
+        """, [agent_id, *prior_ids]).fetchall()
+    finally:
+        conn.close()
+
+    return {
+        str(r["clue_id"]).strip()
+        for r in rows
+        if str(r["clue_id"]).strip()
+    }
+
+
+def load_previous_episode_persona_deltas(
+    agent_id: str,
+    current_episode_id: str,
+    max_entries: int = 40,
+) -> list[dict[str, Any]]:
+    """
+    Load persona deltas for this agent across prior episodes (oldest->newest).
+    Each item contains: episode_id, turn, trigger, changes.
+    """
+    conn = _connect()
+    try:
+        prior_ids = _prior_story_episode_ids(conn, current_episode_id)
+        if not prior_ids:
+            return []
+
+        placeholders = ",".join("?" for _ in prior_ids)
+        rows = conn.execute(f"""
+            SELECT episode_id, turn, trigger, changes_json
+            FROM persona_deltas
+            WHERE agent_id = ?
+              AND episode_id IN ({placeholders})
+            ORDER BY turn ASC, timestamp ASC
+        """, [agent_id, *prior_ids]).fetchall()
+    finally:
+        conn.close()
+
+    episode_order = {eid: idx for idx, eid in enumerate(prior_ids)}
+    sorted_rows = sorted(
+        [dict(r) for r in rows],
+        key=lambda r: (
+            episode_order.get(str(r.get("episode_id", "")), -1),
+            int(r.get("turn", 0)),
+        ),
+    )
+
+    output: list[dict[str, Any]] = []
+    for row in sorted_rows:
+        try:
+            changes = json.loads(str(row.get("changes_json", "{}")))
+        except json.JSONDecodeError:
+            changes = {}
+        if not isinstance(changes, dict):
+            continue
+        output.append({
+            "episode_id": str(row.get("episode_id", "")),
+            "turn": int(row.get("turn", 0)),
+            "trigger": str(row.get("trigger", "")),
+            "changes": changes,
+        })
+
+    if max_entries > 0 and len(output) > max_entries:
+        return output[-max_entries:]
+    return output
+
+
+def load_episode_history_context(
+    current_episode_id: str,
+    max_episodes: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """
+    Load compact, ordered story context from all prior completed episodes.
+    Returns list of dicts:
+      {id, number, date, location, summary, clue_ids}
+    """
+    conn = _connect()
+    try:
+        prior_ids = _prior_story_episode_ids(conn, current_episode_id)
+        if not prior_ids:
+            return []
+
+        if max_episodes is not None and max_episodes > 0:
+            prior_ids = prior_ids[-max_episodes:]
+
+        placeholders = ",".join("?" for _ in prior_ids)
+        rows = conn.execute(f"""
+            SELECT id, beat_config_json
+            FROM episodes
+            WHERE id IN ({placeholders})
+        """, prior_ids).fetchall()
+    finally:
+        conn.close()
+
+    payload_by_id: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        eid = str(row["id"])
+        try:
+            payload = json.loads(str(row["beat_config_json"]))
+        except json.JSONDecodeError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload_by_id[eid] = payload
+
+    result: list[dict[str, Any]] = []
+    for eid in prior_ids:
+        cfg = payload_by_id.get(eid, {})
+        clues = cfg.get("introduced_clues", [])
+        clue_ids: list[str] = []
+        if isinstance(clues, list):
+            for clue in clues:
+                if isinstance(clue, dict):
+                    cid = str(clue.get("id", "")).strip()
+                    if cid:
+                        clue_ids.append(cid)
+        result.append({
+            "id": eid,
+            "number": _episode_number(eid) or 0,
+            "date": str(cfg.get("date", "")).strip(),
+            "location": str(cfg.get("location", "")).strip(),
+            "summary": str(cfg.get("summary", "")).strip(),
+            "clue_ids": clue_ids,
+        })
+    return result
 
 
 # ---------------------------------------------------------------------------

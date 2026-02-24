@@ -1,0 +1,176 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Watching from the shadows",
+    "turn_range": [
+      1,
+      4
+    ],
+    "location": "QuantumFront HQ — CryoLab service corridor / equipment storage",
+    "characters_present": [
+      "Carlos Reyes",
+      "Kim Sumin",
+      "Jonas (observed)"
+    ],
+    "key_dialogue": [],
+    "key_actions": [
+      "Carlos watches from behind, studying Sumin's reactions.",
+      "Sumin observes Carlos and Jonas closely, noting Jonas's strange behavior."
+    ],
+    "discoveries": [
+      "Sumin senses Jonas's actions are suspicious and possibly connected to something being hidden."
+    ],
+    "emotional_arc": "Quiet suspicion grows into focused concern.",
+    "beat_references": [
+      "clue_ep04_lab_whispers_c03"
+    ],
+    "narrative_summary": "Carlos lurks nearby as Sumin studies the two technicians; she registers Jonas's odd behavior and grows increasingly uneasy that he's concealing something related to 'bridge slot' notes.",
+    "pacing": "opening",
+    "raw_turn_count": 4
+  },
+  {
+    "scene_number": 2,
+    "title": "The ledger that shouldn't exist",
+    "turn_range": [
+      6,
+      6
+    ],
+    "location": "QuantumFront HQ — CryoLab equipment storage (near record ledgers)",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [],
+    "key_actions": [
+      "Sumin flips through the QuantumFront equipment ledger and stops at suspicious entries."
+    ],
+    "discoveries": [
+      "XC-4000 circulator listed at $48,000 (market $35,000); attenuator $22,000 (market $16,500); optical filter $67,000 with unclear quantity.",
+      "Aug–Oct expenditures show $1.2M billed while official DARPA account lists $400K; repeated payor: 'Benefactor — NSA Special Access Funds (SAF)'.",
+      "Red-pen margin note: '외부 보고서 포함 금지' ('do not include in external reports')."
+    ],
+    "emotional_arc": "Curiosity spikes into alarm as clear financial anomalies and hidden funding appear.",
+    "beat_references": [
+      "clue_ep04_lab_whispers_c01"
+    ],
+    "narrative_summary": "Sumin uncovers alarming discrepancies in the equipment ledger: inflated unit prices, an $800K unexplained gap between billed and recorded DARPA funds, and a repeat notation of a 'Benefactor — NSA SAF' with a red-pen instruction to exclude external reporting.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 3,
+    "title": "Cutting off the question",
+    "turn_range": [
+      7,
+      7
+    ],
+    "location": "QuantumFront HQ — CryoLab equipment storage (by the ledger)",
+    "characters_present": [
+      "Carlos Reyes",
+      "Elena Ramirez",
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Elena Ramirez",
+        "line": "그건 신경 안 써도 돼."
+      },
+      {
+        "speaker": "Carlos Reyes",
+        "line": "이 숫자는 우리가 다루고 있는 것의 일부에 불과해. 너의 주의가 다른 곳으로 향하지 않도록 하자."
+      }
+    ],
+    "key_actions": [
+      "Elena's smile drops into a warning; Carlos approaches and places his hand on the ledger, tapping the clipboard and covering the page number with his finger."
+    ],
+    "discoveries": [
+      "An explicit attempt to block Sumin from probing the ledger; an unambiguous message that she lacks authority to pursue questions here."
+    ],
+    "emotional_arc": "Sumin's unease shifts to being directly shut down and warned off.",
+    "beat_references": [
+      "clue_ep04_lab_whispers_c02"
+    ],
+    "narrative_summary": "When Sumin voices concern about missing circulators, Elena's dismissive warning and Carlos's physical intervention—covering the page and telling Sumin to focus elsewhere—make clear she is being silenced.",
+    "pacing": "climax",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "The shutter and the blinking LED",
+    "turn_range": [
+      9,
+      9
+    ],
+    "location": "QuantumFront HQ — CryoLab equipment storage (deep aisle)",
+    "characters_present": [
+      "Kim Sumin",
+      "Jonas",
+      "Carlos Reyes"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Jonas",
+        "line": "..."
+      }
+    ],
+    "key_actions": [
+      "Sumin, with her phone ostensibly muted, triggers a sharp camera shutter sound; everyone turns.",
+      "A small RF detector's orange LED blinks on the shelf; Jonas smiles slightly and continues erasing.",
+      "Carlos watches Jonas's response and assesses the situation."
+    ],
+    "discoveries": [
+      "Someone is detecting and responding to Sumin's attempted photo despite the phone being muted—implying active surveillance or interception.",
+      "Jonas's smile in response to the detection is a knowing signal rather than alarm."
+    ],
+    "emotional_arc": "A private attempt at documentation becomes a moment of exposure and dread.",
+    "beat_references": [
+      "clue_ep04_lab_whispers_c04",
+      "clue_ep04_lab_whispers_c03"
+    ],
+    "narrative_summary": "Sumin's furtive photograph produces a loud shutter and a blinking RF LED; Jonas's calm, almost amused reaction shows the repository is monitored and that her actions are anticipated and seen.",
+    "pacing": "climax",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 5,
+    "title": "Connecting the fragments",
+    "turn_range": [
+      3,
+      9
+    ],
+    "location": "QuantumFront HQ — CryoLab and nearby break area (internal reflection)",
+    "characters_present": [
+      "Kim Sumin",
+      "Elena Ramirez",
+      "Carlos Reyes",
+      "Jonas"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "순환기 개수가 맞지 않아. 수령장에선 6개인데..."
+      },
+      {
+        "speaker": "Elena Ramirez",
+        "line": "아, 그건 그래. 다른 데서 빌려온 거 섞여 있어. 신경 쓸 필요 없어."
+      }
+    ],
+    "key_actions": [
+      "Sumin speaks privately with Elena in the break area, and Elena shrugs off the discrepancy as unimportant.",
+      "Throughout, Carlos blocks access to the ledger and Jonas continues to alter notes while signaling with small gestures."
+    ],
+    "discoveries": [
+      "The combined clues—missing circulators, ledger anomalies, 'Benefactor — NSA SAF' funding, erased 'bridge slot' notes, and references to Phase-Guard/related terminology—imply a concealed program with separate funding and controlled information flow.",
+      "Sumin recognizes that asking will mark her as an outsider; once she knows, there may be no turning back."
+    ],
+    "emotional_arc": "From inquisitive to conflicted: Sumin pieces together a troubling pattern and hesitates at the cost of knowing more.",
+    "beat_references": [
+      "clue_ep04_lab_whispers_c01",
+      "clue_ep04_lab_whispers_c02",
+      "clue_ep04_lab_whispers_c03",
+      "clue_ep04_lab_whispers_c04"
+    ],
+    "narrative_summary": "Between Elena's dismissal, Carlos's physical blocking, Jonas's erasures and the ledger's hidden funding, Sumin connects terms and anomalies into a single, ominous puzzle: a secret, separately funded operation with active surveillance and erased traces. She understands the stakes but fears the irreversible consequences of digging deeper.",
+    "pacing": "resolution",
+    "raw_turn_count": 7
+  }
+]

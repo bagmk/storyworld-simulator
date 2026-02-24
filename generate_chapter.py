@@ -39,6 +39,7 @@ from src.novel_writer.llm_client import LLMClient
 from src.novel_writer.scene_distiller import SceneDistiller
 from src.novel_writer.prose_generator import ProseGenerator
 from src.novel_writer import database as db
+from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -77,9 +78,9 @@ def parse_args() -> argparse.Namespace:
                    help="Target word count (default: from episode config)")
     p.add_argument("--scenes",         type=int, default=0,
                    help="Target number of distilled scenes (default: auto-calculated from word count)")
-    p.add_argument("--style",          default="first_person",
+    p.add_argument("--style",          default="third_person_close",
                    choices=["first_person", "third_person_close"],
-                   help="Narrative POV style (default: first_person)")
+                   help="Narrative POV style (default: third_person_close)")
     p.add_argument("--output",         default="output",
                    help="Output directory (default: output/)")
     p.add_argument("--db",             default="data/simulation.db",
@@ -106,6 +107,8 @@ def main() -> None:
     logger.info("Loading episode config: %s", args.episode_config)
     episode_config = load_episode(args.episode_config)
     episode_id = args.episode
+    rl_policy = load_policy()
+    episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
 
     # Determine target words
     target_words = args.words or episode_config.get("recommended_length", 3500)
@@ -127,6 +130,7 @@ def main() -> None:
             target_scenes = 7
         else:
             target_scenes = 8
+    target_scenes = tuned_scene_target(target_scenes, rl_policy)
 
     logger.info("Target words: %d | Target scenes: %d (%.0f words/scene avg)",
                 target_words, target_scenes, target_words / target_scenes)
@@ -151,7 +155,7 @@ def main() -> None:
 
     # === Stage 1: Scene Distillation ===
     logger.info("─── Stage 1: Scene Distillation ───")
-    distiller = SceneDistiller(llm=llm, episode_config=episode_config)
+    distiller = SceneDistiller(llm=llm, episode_config=episode_config, runtime_policy=rl_policy)
 
     distill_start = datetime.utcnow()
     scenes = distiller.distill(
@@ -189,6 +193,8 @@ def main() -> None:
         llm=llm,
         episode_config=episode_config,
         output_dir=args.output,
+        max_history_episodes=int(rl_policy.get("prose_history_max_episodes", 12) or 12),
+        runtime_policy=rl_policy,
     )
 
     prose_start = datetime.utcnow()

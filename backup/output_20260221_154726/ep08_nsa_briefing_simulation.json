@@ -1,0 +1,836 @@
+{
+  "episode_id": "ep08_nsa_briefing",
+  "agent_count": 12,
+  "total_turns": 15,
+  "interactions": [
+    {
+      "id": "397180df-4ba6-4823-9ae5-4f8a87640d6d",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*테이블 위 슬라이드를 다시 바라보며 생각에 잠긴다.*  (침묵)  [이 기술이 누구의 손에 들어가느냐에 따라 세상이 달라질 수 있다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:43:18.862247",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.1
+        },
+        "agenda": "밀러의 제안에 대한 결정을 내리기 전, 내부 갈등을 정리하고 다음 단계를 고민할 것이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0b994c98-e6f0-4876-8be3-652559c0a810",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 2,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*밀러가 문 손잡이를 잡고 서 있는 수민에게 몸을 돌린다.*  \"이 기술은 우리의 안전을 지킬 수 있는 도구야. 네가 이걸 어떻게 다룰 건지에 따라 세계가 달라질 수 있어. 내 선택은 확실하다고 생각해?\"  [수민이 더 깊이 고민하도록 압박을 가할 필요가 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:43:25.085773",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민의 결정을 압박해 그의 협력 가능성을 높이려 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "72d3cd74-de2d-482e-a698-b8085d43f5c7",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 3,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*테이블에 놓인 슬라이드를 다시 유심히 바라본다.*  (침묵)  [\"이 기술이 주어진 손에 따라 인류를 구원할 수도, 파괴할 수도 있다. 내 선택이 세상을 바꿀 수 있을까?\"]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:43:31.721732",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러의 제안과 그 결과에 대한 심각한 고민을 계속 진행할 것이다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "4ce4e357-6eeb-4575-aaad-6d16d4e9811d",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 4,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "**밀러가 수민의 시선이 슬라이드에 고정된 것을 확인하며 한 걸음 더 나아간다.**  \"수민, 이건 단순한 선택이 아니야. 네가 제대로 다루지 못하면, 이 기술이 누군가의 손에 들어갈 수도 있어.\"  [*그의 결정을 압박할 수 있는 더 많은 정보가 필요하다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:43:38.009385",
+      "metadata": {
+        "emotions": {
+          "tension": 0.25,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "*수민의 반응을 기다리며 그의 결정을 더욱 압박할 방법을 모색할 계획.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "bfe72892-ac8f-4f6d-8ecd-e56b25c37ab4",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 5,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**테이블 위 슬라이드를 다시 바라보며 깊은 생각에 잠긴다.**  *\"이 기술이 통제되지 않는다면, 그 자체가 재앙이 될 수 있어...\"*  [[이 선택이 내 인생뿐만 아니라 Hyejin의 미래에도 영향을 미칠 수 있다는 사실이 가슴을 압박한다.]]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:43:45.284507",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.1
+        },
+        "agenda": "밀러의 압박을 더 받아들이기 전에, 이 기술이 가져올 위험과 내 결정의 결과를 더 깊이 탐구할 것이다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "bf74a82d-a3e0-4f98-84f9-174f9fb5ff93",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 6,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "***밀러가 테이블에 손을 댄다, 시선을 수민에게 고정하며***  \"수민, 이 기술의 힘을 아는 사람은 많지 않아. 네가 선택해야 해. 누군가가 이를 잘못 사용할 가능성이 크니까. 우리의 안전을 위해, 네가 진정으로 이 기술을 받아들일 준비가 되어 있는지 확인하는 게 중요해.\"  [*수민이 결정하기를 바란다. 그가 선택한다면 내 통제하에 들어올 수 있을 것이다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:02.581625",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "*수민의 결정을 더욱 압박하기 위해 그가 이 기술의 책임을 받아들이도록 유도할 것이다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "d0252ddf-f164-4564-8d98-71689593d7f0",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 7,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***밀러의 시선을 피하며 천천히 생각에 잠긴다.***  \"기술이 누군가의 손에 들어가면, 그 선택이 세상을 바꿀 수도 있습니다. 하지만 그 선택은 저에게도 큰 책임을 부여하죠.\"  [**이 결정이 내 인생뿐 아니라 Hyejin의 미래에까지 영향을 미친다는 사실이 마음을 짓누른다.**]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:11.366641",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.05
+        },
+        "agenda": "다음 차례에 밀러에게 질문을 던져 기술의 더 깊은 의도를 파악하고 싶다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "c86b1d3f-079a-4355-a572-3eb491aab8f6",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 8,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "****밀러가 한 걸음 더 다가가며 수민의 눈을 뚫어지게 바라본다.****  \"네가 이 기술의 운명을 결정할 수 있어. 가벼운 선택이 아니니까, 이 기회를 놓치지 마.\"  [[수민이 결정을 내리도록 더욱 압박할 필요가 있다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:19.499550",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "[수민의 결정을 더욱 촉구하며 그의 동기를 파악할 방안을 모색할 것이다.]",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "61ea8889-11a2-4e3b-b84e-44b69dd3ccb9",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "밀러가 노트북을 프로젝터에 연결하자 모니터 한켠에서 작은 시스템 경고음이 울리고, 텔레메트리 로그 창이 자동으로 펼쳐졌다: \"RSA-2048 per-key time: 741.2h → est. 70.1h (30d → 3d)\". 그 문구가 슬라이드의 큼직한 화살표와 동시에 프로젝션으로 옮겨져 방 안 온도가 한층 차갑게 내려앉았다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:21.857011",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "16fe39a0-f753-4c11-99c4-056aa67a4470",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 9,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***밀러를 바라보며 노트북의 화면을 가리킨다.***  \"이 기술의 최종 목표는 무엇인가요? 정말로 안전을 위해서만 사용될 건가요?\"  [*이 질문이 그를 압박할 수 있기를 바라며, 기술의 깊은 의도를 파악하고 싶다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:30.353273",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "수민은 밀러의 대답을 통해 기술의 진짜 의도를 더 깊이 탐구할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "62f8f367-7f99-47a9-8684-26cd5ce2d2ee",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "밀러가 폴더를 미끄러뜨리자 수민이 자동으로 손을 뻗어 첫 장을 넘겼다; 표지엔 굵은 검정 매직과 'Top Secret – Critical National Security Information' 도장이 선명했다. 페이지 중앙의 빽빽한 표를 내려보다가 그녀의 시선이 'per-key time: ~741.2 hours'와 옆 칸의 'target: 70 hours (10x improvement)' 숫자, 그리고 여백에 빨간 펜으로 반복된 \"이 부분만 해결하면 RSA 해독 시간·에너지 10배 이상 단축\" 문구에 고정되었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:33.289050",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c02",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "e471f03f-d88a-41c0-9592-579c315422b2",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 10,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "****밀러가 수민의 눈을 바라보며 천천히 말을 이어간다.****  \"안전이라는 목적은 그 자체로 모호할 수 있어. 우리는 이 기술을 통제해야 해, 그렇지 않으면 차별화된 힘이 악용될 수 있어.\"  [*수민의 선택이 내 계획의 방향을 결정짓는 중요한 순간이다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:42.232902",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "수민이 기술의 사용 목적에 대한 의구심을 계속 질문하도록 유도하고, 자신의 입장을 더욱 확고히 하겠다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "f0b0c3b7-1379-4edf-86de-91827666835b",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 표를 오래 들여다보다가 조용히, 그 수치들이 실험 결과인지 시뮬레이션인지 물었다. 밀러는 포키샤에서 돌린 결과와 우리가 빌린 외부 QPU 로그를 합친 것이라며, DARPA가 테스트베드를 관리하고 장비 벤더 이름은 보안상 생략되었다고 답했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:47.149357",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c03",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "01f3c78c-c8d7-4b31-a488-06159eacc622",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 11,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "****밀러의 눈을 뚫어지게 바라보며, 숨을 고른다.****  \"이 기술이 정말로 누군가의 안전을 보장하는 도구가 될 수 있을까요? 그럴 가능성이 과연 존재하는 건가요?\"  [***밀러의 답변이, 제 선택과 Hyejin의 미래에 미칠 영향을 깊이 고민하게 만든다.***]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:54.165678",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.1
+        },
+        "agenda": "밀러의 진정한 의도와 이 기술의 사용 가능성에 대해 더 깊이 탐구할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "bcbe211d-5eaf-4634-b6cd-076c3aabc489",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 12,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "밀러가 폴더 뒤쪽을 가만히 넘기자, 인쇄된 목록들이 드러나며 눈에 들어왔다: 'stored ciphertext targets'란 제목 아래 은행·정부·개인 메일 주소들이 줄지어 있었고, 그 옆 여백엔 'DHS liaison — EB-2 NIW (expedited)'라는 도장이 찍혀 있었다. 수민은 숫자와 도장 사이의 간극을 바라보며, 방 안 공기가 그 명백한 거래 조건을 묵인하는 듯 무겁게 가라앉는 것을 느꼈다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:44:56.948936",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c04",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "53ae9b3a-277e-4a3f-a28c-ab81bfde6ad2",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 12,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*수민의 눈을 좀 더 깊이 응시하며 몸을 앞으로 기울인다.*  \"우리가 이렇게 이 기술을 손에 넣는다면, 그 잠재력을 누구도 의심할 수 없게 될 거야. 하지만 네가 그 결정의 일원이 되어야만 해. 네가 이 기술을 어떻게 사용할지는 전적으로 너에게 달려있어.\"  [수민의 선택이 나의 계획을 결정짓는 중요한 순간이라는 사실이 점점 더 확실해진다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:03.703854",
+      "metadata": {
+        "emotions": {
+          "tension": 0.4,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민이 이 기술을 받아들이도록 더욱 압박하며, 그녀의 신뢰를 얻기 위한 방법을 모색하겠다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "72d92490-09d1-42ab-a75a-87c7f20d9588",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 13,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "프로젝터 빛이 종이 가장자리를 얕게 스치자, 평소엔 식별되지 않던 회색 잉크가 미세하게 빛나며 여백 구석의 메모를 드러냈다: 'human factors—TBD'. 수민의 시선이 그 글자에 멈추자 방 안의 공기가 잠깐 더 무거워졌다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:06.323394",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c06",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "d9d895e3-989c-4b55-8469-23136d70e446",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 13,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "****밀러를 응시하며, 숨을 깊이 들이쉰다.****  \"이 기술이 특정 개인이나 그룹의 이익을 위해 사용될 가능성이 높지 않나요? 과연 누가 이 기술을 통제할 수 있을까요?\"  [***이 대답이 밀러의 생각을 흔들기를 바란다.***]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:13.665042",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.1
+        },
+        "agenda": "밀러의 반응에 따라 기술의 실제 용도와 그에 따른 윤리적 문제를 더 깊이 탐구할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9aebb4cf-ed9d-469e-b2d8-25141683fcdb",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 14,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 잠깐 숨을 고르고 질문을 던지자, 밀러는 폴더를 천천히 펼쳐 한 페이지를 가리켰다; 상단엔 'Title 50 coordination', 'FISC oversight', 'NSA legal counsel'라는 굵은 인쇄와 함께 작은 도장이 찍혀 있었다. 방 안은 그 문구가 말해주는 경계선—영장과 제도의 이름으로 정당화되는 행위—의 무게로 순간 침묵에 잠겼다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:16.335444",
+      "metadata": {
+        "clue_id": "clue_ep08_nsa_briefing_c05",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "1b135920-3297-4bed-8180-cd1860adf561",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 14,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*밀러가 팔짱을 끼고, 수민을 바라보며 몸을 앞으로 기울인다.*  \"이 기술이 확립된다면, 누가 통제하느냐가 아니라, 우리가 얼마나 효과적으로 활용할 수 있는지가 중요한 문제야. 민주주의는 우리의 손에 달려있어.\"  [수민이 이 기술의 잠재력을 받아들이도록 압박해야겠다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:32.556739",
+      "metadata": {
+        "emotions": {
+          "tension": 0.35,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "수민의 신뢰를 얻기 위한 방법을 계속 모색하며, 그녀를 기술 수용 쪽으로 압박할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "dbbc7e11-9712-4922-bdfd-527435e37aad",
+      "episode_id": "ep08_nsa_briefing",
+      "turn": 15,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*밀러와의 눈 맞춤을 유지하며, 손가락으로 테이블을 가볍게 두드린다.*  \"그렇다면, 이 기술을 누가 책임지고 사용할 수 있을까요? 우리가 선택할 수 있긴 한 건가요?\"  [밀러가 제시한 미래가 불확실하게 느껴지며, 나의 결정을 고민한다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:45:42.210495",
+      "metadata": {
+        "emotions": {
+          "tension": 0.85,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러가 이 기술의 통제와 책임에 대해 더 깊이 이야기하도록 유도할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.01623,
+    "remaining_usd": 2.48377,
+    "call_count": 77,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000415
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000243
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000408
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00025
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000442
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00026
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000442
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000277
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000484
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000276
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000471
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.2e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000485
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.2e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000509
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.4e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000299
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00052
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.2e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000306
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000496
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000297
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000563
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000301
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000574
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000303
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000163
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000619
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.2e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000297
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000624
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.3e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000268
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000645
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000299
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000629
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.1e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000644
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.1e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000662
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000304
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000664
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.0003
+      },
+      {
+        "purpose": "director_beat_completion_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000418
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:45:43.712373"
+}

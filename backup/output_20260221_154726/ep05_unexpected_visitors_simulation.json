@@ -1,0 +1,385 @@
+{
+  "episode_id": "ep05_unexpected_visitors",
+  "agent_count": 12,
+  "total_turns": 9,
+  "interactions": [
+    {
+      "id": "be6bc025-3f9e-4b9c-8782-ca3aa11ef621",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*복도 끝에서 두 사람을 주의 깊게 관찰한다.*  [이 상황은 뭔가 수상하다. NSA의 개입이란… 그들이 무슨 작업을 하고 있는 걸까?]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:11.303496",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "이들의 대화나 작업을 계속 지켜보며 더 많은 정보를 얻으려 한다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "e8557501-5f39-4569-92ce-92d5c3c178bf",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 2,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**그들의 대화를 주의 깊게 듣고, 보안 창고 내부를 살펴본다.**  [*NSA의 개입이 이렇게 직접적이라니, 그들이 뭘 숨기고 있는지 더 알아내야 해.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:14.954408",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "다음 기회를 이용해 더 많은 정보를 확보하고, 그들의 작업을 방해하지 않으면서 상황을 지켜보겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "eb0ba9f6-9012-40e4-a50e-77eb76d50cea",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 3,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**보안 창고 내부를 유심히 살피며, 검은 셔츠 남자의 표정과 행동을 분석한다.**  [[*이들은 정말 NSA의 지시를 받고 있는 걸까? 그들이 작업 중인 회로 기판은 무엇을 위한 것일까?*]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:18.059082",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "[상황을 계속 주시하며, 추가적인 정보가 필요하다면 더 가까이 다가가야겠다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "2f26c1c0-23ed-4862-999f-dbbe687aeeec",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 4,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***조심스럽게 창고 입구에 더 가까이 다가가 그들의 작업을 관찰한다.***  [[*이들이 진짜로 NSA의 지시를 받고 있는지, 그리고 이 회로 기판이 무엇을 위한 것인지 알아내야 해.*]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:21.443556",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "[그들의 대화와 행동을 면밀히 관찰하며, 추가 정보를 얻을 방법을 모색할 것이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "d317a28c-8cf4-44d9-90ee-3c9dbb499b96",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 5,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***조심스럽게 뒤로 물러나며, 남자와 여자의 대화를 계속 듣는다.***  [[*이들은 단순히 기술 작업을 하는 것이 아닐 거야. 이 회로 기판이 실제로 무엇을 위해 사용되는지 알아내야 해.*]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:26.671212",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "[그들의 대화와 작업을 계속 지켜보면서 추가 정보를 확보할 계획이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "04c9d9d1-72ca-4cb5-bd7a-fe7097fd56f8",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 6,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "보안 콘솔이 낮은 경고음을 내며 자동 로그를 한 줄 띄웠다; 임시 권한 승인 메시지 옆에 실시간 네트워크 텔레메트리 한 줄이 깜빡였고, 패킷 경로 끝에 'LST-gateway-03'이라는 호스트명이 선명하게 찍혀 있었다. 수민은 본능적으로 노트북을 끌어와 경로를 더듬어 보니 연결은 내부 관리서버를 우회해 외부 중계 노드로 리다이렉트된 것이었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:30.197471",
+      "metadata": {
+        "clue_id": "clue_ep05_unexpected_visitors_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "80472b73-f852-4812-acc5-f8ccaab5e0f9",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 6,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***창고에서의 대화와 작업을 조심스럽게 계속 지켜본다.***  [[*이 회로 기판의 용도와 LST의 의미를 파악해야 해. 더 많이 알고 싶어.*]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:33.540806",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "[지속적으로 그들의 작업을 관찰하며, 노트북의 연결 경로와 관련된 추가 정보를 추적할 계획이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "2d87e6fd-b2dd-482e-8bb1-b15d31a18865",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "복도 입구의 젊은 보안 요원이 치켜뜬 눈으로 창고 안을 바라보며 태블릿에 손가락을 댔다; 화면에는 여자가 손끝으로 짚은 다섯 가닥의 색깔별 케이블이 정확히 표시되어 있어, 그의 표정이 말로 묻고 싶은 질문을 대신했다. 누구도 답하지 않았고, 그녀는 장갑 손가락으로 그 개수를 확인한 뒤 패널을 덮었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:36.703823",
+      "metadata": {
+        "clue_id": "clue_ep05_unexpected_visitors_c02",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "27ac2a3b-4551-410c-b553-ce1bb83035e5",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 7,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*창고의 내부 구조와 두 사람의 행동을 유심히 살핀다.*  [[이 두 사람의 작업이 NSA와 어떤 관계가 있는지, 그리고 이 회로 기판이 어떤 기술적 의미를 지니고 있는지를 더 알아내야 해.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:40.695180",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "다음 차례로, 두 사람의 대화를 더 주의 깊게 경청하고, 그들의 작업이 어떤 방향으로 진행되는지 파악할 예정이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "f1254164-9d97-424a-9a21-6b022c7cd35d",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 8,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "장갑 끼운 손이 패널을 덮는 순간, 바닥에 떨어진 스티커 조각 하나가 바람에 살짝 말려들어가며 붙어 있던 노트북 측면의 이미지가 살짝 드러났다—항만 모양 로고 옆으로 남아있는 글자들은 희미하게 'L—T'를 남겼다. 동시에 노트북 화면이 짧게 깜빡이며 지하 평면도가 확대돼 보였고, 보안 창고 B2를 포함한 세 곳에 붉은 X 표시가 실시간으로 찍혀 들어왔다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:43.973100",
+      "metadata": {
+        "clue_id": "clue_ep05_unexpected_visitors_c03",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "bf8629f7-533e-4d11-8d58-e136dbf4914f",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 8,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*창고 내부의 작업을 다시 한번 세심하게 살핀다.*  [이들은 분명히 NSA와 연관이 있지만, 그들의 목적이 무엇인지 더 파악해야 해.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:47.086734",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "다음 차례로, 두 사람의 대화에서 중요한 키워드를 포착하고 그들이 다루는 기술의 맥락을 이해하려 한다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "423b8014-2370-47de-9432-82b9df1309c2",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "보안 담당자의 표정이 굳어지며 잠깐 숨을 들이켰다; 그는 마우스를 죽 죽 움켜쥐고는 화면을 한 번 지워버리고 나서야 겨우 입을 열어, \"오늘 오전에 직통 전화로 내려온 지시였고, 로그는 이미 암호화돼 추적 불가하다\"고 끊어내듯 말했다. 그 말이 끝나자 복도에는 묵직한 침묵만 남았고, 그의 손에 남은 힘만이 두려움인지 훈련된 반응인지 분명치 않게 떨리고 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:50.118278",
+      "metadata": {
+        "clue_id": "clue_ep05_unexpected_visitors_c05",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "2c0b6451-33f3-4c1e-9ec6-fe51ee4aaf4a",
+      "episode_id": "ep05_unexpected_visitors",
+      "turn": 9,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민이 조심스럽게 두 사람의 대화를 귀 기울여 듣는다.*  [이 작업이 무엇을 위한 것인지, 그리고 LST의 진짜 의미가 무엇인지 알아내야만 해.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:34:55.849992",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "다음 차례로, 두 사람의 대화에서 특정 키워드를 파악하여 기술의 맥락을 이해하고 더 많은 정보를 수집할 계획이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.004465,
+    "remaining_usd": 2.495535,
+    "call_count": 24,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000318
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000338
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000355
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000361
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000377
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000416
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000471
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000491
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000531
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_beat_completion_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.00039
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:34:56.675090"
+}

@@ -32,6 +32,7 @@ from src.novel_writer.llm_client import LLMClient
 from src.novel_writer.director import DirectorAI
 from src.novel_writer.orchestrator import SimulationOrchestrator
 from src.novel_writer import database as db
+from src.novel_writer.rl_policy import load_policy, episode_runtime_policy
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -96,6 +97,8 @@ def main() -> None:
     logger.info("Loading episode: %s", args.episode)
     episode_config = load_episode(args.episode)
     episode_id     = episode_config["id"]
+    rl_policy = load_policy()
+    episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
 
     logger.info("Loading characters: %s", args.characters)
     agents = load_characters(args.characters)

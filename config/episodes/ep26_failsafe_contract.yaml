@@ -8,11 +8,13 @@ episode:
   date: "2043-03-18T21:30"
   location: "Offsite secure location — intelligence briefing room"
   summary: |
-    밀러와 엘 파트론의 치열한 백채널 협상—'혼돈 최소화'와 '기술 독점'이 충돌하는 순간, 수민이 전혀 예상 밖의 중재안으로 나선다. 그는 암호학의 Shamir's Secret Sharing 알고리즘을 응용한 '브리지-키(Bridge-Key)' 안전장치를 제안한다. 5조각의 분산 임계치 키(threshold 3/5), 시간 잠금 장치(TimeLock: 72시간), 비상 차단 스위치(Deadman Switch)가 결합된 시스템이다. 
+    밀러와 엘 파트론의 치열한 백채널 협상—'혼돈 최소화'와 '기술 독점'이 충돌하는 순간, 수민이 전혀 예상 밖의 중재안으로 나선다. 그는 암호학의 Shamir's Secret Sharing 알고리즘을 응용한 '브리지-키(Bridge-Key)' 안전장치를 제안한다. 5조각의 분산 임계치 키(threshold 3/5), 시간 잠금 장치(TimeLock: 72시간), 비상 차단 스위치(Deadman Switch)가 결합된 시스템이다.
 
-    다섯 조각은 NSA(밀러), CIA 연계(엘레나), 수민 본인(브리지 마스터), 운영 담당(요나스), 카르텔 대표(구티에레즈)가 각각 보관하며, 최소 3명의 동시 동의와 72시간의 시간 대기가 필요하다. 어느 한쪽도 단독으로는 핵심 기술에 접근할 수 없는 구조다. 각 세력은 이 합의를 자신의 관점으로만 해석한다. CIA는 엘레나의 이중 스파이 역할과 Greyshore 라인으로 수민까지 통제한다고 착각한다. 카르텔은 엘레나·요나스·수민 셋을 모두 자신의 인질로 본다. NSA는 순진하게 QuantumFront 연구소와 그 인력을 미 정부의 국가 프로젝트 파트너로 여기고 깊은 의심을 갖지 않는다.
+    수민의 원래 설계(EP22)에서 다섯 조각의 보관자는 엘 파트론, 카를로스, Greyshore, 엘레나, 수민 본인이었다—NSA는 처음부터 의도적으로 배제되었다. 그러나 협상 과정에서 밀러가 "키 없이는 기술 지원을 중단하겠다"고 압박했고, 수민은 전략적 양보를 한다: 계약서(ARTICLE III)의 Custodians 목록에 밀러의 이름을 포함시킨다. 다만 실제 물리적 키 제작과 배포는 수민이 단독으로 관리하며, 밀러에게 전달될 키는 "72시간 내 제작 완료 후 전달 예정"이라는 조건부 조항으로 지연시킨다. 이것은 수민의 의도적 기만이다—밀러는 종이 위의 이름만 얻고, 실제 키는 영원히 받지 못한다.
 
-    그러나 수민만은 이 '균형 시스템'을 다르게 본다. 5조각 중 3조각이 필요하다면, 2조각은 항상 '반대'할 수 있다는 뜻이다. 이것은 감시 장치이자, 동시에 '지연과 추적'의 장치다. 그리고 수민은 그 중심에 서 있다. 자신의 신체가 이 시스템의 가장 중요한 인증 메커니즘이 되었다는 것을 알면서.
+    따라서 실제 물리적 키 5개의 보관자는: 카를로스(카르텔), 엘 파트론(요나스 대리 보관), Greyshore, 엘레나, 수민. 최소 3명의 동시 동의와 72시간의 시간 대기가 필요하며, 어느 한쪽도 단독으로는 핵심 기술에 접근할 수 없는 구조다. 각 세력은 이 합의를 자신의 관점으로만 해석한다. CIA는 엘레나의 이중 스파이 역할과 Greyshore 라인으로 수민까지 통제한다고 착각한다. 카르텔은 엘레나·요나스·수민 셋을 모두 자신의 인질로 본다. NSA는 순진하게 계약서 상의 키 보관자 지위를 믿고, QuantumFront 연구소와 그 인력을 미 정부의 국가 프로젝트 파트너로 여기며 깊은 의심을 갖지 않는다—자신에게 키가 오지 않을 것이라는 사실을 모른 채.
+
+    그러나 수민만은 이 '균형 시스템'을 다르게 본다. 5조각 중 3조각이 필요하다면, 2조각은 항상 '반대'할 수 있다는 뜻이다. 이것은 감시 장치이자, 동시에 '지연과 추적'의 장치다. 그리고 수민은 그 중심에 서 있다. 자신의 신체가 이 시스템의 가장 중요한 인증 메커니즘이 되었다는 것을 알면서. 밀러를 계약서에 넣되 실제 키에서 빼는 것—이것이 수민이 밀러에게 가르친 첫 번째 교훈이다: 책상에서 전쟁을 설계하는 사람은, 현장에서 열쇠를 받지 못한다.
 
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.
@@ -54,7 +56,9 @@ episode:
 
         《ARTICLE III: THRESHOLD & ACTIVATION PROTOCOL》
         Scheme: Shamir (5, 3) — 5조각 중 3조각 필수. 또는 2조각의 거부로 차단 가능.
-        Custodians: NSA-Miller / CIA-Elena / Bridge-Soomin / Ops-Jonas / Cartel-Rafael
+        Custodians (계약서 명목상): NSA-Miller / CIA-Elena / Bridge-Soomin / Ops-Jonas / Cartel-Rafael
+        Custodians (실제 물리적 키 보유자): Cartel-Carlos / Cartel-ElPatron(via Jonas) / Greyshore / Elena / Bridge-Soomin
+        Note: 밀러는 계약서에만 이름이 올라갔으며, 실제 키는 "제작 후 전달 예정" 조건부로 지연됨. 수민의 의도적 배제 전략.
         Activation: Unanimous 3/5 approval + 72-hour TimeLock delay
         Deadman: If any custodian is eliminated/detained/incapacitated, auto-trigger after 144 hours
         Consequence: Complete RSA algorithm + exploitation logs → automated release to: CERN, arXiv.org, BBC, Reuters, WikiLeaks, 러시아 TASS, 중국 신화통신

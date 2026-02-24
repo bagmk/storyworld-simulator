@@ -1,0 +1,186 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Soft Apology, Hard Paper",
+    "turn_range": [
+      1,
+      6
+    ],
+    "location": "Carlos's office, QuantumFront HQ",
+    "characters_present": [
+      "Kim Sumin",
+      "Carlos Reyes"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이건 제 안전을 위한 보호 장치라고 말씀하시네요. 하지만 이런 조건들은 저를 더 위험하게 만들 수도 있습니다."
+      },
+      {
+        "speaker": "Carlos Reyes",
+        "line": "수민, 이 계약은 널 보호하기 위한 방편이야. 위험을 피하는 건 네 손에 달려 있어."
+      }
+    ],
+    "key_actions": [
+      "수민이 펜을 테이블에 내려놓고 깊게 숨을 쉰다.",
+      "카를로스가 서류를 정리하며 미소를 유지한다."
+    ],
+    "discoveries": [
+      "계약이 '보호'라 불리지만 수민에게는 통제처럼 느껴진다."
+    ],
+    "emotional_arc": "unease → guarded attempt at reassurance",
+    "beat_references": [
+      "clue_ep10_personal_risk_c06"
+    ],
+    "narrative_summary": "카를로스는 부드러운 태도로 계약을 '보호'라고 설명하고 유혹을 건넨다. 수민은 그 말들을 받아들이지 못한 채 자신의 안전과 자유가 침해될 수 있음을 경계한다.",
+    "pacing": "opening",
+    "raw_turn_count": 6
+  },
+  {
+    "scene_number": 2,
+    "title": "The Visa Clause",
+    "turn_range": [
+      7,
+      8
+    ],
+    "location": "Carlos's office, QuantumFront HQ",
+    "characters_present": [
+      "Kim Sumin",
+      "Carlos Reyes"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이런 압박 속에서 진정한 보호가 무엇인지 고민해야 합니다."
+      }
+    ],
+    "key_actions": [
+      "수민이 서류를 넘기다 특정 문장—'비자가 취소되거나 유효성이 상실될 경우'—에 손가락을 멈춘다.",
+      "그 문장을 보며 수민은 보이지 않는 권력의 그림자를 떠올린다."
+    ],
+    "discoveries": [
+      "제3조 문구가 직원의 고의나 과실을 전제하지 않고, 비자 문제만으로도 책임을 물을 수 있게 만든다는 사실."
+    ],
+    "emotional_arc": "curiosity → cold realization",
+    "beat_references": [
+      "clue_ep10_personal_risk_c01"
+    ],
+    "narrative_summary": "수민은 제3조의 문장을 읽으며 그것이 협박처럼 작동하는 설계도임을 깨닫는다—비자 문제 하나로 회사가 통제할 수 있다는 사실이 명확해진다.",
+    "pacing": "building",
+    "raw_turn_count": 2
+  },
+  {
+    "scene_number": 3,
+    "title": "Ideas Branded Company Property",
+    "turn_range": [
+      9,
+      9
+    ],
+    "location": "Carlos's office, QuantumFront HQ",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이 계약의 보호 조항이 오히려 제 발목을 잡는다면, 우리는 같은 목표를 향해 나아갈 수 있을까요?"
+      }
+    ],
+    "key_actions": [
+      "수민이 5페이지의 각주를 읽고 멈춘다.",
+      "따옴표로 묶인 '아이디어'라는 단어가 눈에 들어온다."
+    ],
+    "discoveries": [
+      "제7조 각주는 실험 중 개발한 알고리듬, 메모, 심지어 '아이디어'까지 회사의 단독 배타적 소유로 규정한다."
+    ],
+    "emotional_arc": "dismay → outrage",
+    "beat_references": [
+      "clue_ep10_personal_risk_c02"
+    ],
+    "narrative_summary": "수민은 '아이디어'라는 따옴표가 붙은 조항을 발견하고, 사적인 생각과 집에서의 스케치까지 회사 소유가 된다는 법적 노예제 같은 현실을 실감한다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "Two Years of Nowhere",
+    "turn_range": [
+      10,
+      13
+    ],
+    "location": "Carlos's office, near the glass partition",
+    "characters_present": [
+      "Kim Sumin",
+      "Carlos Reyes",
+      "Agent Christian Miller (offstage)"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "이 계약의 내용이 제가 진정으로 안전하다고 느끼게 할까요? 위험을 감수하는 것이 항상 정답은 아닙니다."
+      },
+      {
+        "speaker": "Carlos Reyes",
+        "line": "수민, 이 계약은 너와 우리 모두를 보호하기 위한 거야. 불안할 필요 없어."
+      }
+    ],
+    "key_actions": [
+      "수민이 제5조의 경업 금지 항목을 더듬어 읽는다.",
+      "카를로스가 손목시계를 힐끗 보이며 '밀러'를 암시하는 이름이 문틈 너머로 들린다."
+    ],
+    "discoveries": [
+      "제5조는 선임 종료 후 2년간 양자, 암호화, 보안, 통신 관련 어떤 역할도 금지하며, 그 기간은 경력의 사실상 매장이 될 수 있다.",
+      "데드라인 압박이 존재한다—밀러의 언급과 시계 보기로 확인된다."
+    ],
+    "emotional_arc": "alarm → feeling cornered",
+    "beat_references": [
+      "clue_ep10_personal_risk_c03",
+      "clue_ep10_personal_risk_c06",
+      "clue_ep10_personal_risk_c04",
+      "clue_ep10_personal_risk_c05"
+    ],
+    "narrative_summary": "수민은 2년의 경업 금지 조항과 그것이 불러올 직업적 죽음, 그리고 그와 동시에 작동하는 데드라인 압박을 확인한다. 카를로스의 친절은 더 큰 권력의 지시 아래 있음을 암시한다.",
+    "pacing": "climax",
+    "raw_turn_count": 4
+  },
+  {
+    "scene_number": 5,
+    "title": "The Inked Jaws",
+    "turn_range": [
+      14,
+      15
+    ],
+    "location": "Carlos's office, at the desk",
+    "characters_present": [
+      "Kim Sumin",
+      "Carlos Reyes",
+      "Agent Christian Miller (present)"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian (Christan) Miller",
+        "line": "수민, 이건 단순한 계약이 아니야. 우리는 이 기술의 미래를 지켜야 해."
+      },
+      {
+        "speaker": "Carlos Reyes",
+        "line": "수민, 내가 말한 대로, 이 계약은 너와 회사를 보호하기 위한 거야."
+      }
+    ],
+    "key_actions": [
+      "수민가 서명란에 떨리는 손으로 'S‑u‑m‑i‑n'을 적는다; 잉크가 종이에 스며든다.",
+      "책상 뒤 불투명 유리 너머 작은 적색 LED가 깜빡인다; 카를로스가 서류를 걷어낸다."
+    ],
+    "discoveries": [
+      "마지막 페이지의 예시 문구에 '비자 상태 악화로 인한 회사 명성 손상'과 '총 누적 책임액 한도: €500,000'이 명시되어 있음—수민 한 사람에게 거액의 책임을 전가할 수 있다.",
+      "서명 순간이 결박의 시작임을 실감한다."
+    ],
+    "emotional_arc": "resignation → quiet, broken loss",
+    "beat_references": [
+      "clue_ep10_personal_risk_c05",
+      "clue_ep10_personal_risk_c07"
+    ],
+    "narrative_summary": "압박과 유혹의 말들 사이, 수민은 떨리는 손으로 서명한다. 잉크가 마르자 계약은 더 이상 문서가 아니라 족쇄가 되었고, 수민은 자유의 일부를 잃었음을 조용히 느낀다.",
+    "pacing": "resolution",
+    "raw_turn_count": 2
+  }
+]

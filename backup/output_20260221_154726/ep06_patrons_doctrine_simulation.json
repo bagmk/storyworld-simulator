@@ -1,0 +1,596 @@
+{
+  "episode_id": "ep06_patrons_doctrine",
+  "agent_count": 12,
+  "total_turns": 11,
+  "interactions": [
+    {
+      "id": "0f227efc-2662-4e0f-b0a4-2d52638767e1",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*주변을 살피며, 다른 동료들이 없는지 확인한다.*  [이 모든 정보를 어떻게 활용할 수 있을까? 엘 파트론이 정말로 QuantumFront를 통제하고 있다면, 더 깊이 파고들어야 한다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:36:48.748139",
+      "metadata": {
+        "emotions": {
+          "tension": 0.75,
+          "curiosity": 0.7
+        },
+        "relationship_deltas": {},
+        "agenda": "카를로스와 요나스에게 이 정보를 전해줄 방법을 찾고, 상황을 더 분석해야겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "83b121df-b4a0-48ac-a184-8c349ace4ff5",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 2,
+      "speaker_id": "yonas_mehret",
+      "speaker_name": "Yonas Mehret",
+      "content": "*수민의 반응을 살펴보며 조용히 다가간다.*  \"(무엇을 발견했는지에 따라 달라지겠군.)\"  [수민이 이 정보를 어떻게 활용할지 지켜봐야겠다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:00.141871",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민이 어떻게 반응하는지 관찰하면서 상황을 분석한다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "abcfeb55-191b-48db-a846-2eaaaf247ac5",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 3,
+      "speaker_id": "yonas_mehret",
+      "speaker_name": "Yonas Mehret",
+      "content": "**수민의 표정을 유심히 살펴본다.**  \"(너무 많은 것을 발견한 것 같군. 조심해야 할 때다.)\"  [[수민의 반응이 궁금하다. 그녀가 이 정보를 어떻게 사용할지를 지켜보는 것이 중요하다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:07.225051",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.15
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "[수민의 다음 행동을 관찰하고, 그녀가 정보를 어떻게 활용할지 결정하는 과정을 지켜볼 것이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9ac87e02-8db4-4fee-bb20-1f1c8b0dacc0",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 4,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**요나스의 눈빛을 피하며 주위를 살핀다.**  \"(엘 파트론의 정체를 파악해야 해.)\"  [[이 정보를 카를로스와 요나스에게 어떻게 전할지 고민 중이다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:14.318548",
+      "metadata": {
+        "emotions": {
+          "tension": 0.75,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "yonas_mehret": -0.05
+        },
+        "agenda": "[카를로스와 요나스에게 전달할 정보를 정리하고, 상황을 더 분석할 방법을 찾아야겠다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9202c525-d2f2-44ff-b58c-88e8a565537c",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 5,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 냉각음 위로 남은 잡음을 소프트웨어로 역분해해 스펙트럼을 찍어냈다. 로그를 대조하자 그 패턴과 일치하는 암호화된 아웃바운드 핸드셰이크가 CryoLab의 모니터링 포트에서 매주 자정, 항만 게이트웨이로 전송되는 것으로 찍혔고—프로세스 이름은 희미하게나마 \"PH-GRD\"로 남아 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:19.950688",
+      "metadata": {
+        "clue_id": "clue_ep06_patrons_doctrine_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "6837d3c2-bf3a-4529-8a84-acc48924d560",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 5,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "**주위를 살펴보며, 수민과 요나스의 대화를 주의 깊게 지켜본다.**  [*수민이 무언가를 발견한 것 같다. 그녀의 반응에 따라 나의 대응이 달라져야 할 것이다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:26.030567",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {},
+        "agenda": "수민의 행동을 지켜보며, 그녀가 어떻게 정보를 활용할지를 기다리겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "bcf3264f-af9d-416d-a748-ad7766d46c0e",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 6,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "민지가 로그 타임스탬프를 가리키며 화면을 한참 들여다본 뒤, 낮은 목소리로 묻는 듯한 표정으로 말했다 — 월요일 자정이 정기 백업 윈도우 아닌가요? 그녀의 시선이 PH‑GRD 프로세스와 백업 스케줄이 완벽히 겹쳐 있는 지점을 교차 확인하자, 그 질문 자체가 이미 답을 내포하고 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:29.995433",
+      "metadata": {
+        "clue_id": "clue_ep06_patrons_doctrine_c02",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "d4442705-f649-43e5-97c1-76de8b566930",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 6,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "***주위를 살펴보며 수민의 반응을 조용히 지켜본다.***  [[수민이 이 정보를 어떻게 활용할지 파악해야 한다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:38.187517",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {},
+        "agenda": "[수민이 이 정보를 어떻게 활용할지를 계속 관찰하면서, 필요한 경우 개입할 준비를 하겠다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "270e199a-5ef5-4db3-b8a4-48093c1695fc",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 환기구 속으로 고개를 기웃거리자, 찬 공기 속에 바다에만 있던 짠내와 경유 기운이 미세하게 섞여 올라왔다. 환기구 모서리엔 흰 소금 결정이 턱선처럼 붙어 있었고, 그 흐름이 항만에서 불어온 공기임을 말해 주었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:41.645428",
+      "metadata": {
+        "clue_id": "clue_ep06_patrons_doctrine_c03",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "ba4b63d0-8473-4b2b-80a6-5a8eed62a0a0",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 7,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*카를로스와 요나스 쪽으로 천천히 고개를 돌리며 눈을 맞춘다.*  \"이 데이터, 월요일 자정에 전송되는 걸로 보입니다. PH-GRD라는 프로세스도 확인했습니다.\"  [이 정보가 그들에게 어떤 반응을 일으킬지 궁금하다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:47.273974",
+      "metadata": {
+        "emotions": {
+          "tension": 0.75,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05,
+          "yonas_mehret": -0.05
+        },
+        "agenda": "카를로스와 요나스의 반응을 지켜보고, 어떻게 대응할지 계획하겠다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "c4a3c7da-63dc-4c06-a017-90cb91140708",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 8,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 환기구 틈새에 걸린 젖은 봉투를 집어 들었다; 안에는 오래된 장부 인쇄물과 로그 스냅샷들이 접혀 있었고, 장부 한쪽에는 8월부터 10월까지 찍힌 'Benefactor' 항목들이 합쳐서 $800,000으로 표시되어 있었다. 그 인쇄물 뒷면에는 CryoLab의 정기 백업 스케줄이 프린트되어 있었고, 월요일 자정 옆에 누군가가 연필로 작게 \"PH‑GRD\"라고 적어 놓은 흔적이 남아 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:37:51.409606",
+      "metadata": {
+        "clue_id": "clue_ep06_patrons_doctrine_c04",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "a36f276c-6946-4050-b1fd-62a0c01a4948",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 8,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "***수민의 반응을 주의 깊게 지켜본다.***  [**수민이 이 정보를 어떻게 활용할지가 중요하다.**]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:38:01.831526",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.25
+        },
+        "relationship_deltas": {},
+        "agenda": "**수민이 이 정보를 엘 파트론에게 어떻게 전달할지 고민하는 모습을 지켜보며, 그 반응에 따라 내가 개입할 준비를 하겠다.**",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "43de559a-4073-422f-9e09-66dd7e8d23e2",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "민지가 로그 위를 손가락으로 훑다 말고 노트북 화면의 작은 메모를 가리켰다 — 요나스의 파일명 옆에 적힌 'Phase‑Guard'와, 그 아래 희미하게 체크된 'Phase 1: Seal' 항목이 눈에 들어왔다. 그녀는 시선을 수민의 배지로 옮긴 뒤 다시 화면으로 돌아가며, 마치 확인을 구하는 듯 손끝으로 'Phase 2: operator sync?'를 종이에 연필로 적었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:38:04.506595",
+      "metadata": {
+        "clue_id": "clue_ep06_patrons_doctrine_c05",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "112a77d5-c5ba-4e66-9a68-1f5443631df5",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 9,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "***수민과 요나스의 대화를 주의 깊게 지켜본다.***  (침묵)  [**수민이 이 정보를 통해 엘 파트론에게 어떤 카드로 나올지가 궁금하다.**]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:38:09.900116",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1452,
+          "curiosity": 0.1623
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민이 자신의 발견을 어떻게 활용하는지 지켜보며, 필요 시 개입할 준비를 하겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "da845e63-13f5-404f-a283-f065e5d9f1cf",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 10,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 카를로스와 요나스를 바라보며 생각을 정리한다.*  \"이 정보를 활용해 다음 단계로 나아가야 합니다. PH-GRD가 월요일 자정에 전송된다는 건 분명히 계획의 일부입니다.\"  [이 정보가 그들에게 어떤 전략을 불러일으킬지 궁금하다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:38:17.666741",
+      "metadata": {
+        "emotions": {
+          "tension": 0.75,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05,
+          "yonas_mehret": 0.0
+        },
+        "agenda": "카를로스와 요나스가 이 정보를 어떻게 활용할지 논의하는 방향으로 나아가겠다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "ec67dc06-c43a-4a5d-bed2-cfd01f917c43",
+      "episode_id": "ep06_patrons_doctrine",
+      "turn": 11,
+      "speaker_id": "yonas_mehret",
+      "speaker_name": "Yonas Mehret",
+      "content": "**주변을 살펴보며 수민의 반응과 로그의 내용을 음미한다.**  \"정보는 언제나 힘을 가집니다. 하지만 그 힘을 어떻게 사용할지는 당신에게 달려 있습니다.\"  [*수민의 선택이 앞으로의 흐름을 바꿀 수 있음을 느낀다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:38:25.279855",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {},
+        "agenda": "수민이 이 정보를 활용해 무엇을 할지 지켜보며, 그에 따른 반응을 분석할 예정이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.008014,
+    "remaining_usd": 2.491986,
+    "call_count": 52,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000316
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.00017
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000282
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.1e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000183
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000307
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.3e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000193
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000356
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000198
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000351
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.2e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000231
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000401
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 7.7e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000408
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.2e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000475
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.1e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000278
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000458
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 7.7e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000467
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.1e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000486
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.4e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000308
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000534
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.2e-05
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000164
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000481
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.4e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000318
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:38:26.432044"
+}

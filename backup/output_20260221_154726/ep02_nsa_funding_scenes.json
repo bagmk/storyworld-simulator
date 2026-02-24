@@ -1,0 +1,213 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Slide Reveal and the Colonel's Question",
+    "turn_range": [
+      8,
+      10
+    ],
+    "location": "Conference stage / sponsor lounge",
+    "characters_present": [
+      "Kim Sumin",
+      "Unidentified Colonel"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Narration",
+        "line": "핵심 그래프가 펼쳐졌다—측정 시간 25ms에서 3.2ms로 단축, 주석: 'Fidelity: 99.7% (simulation) / 실제 실험실 장비: 미테스트'."
+      },
+      {
+        "speaker": "Unidentified Colonel",
+        "line": "현장에서 검증된 수치입니까?"
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "실험실에서의 검증이 필요합니다. 아직 테스트가 이루어지지 않았습니다."
+      }
+    ],
+    "key_actions": [
+      "슬라이드가 화면에 확대됨",
+      "대령이 자리에서 일어나 손을 들고 질문",
+      "홀이 순간적으로 조용해짐"
+    ],
+    "discoveries": [
+      "주요 수치(25ms → 3.2ms)와 시뮬레이션 한계(실제 미테스트)가 공개되었다",
+      "청중의 침묵이 긴장으로 바뀜—질문은 기술적을 넘어 현장 검증 여부를 묻는 보안적 성격"
+    ],
+    "emotional_arc": "차분한 발표 → 갑작스런 긴장과 방어",
+    "beat_references": [
+      "clue_ep02_nsa_funding_c01",
+      "clue_ep02_nsa_funding_c02",
+      "clue_ep02_nsa_funding_c03"
+    ],
+    "narrative_summary": "수민의 핵심 그래프가 공개되자 전 홀이 숨을 죽인다. 제시된 수치는 획기적이나 주석에 '실험실 미테스트'라 적혀 있었고, 제복 대령이 '현장에서 검증됐는가'라고 묻자 발표장은 긴장으로 가득 찼다.",
+    "pacing": "opening",
+    "raw_turn_count": 3
+  },
+  {
+    "scene_number": 2,
+    "title": "The Card",
+    "turn_range": [
+      9,
+      9
+    ],
+    "location": "Lunch table, sponsor lounge",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Narration",
+        "line": "수민은 명함을 받아 한 글자씩 짚어 내려갔다—'Christian Miller, NSA Quantum Initiative Research Liaison'."
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "결과를 낼 수 있는 능력에 대해 의구심을 가지는 건 이해해. 하지만 시간이 없다. 정확한 데이터가 필요해."
+      }
+    ],
+    "key_actions": [
+      "수민이 명함의 엠보싱을 확인하며 그가 단순한 학회 참석자가 아님을 인식",
+      "Miller가 가까이 다가와 압박을 가하기 시작"
+    ],
+    "discoveries": [
+      "명함이 엠보싱 처리되어 공식적·정부기관 수준임을 확인",
+      "Miller의 소속이 NSA 양자 이니셔티브라는 사실과 그가 결과를 촉구함"
+    ],
+    "emotional_arc": "호기심 → 불안과 경계",
+    "beat_references": [
+      "clue_ep02_nsa_funding_c02"
+    ],
+    "narrative_summary": "점심 자리에서 Miller는 공식적 질감의 명함을 밀어주며 자신이 NSA 양자 이니셔티브 연계자임을 드러냈다. 그의 말투는 곧바로 결과를 요구하는 쪽으로 기울었다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 3,
+    "title": "Ben's Taunt",
+    "turn_range": [
+      10,
+      10
+    ],
+    "location": "Lunch table, sponsor lounge",
+    "characters_present": [
+      "Kim Sumin",
+      "Ben Clark"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Ben Clark",
+        "line": "우린 이미 실장비에서 2.8ms로 땄거든."
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "..."
+      }
+    ],
+    "key_actions": [
+      "벤이 샐러드를 포크로 휘저으며 빈정대는 어조로 수민의 연구를 평가",
+      "수민이 불쾌함을 느끼며 속으로 긴장"
+    ],
+    "discoveries": [
+      "경쟁자는 이미 실장비 성과를 주장하며 수민을 깎아내림",
+      "수민은 외부 압박과 동료의 경멸을 동시에 체감"
+    ],
+    "emotional_arc": "방어 → 억눌린 분노",
+    "beat_references": [
+      "clue_ep02_nsa_funding_c03",
+      "clue_ep02_nsa_funding_c02"
+    ],
+    "narrative_summary": "벤이 실장비에서 더 빠른 측정(2.8ms)을 달성했다고 비꼬며 수민을 평가절하한다. 수민은 옛 라이벌의 오만한 태도에 불쾌함을 느낀다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "The Offer",
+    "turn_range": [
+      5,
+      11
+    ],
+    "location": "Conference corridor",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "성과란, 네 연구가 실제 하드웨어에서 얼마나 신뢰성 있게 작동하는지를 의미해. 그러니 3.2ms를 실현할 수 있다면, 그에 대한 보상이 따를 거야."
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "결과물이 필요해. 가능한 한 빨리. 3.2ms를 달성할 수 있다면, 우리가 얘기한 200만 달러는 그저 시작에 불과해."
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "그렇다면, 연구 결과가 요구되는 시점은 언제인가요? 압박이 생길 수 있을 것 같은데요."
+      }
+    ],
+    "key_actions": [
+      "Miller가 접힌 서류를 수민 손에 밀어넣고 '2,000,000'이 굵게 적힌 부분이 보임",
+      "Miller가 한 걸음 더 다가가 목소리를 낮추어 조건을 설명"
+    ],
+    "discoveries": [
+      "제안은 'Accelerated Allocation' 문구와 함께 2,000,000 달러의 수치로 제시됨",
+      "Miller의 제안은 단순 후원이 아닌 '특정 성과' 달성을 요구하는 압박임"
+    ],
+    "emotional_arc": "압박 → 갈등과 계산",
+    "beat_references": [
+      "clue_ep02_nsa_funding_c04",
+      "clue_ep02_nsa_funding_c02",
+      "clue_ep02_nsa_funding_c01",
+      "clue_ep02_nsa_funding_c03"
+    ],
+    "narrative_summary": "복도에서 Miller는 서류를 건네며 연구를 1년으로 압축할 수 있느냐 묻고, '특정 성과'—3.2ms 재현—을 달성하면 연 200만 달러를 제안한다. 조건은 모호하고 압박감만 분명해진다.",
+    "pacing": "climax",
+    "raw_turn_count": 7
+  },
+  {
+    "scene_number": 5,
+    "title": "Unrecorded",
+    "turn_range": [
+      12,
+      16
+    ],
+    "location": "Corridor / near lunch table",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller",
+      "Dr. Alex Moreno"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Narration",
+        "line": "Miller의 핸드폰 잠금화면에 'Secure Call: QI/Director' 배너가 스치듯 보였다."
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "오늘 만남은 기록에 남기지 않아도 된다."
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "어떤 특정 성과를 요구하시는 건가요? 그에 대한 정의를 알고 싶습니다."
+      }
+    ],
+    "key_actions": [
+      "Miller가 잠깐 화면을 훑고 통화를 받기 전에 수민에게 '비공식'임을 덧붙임",
+      "모레노가 수민을 조심스럽게 경고"
+    ],
+    "discoveries": [
+      "대화가 이미 공적 선을 넘어섰음을 암시하는 보안성 표시가 핸드폰에 나타남",
+      "'비공식'이라는 발언이 이 만남의 후일 부인 가능성을 의미함"
+    ],
+    "emotional_arc": "불안 → 무거운 인식과 체념",
+    "beat_references": [
+      "clue_ep02_nsa_funding_c05",
+      "clue_ep02_nsa_funding_c01"
+    ],
+    "narrative_summary": "Miller의 휴대폰 화면과 '오늘 만남은 기록에 남기지 않아도 된다'는 한마디가 대화를 비공식적이고 위험하게 만든다. 수민은 제안의 무게와 추후 부인될 수 있는 조건을 실감한다.",
+    "pacing": "resolution",
+    "raw_turn_count": 5
+  }
+]

@@ -50,9 +50,9 @@ story_arcs:
   setup:
     episodes: 2
     arc_position: "Act 1 - Introduction"
-    description: "학회 접촉, NSA 첫 제안, 유령 자금의 냄새"
+    description: "학회 접촉, NSA 첫 제안, 자가실현의 욕구"
     emotional_trajectory: "호기심 → 유혹 → 불안"
-    key_reveals: ["NSA grant label", "Greyshore hints", "Lab budget mismatch"]
+    key_reveals: ["NSA grant label", "Lab budget mismatch"]
 
   discovery:
     episodes: 10
@@ -218,13 +218,9 @@ acts:
     episodes: ["ep0"]
     milestones:
       - id: "ep0_academic_presentation"
-        description: "모레노 발표 + NSA 그랜트 라벨의 첫 단서"
-      - id: "ep0_nsa_funding"
-        description: "NSA 밀러의 첫 접근(국가안보 프로젝트의 그림자)"
+        description: "모레노 발표 + NSA 밀러의 첫 접근/그랜트 단서(초기 국가안보 그림자)"
       - id: "ep0_ben_encounter"
-        description: "벤과 재회(성공/유혹/이동 제안)"
-      - id: "ep0_lab_whispers"
-        description: "CryoLab 장비·예산 불일치(투명하지 않은 흐름)"
+        description: "벤과 재회(성공/유혹/이동 제안) + CryoLab 장비·예산 불일치 단서"
 
   - id: "act2"
     title: "Infiltration and Doctrine"
@@ -251,12 +247,10 @@ acts:
       엘레나의 USB/과거가 드러나고, 요나스의 모호함이 수민을 흔든다.
     episodes: ["ep2", "ep3"]
     milestones:
-      - id: "ep2_first_contact_fbi"
-        description: "‘Ms. Green’ 라인으로 첫 통화 → FBI 소피아 접선"
-      - id: "ep3_elena_link"
-        description: "엘레나가 USB 전달(내부 증거/컷아웃 제안)"
-      - id: "ep3_elena_past"
-        description: "엘레나 과거(Zetanet/NSA의 어두운 프로젝트 목격)"
+      - id: "ep14_fbi_contact"
+        description: "익명 그림자 통화 + 가족 인터루드 + FBI 소피아 첫 접선/전략 제시"
+      - id: "ep16_elena_confession"
+        description: "엘레나-카를로스 긴장 + USB 전달 + 엘레나 과거/자백 공개"
 
   - id: "act4"
     title: "Weaponization"
@@ -320,9 +314,7 @@ episodes:
       밀러의 첫 접근과 벤의 유혹으로, 수민은 연구가 '권력의 도구'가 될 수 있음을 체감한다.
     beats:
       - {id: "ep0_academic_presentation", must_happen: true}
-      - {id: "ep0_nsa_funding", must_happen: true}
       - {id: "ep0_ben_encounter", must_happen: true}
-      - {id: "ep0_lab_whispers", must_happen: true}
     exit_conditions:
       set_flags:
         nsa_contacted: true
@@ -363,12 +355,7 @@ episodes:
       수민에게 비밀 연락이 오고, FBI 소피아와 접선이 시작된다.
       가족 통화는 감정적 완충이지만 동시에 약점(협박 가능성)을 다시 상기시킨다.
     beats:
-      - {id: "ep2_elena_carlos_dynamic", must_happen: true}
-      - {id: "ep2_shadow_call", must_happen: true}
-      - {id: "ep2_family_call", must_happen: true}
-      - {id: "ep2_first_contact_fbi", must_happen: true}
-      - {id: "ep2_ambiguous_ally", must_happen: true}
-      - {id: "ep2_fbi_strategy", must_happen: true}
+      - {id: "ep14_fbi_contact", must_happen: true}
     exit_conditions:
       set_flags:
         fbi_contact_established: true
@@ -382,8 +369,7 @@ episodes:
       동맹의 모호함(요나스/기관 간 알력)이 심리 압력을 키운다.
     beats:
       - {id: "ep3_double_agent", must_happen: true}
-      - {id: "ep3_elena_link", must_happen: true}
-      - {id: "ep3_elena_past", must_happen: true}
+      - {id: "ep16_elena_confession", must_happen: true}
     exit_conditions:
       set_flags: {}
 

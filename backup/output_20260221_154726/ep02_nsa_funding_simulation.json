@@ -1,0 +1,890 @@
+{
+  "episode_id": "ep02_nsa_funding",
+  "agent_count": 12,
+  "total_turns": 16,
+  "interactions": [
+    {
+      "id": "4844cc6c-daf4-4677-9167-b918a0464996",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민이 Miller의 시선을 살피며 한쪽으로 몸을 기울인다.*  \"200만 달러... 그 뒷면에 무엇이 있는지 알고 싶습니다.\"  [이 제안이 함정일 수도 있다는 생각이 머릿속을 스친다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:18:15.417926",
+      "metadata": {
+        "emotions": {
+          "tension": 0.35,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.05
+        },
+        "agenda": "Miller의 반응을 기다리며 그의 진의와 제안의 진짜 목적을 파악하려 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9cd180f5-e466-41eb-83fd-5cf2d645f1df",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 2,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**Miller의 얼굴을 주의 깊게 살핀다.**  \"무엇이 필요한지, 정확하게 말씀해 주실 수 있나요?\"  [*이 제안이 단순한 후원이 아닐 수도 있다는 불안감이 커진다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:18:25.469877",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "Miller의 진의를 더 파악하고, 제안의 세부사항을 알아내려 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "95ddbabf-9b94-4bb1-b73e-d49be259567e",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 3,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "**모레노는 수민의 불안한 표정을 살피며 가볍게 고개를 끄덕인다.**  \"수민, 제안의 뒷면은 항상 조심해야 해.\"  [*Miller의 제안이 단순한 지원이 아닐 수 있다는 생각이 머리를 스친다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:18:43.641840",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.05
+        },
+        "agenda": "*Miller와의 대화를 계속하여 더 많은 정보를 얻고, 수민이 이 상황에서 어떻게 대처할지 관찰할 계획이다.*",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "e13d10ad-d971-4b6d-b3f9-19eec1791f56",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 4,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***Miller의 눈을 바라보며 다소 긴장한 자세를 유지한다.***  \"어떤 특정 성과를 요구하시는 건가요? 그에 대한 정의를 알고 싶습니다.\"  [[Miller가 제안하는 것이 단순한 연구 지원이 아닐지도 모른다는 불안감이 커진다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:18:52.648672",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.05
+        },
+        "agenda": "Miller의 제안의 구체적인 세부사항을 더 파악하고, 자신의 입장을 명확히 하려 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9120aeb9-c23d-4c11-a247-fb0b539aaeb2",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 5,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "***Miller가 수민의 눈을 응시하며 다소 단호한 태도로 기울인다.***  \"성과란, 네 연구가 실제 하드웨어에서 얼마나 신뢰성 있게 작동하는지를 의미해. 그러니 3.2ms를 실현할 수 있다면, 그에 대한 보상이 따를 거야.\"  [**수민의 불안감을 더 키워야겠다는 생각이 든다.**]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:08.137803",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민이 제안에 대한 더 많은 정보를 끌어내도록 압박할 예정이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "b645aa46-e3e5-403b-a055-41ed403a47d2",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 6,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***수민은 Miller의 진지한 표정을 바라보며 신중하게 말을 이어간다.***  \"그렇다면, 연구 결과가 요구되는 시점은 언제인가요? 압박이 생길 수 있을 것 같은데요.\"  [[Miller의 요구가 점점 더 현실로 다가오고 있다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:17.828829",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "[Miller의 요구 사항에 대한 구체적인 타이밍을 확인하고, 스스로의 입장을 더 확고히 하려 한다.]",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "c9f047f4-c6f0-4c0d-8576-4dfa70a2006a",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 7,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "****Miller가 수민에게 한 걸음 더 다가가며 목소리를 낮춘다.****  \"결과물이 필요해. 가능한 한 빨리. 3.2ms를 달성할 수 있다면, 우리가 얘기한 200만 달러는 그저 시작에 불과해.\"  [[수민의 불안감을 더욱 부추겨야겠다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:26.157321",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.05
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "[수민의 반응을 기다리며 추가적인 압박을 지속할 예정이다.]",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "18d6a3c6-72ea-4496-8a31-2efc955ccdfe",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 8,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 슬라이드를 넘기자 화면 중앙에 핵심 그래프가 펼쳐졌다—측정 시간 25ms에서 3.2ms로 단축된 선형 그래프 아래에 작은 주석이 깔려 있었고, \"Fidelity: 99.7% (simulation) / 실제 실험실 장비: 미테스트\"라는 문구가 눈에 들어왔다. 그때 어제의 제복 대령이 자리에서 일어나 손을 들었고, 그의 한마디—\"현장에서 검증된 수치입니까?\"—에 전 홀이 순식간에 숨을 죽였다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:30.876966",
+      "metadata": {
+        "clue_id": "clue_ep02_nsa_funding_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "ae471a59-d8cf-4dd1-92c5-6714a49f8928",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 8,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***수민은 대령의 질문에 시선을 고정하며 숨을 고른다.***  \"그 질문은 매우 중요합니다. 실험실에서의 검증이 필요합니다. 아직 테스트가 이루어지지 않았습니다.\"  [[이 상황이 얼마나 위험한지 깨닫고 있다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:38.864467",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {},
+        "agenda": "[Miller의 요구 사항이 실제 실험에 미치는 영향을 탐구하고, 대령과의 대화를 통해 상황을 더 명확히 하고 싶다.]",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "40a1c784-f5eb-451e-a8a3-e76355980962",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "Miller 밀어온 명함을 받자 수민은 무심코 손가락으로 한 글자씩 이름을 짚어 내려갔다—\"Christian Miller, NSA Quantum Initiative Research Liaison\"—뒷면에는 잉크로 적힌 번호가 보였다. 명함의 표면은 평범한 인쇄가 아니어서 엄지로 살짝 문지르자 엠보싱된 글자가 도톰하게 느껴졌고, 그 순간 수민은 그가 단순한 학회 참석자가 아님을 확인했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:41.350945",
+      "metadata": {
+        "clue_id": "clue_ep02_nsa_funding_c02",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "b6874642-b447-41e8-9a2a-925462773332",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 9,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*수민의 눈을 뚫어지게 바라보며 한 걸음 더 다가간다.*  \"결과를 낼 수 있는 능력에 대해 의구심을 가지는 건 이해해. 하지만 시간이 없다. 정확한 데이터가 필요해.\"  [이 기회를 놓치지 않아야 한다. 수민을 압박해 믿음을 심어줄 필요가 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:49.109556",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.05
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민의 반응을 더 유도해 그를 압박할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0208d80b-b3b4-47fb-9fe8-1c8098009dbc",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "벤은 포크로 샐러드를 휘저으며 계속 말끝을 끊어가며 평가를 늘어놓았다; 말투는 가벼웠지만 냉소가 깔려 있었다. 그러다 별것 아니라는 듯 시선만 살짝 던지며 덧붙였다 — \"우린 이미 실장비에서 2.8ms로 땄거든.\"",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:19:52.652285",
+      "metadata": {
+        "clue_id": "clue_ep02_nsa_funding_c03",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "b5551e6e-c366-48b3-9058-cf67d4afea56",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 10,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "****수민은 깊은 숨을 쉬며 대령을 쳐다본다.****  \"대령님, 저의 연구는 아직 실험실에서 검증되지 않았습니다. 하지만 계속 노력하겠습니다. 실험적 환경에서의 테스트가 필요합니다.\"  [대령의 눈빛이 더욱 강렬하게 느껴진다, 압박감이 커진다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:00.873797",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.0,
+          "ben_clarke": -0.05
+        },
+        "agenda": "다음 회의에서 실험 일정과 자금 지원에 대한 구체적인 논의를 이어가고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "a734f591-05f8-4419-be56-f867dad7d43c",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "Miller 밀폐된 복도 한쪽 벽에 기대며 접힌 서류를 수민 손바닥에 밀어넣었다; 펼쳐 보이는 굵은 숫자 하나가 눈에 들어왔다—\"2,000,000\"—그 위쪽에는 자잘한 머리글로 \"Accelerated Allocation (non‑standard)\"라 적혀 있었다. 수민이 시선을 옮기자 서류 가장자리 손글씨로 메모된 작은 문구가 보였다—\"intel usual: 50–100k\"—옆에는 아무것도 적지 않은 채 동그라미 쳐진 단어 하나만 남아 있었다: \"specific performance.\"",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:07.128341",
+      "metadata": {
+        "clue_id": "clue_ep02_nsa_funding_c04",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "822e3eeb-b185-4887-b61c-d502773280a9",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 11,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 손에 쥔 서류를 다시 바라보며 깊은 숨을 쉬었다.*  \"Miller 씨, 실제 하드웨어에서의 테스트가 필요합니다. 하지만 연구를 압축하는 건 무리가 있습니다. 시간이 더 필요해요.\"  [이 상황이 점점 더 위험해지고 있다. 밀러의 압박이 느껴진다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:18.384699",
+      "metadata": {
+        "emotions": {
+          "tension": 0.5,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": -0.05
+        },
+        "agenda": "다음 회의에서 실험 일정과 자금 지원에 대한 구체적인 논의를 이어가고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "e57a57c2-fc6a-4030-99b8-22787fc912c8",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 12,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "밀러가 주머니에서 핸드폰을 꺼내 눈으로 훑자, 잠금화면에 뜬 작은 배너가 순간적으로 보였다—\"Secure Call: QI/Director\"라는 글자가 암호화 아이콘과 함께 깜빡였다. 그 표정을 보고 수민은 문득 이 대화가 공적인 선을 이미 넘어섰음을 알아차렸다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:23.901728",
+      "metadata": {
+        "clue_id": "clue_ep02_nsa_funding_c05",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "16dc6f41-60e8-47bc-80f2-6f7dcae896e3",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 12,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "*수민의 반응을 주의 깊게 살피며 한 걸음 더 다가간다.*  \"수민 씨, 압축이 불가능하다고 생각하나? 원하는 결과를 제공할 방법이 있다면, 미래의 기회도 열릴 수 있어.\"  [수민이 내게 의존하게 만들면 내 목표에 가까워질 수 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:31.795950",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민의 신뢰를 더욱 얻기 위해 그를 압박하는 동시에, 연구의 중요성을 강조할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "723893e0-5c3e-4546-b5bf-d1dc28dab18b",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 13,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**수민은 서류를 다시 바라보며 마음을 가다듬는다.**  \"Miller 씨, 압축된 시간 속에서도 연구의 정확성을 잃지 않도록 해야 합니다. 저는 최선을 다할 것입니다.\"  [*이 상황이 점점 더 위험해지는 걸 느낀다, 하지만 나에게는 선택의 여지가 없다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:20:43.328302",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "다음 논의에서 실험 일정과 자금 지원에 대한 구체적인 조건을 파악하고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "ba3a656d-e81b-4429-8e52-10cd3ffab025",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 15,
+      "speaker_id": "agent_christan_miller",
+      "speaker_name": "Agent Christian (Christan) Miller",
+      "content": "**수민의 눈을 뚫어지게 바라보며 한 걸음 더 다가간다.**  \"수민 씨, 정확성은 중요해. 하지만 이 기회를 놓치면 더 큰 결과를 놓칠 수 있다. 제안한 3.2ms를 실제로 구현하는 방법을 찾아야 해. 시간이 없다는 걸 이해하길 바란다.\"  [*그가 압박을 느끼도록 해야 한다, 믿음이 필요하다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:21:34.467117",
+      "metadata": {
+        "emotions": {
+          "tension": 0.25,
+          "curiosity": 0.05
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "*수민의 결단을 이끌어내기 위해 더욱 압박할 계획이다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "10362359-1311-450e-badb-d10fda399cb6",
+      "episode_id": "ep02_nsa_funding",
+      "turn": 16,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 서류를 다시 바라보며, 마음을 가다듬는다.*  \"Miller 씨, 이 연구에 대한 제 의무는 정확성과 신뢰성을 유지하는 것입니다. 압축된 시간 속에서도 이 목표를 잊지 않겠습니다.\"  [상황이 점점 더 위험해지고 있지만, 이 기회를 놓칠 수는 없다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:21:45.933172",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "다음 대화에서 연구에 대한 구체적인 조건을 더 알아보려고 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.023395,
+    "remaining_usd": 2.476605,
+    "call_count": 91,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000463
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000282
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000314
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000475
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000288
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000332
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000463
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000307
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000342
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00051
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000313
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000345
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000502
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.5e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000507
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000326
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.00037
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000543
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000334
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000524
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000339
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000394
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000601
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000347
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000606
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000345
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000449
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000663
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.2e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000345
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000172
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000685
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000344
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000481
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000661
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000342
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000695
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000341
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000479
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000641
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000651
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000659
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.9e-05
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000675
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.7e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000679
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.1e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000696
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.1e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00034
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.00048
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000688
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000346
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000472
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:21:48.235787"
+}

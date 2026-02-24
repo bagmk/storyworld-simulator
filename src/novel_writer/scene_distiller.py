@@ -79,9 +79,11 @@ class SceneDistiller:
         self,
         llm: LLMClient,
         episode_config: Optional[dict] = None,
+        runtime_policy: Optional[dict] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config or {}
+        self.runtime_policy = runtime_policy or {}
 
     # ------------------------------------------------------------------ #
     # Public: Distill Episode
@@ -232,8 +234,8 @@ class SceneDistiller:
             [{"role": "user", "content": prompt}],
             purpose="scene_distillation",
             use_premium=True,
-            temperature=0.3,
-            max_tokens=4000,
+            temperature=float(self.runtime_policy.get("distiller_temperature", 0.3) or 0.3),
+            max_tokens=int(self.runtime_policy.get("distiller_max_tokens", 4000) or 4000),
         )
 
         scenes_data = self._parse_json_array(result)
@@ -245,10 +247,13 @@ class SceneDistiller:
         # Convert to DistilledScene objects
         scenes: list[DistilledScene] = []
         for i, sd in enumerate(scenes_data):
+            raw_start = int(sd.get("turn_start", 0) or 0)
+            raw_end = int(sd.get("turn_end", 0) or 0)
+            turn_start, turn_end = (raw_start, raw_end) if raw_start <= raw_end else (raw_end, raw_start)
             scene = DistilledScene(
                 scene_number=i + 1,
                 title=sd.get("title", f"Scene {i + 1}"),
-                turn_range=(sd.get("turn_start", 0), sd.get("turn_end", 0)),
+                turn_range=(turn_start, turn_end),
                 location=sd.get("location", ep_location),
                 characters_present=sd.get("characters", []),
                 key_dialogue=sd.get("key_dialogue", []),
@@ -258,9 +263,39 @@ class SceneDistiller:
                 beat_references=sd.get("beat_refs", []),
                 narrative_summary=sd.get("summary", ""),
                 pacing=sd.get("pacing", "building"),
-                raw_turn_count=sd.get("turn_end", 0) - sd.get("turn_start", 0) + 1,
+                raw_turn_count=max(1, turn_end - turn_start + 1),
             )
             scenes.append(scene)
+
+        # Keep scene order stable by timeline and re-number deterministically.
+        scenes.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
+        for idx, sc in enumerate(scenes, start=1):
+            sc.scene_number = idx
+
+        # Deterministic beat-reference reinforcement from actual director clue events.
+        # This prevents LLM scene summaries from "forgetting" clue IDs present in log.
+        turn_to_clues: dict[int, list[str]] = {}
+        for ix in interactions:
+            if ix.get("action_type") != "director_event":
+                continue
+            md = ix.get("metadata", {}) or {}
+            clue_id = str(md.get("clue_id", "")).strip()
+            if not clue_id:
+                continue
+            turn = int(ix.get("turn", 0) or 0)
+            if turn <= 0:
+                continue
+            turn_to_clues.setdefault(turn, []).append(clue_id)
+
+        for s in scenes:
+            start, end = s.turn_range
+            forced: list[str] = []
+            for t in range(start, end + 1):
+                forced.extend(turn_to_clues.get(t, []))
+            if forced:
+                s.beat_references = self._dedupe_preserve_order(
+                    list(s.beat_references) + forced
+                )
 
         # Validate beat coverage
         covered_beats = set()
@@ -270,6 +305,28 @@ class SceneDistiller:
         missing = required - covered_beats
         if missing:
             logger.warning("Beats not covered in distilled scenes: %s", missing)
+            # Assign missing beats to most semantically relevant scene.
+            for beat_id in sorted(missing):
+                beat_text = next(
+                    (b.get("content", "") for b in beats if b.get("id") == beat_id),
+                    "",
+                )
+                best = max(
+                    scenes,
+                    key=lambda s: self._token_overlap_score(
+                        beat_text,
+                        " ".join(s.discoveries)
+                        + " "
+                        + s.narrative_summary
+                        + " "
+                        + " ".join(a.get("line", "") for a in s.key_dialogue if isinstance(a, dict))
+                        + " "
+                        + " ".join(s.key_actions),
+                    ),
+                )
+                best.beat_references = self._dedupe_preserve_order(
+                    list(best.beat_references) + [beat_id]
+                )
 
         return scenes
 
@@ -358,3 +415,25 @@ class SceneDistiller:
             except json.JSONDecodeError:
                 pass
         return []
+
+    @staticmethod
+    def _dedupe_preserve_order(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for v in values:
+            if not isinstance(v, str):
+                continue
+            vv = v.strip()
+            if not vv or vv in seen:
+                continue
+            seen.add(vv)
+            out.append(vv)
+        return out
+
+    @staticmethod
+    def _token_overlap_score(a: str, b: str) -> float:
+        toks_a = set(re.findall(r"[A-Za-z가-힣0-9\\-]{2,}", (a or "").lower()))
+        toks_b = set(re.findall(r"[A-Za-z가-힣0-9\\-]{2,}", (b or "").lower()))
+        if not toks_a or not toks_b:
+            return 0.0
+        return len(toks_a & toks_b) / len(toks_a | toks_b)

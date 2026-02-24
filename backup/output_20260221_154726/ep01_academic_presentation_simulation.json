@@ -1,0 +1,710 @@
+{
+  "episode_id": "ep01_academic_presentation",
+  "agent_count": 12,
+  "total_turns": 13,
+  "interactions": [
+    {
+      "id": "35f50e54-1541-4acc-b508-0d797b8d42fb",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 1,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "*모레노가 수민의 눈을 바라보며 한 손을 가볍게 흔든다.*  \"수민, 모든 연구가 자금과 지원에 의존하는 건 아니야. 하지만 이 분야는... 조심해야 해.\"  [지원의 필요성에 대한 모호한 경고가 마음속에 자리 잡는다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:13:41.790711",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민의 반응을 듣고, 지원의 의미를 더 깊이 탐구할 예정이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "8934c04e-dbeb-4f18-93b1-09ea4b72297f",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 2,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 커피를 다 마시고 모레노를 바라본다.*  \"교수님, 말씀하신 지원이 어떤 의미인지 좀 더 명확히 알 수 있을까요?\"  [지원의 진정한 의미를 파악해야만 내가 나아갈 방향을 정할 수 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:13:49.890838",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.7
+        },
+        "relationship_deltas": {
+          "alex_moreno": -0.1
+        },
+        "agenda": "모레노의 의도를 명확히 파악하고, 다음 단계에 대한 인사이트를 얻고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "2712bcd6-1ad0-40f5-89d2-f22a8390f4b1",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 3,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "**모레노가 수민의 눈을 뚫어지게 바라본다.**  \"수민, 지원이란 건 종종 형태가 달라. 단순한 자금이 아니라, 때론 네가 예상치 못한 손길이 필요할 수도 있어.\"  [*교수의 말이 더욱 무겁게 느껴진다. 무언가 숨겨진 의미가 있는 것일까?*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:13:57.785379",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "수민이 지원의 의미를 더 깊게 탐구하도록 유도하고, 대화의 방향을 잡아나갈 예정이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "d8aa15d7-ea2d-4353-9984-02955a76c246",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 4,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**수민은 커피 컵을 내려놓고 모레노의 눈을 뚫어지게 바라본다.**  \"교수님, 예상치 못한 손길이란 게 어떤 건지 구체적으로 말씀해 주실 수 있나요?\"  [*모레노의 말을 통해 숨겨진 뉘앙스를 포착하고 싶다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:06.318353",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.25
+        },
+        "relationship_deltas": {
+          "alex_moreno": -0.05
+        },
+        "agenda": "*모레노의 답변을 통해 그가 진정으로 원하는 지원의 형태를 파악하고 싶다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "1487363e-6d69-4396-a572-16fe07961aaa",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 5,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "**모레노가 잠시 생각에 잠기며 시선을 아래로 내리다가 다시 수민을 바라본다.**  \"예상치 못한 손길이란... 때로는 너의 연구가 다른 이들의 이익과 얽힐 수 있다는 뜻이야. 그걸 잘 판단해야 해.\"  [*수민에게 진정한 위험을 알리려 애쓰지만, 동시에 그를 보호하고 싶다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:13.854153",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.1
+        },
+        "agenda": "수민이 연구의 윤리에 대한 고민을 더 깊이 할 수 있도록 대화를 이끌고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "6eb0e812-bc1a-42ce-be2a-2139b1fc25f8",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 6,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민이 커피 머신 앞에서 몸을 조금 앞으로 기울인다.*  \"교수님, 연구가 다른 이들의 이익과 얽힌다는 건 어떤 방식으로 나타날 수 있을까요? 구체적인 예가 필요합니다.\"  [모레노의 말이 단순한 경고가 아니라, 나에게 어떤 선택을 강요할지 궁금하다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:24.076303",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "alex_moreno": 0.05
+        },
+        "agenda": "모레노의 답변을 통해 지원의 진정한 의미를 더 깊이 이해하고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0de865d5-fd48-482c-bdb6-17ecb8aa3b93",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 7,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "**모레노가 수민의 질문에 심각한 표정으로 대답한다.**  \"수민, 연구가 다른 이들의 이익과 얽힐 때는 보통 그들이 원하는 결과를 위해 너의 지식과 기술을 이용하려 할 때야. 그건 자금 지원의 조건이 될 수도 있어.\"  [*이런 말이 수민에게 어떤 영향을 미칠지 걱정스럽다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:36.753047",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "*수민이 이 주제에 대한 이해를 깊게 할 수 있도록 대화를 계속 이어가고 싶다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "63b21a1d-4f5b-4ced-961b-7df388c17023",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 8,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**수민이 모레노의 말을 곱씹으며 커피컵을 가볍게 흔든다.**  \"교수님, 그러면 지원을 받기 위한 조건이 내 연구의 방향까지 바뀔 수 있다는 건가요?\"  [*모레노의 경고가 점점 더 깊은 의미를 가질 것 같아 불안해진다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:44.928349",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "alex_moreno": 0.1
+        },
+        "agenda": "*모레노의 대답을 통해 지원의 위험성을 더 파악하고, 내 연구의 방향에 대한 확신을 얻고 싶다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "12d81905-d69b-420d-b0dc-f49608bee194",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "휴게실 맞은편 제복의 대령이 주머니에서 태블릿을 꺼내 화면을 스크롤하자, 모레노의 슬라이드와 겹쳐진 실험 텔레메트리 로그가 잠깐 비춰졌다: T₂ → T₂ × 3.7라는 수치와 \"phase drift loss >50ms — compensation via on-ring circuit\"라는 스탬프가 빨간색으로 깜박였다. 그 작은 화면의 경고등이 꺼지자마자 대령은 고개를 끄덕였고, 그 동작을 수민은 놓치지 않았다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:14:48.805473",
+      "metadata": {
+        "clue_id": "clue_ep01_academic_presentation_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "4c1db6b0-10cd-4be3-9ae8-5b78f614dac1",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 9,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "***모레노가 수민을 진지하게 바라보며 말한다.***  \"수민, 연구의 방향은 너의 가치와 신념에 의해 결정되어야 해. 외부의 압력에 휘둘리지 말고, 너의 목표를 분명히 하도록 해.\"  [*학생에게 진정한 의미의 지원이 무엇인지 전달하고 싶다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:06.661768",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.2
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "*수민이 자신의 연구 방향을 고민할 수 있도록 격려하며 대화를 이어가고 싶다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "82dcbabe-a814-4e47-b48c-abeedf30e994",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "모레노가 '온-링크 보상'을 말하는 순간, 대령의 펜이 멈추고 천장 LED 불빛이 그 금속 펜몸을 스치며 아주 작은 글자가 반짝였다—\"DOD-CTL\"로 시작하는 계약 코드가 숨겨진 듯 보였다. 그 찰나의 반사만으로 수민은 영역(agency)의 그림자를 확신했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:10.786476",
+      "metadata": {
+        "clue_id": "clue_ep01_academic_presentation_c02",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "d89f6581-ac45-40e5-a59b-882b2b7a8b84",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 10,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***수민이 모레노 교수의 눈을 다시 바라보며 긴장한 목소리로 말한다.***  \"교수님, 제 목표를 분명히 하는 것이 그렇게 쉽지 않을 것 같습니다. 외부 압력이 너무 강해지면...\"  [*이런 상황에서 나의 가치가 흔들리기 시작하는 것 같아 두렵다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:21.941809",
+      "metadata": {
+        "emotions": {
+          "tension": 0.3,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "alex_moreno": 0.1
+        },
+        "agenda": "*모레노 교수의 반응을 통해 외부 압력에 맞서 내 목표를 지키기 위한 방안을 더 모색하고 싶다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "6eadb76c-7f1d-405c-81fc-f8d31a6fc94a",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "대령이 태블릿을 집어넣으려 손을 내밀며 주머니 속의 작은 메모장을 툭 건드려 한 장이 뒤집혔다. 비스듬한 각도에 반사된 불빛에 커다란 대문자들—\"COHERENCE\", \"DRIFT\"—과 아래쪽에 원형으로 표시된 숫자들과 십자 표기법이 드러나, 학부생의 난삽한 필기가 아니라 보고용 정형서식임을 수민은 순식간에 알아챘다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:26.562039",
+      "metadata": {
+        "clue_id": "clue_ep01_academic_presentation_c03",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "1f93df63-05e2-4b1d-aeb9-88053e0d0210",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 11,
+      "speaker_id": "alex_moreno",
+      "speaker_name": "Dr. Alex Moreno",
+      "content": "***모레노가 수민을 따뜻하게 바라보며 약간 몸을 앞으로 기울인다.***  \"수민, 꼭 기억해. 압박이 클수록 네가 진정으로 원하는 것이 더욱 뚜렷해져야 해. 그걸 잊지 마.\"  [*내가 이 말을 통해 수민이 자신의 가치를 잃지 않기를 바란다.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:37.042021",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민의 고민을 더 깊이 이해하고, 그녀가 자신의 길을 찾도록 도와주고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "1f713535-331e-4d62-82dc-9ba1f4048675",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 12,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "모레노의 시선이 뒤 출구로 미세하게 쏠렸다가, 마치 연극 무대에서 역할을 바꾼 배우처럼 표정과 말투를 순식간에 되돌려 놓았다; 그 리셋된 얼굴로 그는 수민의 다음 스텝을 날카롭게 재촉했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:39.423674",
+      "metadata": {
+        "clue_id": "clue_ep01_academic_presentation_c04",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "6ccf3dcf-e19b-460a-a329-5ce52574de0e",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 12,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민이 커피컵을 한 손에 쥐고 모레노를 바라본다.*  \"교수님, 제가 원하는 것이 뚜렷해지길 바라시는 만큼, 저에게 주어질 압박이 클수록 제 선택이 올바른 길인지 확신이 들지 않습니다.\"  [나는 외부의 압력이 나를 흔들리게 할까 두렵다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:50.169512",
+      "metadata": {
+        "emotions": {
+          "tension": 0.25,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "alex_moreno": 0.05
+        },
+        "agenda": "모레노 교수의 답변을 통해 더 깊이 있는 통찰을 얻고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "e96bdc58-59b9-4b51-bf36-fec7f4e2095b",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 13,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "휴게실 출구 쪽에서 낮은 목소리가 끼어들었다—짧은 질문, \"온도 드리프트는 어떻게?\" 모레노가 그 질문에 반응하듯 어깨에 손을 얹고 같은 요점을 다시 반복했지만, 손은 따뜻하지 않았고 그의 말끝엔 지원을 압박하는 무게만 남았다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:15:52.950026",
+      "metadata": {
+        "clue_id": "clue_ep01_academic_presentation_c05",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "2a9f9896-cbc4-45ee-8845-e32039ee4f55",
+      "episode_id": "ep01_academic_presentation",
+      "turn": 13,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민이 커피컵을 두 손으로 쥐고 모레노를 바라보며 조금 숙인다.*  \"교수님, 압박이 커질수록 제가 올바른 결정을 내릴 수 있을지 걱정입니다.\"  [외부의 압력이 제 선택에 영향을 미칠까 두렵다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:16:01.572379",
+      "metadata": {
+        "emotions": {
+          "tension": 0.25,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {
+          "alex_moreno": 0.1
+        },
+        "agenda": "모레노의 반응을 보고, 그의 조언에서 더 깊은 통찰을 찾고 싶다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.013576,
+    "remaining_usd": 2.486424,
+    "call_count": 64,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000411
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000273
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000452
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000275
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000458
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00029
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000496
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000302
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000487
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000315
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000524
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000323
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.0005
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 7.5e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000526
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000323
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000559
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.1e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000331
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000574
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.4e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00058
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000324
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00062
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.1e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00033
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.000171
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000609
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000331
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000649
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000334
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000643
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000325
+      },
+      {
+        "purpose": "director_beat_completion_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000449
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:16:03.546774"
+}

@@ -1,0 +1,481 @@
+{
+  "episode_id": "ep04_lab_whispers",
+  "agent_count": 12,
+  "total_turns": 9,
+  "interactions": [
+    {
+      "id": "6abbc05a-7c7d-40dd-b877-047cb8850944",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 1,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "*잠시 뒤에서 상황을 지켜보며.*  [수민이 의심을 품고 있군. 요나스의 행동도 불길한데.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:30:44.901317",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "kim_sumin": 0.05
+        },
+        "agenda": "수민에게 더 가까이 다가가 그가 발견한 것에 대해 질문할 계획.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "3089f5fd-ce37-4ea1-9b90-dbdb11a68a78",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 2,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "**수민의 반응을 주의 깊게 살핀다.**  [[요나스의 행동을 통해 의심이 더욱 깊어지겠군.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:30:59.757725",
+      "metadata": {
+        "emotions": {
+          "tension": 0.1,
+          "curiosity": 0.05
+        },
+        "relationship_deltas": {},
+        "agenda": "[요나스와 수민의 상호작용을 더 살펴보고 상황을 분석한 후, 필요 시 개입할 계획이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "d01a14af-acb3-40b5-8ca9-2c51945832bf",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 3,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*카를로스와 요나스의 행동을 주의 깊게 관찰한다.*  (침묵)  [요나스의 행동은 분명 이상하다. '브리지 슬롯'과 관련된 정보를 지우는 건 뭔가 숨기고 있다는 뜻인가?]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:09.252887",
+      "metadata": {
+        "emotions": {
+          "tension": 0.65,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {
+          "carlos_reyes": -0.05
+        },
+        "agenda": "요나스의 행동을 더 주의 깊게 지켜보며 어떤 정보를 더 얻을 수 있을지 알아보겠다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "06c0746a-afb4-4f3b-8a77-ce17f728f779",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 4,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "**요나스의 행동을 주의 깊게 지켜보며, 수민의 표정을 살핀다.**  (침묵)  [[요나스의 행동이 나에게 문제를 일으킬지도 모른다는 불안감이 느껴진다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:17.379608",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.3
+        },
+        "relationship_deltas": {},
+        "agenda": "[수민의 반응을 분석하여, 요나스에게 직접 질문할 필요가 있는지 판단할 것이다.]",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "80fd3bcf-6bf3-49b2-8d23-e761dc12ccd7",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 5,
+      "speaker_id": "elena_ramirez",
+      "speaker_name": "Elena Ramirez",
+      "content": "**수민의 표정을 살펴보며 카를로스와 요나스의 대화를 귀 기울여 듣는다.**  (침묵)  [*요나스의 행동이 의심스럽다. 그가 숨기려는 것이 무엇인지 알아내야 한다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:25.004773",
+      "metadata": {
+        "emotions": {
+          "tension": 0.6,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "*요나스의 다음 행동을 주의 깊게 지켜보며, 수민과의 대화에서 정보를 끌어내야겠다.*",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "8b5c1dfc-02e0-4b47-8cc7-b534a04179f8",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 6,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 장비 기록장을 넘기다 눈이 멈춘다: XC-4000 순환기 단가 $48,000(시중가 $35,000), 감쇠기 $22,000(시중가 $16,500), 광학 필터 명세와 함께 8–10월 지출이 $1.2M으로 찍혀 있고 지불원에는 반복적으로 \"Benefactor — NSA Special Access Funds (SAF)\"라 적혀 있다. 옆 여백에 빨간 펜으로 \"외부 보고서 포함 금지\"라 쓰여 있고, 카를로스는 운영일지에 기록하지 말라는 듯 클립보드를 탁 치며 손짓을 보낸다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:28.693696",
+      "metadata": {
+        "clue_id": "clue_ep04_lab_whispers_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "afd61c24-8d97-4558-bf82-3f92ce6d1a6c",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 6,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 장비 기록장을 다시 살펴보며 요나스의 반응을 주의 깊게 관찰한다.*  (침묵)  ['요나스가 원하는 정보가 뭔지 알아내야 해. 카를로스가 나를 방해하려고 하는 이유도 궁금해.']",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:38.120620",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "요나스의 다음 행동을 주의 깊게 지켜보며, 그가 숨기고 있는 정보를 더 알아보려 한다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "0d761571-e458-44a8-b2f3-dac94648fd38",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "엘레나가 웃음을 잃고 고개를 살짝 돌리며 말을 고르자, 그 미소는 경고가 되어 수민의 등골을 서늘하게 했다 — \"그건 신경 안 써도 돼\"라는 말이 아니라 손을 멈추라는 신호였다. 그때 카를로스가 뒤에서 다가와 기록장 위로 손바닥을 얹고 클립보드를 탁 쳐 숫자 쪽을 가리키며 페이지 번호를 손가락으로 덮어, 말 대신 분명한 경계선을 그어 보였다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:40.467514",
+      "metadata": {
+        "clue_id": "clue_ep04_lab_whispers_c02",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "f4465206-7818-41e7-9e36-48ee03868251",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 7,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "*수민에게 가까이 다가가며 클립보드 위 손을 슬며시 내린다.*  \"이 숫자는 우리가 다루고 있는 것의 일부에 불과해. 너의 주의가 다른 곳으로 향하지 않도록 하자.\"  [[수민이 더욱 의심을 품지 않도록 경계해야겠다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:31:49.428111",
+      "metadata": {
+        "emotions": {
+          "tension": 0.2,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {
+          "kim_sumin": -0.05
+        },
+        "agenda": "수민의 반응을 살펴보고, 요나스와의 대화를 통해 더 많은 정보를 얻을 방법을 생각할 것이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "8ad64057-1a6a-4900-9812-556f0611eccf",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 8,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*수민은 카를로스와 요나스의 표정을 유심히 살핀다.*  (침묵)  ['카를로스가 이렇게까지 나를 방해하는 이유는 뭘까? 요나스의 행동과 연결된 게 분명해.']",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:32:05.460935",
+      "metadata": {
+        "emotions": {
+          "tension": 0.7,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "요나스의 다음 행동에 집중하며 카를로스와의 긴장감을 유지하고, 추가 정보를 얻기 위해 적절한 순간을 노린다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "a3cd6e85-e52c-4004-aa5a-868d4a9c90db",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민이 주머니에서 휴대폰을 꺼내기 무심코 카메라를 켜자, 음소거임에도 날카로운 셔터 소리가 금고처럼 조용한 보관실에 울려 퍼졌다. 모두가 순간적으로 고개를 돌렸고, 어둠 속 선반 위에 매달린 작은 RF 탐지기의 주황빛 LED가 깜박이며 누군가의 귀 뒤쪽을 쓰다듬는 듯한 제스처로 요나스가 살짝 미소 지었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:32:07.712146",
+      "metadata": {
+        "clue_id": "clue_ep04_lab_whispers_c04",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "af073d53-2d0f-4c52-bc9a-07f0e1ac2204",
+      "episode_id": "ep04_lab_whispers",
+      "turn": 9,
+      "speaker_id": "carlos_reyes",
+      "speaker_name": "Carlos Reyes",
+      "content": "*요나스를 바라보며 그의 반응을 분석한다.*  (침묵)  [['요나스의 행동이 문제가 될 가능성을 배제할 수 없다. 하지만 이 상황은 반드시 통제해야 한다.']]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:32:21.117793",
+      "metadata": {
+        "emotions": {
+          "tension": 0.15,
+          "curiosity": 0.1
+        },
+        "relationship_deltas": {},
+        "agenda": "다음 단계로 나아가기 위해 요나스와 수민의 동향을 계속 주시할 계획이다.",
+        "turn_mode": "observe",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.007898,
+    "remaining_usd": 2.492102,
+    "call_count": 45,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00034
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.2e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000195
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000374
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.3e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00036
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000202
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00041
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 5.1e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00022
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000375
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.3e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.00023
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000396
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000233
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000487
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000247
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00051
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000249
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00054
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.8e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000256
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "director_turn_allocation",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000553
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 8.2e-05
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000534
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4e-05
+      },
+      {
+        "purpose": "director_storyline_alignment",
+        "model": "gpt-4o-mini",
+        "cost": 0.000258
+      },
+      {
+        "purpose": "director_beat_completion_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000355
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:32:23.077384"
+}

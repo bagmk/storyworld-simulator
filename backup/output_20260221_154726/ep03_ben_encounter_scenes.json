@@ -1,0 +1,179 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Echoes from Moreno's seminar",
+    "turn_range": [
+      1,
+      7
+    ],
+    "location": "Conference venue — hallway café (by the espresso machine)",
+    "characters_present": [
+      "Kim Sumin",
+      "Ben Clarke",
+      "Professor Moreno (recollection)"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Professor Moreno (memory)",
+        "line": "두 마리 독수리야 — 둘 다 먹이를 원하지만 하늘은 하나뿐."
+      }
+    ],
+    "key_actions": [
+      "수민은 에스프레소 머신 옆 사람들의 대화를 흘깃 듣고 벤의 태도에서 MIT 시절의 경쟁 패턴을 읽어낸다",
+      "수민은 벤을 잠시 바라보다가 고개를 숙여 메모를 꺼내 다시 본다"
+    ],
+    "discoveries": [
+      "벤과의 경쟁은 MIT Moreno 세미나실에서 시작됐고, 그때의 결말(벤의 실용적 해법 인정)이 지금의 관계를 규정한다"
+    ],
+    "emotional_arc": "회상(자부심과 씁쓸함) → 경계감",
+    "beat_references": [
+      "clue_ep03_ben_encounter_c00"
+    ],
+    "narrative_summary": "수민은 벤의 낯익은 태도에서 MIT 시절의 경쟁을 떠올린다. Moreno의 말이 되살아나며, 그 경쟁이 지금도 유효하다는 사실에 수민은 경계한다.",
+    "pacing": "opening",
+    "raw_turn_count": 7
+  },
+  {
+    "scene_number": 2,
+    "title": "명함과 계약서",
+    "turn_range": [
+      8,
+      9
+    ],
+    "location": "Conference venue — hallway café (high-top table)",
+    "characters_present": [
+      "Ben Clarke",
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Ben Clarke",
+        "line": "여기 내 명함—Ben Clark, Quantum Packaging Team Lead, Advanced Microelectronics Research Division (AMRD)."
+      }
+    ],
+    "key_actions": [
+      "벤이 명함을 건네고 휴대폰으로 PDF를 보여준다",
+      "수민은 명함 로고와 뒷면 문구, PDF 하단의 계약명과 금액, 공동펀딩처 표기를 확인한다"
+    ],
+    "discoveries": [
+      "벤은 AMRD의 Packaging Team Lead였고, 휴대폰에 떠 있는 DARPA 계약서(ASATP — Phase II, $3.2M/year, 3-year)와 'NSA Quantum Intelligence Division' 공동펀딩 표기가 있었다"
+    ],
+    "emotional_arc": "놀람 → 압박감",
+    "beat_references": [
+      "clue_ep03_ben_encounter_c01"
+    ],
+    "narrative_summary": "벤의 명함과 휴대폰의 PDF는 그가 대학원생이 아닌 정부 프로젝트의 중간 관리자로 자리잡았음을 드러낸다. 계약의 규모와 공동펀딩 표기는 수민에게 현실적 압박을 가한다.",
+    "pacing": "building",
+    "raw_turn_count": 2
+  },
+  {
+    "scene_number": 3,
+    "title": "기술은 병목이 아니야",
+    "turn_range": [
+      10,
+      10
+    ],
+    "location": "Conference venue — hallway café (near the high-top)",
+    "characters_present": [
+      "AMRD 엔지니어",
+      "Kim Sumin",
+      "Ben Clarke (present)"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "AMRD 엔지니어",
+        "line": "패키징이 이제 병목이 아니고, 남은 지연은 제어 전자부에서 나오는 거 아닌가?"
+      }
+    ],
+    "key_actions": [
+      "옆에 있던 AMRD 엔지니어가 커피잔을 닦다 말고 수민에게 확인하는 어조로 말을 건넨다",
+      "수민은 주변 소음과 엔지니어의 질문을 통해 벤의 조직이 이미 패키징을 성숙시켰음을 인지한다"
+    ],
+    "discoveries": [
+      "벤의 패키징 기술은 성숙해 병목이 아니며, 남은 병목은 제어(algorithms/control)라는 점 — 수민의 알고리즘이 중요한 역할을 할 수 있다는 암시"
+    ],
+    "emotional_arc": "냉정한 관찰 → 계산된 긴장",
+    "beat_references": [
+      "clue_ep03_ben_encounter_c02"
+    ],
+    "narrative_summary": "주변 엔지니어의 한 마디로 수민은 벤 쪽이 패키징 병목을 이미 해결했음을 확인한다. 남아있는 문제는 제어 쪽이며, 수민의 알고리즘이 핵심임이 드러난다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "제안과 협박 — 비자라는 지렛대",
+    "turn_range": [
+      11,
+      13
+    ],
+    "location": "Conference venue — hallway café (high-top table)",
+    "characters_present": [
+      "Ben Clarke",
+      "Kim Sumin",
+      "AMRD 엔지니어"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "AMRD 엔지니어",
+        "line": "핵심 인력이면 EB‑2 NIW 절차를 몇 달 안으로 압축해준다더라."
+      },
+      {
+        "speaker": "AMRD 엔지니어",
+        "line": "결국 중요한 건 기술이 아니라 계산서 아니냐."
+      }
+    ],
+    "key_actions": [
+      "엔지니어가 벤 쪽의 법무 루트를 언급하며 EB‑2 NIW 가능성을 확인해준다",
+      "벤은 수민의 반응을 주의 깊게 살피며 '기회는 지금'이라는 압박을 암시한다"
+    ],
+    "discoveries": [
+      "벤의 제안에는 비자(EB‑2 NIW) 지원이라는 실질적 유인과 '쿼터가 바뀌면 선택지가 사라진다'는 시한부 협박이 섞여 있다",
+      "벤과 주변의 언급은 과학적 소통이 아닌 관료적·금전적 논리로 전환되었음을 드러낸다"
+    ],
+    "emotional_arc": "유혹 → 위협 → 무거운 선택의식",
+    "beat_references": [
+      "clue_ep03_ben_encounter_c03",
+      "clue_ep03_ben_encounter_c05",
+      "clue_ep03_ben_encounter_c04"
+    ],
+    "narrative_summary": "엔지니어의 확인과 벤의 태도는 제안이 단순 협력이 아니라 비자 유인과 시간 압박을 동원한 조직적 제안임을 보여준다. 기술적 유혹 너머에 계산서와 권력 흐름이 존재함을 수민은 실감한다.",
+    "pacing": "climax",
+    "raw_turn_count": 3
+  },
+  {
+    "scene_number": 5,
+    "title": "메모, Greyshore, 그리고 떠나는 발걸음",
+    "turn_range": [
+      14,
+      16
+    ],
+    "location": "Conference venue — hallway café (high-top table, espresso machine)",
+    "characters_present": [
+      "Ben Clarke",
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Ben Clarke",
+        "line": "생각해 봐. 시간 있으면 연락해. 비자 문제 해결하고 싶으면, 현실적이어야 해. 혼자서는 안 돼."
+      }
+    ],
+    "key_actions": [
+      "벤이 뒷면에 손글씨가 있는 메모(이메일, 전화번호, 'Ask about \"Greyshore\"'과 손가락 이모지)를 건네고 자리에서 일어난다",
+      "수민은 메모를 주머니에 넣는 순간 심장이 뛰는 생리적 반응(미세한 떨림, 맥박 상승)을 느낀다"
+    ],
+    "discoveries": [
+      "메모에 적힌 'Greyshore'는 벤도 자세히 모르는 암호명으로, DARPA 브리핑과 연결되어 있다는 언급만 있을 뿐 둘 모두 모르는 위험한 표식이다",
+      "벤의 작별 멘트는 조언이 아닌 최종적 권고이자 위협으로 들린다"
+    ],
+    "emotional_arc": "긴장(신체 반응) → 무거운 결단의식",
+    "beat_references": [
+      "clue_ep03_ben_encounter_c04",
+      "clue_ep03_ben_encounter_c06"
+    ],
+    "narrative_summary": "벤이 남긴 메모는 'Greyshore'라는 미지의 암호명과 함께 수민에게 현실적 유인과 위협을 동시에 남긴다. 벤이 떠난 뒤 수민은 주머니 속 종이의 무게를 느끼며 선택의 압박을 온몸으로 받아들인다.",
+    "pacing": "resolution",
+    "raw_turn_count": 3
+  }
+]

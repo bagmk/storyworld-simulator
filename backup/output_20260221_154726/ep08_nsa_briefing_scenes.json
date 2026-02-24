@@ -1,0 +1,202 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Offer and Pressure",
+    "turn_range": [
+      2,
+      12
+    ],
+    "location": "QuantumFront HQ — secure briefing room",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"우리가 먼저 잡지 못하면 다른 누군가가 차지할 거야. 그리고 그 누군가가 민주주의 규범을 우선한다고 기대하기 어렵지.\""
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"법적인 문제는 NSA가 책임질 테니 기술 개발에만 집중하라.\""
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "“좋은 제안이지만 그런 이유로 끌려가진 않겠습니다.”"
+      }
+    ],
+    "key_actions": [
+      "밀러가 폴더에서 'stored ciphertext targets' 목록과 'DHS liaison — EB-2 NIW (expedited)' 도장을 드러냄",
+      "밀러가 특사·비자·임시 체류 보장 등 유인책을 제시하며 압박함"
+    ],
+    "discoveries": [
+      "문서에는 저장된 암호문 대상 목록(은행·정부·개인 메일)과 DHS 연계 EB-2 NIW 우대 도장이 포함되어 있음",
+      "밀러는 '저장 후 해독' 전략의 현실적 위협을 설명하며 기술의 통제 필요성을 호소"
+    ],
+    "emotional_arc": "유인과 압박 — 제안은 매력적이지만 수민은 주저한다.",
+    "beat_references": [
+      "clue_ep08_nsa_briefing_c04",
+      "clue_ep08_nsa_briefing_c05",
+      "clue_ep08_nsa_briefing_c01",
+      "clue_ep08_nsa_briefing_c02",
+      "clue_ep08_nsa_briefing_c03"
+    ],
+    "narrative_summary": "밀러는 '저장 후 해독' 위협을 설명하고 EB-2 NIW 등 개인적 유인과 법적 보장을 제시하며 수민을 끌어들이려 한다. 수민은 제안의 도덕적·개인적 대가를 거부한다.",
+    "pacing": "climax",
+    "raw_turn_count": 11
+  },
+  {
+    "scene_number": 2,
+    "title": "Footnote and Ultimatum",
+    "turn_range": [
+      6,
+      13
+    ],
+    "location": "QuantumFront HQ — secure briefing room",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"계약서 초안은 오늘 저녁까지 보낼 거다. 내일 오후까지 답장을 받으면 좋겠네.\""
+      }
+    ],
+    "key_actions": [
+      "프로젝터 빛이 여백의 회색 잉크 'human factors—TBD'를 드러냄",
+      "밀러가 폴더를 정리하고 자리를 떠나며 문을 잡아당김"
+    ],
+    "discoveries": [
+      "폴더 각주에 흐릿하게 적힌 'human factors—TBD' — 사람 요인이 미정으로 남아있음",
+      "밀러의 최후통첩과 함께 수민은 답하지 못한 채 손끝이 뜨거워짐"
+    ],
+    "emotional_arc": "고요한 결단의 압박 — 문이 닫히기 직전 남은 화살표는 세계의 기울기를 상기시킨다.",
+    "beat_references": [
+      "clue_ep08_nsa_briefing_c06",
+      "clue_ep08_nsa_briefing_c01",
+      "clue_ep08_nsa_briefing_c02",
+      "clue_ep08_nsa_briefing_c03",
+      "clue_ep08_nsa_briefing_c04"
+    ],
+    "narrative_summary": "여백의 'human factors—TBD'가 수민의 시선을 붙잡는 사이, 밀러는 계약서 초안을 알리고 떠난다. 수민은 침묵으로 응하며 문이 닫히기 직전 화살표가 시야에서 줄어드는 것을 본다.",
+    "pacing": "resolution",
+    "raw_turn_count": 8
+  },
+  {
+    "scene_number": 3,
+    "title": "Projection: The Arrow",
+    "turn_range": [
+      9,
+      9
+    ],
+    "location": "QuantumFront HQ — secure briefing room",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"RSA-2048 per-key time: 741.2h → est. 70.1h (30d → 3d).\""
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "“이 기술의 최종 목표는 무엇인가요? 정말로 안전을 위해서만 사용될 건가요?”"
+      }
+    ],
+    "key_actions": [
+      "밀러가 노트북을 프로젝터에 연결하자 슬라이드에 'RSA-2048: 30 days → 3 days'와 큰 화살표가 떠오름",
+      "방 안의 온도가 한층 차갑게 내려앉음"
+    ],
+    "discoveries": [
+      "RSA-2048 해독 시간이 현재 ~741.2시간에서 목표 약 70시간으로 단축된다는 충격적 수치"
+    ],
+    "emotional_arc": "충격에서 숨막힘 — 수민이 바닥이 꺼지는 듯한 감각을 느낀다.",
+    "beat_references": [
+      "clue_ep08_nsa_briefing_c01"
+    ],
+    "narrative_summary": "프로젝터에 'RSA-2048: 30 days → 3 days'가 떠오르자 방 안이 얼어붙는다. 수민은 그 숫자의 의미—전 세계 암호의 붕괴 가능성—에 숨이 막힌다.",
+    "pacing": "opening",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 4,
+    "title": "Top Secret: The Numbers",
+    "turn_range": [
+      10,
+      10
+    ],
+    "location": "QuantumFront HQ — secure briefing room",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"안전이라는 목적은 그 자체로 모호할 수 있어. 우리는 이 기술을 통제해야 해.\""
+      }
+    ],
+    "key_actions": [
+      "밀러가 'Top Secret – Critical National Security Information' 폴더를 미끄러뜨리고 수민이 첫 장을 넘김",
+      "첫 페이지의 표에서 'per-key time: ~741.2 hours'와 'target: 70 hours (10x improvement)'가 드러남"
+    ],
+    "discoveries": [
+      "현재 per-key time 약 741.2시간(약 30일), 목표는 70시간(약 3일)이라는 문서상 수치",
+      "여백의 빨간 펜 메모: '이 부분만 해결하면 RSA 해독 시간·에너지 10배 이상 단축'"
+    ],
+    "emotional_arc": "이해에서 무게 — 숫자 하나하나가 수민의 머리에 못처럼 박힌다.",
+    "beat_references": [
+      "clue_ep08_nsa_briefing_c02"
+    ],
+    "narrative_summary": "밀러가 폴더를 내밀자 수민은 문서의 구체적 수치와 목표 개선 폭을 확인한다. 각 수치는 현실의 무게로 다가온다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 5,
+    "title": "Sources and Oversight",
+    "turn_range": [
+      11,
+      14
+    ],
+    "location": "QuantumFront HQ — secure briefing room",
+    "characters_present": [
+      "Kim Sumin",
+      "Agent Christian Miller"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "\"저 표는 실험 결과입니까, 시뮬레이션입니까?\""
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"둘 다. 포키샤에서 돌린 결과와 우리가 빌린 외부 QPU의 로그를 합쳤지. DARPA가 테스트베드를 관리하고 있어.\""
+      },
+      {
+        "speaker": "Agent Christian Miller",
+        "line": "\"'Title 50 coordination', 'FISC oversight', 'NSA legal counsel'—공식적으로는 선을 넘지 않는다.\""
+      }
+    ],
+    "key_actions": [
+      "수민이 문서를 넘겨 데이터 출처를 묻고, 밀러가 시뮬레이션·외부 QPU 로그·DARPA 테스트베드 연계를 설명함",
+      "밀러가 법적 감독 문구가 찍힌 페이지를 펼쳐 보임"
+    ],
+    "discoveries": [
+      "수치들은 시뮬레이션과 실제 QPU 로그의 결합 결과이며, DARPA와의 협업이 포함되어 있다는 사실",
+      "문서에 'Title 50', 'FISC oversight', 'NSA legal counsel' 등 법적 정당화 문구가 포함되어 있음"
+    ],
+    "emotional_arc": "의심에서 경계 — 수민은 출처와 법적 테두리를 확인하려 애쓴다.",
+    "beat_references": [
+      "clue_ep08_nsa_briefing_c03",
+      "clue_ep08_nsa_briefing_c05",
+      "clue_ep08_nsa_briefing_c04",
+      "clue_ep08_nsa_briefing_c06"
+    ],
+    "narrative_summary": "수민의 질문에 밀러는 수치의 출처와 기관 협업을 밝힌다, 동시에 문서는 법적 감독 체계가 마련되어 있음을 내세운다. 수민은 그 설명으로도 완전히 안심하지 못한다.",
+    "pacing": "building",
+    "raw_turn_count": 4
+  }
+]

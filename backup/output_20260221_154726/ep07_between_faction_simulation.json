@@ -1,0 +1,571 @@
+{
+  "episode_id": "ep07_between_faction",
+  "agent_count": 12,
+  "total_turns": 12,
+  "interactions": [
+    {
+      "id": "9f0917c9-259c-4aea-88be-3a914de7a7a9",
+      "episode_id": "ep07_between_faction",
+      "turn": 1,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*오른손으로 마우스를 잡고 화면을 응시하며 심호흡을 한다.*  [이제는 의심의 여지가 없다. 나의 모든 선택이 곧 나를 가두게 될 것이다.]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:00.554854",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "밀러와의 미팅 준비를 하며, 가능한 질문 목록을 작성하고 내부적인 대처 방안을 고민할 것이다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "d1d11a72-c39e-44e3-8cc2-cba4ca4c4962",
+      "episode_id": "ep07_between_faction",
+      "turn": 2,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**노트를 펼쳐 가능한 질문 목록을 정리하며, 조용히 깊게 생각한다.**  \"(밀러에게 무엇을 물어야 할까...) 기밀 유지의 진정한 목적은 무엇일까?\"  [*이제는 질문이 내 운명을 결정할 열쇠가 될 것이다.*]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:06.959584",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러와의 미팅을 준비하며 질문 목록을 더욱 구체화할 계획이다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "7ac7e033-851a-4ba9-9bf3-10fd06f7555a",
+      "episode_id": "ep07_between_faction",
+      "turn": 3,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***노트를 펼쳐 질문 목록을 더욱 구체화하며 집중한다.***  \"(밀러에게 물어보아야 할 질문은... 기밀 유지와 자금 지원의 진정한 동기는 무엇인가?)\"  [[이 질문들이 나의 생존을 좌우할 것임을 직감했다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:12.190830",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러와의 미팅에 대비해 질문 목록을 세밀하게 다듬고, 나의 입장을 강화할 기회를 모색할 예정이다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "4843d238-dec3-49e5-903e-011333c8fab8",
+      "episode_id": "ep07_between_faction",
+      "turn": 4,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**노트를 덮고 천천히 숨을 고르며, 화면의 메일을 다시 한 번 확인한다.**  \"(밀러의 의도가 뭘까... 그가 나에게 원하는 게 뭘까?)\"  [[주변의 모든 것이 나를 압박하고 있었다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:18.481135",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러와의 미팅에서 질문을 통해 내 입장을 어떻게 강화할 수 있을지 고민할 예정이다.",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "824b645b-68a4-42da-b773-7995e2e34668",
+      "episode_id": "ep07_between_faction",
+      "turn": 5,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***노트를 다시 펼쳐 질문 목록을 정리하며, 더욱 구체화한다.***  \"(밀러는 나를 어떻게 이용할 생각일까? 그의 진짜 의도가 무엇인지 알아내야 해.)\"  [[이 만남이 내 운명을 결정지을 수 있다는 사실이 압박감을 더해주고 있다.]]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:24.799336",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {
+          "agent_christan_miller": 0.1
+        },
+        "agenda": "밀러와의 미팅에 대비해 질문을 더욱 정교하게 다듬고, 그의 의도를 파악할 방법을 고민할 예정이다.",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "57b6ef4c-daaa-44e9-9acd-dae1ba6418f4",
+      "episode_id": "ep07_between_faction",
+      "turn": 6,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 본문을 훑고 곧바로 메일 헤더와 전송 로그를 불러왔다; SMTP 경로는 NSA의 게이트웨이로 인증(DKIM 통과)을 표시했지만, 메시지 헤더 한 줄에는 발신자 이름이 'Christan Miller'로 기록된 이전 홑따옴표가 남아 있었고, 프로젝트명 \"HyperConnect Quantum Initiative\"를 공개 데이터베이스에 조회해도 단 한 건의 레퍼런스도 뜨지 않았다. 시스템은 즉시 경고를 띄우진 않았지만, 두 기록의 불일치와 프로젝트의 부재가 화면에 싸늘하게 놓였다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:30.157366",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c01",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "b3a3d524-e24e-497d-bdf2-18d2528eb366",
+      "episode_id": "ep07_between_faction",
+      "turn": 6,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***노트를 다시 펼치며 질문 목록을 점검한다.***  \"(밀러의 의도를 파악하고, 그가 원하는 정보를 유도해야 해...)\"  [[모든 선택이 나를 가두게 될 것이라는 두려움이 커지고 있다.]]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:34.019161",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "[밀러와의 미팅에 대비해 질문을 더욱 정교하게 다듬고, 그가 숨기고 있는 의도를 찾는 데 집중할 것이다.]",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "9efc899d-b8d3-48dd-98f5-da5725879a68",
+      "episode_id": "ep07_between_faction",
+      "turn": 7,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 메일에 첨부된 캘린더 초대를 클릭해봤다; 이벤트는 이미 2월 25일 오후 7시 30분으로 고정되어 있고 RSVP 상태는 'Required'로 표기되어 있었다. 마우스를 RSVP 칸 위에 올리자 작은 툴팁이 떴다: \"회신이 없을 경우 참석으로 간주됩니다.\"",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:37.085258",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c02",
+        "inject_method": "document_artifact"
+      }
+    },
+    {
+      "id": "28afbdb1-10af-46ab-a2b7-e5b7cfa6643e",
+      "episode_id": "ep07_between_faction",
+      "turn": 7,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "***노트를 다시 펼쳐 질문 목록을 꼼꼼히 검토한다.***  (없음)  [\"이 질문들이 나의 운명을 결정지을 수 있다. 밀러의 숨은 의도를 파악하는 것이 가장 중요해.\"]",
+      "action_type": "inner_thought",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:40.240947",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "[밀러와의 미팅에서 어떤 질문을 던질지 구체적으로 준비하고, 그의 반응을 예상해보겠다.]",
+        "turn_mode": "monologue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "a8475f28-3651-478d-adc6-6c5c43145a92",
+      "episode_id": "ep07_between_faction",
+      "turn": 8,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "옆에 있던 동료가 슬쩍 마우스를 잡아당겨 메일 클라이언트의 임시저장 기록을 열었다; 15:42:03에 남겨진 첫 초안(“메일 감사합니다. 일정을 검토하겠습니다. 확정 여부는 이번 주 목요일까지 알려드리겠습니다.”)이 3초 뒤 삭제되고, 15:42:09에 더 짧은 문장이 최종 전송으로 남아 있었다. 동료의 얼굴이 잠깐 굳어졌고, 그 묵직한 표정이 질문을 대신했다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:45.275712",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c03",
+        "inject_method": "npc_question"
+      }
+    },
+    {
+      "id": "12d61e30-6b87-4cef-88b9-b881695c23ea",
+      "episode_id": "ep07_between_faction",
+      "turn": 8,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "****노트를 덮고 주변을 살피며 동료에게 질문의 의도를 묻는다.****  \"너는 이 메일에 대해 어떻게 생각해?\"  [[내가 느끼는 압박감이 그에게도 전해질지 궁금하다.]]",
+      "action_type": "action",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:48.391794",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "[동료의 반응과 의견을 듣고, 상황을 더욱 분석해볼 예정이다.]",
+        "turn_mode": "action",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "97f8cc5a-7e2e-4d1f-82ad-9f59e71bf241",
+      "episode_id": "ep07_between_faction",
+      "turn": 9,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "창문 옆에 놓인 서버랙 도어에 붙은 작은 황동 태그가 눈에 들어왔다—\"Authorized Custodians: Moreno / Benitez / Carlos R. / Jonas E.\" 글자들이 흐릿하게 닳아 있었고, 태그 아래에는 밤낮으로 출입을 알리는 미세한 긁힘 자국이 이어졌다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:51.517258",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c04",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "e979128f-d9bc-4363-8b96-41eb7f8a2c68",
+      "episode_id": "ep07_between_faction",
+      "turn": 9,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*동료의 눈을 바라보며 조금 몸을 기울인다.*  \"너는 이 메일에서 뭔가 이상하다고 느껴?\"  [[그의 반응이 나의 불안감을 더할지 궁금하다.]]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:54.682592",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "동료의 반응을 통해 상황을 더욱 분석하고, 밀러의 의도를 파악하려고 한다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "7596a287-e655-45d0-a0d8-32aa9c674b79",
+      "episode_id": "ep07_between_faction",
+      "turn": 10,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "수민은 통합 로그를 병렬로 스크롤하다가 화면 한 귀퉁이에 잠깐 깜박이는 시스템 경고 아이콘을 눌렀다; 도어 센서 타임스탬프들이 엘레나의 사무실 문이 열렸음을 연달아 기록해두고 있었지만, 그와 정확히 같은 시간대에 엘레나 배지의 출입 기록은 지난 72시간 단 한 건도 남아있지 않았다. 화면에 나란히 뜬 두 로그는 서로 말이 맞지 않았고, 그 불협화음은 사무실의 공기처럼 차갑게 번졌다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:40:58.383009",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c05",
+        "inject_method": "system_alert"
+      }
+    },
+    {
+      "id": "7ecf3e04-13f9-45a7-b184-082a9a2b1311",
+      "episode_id": "ep07_between_faction",
+      "turn": 10,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "**동료의 반응을 기다리며 그의 눈을 응시한다.**  \"나도 뭔가 이상하다고 느껴. 이 메일의 발신자가 확실히 맞는 건가?\"  [*밀러의 의도가 궁금해진다; 더 큰 그림이 있는 것 같아.*]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:41:01.251184",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "*동료의 반응을 통해 추가 정보를 얻고, 상황을 더 깊이 파악하려 한다.*",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "fe3fe25c-533f-4306-80e3-7db0c0948132",
+      "episode_id": "ep07_between_faction",
+      "turn": 11,
+      "speaker_id": "director",
+      "speaker_name": "[Scene]",
+      "content": "손에 든 머그잔을 내려놓고 화면을 닦던 수민은, 닦인 자국 바로 위에 잠깐 떠오른 작은 회색 툴팁을 발견했다; 한 줄짜리 감사(監査) 메모가 깜박이고 사라졌다. 메모에는 \"Ben.C — msg 2026‑02‑06 14:35 — retention=0 — keyword match: Greyshore\"라고 적혀 있어, 다른 메시지들과 달리 해당 항목만 보존기간이 '0'으로 설정되어 있었다.",
+      "action_type": "director_event",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:41:06.311764",
+      "metadata": {
+        "clue_id": "clue_ep07_between_faction_c06",
+        "inject_method": "environmental_cue"
+      }
+    },
+    {
+      "id": "55da5910-df10-44a2-a40d-1e0d8ba4c69a",
+      "episode_id": "ep07_between_faction",
+      "turn": 11,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*동료의 반응을 기다리며 그의 눈을 응시한다.*  \"밀러가 우리를 감시하고 있는 걸까? 이 프로젝트에 대해 알고 있는 게 없어.\"  [나도 그가 불안해하는 이유를 알고 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:41:10.471667",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.5
+        },
+        "relationship_deltas": {},
+        "agenda": "동료의 반응을 통해 새로운 정보를 얻고, 밀러의 의도를 더 깊이 탐구할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    },
+    {
+      "id": "2aa1f61c-72f2-449d-8a5c-d331e7e13c57",
+      "episode_id": "ep07_between_faction",
+      "turn": 12,
+      "speaker_id": "kim_sumin",
+      "speaker_name": "Kim Sumin",
+      "content": "*동료의 눈을 바라보며 긴장감을 느낀다.*  \"밀러가 우리를 감시하고 있다는 생각이 드네. 뭔가 숨기고 있는 것 같아.\"  [이 프로젝트에 대한 의구심이 점점 깊어지고 있다.]",
+      "action_type": "dialogue",
+      "target_id": null,
+      "timestamp": "2026-02-17T03:41:15.689396",
+      "metadata": {
+        "emotions": {
+          "tension": 0.8,
+          "curiosity": 0.6
+        },
+        "relationship_deltas": {},
+        "agenda": "동료의 반응을 더 유도하며, 밀러의 의도를 파악하고 분위기를 조성할 계획이다.",
+        "turn_mode": "dialogue",
+        "exit_scene": false
+      }
+    }
+  ],
+  "budget": {
+    "budget_usd": 2.5,
+    "spent_usd": 0.007986,
+    "remaining_usd": 2.492014,
+    "call_count": 41,
+    "breakdown": [
+      {
+        "purpose": "director_cast_strict_mentions",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000304
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.4e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000169
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000329
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000165
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000348
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000181
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000353
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000204
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000373
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.9e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000217
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000421
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000451
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000262
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000481
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.00049
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.5e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000304
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000518
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "persona_evolution",
+        "model": "gpt-4o-mini",
+        "cost": 0.00016
+      },
+      {
+        "purpose": "director_clue_injection",
+        "model": "gpt-5-mini",
+        "cost": 0.0
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000539
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.6e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000314
+      },
+      {
+        "purpose": "agent_turn",
+        "model": "gpt-4o-mini",
+        "cost": 0.000544
+      },
+      {
+        "purpose": "director_invariant_check",
+        "model": "gpt-4o-mini",
+        "cost": 4.7e-05
+      },
+      {
+        "purpose": "director_thread_resolution_check",
+        "model": "gpt-4o-mini",
+        "cost": 0.000302
+      }
+    ]
+  },
+  "generated_at": "2026-02-17T03:41:16.691558"
+}

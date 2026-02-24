@@ -1,0 +1,188 @@
+[
+  {
+    "scene_number": 1,
+    "title": "Silent Resolve",
+    "turn_range": [
+      1,
+      5
+    ],
+    "location": "QuantumFront HQ — office",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "(밀러에게 무엇을 물어야 할까...) 기밀 유지의 진정한 목적은 무엇일까?"
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "(밀러는 나를 어떻게 이용할 생각일까? 그의 진짜 의도가 무엇인지 알아내야 해.)"
+      }
+    ],
+    "key_actions": [
+      "손에 마우스를 쥐고 화면을 응시하며 심호흡",
+      "노트에 질문 목록을 펼치고 정리",
+      "노트를 덮고 천천히 숨을 고름"
+    ],
+    "discoveries": [
+      "수민은 이번 만남이 자신의 운명을 결정할 열쇠가 될 것이라는 직감을 품음"
+    ],
+    "emotional_arc": "불안에서 결의로 기운 집중 — 질문이 생존의 열쇠라는 인식",
+    "beat_references": [],
+    "narrative_summary": "수민은 메일과 만남을 곱씹으며 물어야 할 질문들을 노트에 적는다. 공포가 압박으로 변하고, 질문들이 곧 그녀의 운명을 가를 것이라는 결심이 굳어진다.",
+    "pacing": "opening",
+    "raw_turn_count": 5
+  },
+  {
+    "scene_number": 2,
+    "title": "Header Discrepancy",
+    "turn_range": [
+      6,
+      6
+    ],
+    "location": "QuantumFront HQ — workstation (mail client)",
+    "characters_present": [
+      "Kim Sumin"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "(밀러의 의도가 뭘까... 그가 나에게 원하는 게 뭘까?)"
+      }
+    ],
+    "key_actions": [
+      "메일 헤더와 전송 로그를 불러옴",
+      "SMTP 경로와 DKIM 인증 확인"
+    ],
+    "discoveries": [
+      "발신자 이름 필드에 이전에 'Christan Miller'로 남은 기록이 존재함",
+      "프로젝트명 'HyperConnect Quantum Initiative'가 공개 데이터베이스에 전혀 존재하지 않음"
+    ],
+    "emotional_arc": "호기심에서 의심으로 — 메일의 신뢰성에 균열이 생김",
+    "beat_references": [
+      "clue_ep07_between_faction_c01"
+    ],
+    "narrative_summary": "수민은 메일 헤더를 분석해 NSA 게이트웨이로 인증된 SMTP 경로와 DKIM 통과를 확인하지만, 발신자 이름의 불일치('Christan' 잔존)과 'HyperConnect Quantum Initiative'의 부재로 정체성에 의문을 품는다.",
+    "pacing": "building",
+    "raw_turn_count": 1
+  },
+  {
+    "scene_number": 3,
+    "title": "Required RSVP",
+    "turn_range": [
+      7,
+      8
+    ],
+    "location": "QuantumFront HQ — mail client",
+    "characters_present": [
+      "Kim Sumin",
+      "동료"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "(밀러의 의도가 궁금해진다; 더 큰 그림이 있는 것 같아.)"
+      },
+      {
+        "speaker": "동료",
+        "line": ""
+      }
+    ],
+    "key_actions": [
+      "캘린더 초대를 열어 2월 25일 오후 7시 30분 고정, RSVP 'Required' 확인",
+      "툴팁에서 '회신이 없을 경우 참석으로 간주됩니다.' 메시지 발견",
+      "임시저장 기록에서 초안 삭제 후 짧은 회신 전송 내역 확인"
+    ],
+    "discoveries": [
+      "메일이 제안이 아니라 통보에 가깝고, 응답하지 않으면 동의로 간주됨",
+      "수민이 원래 쓴 장문의 회신을 삭제하고 더 짧은 '제안하신 일정에 뵙겠습니다.'로 보냈음 — 사실상 항복"
+    ],
+    "emotional_arc": "당혹에서 자각으로 — 스스로 동의해버렸다는 실감",
+    "beat_references": [
+      "clue_ep07_between_faction_c02",
+      "clue_ep07_between_faction_c03"
+    ],
+    "narrative_summary": "캘린더 초대를 통해 일정이 강제되어 있음을 확인한 뒤, 수민은 잠깐 쓴 장문 초안을 지우고 더 짧은 수락 메일을 보낸 기록을 동료와 함께 본다. 그 순간 자신이 스스로 항복했음을 깨닫는다.",
+    "pacing": "climax",
+    "raw_turn_count": 2
+  },
+  {
+    "scene_number": 4,
+    "title": "Authorized Custodians",
+    "turn_range": [
+      9,
+      10
+    ],
+    "location": "QuantumFront HQ — server rack / security logs",
+    "characters_present": [
+      "Kim Sumin",
+      "동료"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "너는 이 메일에서 뭔가 이상하다고 느껴?"
+      },
+      {
+        "speaker": "동료",
+        "line": "나도 뭔가 이상하다고 느껴. 이 메일의 발신자가 확실히 맞는 건가?"
+      }
+    ],
+    "key_actions": [
+      "서버랙의 황동 태그(권한자 목록)를 확인",
+      "통합 로그를 병렬 스크롤해 도어 센서와 배지 출입 기록 대조"
+    ],
+    "discoveries": [
+      "권한자 목록에 Moreno / Benitez / Carlos R. / Jonas E. 등 이름이 있음",
+      "엘레나 사무실 도어는 열렸으나 같은 시간대에 엘레나 배지 출입 기록이 72시간 동안 전혀 없음 — 로그 불일치"
+    ],
+    "emotional_arc": "불신의 심화 — 누가 권한을 갖고 있는지, 무엇이 조작되었는지 의심",
+    "beat_references": [
+      "clue_ep07_between_faction_c04",
+      "clue_ep07_between_faction_c05"
+    ],
+    "narrative_summary": "수민은 서버랙 권한자 태그를 보고 누가 로그를 조작할 수 있는지 떠올린다. 통합 로그에서 엘레나의 도어 개폐와 배지 기록이 맞지 않아 누군가가 출입 기록을 전문적으로 조작했음을 의심하게 된다.",
+    "pacing": "building",
+    "raw_turn_count": 2
+  },
+  {
+    "scene_number": 5,
+    "title": "Greyshore Audit",
+    "turn_range": [
+      11,
+      12
+    ],
+    "location": "QuantumFront HQ — workstation (logs overlay)",
+    "characters_present": [
+      "Kim Sumin",
+      "동료"
+    ],
+    "key_dialogue": [
+      {
+        "speaker": "Kim Sumin",
+        "line": "밀러가 우리를 감시하고 있는 걸까? 이 프로젝트에 대해 알고 있는 게 없어."
+      },
+      {
+        "speaker": "Kim Sumin",
+        "line": "밀러가 우리를 감시하고 있다는 생각이 드네. 뭔가 숨기고 있는 것 같아."
+      }
+    ],
+    "key_actions": [
+      "모니터 표면에 깜박인 감사(監査) 메모를 발견",
+      "메모에서 'Ben.C — msg 2026‑02‑06 14:35 — retention=0 — keyword match: Greyshore' 확인"
+    ],
+    "discoveries": [
+      "벤의 메시지 중 하나만 보존기간이 '0'으로 설정되어 있음",
+      "'Greyshore'라는 단어가 필터링/차단 목록과 연관되어 더 이상의 언급이 없음 — 대화가 적극적으로 차단되고 있음"
+    ],
+    "emotional_arc": "불안의 최고조 — 단일 인물이나 부서의 범위를 넘어선 조작 가능성 인식",
+    "beat_references": [
+      "clue_ep07_between_faction_c06",
+      "clue_ep07_between_faction_c04"
+    ],
+    "narrative_summary": "수민은 감사 메모를 통해 특정 메시지의 보존 기간이 0으로 설정된 것을 발견하고, 'Greyshore'라는 키워드가 차단되고 있음을 확인한다. 시스템 전체를 아우르는 삭제와 차단이 감지되며 그녀의 불신은 확고해진다.",
+    "pacing": "resolution",
+    "raw_turn_count": 2
+  }
+]

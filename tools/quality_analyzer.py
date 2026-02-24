@@ -10,24 +10,38 @@ from pathlib import Path
 from collections import Counter, defaultdict
 from typing import Dict, List, Tuple
 import argparse
+import yaml
 
 
 class QualityAnalyzer:
-    def __init__(self, text: str, episode_name: str = ""):
+    def __init__(self, text: str, episode_name: str = "", episode_config: Dict = None):
         self.text = text.strip()
         self.episode_name = episode_name
+        self.episode_config = episode_config or {}
+        self.story_text = self._extract_story_text()
         self.sentences = self._split_sentences()
         self.paragraphs = self._split_paragraphs()
+
+    def _extract_story_text(self) -> str:
+        """Remove markdown wrappers/ledgers to focus on narrative body."""
+        text = self.text
+        text = re.sub(r'^\s*#.*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^\s*\*Episode:.*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^\s*---\s*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\n\s*\*Scene structure:\*[\s\S]*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\n\s*\*Evidence ledger:\*[\s\S]*$', '', text, flags=re.MULTILINE)
+        lines = [ln.rstrip() for ln in text.splitlines()]
+        return "\n".join(lines).strip()
 
     def _split_sentences(self) -> List[str]:
         """Split text into sentences"""
         # Korean sentence endings: . ! ? " 등
-        sentences = re.split(r'[.!?]\s+|[.!?]$|[.!?]"', self.text)
+        sentences = re.split(r'[.!?]\s+|[.!?]$|[.!?]"', self.story_text or self.text)
         return [s.strip() for s in sentences if s.strip() and len(s.strip()) > 3]
 
     def _split_paragraphs(self) -> List[str]:
         """Split text into paragraphs"""
-        paragraphs = [p.strip() for p in self.text.split('\n\n') if p.strip()]
+        paragraphs = [p.strip() for p in (self.story_text or self.text).split('\n\n') if p.strip()]
         # Filter out markdown headers and metadata
         paragraphs = [p for p in paragraphs if not p.startswith('#')
                       and not p.startswith('*')
@@ -49,6 +63,8 @@ class QualityAnalyzer:
             'information_novelty': self._information_novelty(),
             'subordinate_clause_depth': self._subordinate_clause_depth(),
             'opening_line_quality': self._opening_line_quality(),
+            'pov_consistency': self._pov_consistency(),
+            'timeline_coherence': self._timeline_coherence(),
             'overall_score': 0.0
         }
 
@@ -407,18 +423,152 @@ class QualityAnalyzer:
             'pass': total_score >= 0.7
         }
 
+    def _pov_consistency(self) -> Dict:
+        """
+        Metric 10: POV consistency and protagonist gender consistency.
+        Target: single dominant POV + no feminine reference to male protagonist.
+        """
+        text = self.story_text or self.text
+
+        first_patterns = [
+            r'(?<![가-힣])나(?:는|가|를|의|에게|도)?(?![가-힣])',
+            r'(?<![가-힣])내(?:가|는|를|의|게|도)?(?![가-힣])',
+            r'(?<![가-힣])저(?:는|가|를|의|도)?(?![가-힣])',
+            r'(?<![가-힣])제(?:가|는|를|의|도)?(?![가-힣])',
+        ]
+        third_patterns = [
+            r'수민(?:이|은|는|을|를|의|에게|도)?',
+            r'(?<![가-힣])그(?:가|는|를|의|에게|도)?(?![가-힣])',
+            r'(?<![A-Za-z])Sumin(?![A-Za-z])',
+        ]
+
+        first_count = sum(len(re.findall(p, text)) for p in first_patterns)
+        third_count = sum(len(re.findall(p, text)) for p in third_patterns)
+        female_count = len(re.findall(r'그녀(?:가|는|를|의|에게|도)?', text))
+
+        sents = [s.strip() for s in re.split(r'[.!?]\s+|[.!?]$|[.!?]"', text) if s.strip()]
+        gender_mismatch = sum(
+            1 for s in sents if ('수민' in s and re.search(r'그녀(?:가|는|를|의|에게|도)?', s))
+        )
+
+        total_markers = first_count + third_count
+        if total_markers == 0:
+            dominance = 0.0
+            score = 0.3
+        else:
+            dominance = max(first_count, third_count) / total_markers
+            mix_penalty = max(0.0, 1.0 - dominance)
+            gender_penalty = min(0.8, (gender_mismatch * 0.3) + (female_count * 0.03))
+            score = max(0.0, 1.0 - (mix_penalty * 1.3) - gender_penalty)
+
+        mixed_pov = (
+            first_count > 0 and third_count > 0 and min(first_count, third_count) >= 3
+        )
+
+        return {
+            'first_person_markers': first_count,
+            'third_person_markers': third_count,
+            'dominance': round(dominance, 2),
+            'female_pronoun_count': female_count,
+            'gender_mismatch_sentences': gender_mismatch,
+            'mixed_pov': mixed_pov,
+            'score': round(score, 2),
+            'pass': (not mixed_pov) and gender_mismatch == 0 and dominance >= 0.85
+        }
+
+    def _timeline_coherence(self) -> Dict:
+        """
+        Metric 11: Timeline coherence and explicit transition clarity.
+        Target: explicit date/time anchors + marked temporal jumps.
+        """
+        text = self.story_text or self.text
+        date_value = str(self.episode_config.get('date', '')).strip()
+
+        time_patterns = [
+            r'\d{4}년', r'\d{1,2}월\s*\d{1,2}일', r'\d{1,2}시(?:\s*\d{1,2}분)?',
+            r'오전|오후|자정|새벽|아침|점심|저녁|밤',
+            r'월요일|화요일|수요일|목요일|금요일|토요일|일요일'
+        ]
+        jump_patterns = [
+            r'잠시 후|그 후|이후|곧이어|다음 순간|한편',
+            r'다음 날|다음날|며칠 후|몇 시간 후|몇 분 후|그날 밤|이튿날',
+            r'한 시간 뒤|두 시간 뒤|사흘 뒤|일주일 뒤'
+        ]
+        location_tokens = [
+            '회의실', '복도', '실험실', '연구실', '강당', '카페', '로비',
+            '사무실', '창고', '항만', '주차장', '컨퍼런스'
+        ]
+        location_bridge_patterns = [
+            r'로 이동|로 향|로 들어|로 나서|문을 나서|자리를 옮기|장소를 옮기'
+        ]
+
+        time_markers = sum(len(re.findall(p, text)) for p in time_patterns)
+        jump_markers = sum(len(re.findall(p, text)) for p in jump_patterns)
+        location_mentions = sum(text.count(tok) for tok in location_tokens)
+        location_bridges = sum(len(re.findall(p, text)) for p in location_bridge_patterns)
+
+        # Date anchor score (if config date exists, prefer explicit linkage in prose)
+        if date_value:
+            year_match = re.search(r'(\d{4})', date_value)
+            month_match = re.search(r'-(\d{2})-', date_value)
+            day_match = re.search(r'-(\d{2})$', date_value)
+            year = year_match.group(1) if year_match else ''
+            month = str(int(month_match.group(1))) if month_match else ''
+            day = str(int(day_match.group(1))) if day_match else ''
+            has_year = bool(year and year in text)
+            has_month_day = bool(month and day and re.search(rf'{month}\s*월\s*{day}\s*일', text))
+            has_relative = bool(re.search(r'오늘|당일|그날', text))
+            if has_year or has_month_day:
+                date_anchor_score = 1.0
+            elif has_relative:
+                date_anchor_score = 0.7
+            else:
+                date_anchor_score = 0.4
+        else:
+            # If episode config has no explicit date, reward explicit time/jump anchors.
+            if time_markers > 0 or jump_markers > 0:
+                date_anchor_score = 1.0
+            else:
+                date_anchor_score = 0.5
+
+        jump_need = 0 if time_markers < 3 else min(3, max(1, time_markers // 5))
+        if jump_need == 0:
+            jump_clarity_score = 1.0
+        else:
+            jump_clarity_score = min(1.0, jump_markers / jump_need)
+
+        if location_mentions < 4:
+            location_flow_score = 1.0
+        else:
+            needed_bridges = min(3, max(1, location_mentions // 8))
+            location_flow_score = min(1.0, location_bridges / needed_bridges)
+
+        score = (date_anchor_score * 0.35) + (jump_clarity_score * 0.4) + (location_flow_score * 0.25)
+
+        return {
+            'config_date': date_value,
+            'time_markers': time_markers,
+            'jump_markers': jump_markers,
+            'location_mentions': location_mentions,
+            'location_bridges': location_bridges,
+            'score': round(score, 2),
+            'pass': score >= 0.75
+        }
+
     def _calculate_overall_score(self, results: Dict) -> float:
         """Calculate weighted overall score"""
         weights = {
-            'sentence_complexity': 0.15,
-            'paragraph_density': 0.10,
-            'repetition_patterns': 0.15,
-            'abstract_concrete_ratio': 0.15,
-            'dialogue_ratio': 0.10,
-            'scene_progression': 0.10,
-            'information_novelty': 0.10,
-            'subordinate_clause_depth': 0.10,
-            'opening_line_quality': 0.05
+            'sentence_complexity': 0.12,
+            'paragraph_density': 0.08,
+            'repetition_patterns': 0.12,
+            'abstract_concrete_ratio': 0.12,
+            'dialogue_ratio': 0.08,
+            'scene_progression': 0.08,
+            'information_novelty': 0.08,
+            'subordinate_clause_depth': 0.08,
+            'opening_line_quality': 0.04,
+            'pov_consistency': 0.10,
+            'timeline_coherence': 0.10
         }
 
         total_score = 0.0
@@ -429,13 +579,48 @@ class QualityAnalyzer:
         return round(total_score, 3)
 
 
+def _infer_episode_id_from_stem(stem: str) -> str:
+    s = stem
+    s = re.sub(r'_iter\d+_chapter$', '', s)
+    s = re.sub(r'_chapter_try.*$', '', s)
+    s = re.sub(r'_chapter_best$', '', s)
+    s = re.sub(r'_chapter$', '', s)
+    return s
+
+
+def _load_episode_config(episode_name: str) -> Dict:
+    candidates = [
+        Path("config/episodes") / f"{episode_name}.yaml",
+        Path("config/episodes_skipped") / f"{episode_name}.yaml",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                return yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+            except Exception:
+                return {}
+
+    # Fallback: filename may use YAML internal id (id:) instead of config filename.
+    for folder in [Path("config/episodes"), Path("config/episodes_skipped")]:
+        for path in folder.glob("*.yaml"):
+            try:
+                cfg = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+                if str(cfg.get("id", "")).strip() == episode_name:
+                    return cfg
+            except Exception:
+                continue
+    return {}
+
+
 def analyze_file(filepath: Path) -> Dict:
     """Analyze a single chapter file"""
     with open(filepath, 'r', encoding='utf-8') as f:
         text = f.read()
 
     episode_name = filepath.stem
-    analyzer = QualityAnalyzer(text, episode_name)
+    episode_id = _infer_episode_id_from_stem(episode_name)
+    episode_config = _load_episode_config(episode_id)
+    analyzer = QualityAnalyzer(text, episode_name, episode_config=episode_config)
     return analyzer.analyze()
 
 
@@ -461,7 +646,9 @@ def print_results(results: Dict):
         ('scene_progression', '🎬 Scene Progression', 'rate_per_50'),
         ('information_novelty', '✨ Info Novelty', 'novelty_percentage'),
         ('subordinate_clause_depth', '🌲 Clause Depth', 'percentage'),
-        ('opening_line_quality', '🚀 Opening Line', 'word_count')
+        ('opening_line_quality', '🚀 Opening Line', 'word_count'),
+        ('pov_consistency', '👁️ POV Consistency', 'dominance'),
+        ('timeline_coherence', '🕒 Timeline Coherence', 'time_markers')
     ]
 
     for metric_key, label, detail_key in metrics:
