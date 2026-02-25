@@ -24,12 +24,12 @@ world_facts:
         any laundering scheme. The cartel pivoted from "fake quantum for money
         laundering" to "real quantum as geopolitical weapon."
 
-        This pivot was accelerated by the fact that the Novagrad Freeport already
+        This pivot was accelerated by the fact that the Boston Harbor Free Zone already
         housed the cartel's security/logistics team (LST) for processing and
         blocking illegal operations at the port. The existing LST infrastructure +
         quantum computing potential created a synergy the cartel couldn't ignore.
 
-        The real program now runs inside a Novagrad Freeport underground site
+        The real program now runs inside a Boston Harbor Free Zone underground site
         (harbor_underground_lab). The underground operation evolved from pure
         laundering to: (1) targeted key recovery/exfiltration using hybrid quantum,
         (2) leveraging quantum capability for geopolitical negotiation power, and
@@ -54,11 +54,31 @@ world_facts:
         mutually beneficial transaction that remains deniable.
 
     - content: |
-        Yonas Mehret is not a simple floor operator. He is the physical–digital bridge
-        for the LST/SCADA line, translating demands from multiple organizations into
-        on-the-ground execution. His legal identity / travel record is intentionally
-        incomplete. The “last ten minutes” around Elena’s shooting—lockdown sequence,
-        CCTV gap, and corridor routing—was engineered by Yonas.
+        Yonas Mehret is a long-term CIA deep-cover asset placed INSIDE the cartel—not
+        a cartel member who crossed to the CIA. The CIA embedded him in the cartel's
+        Boston Harbor Free Zone operations approximately 8 years before the story begins,
+        with a fabricated identity and an intentionally incomplete legal/travel record.
+        His cover role is Freeport floor supervisor; his actual role is a physical–digital
+        bridge for CIA intelligence collection on cartel LST/SCADA operations.
+
+        ELENA'S DEATH (EP28): When cartel enforcement teams surrounded the building and
+        Elena's elimination became unavoidable, Yonas made a unilateral operational
+        decision: by personally executing Elena, he (1) preserved his deep-cover status
+        within the cartel—proving absolute loyalty, (2) protected Sumin's position and
+        intelligence value from being exposed, and (3) controlled the manner of death to
+        minimize Elena's suffering. This was not ordered by the CIA—it was Yonas's own
+        judgment call, which will haunt him permanently.
+
+        THE BELLA PROMISE: In Elena's final moment, she recognized Yonas as CIA-affiliated
+        (from her Zetanet-era exposure to CIA contact protocols). She asked only one thing:
+        "Can you find Bella?" Yonas nodded. He has honored this—Bella (Elena's younger
+        sister, disappeared 2028) was located in a CIA-adjacent protective arrangement.
+        Yonas telling Sumin "Bella is fine" in EP41 is not absolution—it is the only act
+        of accountability he can offer for what his hands did.
+
+        The "last ten minutes" around Elena's shooting—lockdown sequence, CCTV gap, and
+        corridor routing—was engineered by Yonas to ensure no one else could intervene
+        and to give Elena's death the appearance of a clean cartel operation.
 
     - content: |
         Before her death, Elena partially implemented a deadman architecture that can
@@ -137,7 +157,7 @@ world_facts:
       trigger: "agent inspects SIEM dashboards or raw audit logs"
 
     - id: "clue_freeport_gate_deactivated_badge"
-      content: "Novagrad Freeport gate/elevator logs show a pre-dawn ride (e.g., 03:xx) to Level D using a deactivated staff ID; the linked CCTV has a 60-second gap."
+      content: "Boston Harbor Free Zone gate/elevator logs show a pre-dawn ride (e.g., 03:xx) to Level D using a deactivated staff ID; the linked CCTV has a 60-second gap."
       trigger: "agent checks Freeport access control logs or requests CCTV extracts"
 
     - id: "clue_plc_valve_17_blink"
@@ -197,9 +217,19 @@ world_facts:
   public:
     - "The year is 2043. Quantum computing has advanced, but remains fragile—extremely sensitive to cryogenics, vibration, EMI, and measurement-chain latency."
     - "QuantumFront maintains a public campus at Seaview Research Park and presents itself as a private R&D organization working on 'next-generation quantum/security.'"
-    - "Novagrad Freeport is a fictional U.S. port free-zone rumored to have looser logistics, customs, and audit boundaries."
+    - "Boston Harbor Free Zone is a fictional U.S. port free-zone rumored to have looser logistics, customs, and audit boundaries."
     - "Some QuantumFront equipment, cryogenic components, and large racks move through Freeport logistics for 'offsite integration testing.'"
     - "Greyshore Capital repeatedly appears around QuantumFront as an investment/escrow partner, but its true structure is opaque."
-    - "Key figures include: Kim Sumin (quantum physicist), Elena Ramirez (technical lead), Dr. Alex Moreno (phase-tracking authority and Sumin’s mentor), Yonas Mehret (port-line operator), and Carlos Reyes (operations/pressure)."
+    - "Key figures include: Kim Sumin (quantum physicist, MIT-trained), Elena Ramirez (technical lead, former Zetanet hacker), Dr. Alex Moreno (MIT professor, phase-tracking authority, Sumin's doctoral advisor), Yonas Mehret (Boston Harbor Freeport floor supervisor), and Carlos Reyes (operations/pressure specialist)."
     - "Terms like 'Phase-Guard', 'Failsafe', and 'BRIDGE_SLOT' circulate internally, but official documentation is selectively shared."
     - "Institutional incentives differ: the FBI prioritizes procedure/evidence/prosecution, the CIA prioritizes external balance/deals, the NSA prioritizes national-security advantage, and the port floor prioritizes keeping operations running."
+    - "[WORLD 2043] In 2038, the U.S.–China Digital Separation Accord (DSA-38) formalized 'Splinternet' zones—separate internet routing, certificate authorities, and encryption standards for each bloc. Legacy RSA-2048 remains dominant in the U.S. zone; quantum-resistant PQC adoption is at only 23% as of 2043."
+    - "[WORLD 2043] NIST issued a formal '5-year RSA threat horizon' advisory in 2041, acknowledging that nation-state quantum programs may achieve RSA-2048 breaks within the decade. Publicly known but widely dismissed as theoretical—QuantumFront's actual progress makes it imminent."
+    - "[WORLD 2043] The Korea–U.S. Joint Research Visa Treaty (KJRVT, 2039) created fast-track dual-status research permits for STEM professionals. However, quantum/AI specializations require an additional NSA security clearance layer—making Korean researchers like Sumin legally vulnerable to simultaneous U.S. and Korean oversight."
+    - "[WORLD 2043] Boston Harbor Free Zone's population has grown 340% since 2035, driven by climate displacement and post-DSA logistics boom. The legal gray zone between federal jurisdiction, port authority rules, and free-zone charter creates enforcement gaps that organizations like the cartel exploit systematically."
+    - "[WORLD 2043] NSA's HyperConnect QI program (2040–present) is building quantum-communication interception infrastructure in parallel with classical SIGINT. Miller's division is its operational arm. Budget classified; existence is not."
+    - "[WORLD 2043] Biometric + quantum-OTP two-factor authentication became the U.S. financial sector standard in 2041 after the Shanghai Breach. The system is exactly what a functioning quantum computer would render obsolete overnight."
+    - "[WORLD 2043] Autonomous port logistics systems handle 61% of Boston Harbor's container throughput. Human operators like Yonas are increasingly rare—and therefore hold disproportionate trust for physical-layer access that cameras and sensors cannot replace."
+    - "[WORLD 2043] The 'Certified Information Rail' (CIR) regulatory framework (2042) requires platforms to tag AI-generated content. The cartel's Mock Q-Day exploits the 72-hour CIR grace period before takedown orders can be issued—enough time to move global financial markets."
+    - "[WORLD 2043] MIT's Quantum Systems Lab (Moreno's department) was ranked #1 globally in 2040–2042. His Phase-tracking paper (2039, Nature Physics) is the most-cited quantum control paper of the decade—which is exactly why the cartel needed him alive, and why his disappearance will become an international incident."
+    - "[WORLD 2043] The 2040 Carbon Shipping Tax Act made conventional long-haul shipping 38% more expensive, accelerating the consolidation of logistics through free-zone hubs like Boston Harbor. This economic shift inadvertently created the legal infrastructure the cartel uses to move equipment and people."

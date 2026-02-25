@@ -16,6 +16,28 @@ episode:
 
     하지만 수민은 안다. FBI의 '보호'가 얼마나 공허한 약속인지. 엘레나도 보호받는다고 했지만 결국 죽었다. 소피아의 경고는 진심이지만, 그녀의 힘으로는 아무것도 막을 수 없다. 수민은 전화를 끊는다. "괜찮습니다. 제가 알아서 할게요."
 
+    [수민의 우연한 도청 — 2043-03-21T20:47]
+
+    수민은 ep31에서 삽입한 MIRROR TRAP 루틴의 초기 버전—NSA 백도어 감시 패킷 캡처 모듈—을 테스트하던 중, 예상치 못한 신호를 포착한다. NSA 채널이 아니다. CIA 암호화 레이어 위를 흐르는 신호다. 수신지 주소가 익숙하다. 보스턴 항만 Sub-48 내부 IP 대역. Jonas의 단말이다.
+
+    패킷이 완전히 복호화되지 않는다. 하지만 30%가 평문으로 노출된다.
+
+    수신: [REDACTED — CIA HANDLER ID: BURKE-7]
+    발신: [NODE: BH-SEC-001 / Jonas Mehret terminal]
+    타임스탬프: 2043-03-21T20:47:33Z
+
+    복호화된 단편:
+    "...subject is stable. Position maintained. EP [REDACTED] confirmed..."
+    "...Bella location file transmitted. [REDACTED]@cia.gov received..."
+    "...72h auth cycle is the leverage. Do NOT [REDACTED] before he signs..."
+    "...I understand. But how long [REDACTED] this cover..."
+
+    마지막 줄, 완전히 평문:
+    "BURKE-7: As long as it takes, Jonas. That's the job."
+    "[BH-SEC-001]: Copy that."
+
+    수민은 화면을 멈춘다. BURKE-7. CIA 핸들러 코드네임. Jonas는 CIA에 보고하고 있었다. 그리고 'Bella location file'—EP28 Elena의 마지막 요청이 실행된 것이다. 수민은 이것을 누구에게도 말하지 않는다. 이 정보는 자신만의 것으로 남겨둔다. 언제 쓸지 모른다. 하지만 언젠가는 쓸 수 있다.
+
     이 와중에 엘 파트론, 즉 라파엘 구티에레즈는 수민에게 비밀 채널을 통해 메시지를 보낸다. "우린 혼돈 대신 질서를 세우려는 거야. 네 기술이 그 열쇠다. 함께하자, 김 박사. FBI는 너를 죽일 수도 있다. 우린 너를 살릴 수 있다." 수민은 점차 정부보다는 엘 파트론이 말하는 '새 질서' 쪽이 현실적일지 모른다는 생각을 하게 된다. 정의를 외치던 정부 기관들은 무능하거나 위선적으로 보였고, 오히려 카르텔 쪽이 분명한 목적 아래 자신을 대우해주는 듯한 아이러니 속에 수민의 마음은 어둠을 향해 기울어 간다. 이것이 Q-Day 이전의 마지막 도덕적 전환점이다.
 
   # Clues that MUST surface during this episode.
@@ -34,7 +56,7 @@ episode:
 
         FBI 담당자: "엘레나 아르바이도는 CIA의 자산이었어. 우리가 정보를 달라고 했을 때, CIA는 '그럴 수 없다'고 거부했다. 왜? 엘레나가 우리 기관을 신뢰하지 않았기 때문이다."
 
-        CIA 담당자: "그건 거짓이다. FBI가 너무 성급했다. 엘레나가 노바그라드에서 탈출을 시도한 것도 FBI의 압박 때문이다. 우리는 그녀를 서서히 빼낼 예정이었다."
+        CIA 담당자: "그건 거짓이다. FBI가 너무 성급했다. 엘레나가 보스턴 항만에서 탈출을 시도한 것도 FBI의 압박 때문이다. 우리는 그녀를 서서히 빼낼 예정이었다."
 
         FBI: "그럼 왜 지켜주지 못했나? 우리는 정보를 줬다. 엘레나의 위치, 움직임 패턴 다 줬어. 그리고?"
 
@@ -93,7 +115,7 @@ episode:
         
         우리(카르텔)와 함께하면, 너는 역사의 건축자가 된다. 정부와 함께하면, 넌 도구일 뿐이다."
 
-        이 메시지에는 수민의 '자존감'을 자극하는 부분이 있다. 그녀를 '도구'로 취급한 정부에 대한 분노, 그리고 '건축자'로 대우하는 카르텔의 제안. 이것이 수민을 흔드는 가장 강력한 무기다.
+        이 메시지에는 수민의 '자존감'을 자극하는 부분이 있다. 그를 '도구'로 취급한 정부에 대한 분노, 그리고 '건축자'로 대우하는 카르텔의 제안. 이것이 수민을 흔드는 가장 강력한 무기다.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.6
       inject_method: "environmental_cue"
@@ -112,7 +134,7 @@ episode:
         
         그래서 내가 책임진다. 내가 결정한다."
 
-        이 독백이 수민의 도덕적 전환점이다. 그녀는 더 이상 '피해자'가 아니라 '책임자'가 되기로 선택한다. 그리고 책임자로서의 결정은... 어둠을 향한다.
+        이 독백이 수민의 도덕적 전환점이다. 그는 더 이상 '피해자'가 아니라 '책임자'가 되기로 선택한다. 그리고 책임자로서의 결정은... 어둠을 향한다.
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.65
       inject_method: "npc_question"
@@ -209,6 +231,48 @@ episode:
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.5
       inject_method: "environmental_cue"
+
+    - id: "clue_ep29_ethan_yonas_intercept"
+      content: |
+        수민의 MIRROR TRAP 패킷 캡처 (2043-03-21T20:47:33Z):
+
+        수신: CIA HANDLER "BURKE-7" (= Ethan Burke)
+        발신: BH-SEC-001 (= Jonas Mehret 단말)
+        암호화: CIA AES-384 레이어 (30% 부분 복호화)
+
+        복호화 성공 단편:
+        "subject is stable. Position maintained."
+        → "subject" = 수민. Jonas가 수민의 상태를 Ethan에게 보고 중.
+
+        "Bella location file transmitted. [REDACTED]@cia.gov received."
+        → Elena의 마지막 요청("벨라 찾아줄 수 있어?")이 실행됨.
+        → Bella의 현재 위치가 CIA 서버에 기록됨.
+
+        "72h auth cycle is the leverage. Do NOT [REDACTED] before he signs."
+        → 수민의 72시간 재인증 주기가 이미 CIA 협상 레버리지로 분류됨.
+        → "before he signs"—무엇에 서명? Failsafe-B 계약? 아니면 다른 무언가?
+
+        완전 평문 (암호화 안 된 마지막 교환):
+        "BURKE-7: As long as it takes, Jonas. That's the job."
+        "BH-SEC-001: Copy that."
+
+        이 도청의 의미:
+        1. Jonas = CIA 자산 확인. 핸들러 = Ethan Burke(이선).
+        2. Bella 약속은 Jonas가 개인적으로 한 것이 아니라 CIA 임무의 일부였다.
+        3. 수민의 72시간 패스워드가 이미 CIA 협상 카드로 올라와 있다.
+        4. "As long as it takes"—Jonas의 잠입 기간에 끝이 없다는 뜻.
+
+        수민은 이 정보를 혼자 보관한다. 활용 시점: ep40 3자 협상.
+        Jonas를 신뢰하면서도 신뢰하지 않는 이중적 태도의 근거.
+
+        소설 구현 방식 (수민 시점):
+        수민이 MIRROR TRAP 테스트 중 우연히 캡처된 패킷을 보는 형식.
+        Jonas와 Ethan이 나누는 대화를 수민이 직접 보지 못함—오직 복호화된 단편만.
+        이 단편들로 수민이 퍼즐을 맞춰나가는 방식.
+        = 수민 시점을 유지하면서 오프씬 정보를 전달하는 "도청/감청" 구현 방식.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.55
+      inject_method: "system_alert"
 
   # Items carried over from a previous episode that should be addressed.
   resolved: []

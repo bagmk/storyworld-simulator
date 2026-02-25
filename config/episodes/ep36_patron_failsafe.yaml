@@ -6,7 +6,7 @@
 episode:
   id: "ep36_patron_failsafe"
   date: "2043-03-27T07:50"
-  location: "Novagrad Port — underground lab complex"
+  location: "Boston Harbor — underground lab complex"
   summary: |
     Q-Day 당일, 오전 6시 32분. 라파엘(엘 파트론)의 사무실. 한 통의 팩스가 기계에서 튀어나온다. Greyshore Capital Partners 계좌 동결 통지(OFAC Sanctions Order). 효력 발생: 24시간 이내. 그리고 35초 후, 두 번째 팩스. 노바그라드 항만 공급사 포털 공지: "URGENT: Cryogenic components order #NG-447-A suspended pending regulatory review. Estimated review period: 30-90 days." 냉각 부품이 끊긴다. 자금이 끊긴다.
 
@@ -25,6 +25,16 @@ episode:
     수민은 이 말을 천천히 해석한다. '문(door)'은 자금 계좌. Greyshore 계좌가 동결됐으니, 라파엘은 그 계좌를 '문'이라 부른 것. '숨(breath)'은 물자 공급. 냉각 부품이 끊겼으니, 라파엘은 기술적 생명을 '숨'이라 부른 것. '귀(ear)'는 세상의 이목. 봇넷이 퍼뜨리는 가짜 정보가 세상의 귀를 사로잡는 것. 그리고 '열쇠(key)'—다섯 조각의 Failsafe Key가 모든 것을 통제한다.
 
     이 순간, 수민은 라파엘이 얼마나 큰 전략가인지 깨닫는다. 그는 단순히 기술만 가진 테러리스트가 아니다. 정보전, 심리전, 금융전을 동시에 펼치는 전술가다. 그리고 NSA는 이 게임에서 졌다.
+
+    [카를로스 제거 — 2043-03-27T09:15]
+
+    오전 9시 15분. 라파엘의 두 번째 통화. 이번 수신자는 마르셀로(Marcelo)—카르텔 내부 감사 담당. 통화는 짧다. 4분 12초. 녹음 없음. 하지만 결과는 분명하다.
+
+    한 시간 후, 지하 2층 카를로스의 사무실. 문이 열린다. 마르셀로와 두 명의 무장 요원이 들어선다. 카를로스는 책상에 앉아 있다. 손에는 커피 잔. 그는 이미 알고 있다는 듯한 표정으로 잔을 내려놓는다. 저항하지 않는다.
+
+    마르셀로가 말한다. 스페인어. 차갑고 형식적이다. "카를로스, 당신의 역할은 이번 단계에서 종료되었습니다. 라파엘께서... 수고했다고 하십니다." 카를로스가 창 밖을 본다. 보스턴 항만. 컨테이너들. 새벽빛이 남아있는 하늘. "수고." 그는 짧게 반복하고, 일어선다. 짐을 싸지 않는다. 커피도 가져가지 않는다. 그냥 나간다.
+
+    복도 CCTV 기록: 2043-03-27T10:17:33Z. 카를로스 마지막 접근 로그. 이후 기록 없음.
 
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.

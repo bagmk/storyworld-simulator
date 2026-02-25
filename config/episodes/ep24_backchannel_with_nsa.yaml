@@ -105,7 +105,7 @@ episode:
 
         문제는 우린 다 다른 목표를 추구한다는 거다. NSA는 자신의 감시 정보를 보호하고 싶고, FBI는 법적 승리를 원하고, CIA는 첩보 우위를 유지하고 싶고, 카르텔은 돈을 원한다.
 
-        그 가운데 수민? 그녀는 누구를 도와야 하나? 그리고 그녀가 누구를 거절하면 어떻게 될까? NSA는 그녀를 보호할 수 있지만 소비할 것이고, FBI는 기소할 수 있지만 증인으로 써먹을 것이고, 카르텔은 협박할 것이다."
+        그 가운데 수민? 그는 누구를 도와야 하나? 그리고 그가 누구를 거절하면 어떻게 될까? NSA는 그를 보호할 수 있지만 소비할 것이고, FBI는 기소할 수 있지만 증인으로 써먹을 것이고, 카르텔은 협박할 것이다."
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.55
       inject_method: "npc_question"

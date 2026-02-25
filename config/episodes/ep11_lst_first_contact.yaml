@@ -37,7 +37,7 @@ episode:
 
     - id: "clue_ep11_lst_first_contact_c03"
       content: |
-        모니터 벽. 수민이 본 화면들: 첫 번째 디스플레이 (왼쪽 상단): Novagrad Port의 평면도. 위성 이미지인 것 같다. 매우 상세하다. 각 부두, 각 크레인의 위치, 선석 번호. 그리고 그 위에 실시간 오버레이. 컨테이너 위치를 빨간 사각형으로 표시. "Container CLN-47302, Gate 39, Ready for departure". 두 번째 디스플레이 (중앙): 해상 물류 추적 시스템. 선박 아이콘이 여러 개. 실시간으로 움직인다. 각 선박의 옆에: 선명, 출발항, 목적지, ETA. "MV Pacific Dawn – Novagrad to Singapore – ETA 12:47UTC". 세 번째 디스플레이 (오른쪽): SCADA 대시보드. 기술 다이어그램. "Port 39 Gate Valve: Pressure 47.3 BAR, Flow Rate 1,247 GPM, Status: MONITORING". 이 세 시스템은 모두 연결되어 있다. 항만의 물리적 움직임, 선박의 위치, 그리고 기술 시스템이 한 곳에서 제어된다.
+        모니터 벽. 수민이 본 화면들: 첫 번째 디스플레이 (왼쪽 상단): Boston Harbor의 평면도. 위성 이미지인 것 같다. 매우 상세하다. 각 부두, 각 크레인의 위치, 선석 번호. 그리고 그 위에 실시간 오버레이. 컨테이너 위치를 빨간 사각형으로 표시. "Container CLN-47302, Gate 39, Ready for departure". 두 번째 디스플레이 (중앙): 해상 물류 추적 시스템. 선박 아이콘이 여러 개. 실시간으로 움직인다. 각 선박의 옆에: 선명, 출발항, 목적지, ETA. "MV Pacific Dawn – Boston Harbor to Singapore – ETA 12:47UTC". 세 번째 디스플레이 (오른쪽): SCADA 대시보드. 기술 다이어그램. "Port 39 Gate Valve: Pressure 47.3 BAR, Flow Rate 1,247 GPM, Status: MONITORING". 이 세 시스템은 모두 연결되어 있다. 항만의 물리적 움직임, 선박의 위치, 그리고 기술 시스템이 한 곳에서 제어된다.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.55
       inject_method: "environmental_cue"

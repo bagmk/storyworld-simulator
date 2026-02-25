@@ -6,9 +6,21 @@
 episode:
   id: "ep37_showdown_quantum_part1"
   date: "2043-03-27T19:40"
-  location: "Novagrad Port — underground lab complex"
+  location: "Boston Harbor — underground lab complex"
   summary: |
-    노바그라드 항만 지하 B5층, 오후 7시 42분. 수민이 마지막 코드를 입력한다. BRIDGE_SLOT에 프로비저닝된 브리지 키(Bridge Key)를 삽입. 시스템이 3-of-5 Shamir Secret 검증을 실행한다. 32밀리초 안에 세 조건이 TRUE로 판정된다: 모레노의 알고리즘 무결성 확인, NSA 백도어 코드 바이패스, QPU 임계값 도달 허가. APPROVED. 타임락(Time-Lock) 펄스가 5초 윈도우로 송출된다.
+    보스턴 항만 지하 B5층, 오후 7시 42분. 수민이 마지막 코드를 입력한다.
+
+    [카를로스의 빈자리 — 오후 7시 38분, B5 출입구]
+
+    QPU 시운전 4분 전. 수민이 지하로 내려가는 복도를 지나친다. 카를로스의 자리—B2층 모니터링 콘솔. 평소 그가 앉아 화면을 보던 자리. 비어있다. 콘솔 화면만 켜진 채. 수민이 그 자리 앞에서 걸음을 멈춘다.
+
+    마르셀로가 옆에 있다. 수민은 묻지 않는다. 하지만 마르셀로가 먼저 말한다. 건조하고 짧게.
+
+    "그는 더 이상 이 프로젝트에 없어."
+
+    수민은 아무 말도 하지 않는다. 콘솔 화면에는 카를로스가 마지막으로 열어둔 부품 주문서 화면이 그대로다. "Order #NG-447-A — Cryogenic component — SUSPENDED." 마지막으로 그가 본 화면.
+
+    수민은 다시 걸음을 내딛는다. 지하로. BRIDGE_SLOT에 프로비저닝된 브리지 키(Bridge Key)를 삽입. 시스템이 3-of-5 Shamir Secret 검증을 실행한다. 32밀리초 안에 세 조건이 TRUE로 판정된다: 모레노의 알고리즘 무결성 확인, NSA 백도어 코드 바이패스, QPU 임계값 도달 허가. APPROVED. 타임락(Time-Lock) 펄스가 5초 윈도우로 송출된다.
 
     동시에 지상에서는 FBI-CIA 합동 급습팀이 진입 명령을 기다린다. CIA 현장 연락관 이선이 FBI 소피아 팀과 합류하여 작전을 조율한다. 노바그라드 항만 진입로 3군데, 각각 차량 10대씩. 정해진 시간: 오후 7시 38분(T1). 하지만 뭔가 잘못됐다. 무전이 끊겼다. "All units, hold position. Coordinates verification in progress." 지연. 단 6분이지만, 이게 전부다.
 

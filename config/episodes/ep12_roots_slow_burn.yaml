@@ -24,6 +24,22 @@ episode:
 
     아침이 올 때까지, 수민은 계속 코드를 짜고, 실험을 돌린다. 그리고 매번 Failsafe가 작동할 때마다, 조금씩 더 깊이 빠져든다. 이 조직의 일원으로.
 
+    새벽 2시 37분. 수민의 보조 모니터 왼쪽 하단, 학술 메일함에 알림 하나가 조용히 들어온다. 발신인: L.Moreno@mit.edu. 제목: "Re: Phase-Guard stabilization draft (PRIVATE)". 수민은 화면을 응시한다. 모레노 교수—MIT 양자시스템연구소 책임자, 수민의 박사 지도 교수. 논문 최종 심사 이후로 연락이 없었다. 아니, 사실은 수민이 피했다. Phase-Guard 초안을 보내놓고, 그 피드백이 두려워서.
+
+    메일을 열면 본문은 두 단락이다. 형식 없이, 날카롭게.
+
+    "수민, 초안 읽었다. Failsafe 루틴의 설계 논리는 훌륭해. 코히런스 보존 메커니즘에서 네 사고의 성장이 느껴진다. 하지만 나는 이 기술이 방어가 아닌 공격에 쓰일 수 없다고 생각했니?"
+
+    두 번째 단락.
+
+    "이 알고리즘은 타겟 큐빗의 상태를 파괴하지 않고 관측한다. 그리고 임계값 이상의 드리프트를 실시간으로 수정한다. 이것이 '보안'으로 쓰이면 RSA 키 복원에 필요한 연산 시간이 이론상 36시간에서 수십 분으로 줄어든다. 네가 이 가능성을 계산해본 적이 없다면, 지금 당장 계산해봐야 한다. 그리고 계산했다면... 우리가 대화해야 한다."
+
+    수민은 메일을 읽고 화면을 닫는다. 그리고 다시 연다. 다시 닫는다.
+
+    Failsafe는 방어다. 자신은 항상 그렇게 생각해왔다. 드리프트를 잡고, 시스템을 안정시키고, 붕괴를 막는 것. 공격이 아니다. 하지만 모레노 교수의 질문은 간단하다. '방어 도구'와 '공격 도구'의 차이가 설계에 있는 게 아니라 사용자의 의도에 있다면, 그 경계선은 어디인가?
+
+    수민은 답장 창을 연다. 한 글자도 쓰지 못하고 창을 닫는다. 내일 쓰자고 생각한다. 하지만 내일은 오지 않는다. 그 메일의 발신 타임스탬프가 수민의 머릿속에 고정된다: 2042-04-12T02:37:44Z.
+
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.
   introduced_clues:
@@ -87,6 +103,32 @@ episode:
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.75
       inject_method: "environmental_cue"
+
+    - id: "clue_ep12_moreno_remote_contact"
+      content: |
+        모레노 교수의 이메일 (L.Moreno@mit.edu → sumin.kim@quantumfront.io):
+        발신 시각: 2042-04-12T02:37:44Z
+        제목: Re: Phase-Guard stabilization draft (PRIVATE)
+
+        "수민, 초안 읽었다. Failsafe 루틴의 설계 논리는 훌륭해. 코히런스 보존 메커니즘에서 네 사고의 성장이 느껴진다. 하지만 나는 이 기술이 방어가 아닌 공격에 쓰일 수 없다고 생각했니?
+
+        이 알고리즘은 타겟 큐빗의 상태를 파괴하지 않고 관측한다. 그리고 임계값 이상의 드리프트를 실시간으로 수정한다. 이것이 '보안'으로 쓰이면 RSA 키 복원에 필요한 연산 시간이 이론상 36시간에서 수십 분으로 줄어든다. 네가 이 가능성을 계산해본 적이 없다면, 지금 당장 계산해봐야 한다. 그리고 계산했다면... 우리가 대화해야 한다."
+
+        이 메일의 의미:
+        1. 모레노는 Phase-Guard 초안을 이미 분석했다 — 공격 응용 가능성까지.
+        2. "우리가 대화해야 한다"는 경고이자 초대다. 무언가를 알고 있다.
+        3. 수민은 답장하지 않는다 → ep13에서 수민이 답장하려 했을 때 모레노는 이미 닿지 않는다.
+        4. 이 메일 타임스탬프(2042-04-12T02:37:44Z)는 추후 납치 타임라인 역추적의 기준점이 된다.
+
+        5가지 질문:
+        1) 모레노는 어떻게 Phase-Guard 초안을 입수했나? 수민이 보냈나, 아니면 누군가 유출했나?
+        2) "공격에 쓰일 수 없다고 생각했니?"는 질문인가, 경고인가?
+        3) 모레노는 이미 카르텔이 이 기술을 노리고 있음을 알았는가?
+        4) 수민의 미답장이 에피소드 13의 접촉 단절과 연결되는가?
+        5) "우리가 대화해야 한다"에서 '우리'는 누구와 누구인가?
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.65
+      inject_method: "document_artifact"
 
   # Items carried over from a previous episode that should be addressed.
   resolved:

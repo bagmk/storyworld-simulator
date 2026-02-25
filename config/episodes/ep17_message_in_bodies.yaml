@@ -8,7 +8,7 @@ episode:
   date: "2043-03-13T03:40"
   location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
   summary: |
-    엘레나가 USB를 넘긴 다음 날 2043년 3월 13일 오전 9시 47분. QuantumFront 내부망 시스템 메시지. 빨간 글씨. "INCIDENT ALERT - Port Authority Facility (Novagrad)". 상세 내용: "창고 3번 위치에서 하역 인부(신원: 미상)가 대형 화물 적재 중 기계 압착으로 사망. 사망 시각: 09:15 KST. 시신 상태: 우측 흉부 규칙적 압박 자국 1분 이상 지속. 사망 원인: 기술 조사 중. CCTV 스틸컷 첨부." 화면에는 피로 반쯤 덮인 영상이 보인다.
+    엘레나가 USB를 넘긴 다음 날 2043년 3월 13일 오전 9시 47분. QuantumFront 내부망 시스템 메시지. 빨간 글씨. "INCIDENT ALERT - Port Authority Facility (Boston Harbor)". 상세 내용: "창고 3번 위치에서 하역 인부(신원: 미상)가 대형 화물 적재 중 기계 압착으로 사망. 사망 시각: 09:15 KST. 시신 상태: 우측 흉부 규칙적 압박 자국 1분 이상 지속. 사망 원인: 기술 조사 중. CCTV 스틸컷 첨부." 화면에는 피로 반쯤 덮인 영상이 보인다.
 
     수민의 분석. 포트 시스템 로그: 사고 직전 09:13:22~09:14:45 (1분 23초간) CCTV 카메라 12번·15번 영상 공백. 마스터 로그: "자동 유지보수 모드 활성화 (시스템 동의 없음)". 비정상 항목: PLC_Valve_17에서 09:12:58에 'PRESSURE_OVERRIDE' 발생, 09:13:04 자동 소거. 정확히 1분 뒤 사람이 기계 아래에서 압착됨. 기술 범죄였다.
 

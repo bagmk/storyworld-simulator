@@ -3,12 +3,12 @@
   "scene_target_bias": 0,
   "scene_target_min": 3,
   "scene_target_max": 10,
-  "distiller_temperature": 0.2,
+  "distiller_temperature": 0.4,
   "distiller_max_tokens": 4000,
-  "prose_scene_temperature": 0.75,
+  "prose_scene_temperature": 0.85,
   "prose_transition_temperature": 0.7,
-  "prose_polish_temperature": 0.25,
+  "prose_polish_temperature": 0.35,
   "prose_anchor_fix_temperature": 0.35,
-  "prose_history_max_episodes": 14,
+  "prose_history_max_episodes": 6,
   "director_fallback_cast_size": 1
 }

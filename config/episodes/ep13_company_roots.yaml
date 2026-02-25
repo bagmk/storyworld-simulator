@@ -14,6 +14,21 @@ episode:
 
     하지만 그 순간, 엘레나의 코드에서 뭔가를 발견한다. 반복되는 변수: 'ZNT'. 검색을 시작한다. ZNT는... Zetanet. 과거 악명 높던 해커 조직. 엘레나는 그 조직과 연관이 있었던 것이다. 더 깊이 파고든다. Greyshore Capital → 멕시코 재단 → 특허 거래 흐름. 모든 것이 연결되기 시작한다. 카를로스의 정체: 국제 금융 브로커. 엘레나의 과거: 해커 조직 리더. QuantumFront: 카르텔의 위장 회사.
 
+    Phase-Guard 성공을 확인하고, 수민은 처음으로 잊고 있었던 일이 떠오른다. 모레노 교수의 메일. 11개월 전, ep12 새벽 2시 37분에 도착했던 그 메일. "이 기술이 방어가 아닌 공격에 쓰일 수 없다고 생각했니?" 당시 수민은 답장하지 못했다. 두려워서가 아니라, 무슨 말을 해야 할지 몰랐기 때문이다.
+
+    이제는 안다. 지금은 무슨 말을 해야 할지 안다.
+
+    수민은 답장을 쓴다. "교수님, 오래 걸렸습니다. 당신이 맞았습니다. 이걸 이야기해야 할 것 같습니다." Send. 전송 완료 아이콘이 뜬다. 하지만 3분 후, 수신 서버에서 자동 응답이 돌아온다.
+
+    "This email address is no longer active. Recipient's inbox has been deactivated.
+    MIT Systems Administration — Account suspended per departmental request."
+
+    계정이 비활성화됐다. 교수가 직접 비활성화한 건지, 아니면 누군가가 강제로 차단한 건지 알 수 없다. 수민은 MIT 연구소 홈페이지를 열어본다. Quantum Systems Lab 페이지. 연구진 목록. 모레노 교수의 이름이 없다. 사진도 없다. 'Faculty' 목록에서 삭제되어 있다.
+
+    수민은 교수의 사무실 전화번호를 찾아 국제 전화를 건다. MIT 교수동 543호. 통화 연결음 세 번. 그리고 자동 응답: "This extension is not in service." 존재가 지워졌다.
+
+    수민은 자리에 앉아 화면을 바라본다. FLAG_FAILSAFE: ACTIVE. Phase-Guard는 완성됐다. 그리고 모레노 교수는 사라졌다. 이 두 사건이 우연의 일치라고 생각하기엔, 타이밍이 너무 정확하다.
+
     그 순간, failsafe 코드가 실행된다. 화면에 FLAG_FAILSAFE 신호. 로그는 타임스탬프, 세션 ID, 성공 횟수를 기록한다. 동시에, failsafe의 위상 추적 알고리듐이 뭔가 놀라운 성능을 보여준다. 느린 계산이지만, QPU 환경에서는 폭발적이다. 83배의 성능 향상. 시스템이 처음으로 끊김 없이, 오류 없이 돈다.
 
     기술의 안정과 동시에 드러난 카르텔의 뿌리—수민은 이제 두 세계가 겹쳐진 무대 위에 서 있음을 실감한다. 고가 장비 송장은 수상한 투자사와 이어지고, 연구 성과는 수단일 뿐이며, 흐름을 바꾸는 건 서류라는 사실을. 하지만 생각이 끝나기도 전에, 획기적인 기술 성공과 카르텔의 정체 폭로가 동시에 이루어진다. 수민은 이제 점과 선을 연결할 수 없을 정도로 깊숙이 들어가 있다. 그리고 빠져나올 방법은 없다.
@@ -62,7 +77,7 @@ episode:
       content: |
         더 깊이 파고든다. Greyshore Capital의 뿌리를 추적한다. Luxembourg 회사? 아니면 Cyprus? 아니다. Mexico Foundation. '특허 관리 재단'이라고 소개되어 있다. 하지만 실제로는? 자금 흐름을 추적해본다. Greyshore → Mexico Foundation → various shell companies → back to Zetanet members.
 
-        그리고 또 다른 흐름. QuantumFront → Greyshore → Cartel-affiliated companies. 선적 기록에 나타나는 모든 컨테이너들이, 결국 알려진 카르텔 포트(Novagrad, Singapore, Hong Kong)로 향한다. 장비 세탁. 돈 세탁. 정보 세탁.
+        그리고 또 다른 흐름. QuantumFront → Greyshore → Cartel-affiliated companies. 선적 기록에 나타나는 모든 컨테이너들이, 결국 알려진 카르텔 포트(Boston Harbor, Singapore, Hong Kong)로 향한다. 장비 세탁. 돈 세탁. 정보 세탁.
 
         수민이 짠 Failsafe와 Phase-Guard는, 단순한 연구 도구가 아니라, 이 모든 '세탁' 과정에서 추적 불가능한 통신을 만드는 도구라는 뜻이다.
       trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
@@ -116,6 +131,43 @@ episode:
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.70
       inject_method: "npc_question"
+
+    - id: "clue_ep13_moreno_contact_lost"
+      content: |
+        수민의 답장 전송 기록 (발신: 2043-03-05T01:12:33Z):
+        To: L.Moreno@mit.edu
+        Subject: Re: Phase-Guard stabilization draft (PRIVATE)
+        Body: "교수님, 오래 걸렸습니다. 당신이 맞았습니다. 이걸 이야기해야 할 것 같습니다."
+
+        서버 자동 응답 (2043-03-05T01:12:37Z):
+        "This email address is no longer active.
+         Recipient's inbox has been deactivated.
+         MIT Systems Administration — Account suspended per departmental request."
+
+        MIT Quantum Systems Lab 홈페이지 스크린샷 (캐시 기준 2043-03-05):
+        - 연구진 목록에 'L. Moreno' 이름 없음
+        - 사진, 연구 분야, 연락처 모두 삭제됨
+        - Google 캐시 버전(2042-11-12): Moreno가 명시됨 → 최근 3개월 내 삭제됨
+
+        MIT 교수동 543호 전화 기록:
+        - 발신: 2043-03-05T01:15:11Z
+        - 수신: "This extension is not in service."
+
+        이 타임라인의 의미:
+        1. 모레노의 ep12 메일 발신: 2042-04-12T02:37Z
+        2. 수민의 미답장 기간: 11개월
+        3. Phase-Guard 완성: 2043-03-05
+        4. 수민의 답장 시도: 2043-03-05T01:12Z
+        5. 계정 비활성화 확인: 같은 날
+
+        질문 4가지:
+        1) 모레노의 MIT 계정은 언제, 누가 비활성화했나? (3개월 전 이미 삭제됨)
+        2) Phase-Guard 완성과 모레노 연락 단절의 타이밍이 우연인가?
+        3) 모레노는 지금 어디에 있는가? (ep23 납치의 복선)
+        4) 모레노의 ep12 경고를 11개월 동안 무시한 대가는?
+      trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
+      inject_threshold: 0.55
+      inject_method: "document_artifact"
 
   # Items carried over from a previous episode that should be addressed.
   resolved:

@@ -11,7 +11,7 @@ characters:
       A Korean-born quantum physicist working in the near-future transition era (2041–2046),
       and a former doctoral student of Dr. Alex Moreno—sharing that lineage with his long-time rival, Ben Clarke.
       hired into QuantumFront Inc.—a polished “R&D company” that is, in reality, a cartel front
-      embedded in the Novagrad Freeport ecosystem. Sumin is technically exceptional: he can
+      embedded in the Boston Harbor Free Zone ecosystem. Sumin is technically exceptional: he can
       reason across theory/experiment boundaries and is central to integrating phase-control
       routines (e.g., Phase-Guard) into a pipeline that inches toward a catastrophic crypto threshold
       (“30 days → minutes” type capability under special conditions).
@@ -116,30 +116,53 @@ characters:
       Elena의 비극은 12년간 여동생 Bella를 찾지 못한 채 카르텔과 CIA 양쪽에 이용당한 것.
       EP16에서 수민에게 USB를 건넬 때, 단순한 정보 전달이 아니라 아이들 사진을 보여주며
       "이 아이들이 커서 엄마가 뭘 했는지 알면 어떡하지?"라는 인간적 두려움을 드러낸다.
-      EP28 직전, 수민과의 마지막 대화: "12년 전 여동생이 사라진 날, 나는 세상이 끝났다고
-      생각했어. 근데 세상은 안 끝나더라. 그냥 내가 끝난 거지." 이 대화가 사후 수민의
-      트라우마를 10배 증폭시키는 역할을 한다.
+
+      EP26-27 구간 (체념의 축적): 엘레나는 Failsafe-B 합의 서명 직후 카를로스의 눈에서
+      무언가를 읽는다. 자신의 역할이 끝났다는 신호. EP27에서 수민과의 짧은 독대:
+      "12년 전 여동생이 사라진 날, 나는 세상이 끝났다고 생각했어. 근데 세상은 안 끝나더라.
+      그냥 내가 끝난 거지." 이 한 줄이 다음 에피소드의 죽음을 예고한다.
+
+      EP28 (마지막 순간): 카르텔 처형팀이 밖에서 대기한 상황. 요나스가 방에 들어온다.
+      엘레나는 Zetanet 시절 CIA 접촉 프로토콜 기억에서 그를 읽는다. "...CIA구나."
+      요나스는 대답하지 않는다. 엘레나: "벨라 찾아줄 수 있어?"
+      요나스가 짧은 침묵 끝에 고개를 끄덕인다.
+      엘레나가 눈을 감는다. 능동적으로. 두려워하지 않고.
+      이것이 그녀의 마지막 선택이다—죽음의 방식을 스스로 고르는 것.
+
+      EP41 (사후): 요나스의 "벨라는 잘 있다" 한 마디가 엘레나의 서사를 닫는다.
+      수민은 이 말의 의미를 완전히 이해하지 못하지만, 독자는 안다.
 
   - id: "alex_moreno"
     name: "Dr. Alex Moreno"
     role: "supporting"
     bio: |
-      A world-renowned scholar and Sumin’s doctoral advisor. Moreno holds the missing “final piece”:
-      a phase-tracking algorithm whose real-time adaptivity makes the difference between an academic
-      prototype and an operational pipeline. To Sumin, Moreno is not just a mentor—he is the moral
-      reference frame Sumin tries (and fails) to preserve under pressure.
-      
-      Moreno is kidnapped along with his team and coerced into contributing to the pipeline. He resists,
-      arguing for research ethics and refusing to accept weaponization-by-proxy. In the end, the system
-      consumes him: during a forced final run, he collapses and dies—an event that becomes Sumin’s
-      irreversible moral wound.
+      MIT's preeminent quantum systems professor and Sumin's doctoral advisor. Moreno holds
+      the missing "final piece": a real-time phase-tracking algorithm whose adaptivity makes
+      the difference between an academic prototype and an operational RSA-breaking pipeline.
+      His 2039 Nature Physics paper is the most-cited quantum control paper of the decade.
+
+      To Sumin, Moreno is not just a mentor—he is the moral reference frame Sumin tries
+      (and fails) to preserve under pressure. Moreno is aware of this: in EP12, he reaches
+      out remotely with a question that plants the story's deepest seed: "네 Phase-Guard
+      초안 봤다. 이 기술이 방어가 아닌 공격에 쓰일 수 없다고 생각했니?" This email
+      becomes Sumin's unanswered question for the rest of the story.
+
+      Moreno is kidnapped with his MIT research team near Cambridge's Route 2A during the
+      MIT conference return in EP23. He resists coercion, arguing for research ethics and
+      refusing to accept weaponization-by-proxy. In EP34, under the threat "학생들이 다 죽어,"
+      he executes the forced run—hands trembling, eyes closed. In EP35, he collapses and
+      dies: a near-assassination staged as accidental overwork. This becomes Sumin's
+      irreversible moral wound and the moment that makes the Hyejin threat in EP35 land
+      with double force.
     core_competencies:
-      - "Phase-tracking / adaptive control algorithms"
-      - "Mentorship + scientific ethics as lived practice"
+      - "Real-time phase-tracking / adaptive control algorithms (the 'missing piece')"
+      - "MIT quantum systems lab leadership and research team management"
+      - "Mentorship and scientific ethics as lived—not theoretical—practice"
     invariants:
-      - "Will not willingly weaponize his research, even under threat"
-      - "Protects students intellectually and emotionally when possible"
+      - "Will not willingly weaponize his research, even under direct threat"
+      - "Protects students physically and emotionally when possible—even by lying ('괜찮다')"
       - "Refuses to lie about scientific capability to satisfy power"
+      - "His one betrayal of his principles (the forced run) is done entirely for his students"
     goals:
       - "Survive coercion without surrendering the core of his work"
       - "Keep his students from becoming instruments of violence"
@@ -150,12 +173,20 @@ characters:
       carlos_reyes:          -0.7
       agent_christan_miller: -0.6
     inner_conflict: |
-      모레노는 단순한 납치 피해자가 아니라, 제자들을 지키려는 인간으로서 극한의 딜레마에
-      직면한다. EP23 납치 장면에서 학생들에게 "괜찮다, 내가 해결한다"라고 거짓말하면서
-      손이 떨린다. EP36에서 강제 실행을 당할 때, 키보드 앞에서 "이걸 실행하면 내 연구가
-      무기가 된다. 하지만 안 하면 학생들이..."라는 딜레마를 겪고, 결국 학생들을 위해
-      실행을 진행한다. 그의 죽음은 기술적 과로사로 위장되지만, 실제로는 카르텔이 설계한
-      근-암살이다.
+      EP12 (원격 연락): 수민의 Phase-Guard 초안을 보고 이메일을 보낸다.
+      "이 기술이 방어가 아닌 공격에 쓰일 수 없다고 생각했니?"
+      이 질문은 수민에게 답장을 보내려는 순간 모레노가 이미 연락 두절 상태임을 발견하게 한다(EP13).
+
+      EP23 (납치): 케임브리지 Route 2A. 학생들 앞에서 "괜찮다, 내가 해결한다"라고 거짓말.
+      손이 떨리지만 목소리는 흔들리지 않는다. 그것이 스승으로서 그가 할 수 있는 마지막 것이다.
+
+      EP34 (강제 실행): 키보드 앞에서 내면 독백:
+      "이걸 실행하면 내 연구가 무기가 된다. 하지만 안 하면 학생들이..."
+      그는 실행한다. 손이 흔들린다. 눈이 감긴다. 알고리즘이 작동한다.
+
+      EP35 (사망): 과로사로 위장된 근-암살.
+      수민에게 이 죽음은 EP12의 이메일과 겹친다: "방어가 아닌 공격에 쓰일 수 없다고 생각했니?"
+      대답은 결국 '아니오'가 되었다. 모레노도 알고 있었다. 그래서 물었던 것이다.
 
   - id: "carlos_reyes"
     name: "Carlos Reyes"
@@ -189,6 +220,13 @@ characters:
       agent_christan_miller:  0.4
       agent_sophia_scholten: -0.4
       agent_ethan_burke:      0.1
+    fate: |
+      EP36에서 엘 파트론이 카를로스 제거를 명령한다.
+      이유: 모레노 사망 후 카를로스의 역할이 완료되었고, 그는 이제 리스크다.
+      처리 방식: 마르셀로가 EP37 초반 수민에게 간접적으로 전달한다.
+      "그는 더 이상 이 프로젝트에 없어." (짧게. 설명 없음.)
+      수민은 카를로스의 자리가 비어있는 것을 실험실 입구에서 확인한다.
+      카를로스의 퇴장은 무음(無音)이다—그것이 카르텔의 언어다.
 
   - id: "el_patron"
     name: "Raphael Gutierrez"
@@ -345,63 +383,108 @@ characters:
     name: "Yonas Mehret"
     role: "supporting"
     bio: |
-      A Freeport LST/SCADA line operator who appears in the story like a shadow: present in access logs,
-      present in corridors, present in the feeling of being watched. He speaks in half-truths and
-      questions—never enough to convict, always enough to destabilize.
-      
-      Yonas’s loyalty is intentionally unclear. He may be cartel-aligned, state-aligned, self-aligned, or
-      all three depending on the hour. His value is operational: he lives where the physical world
-      touches the “secure” world—elevators, service shafts, badges, access windows.
+      A CIA long-term deep-cover asset embedded inside the cartel's Boston Harbor Free Zone
+      operations—not a cartel member who crossed to the CIA, but an operative the CIA placed
+      inside the cartel approximately 8 years before the story begins. His cover identity is
+      Boston Harbor Freeport floor supervisor; his actual function is a physical–digital bridge
+      for CIA intelligence collection on cartel LST/SCADA operations.
+
+      He appears in the story like a shadow: present in access logs, present in corridors,
+      present in the feeling of being watched. He speaks in half-truths and questions—never
+      enough to convict, always enough to destabilize. His fabricated legal identity and
+      intentionally incomplete travel record are CIA-engineered to resist scrutiny from both
+      cartel and federal investigators.
+
+      His most consequential act: in EP28, with cartel enforcement teams surrounding the
+      building and Elena's elimination unavoidable, Yonas made a unilateral decision to
+      personally execute Elena—preserving his deep-cover status, protecting Sumin's position,
+      and controlling the manner of death. This was not a CIA order. It was his own judgment
+      call, made in seconds, and it will define him permanently.
+
+      In Elena's final moment, she recognized him as CIA-affiliated (Zetanet-era contact
+      protocol instinct) and asked only: "벨라 찾아줄 수 있어?" He nodded. He has kept that
+      promise—locating Bella and ensuring her safety. His EP41 line "벨라는 잘 있다" is not
+      absolution. It is the only form of accountability his hands can offer.
     core_competencies:
-      - "Freeport operations: access surfaces, schedules, blind spots"
-      - "Social masking: ambiguity as armor"
-      - "Low-level tradecraft (tailing, signaling, plausibly-deniable presence)"
+      - "Boston Harbor Freeport operations: access surfaces, schedules, physical blind spots"
+      - "CIA deep-cover tradecraft: identity maintenance, compartmentalization, social masking"
+      - "LST/SCADA systems: translating cartel operational demands into on-the-ground execution"
+      - "CCTV manipulation, lockdown engineering, corridor routing for controlled incidents"
     invariants:
-      - "Never confirms allegiance explicitly"
-      - "Uses ambiguous phrasing to avoid committing to a claim"
-      - "When threatened directly, disappears rather than confronts"
+      - "Never confirms CIA allegiance to anyone—not cartel, not Sumin, not FBI"
+      - "Uses ambiguous phrasing to avoid committing to any single claim"
+      - "Will sacrifice individuals (including himself) to preserve operational integrity"
+      - "The Bella promise is the one line he will not cross—it is his private moral floor"
     goals:
-      - "Maintain control over what Sumin can physically access (and when)"
-      - "Protect his own leverage value by staying unreadable"
-      - "Keep the Freeport machine running regardless of who ‘wins’ upstairs"
+      - "Maintain CIA intelligence access inside the cartel through the QPU project's conclusion"
+      - "Prevent any single faction (NSA, cartel, FBI) from monopolizing the quantum capability"
+      - "Honor the Bella promise—the only act of personal ethics he allows himself"
+      - "Survive without letting either the cartel or the CIA discover his full duality"
     initial_relationships:
       kim_sumin:             -0.1
-      elena_ramirez:         -0.2
-      carlos_reyes:           0.3
-      el_patron:              0.2
-      agent_sophia_scholten: -0.2
+      elena_ramirez:          0.3   # Recognized her as a fellow person trapped—even as he killed her
+      carlos_reyes:           0.4   # Performs loyalty perfectly; Carlos trusts him
+      el_patron:              0.3   # El Patrón suspects everyone; Yonas has survived this longest
+      agent_sophia_scholten: -0.3   # FBI is his existential threat to cover
+      agent_ethan_burke:      0.6   # Ethan is his handler—the only person who knows the full truth
+    tragic_note: |
+      요나스의 비극은 단순하다: 그는 엘레나를 죽이지 않아도 될 수 있었다.
+      하지만 그렇게 했다. 그리고 그것이 옳은 선택이었는지 그는 영원히 알 수 없다.
+      EP41 마지막 장면—수민에게 커피를 가져다주고 "벨라는 잘 있다"라고 말한 후,
+      창밖을 바라보며 혼잣말: "나도 언젠가는 잘 있어야 할 텐데."
+      이 한 줄이 요나스의 진짜 게임이 무엇인지를 독자에게 남긴다: 생존.
 
   - id: "ben_clarke"
     name: "Ben Clarke"
     role: "supporting"
     bio: |
-      An American physicist and Sumin’s long-running rival, first forged in elite academic competition
-      (the “we were measured against each other” kind). Both men came up under Dr. Alex Moreno’s orbit
-      (students/mentees in different cohorts), turning Moreno into both a moral benchmark and a contested legacy.)
-      Ben chose the pragmatic arc: government
-      contracts, industry credibility, and a clean narrative of success.
-      
-      When Sumin’s life begins collapsing under QuantumFront’s gravity, Ben offers a seemingly simple
-      alternative: join him, take the visa card, take the money, take the legitimacy. The offer is both
-      kindness and conquest—proof that Ben’s worldview wins because it pays.
+      An American physicist and Sumin's long-running rival, first forged in elite academic competition
+      at MIT under Dr. Alex Moreno (students in different cohorts, always measured against each other).
+      Ben chose the pragmatic arc: government contracts, industry credibility, and a clean narrative
+      of success. That pragmatic arc eventually led him to Miller.
+
+      Ben is not Miller's spy. He is Miller's contractor—a physicist who took DARPA funding through
+      NSA-adjacent channels and gradually became embedded in Miller's network. He does not consider
+      himself compromised; he considers himself realistic. When Moreno disappears, Ben is genuinely
+      frightened—he had NO KNOWLEDGE of the kidnapping, which reveals NSA's compartmentalization:
+      Miller didn't tell his own contractors. Ben's panic call to Sumin ("교수님 연락이 안 돼, 며칠째")
+      is authentic alarm, not performance.
+
+      In EP31, Ben offers Sumin a Miller-backed NSA contract—genuinely believing this is rescue.
+      At this moment Sumin discovers the Ben-Miller connection (through the NSA backdoor key
+      analysis) and uses the knowledge to reverse the power dynamic: Sumin forces Ben to choose
+      between his contract and his integrity, then tears up the offer letter. Ben is not exposed
+      publicly—but he knows Sumin has the evidence. This is Sumin's first fully autonomous,
+      offensive move in the story.
+
+      Ben's final status: stripped of leverage, aware that Sumin holds proof of his NSA
+      entanglement, and facing his own version of the same impossible choice Sumin faced years ago.
+      His pragmatic worldview—"outcomes are the only scoreboard"—turns against him.
     core_competencies:
-      - "Navigating government/industry ecosystems"
+      - "Navigating government/industry/DARPA ecosystems—including NSA-adjacent funding channels"
       - "High-performance physics culture: competition, publishing, positioning"
-      - "Recruiting talent through incentives and status"
+      - "Recruiting talent through incentives and status (the same tools Miller used on him)"
     invariants:
       - "Treats outcomes (funding, impact, security) as the only real scoreboard"
-      - "Competitive drive never turns off—even when he is ‘helping’"
-      - "Will not risk his own stable path for someone else’s moral crusade"
+      - "Competitive drive never turns off—even when he is 'helping'"
+      - "Will not risk his own stable path for someone else's moral crusade—until EP31 proves he has no stable path left"
+      - "Genuinely did not know about Moreno's kidnapping—Miller compartmentalized him"
     goals:
-      - "Pull Sumin into a controllable, ‘legitimate’ pipeline (and away from cartel chaos)"
-      - "Keep his own access to contracts and influence expanding"
-      - "Prove—quietly—that his pragmatic choices were correct"
+      - "Pull Sumin into a Miller-backed 'legitimate' NSA pipeline (believing this is rescue)"
+      - "Keep his own DARPA/NSA contracts and academic reputation intact"
+      - "Prove quietly that his pragmatic choices were correct—but EP31 fractures this"
     initial_relationships:
       kim_sumin:             -0.2
       alex_moreno:            0.55
-      agent_christan_miller:  0.1
+      agent_christan_miller:  0.45  # Working relationship, contractor level—not full trust
       agent_ethan_burke:      0.0
       elena_ramirez:          0.0
+    character_reversal: |
+      EP23: 모레노 납치를 모르는 채 수민에게 패닉 전화. "교수님이 사라졌어."
+      이 순간 벤은 NSA의 관료주의적 무능의 피해자임이 드러난다—밀러조차 그에게 말하지 않았다.
+      EP31: 수민이 NSA 백도어 키를 분석해 벤-밀러 연결을 발견하고 역전시킨다.
+      벤이 설계한 함정에 벤이 빠진다. 수민이 처음으로 완전히 능동적으로 움직인 순간.
+      결말: 벤은 증거를 가진 수민과 계속 살아가야 한다. 그것이 그의 진짜 감옥이다.
 
   - id: "hyejin_kim"
     name: "Kim Hyejin"
