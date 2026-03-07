@@ -386,6 +386,67 @@ class SimulationOrchestrator:
 
         # Episode context for tone/pacing control
         ep_ctx = self._build_episode_context()
+        speech_profile = agent.speech_profile if isinstance(agent.speech_profile, dict) else {}
+        visual_profile = agent.visual_profile if isinstance(agent.visual_profile, dict) else {}
+        speech_guide = ""
+        if speech_profile:
+            cadence = str(speech_profile.get("cadence", "")).strip()
+            tone = str(speech_profile.get("tone", "")).strip()
+            lexical = speech_profile.get("lexicon", []) or []
+            avoid = speech_profile.get("avoid", []) or []
+            tics = speech_profile.get("signature_tics", []) or []
+            formality = str(speech_profile.get("formality", "")).strip()
+            parts = []
+            if tone:
+                parts.append(f"- Tone: {tone}")
+            if cadence:
+                parts.append(f"- Cadence: {cadence}")
+            if formality:
+                parts.append(f"- Formality: {formality}")
+            if lexical:
+                parts.append(f"- Preferred lexicon: {', '.join(str(x) for x in lexical[:8])}")
+            if avoid:
+                parts.append(f"- Avoid patterns: {', '.join(str(x) for x in avoid[:8])}")
+            if tics:
+                parts.append(f"- Signature tics: {', '.join(str(x) for x in tics[:6])}")
+            if parts:
+                speech_guide = "\n## Character Voice\n" + "\n".join(parts) + "\n"
+
+        visual_guide = ""
+        if visual_profile:
+            vp_parts = []
+            archetype = str(visual_profile.get("archetype", "")).strip()
+            wardrobe = str(visual_profile.get("wardrobe", "")).strip()
+            silhouette = str(visual_profile.get("silhouette", "")).strip()
+            body_language = str(visual_profile.get("body_language", "")).strip()
+            vibe = str(visual_profile.get("vibe", "")).strip()
+            if archetype:
+                vp_parts.append(f"- Archetype: {archetype}")
+            if wardrobe:
+                vp_parts.append(f"- Wardrobe: {wardrobe}")
+            if silhouette:
+                vp_parts.append(f"- Silhouette: {silhouette}")
+            if body_language:
+                vp_parts.append(f"- Body language: {body_language}")
+            if vibe:
+                vp_parts.append(f"- Vibe: {vibe}")
+            if vp_parts:
+                visual_guide = "\n## Character Presence\n" + "\n".join(vp_parts) + "\n"
+
+        cast_visual_lines = []
+        for other in others:
+            vp = other.visual_profile if isinstance(other.visual_profile, dict) else {}
+            if not vp:
+                continue
+            archetype = str(vp.get("archetype", "")).strip()
+            wardrobe = str(vp.get("wardrobe", "")).strip()
+            body_language = str(vp.get("body_language", "")).strip()
+            parts = [p for p in [archetype, wardrobe, body_language] if p]
+            if parts:
+                cast_visual_lines.append(f"- {other.name}: {' | '.join(parts)}")
+        cast_visual_guide = ""
+        if cast_visual_lines:
+            cast_visual_guide = "\n## In-Scene Visual Cues\n" + "\n".join(cast_visual_lines) + "\n"
 
         system = (
             f"You are {agent.name}, a character in a story.\n\n"
@@ -396,6 +457,9 @@ class SimulationOrchestrator:
             f"\n\n## Your Current Goals\n{context['goals']}\n\n"
             f"## Other Characters Present\n{cast_text}\n\n"
             f"## Your Current Emotional State\n{emotions_text}\n\n"
+            f"{speech_guide}"
+            f"{visual_guide}"
+            f"{cast_visual_guide}"
             f"Stay in character at all times. Write your next action or dialogue.\n"
             f"Be specific and grounded in the current scene.\n"
             f"Match the tone and pacing described in Story Context.\n"

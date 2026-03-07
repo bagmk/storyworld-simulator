@@ -143,6 +143,66 @@ core_entities:
     marcelo:
       role: "현장 규율/폭력의 메시지"
 
+  failsafe_key_stages:
+    # Failsafe-B 키 보유 상태 단계별 추적 (Director AI 전용 — 수민에게 직접 노출 금지)
+    # 수민 인식 vs 실제 구조가 ep41에서 처음으로 일치한다.
+    stage_initial_ep26:
+      description: "ep26 Failsafe 계약 체결 직후"
+      actual_keys:
+        - holder: "Jonas Mehret (CIA 침투 자산)"
+          key_id: "key_1"
+        - holder: "ElPatron (Rafael Gutierrez)"
+          key_id: "key_2"
+        - holder: "Carlos"
+          key_id: "key_3"
+        - holder: "Elena Arbaido (CIA 자산)"
+          key_id: "key_4"
+        - holder: "Sumin Kim"
+          key_id: "key_5"
+      sumin_perception: "카르텔 3(ElPatron+Carlos+Jonas) : Elena CIA 1 : 수민 1"
+      note: "수민은 ep26 시점에서 Jonas를 카르텔 측으로 오해"
+
+    stage_after_elena_death_ep28:
+      description: "ep28 엘레나 사망 직후 — Jonas가 엘레나의 키를 회수하여 CIA에 전달"
+      actual_keys:
+        - holder: "Jonas Mehret → CIA (Greyshore 계좌로 전달)"
+          key_id: "key_1 (원래 Jonas 보유)"
+        - holder: "CIA (Greyshore / Ethan Burke 계열)"
+          key_id: "key_4 (원래 Elena 보유, Jonas 회수 후 CIA 전달)"
+        - holder: "ElPatron (Rafael Gutierrez)"
+          key_id: "key_2"
+        - holder: "Carlos"
+          key_id: "key_3"
+        - holder: "Sumin Kim"
+          key_id: "key_5"
+      actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
+      sumin_perception: "카르텔 4(Jonas+ElPatron+Carlos+엘레나키회수) : 수민 1"
+      note: >-
+        수민은 Jonas를 여전히 카르텔 측으로 오해. ep41까지 이 오해 유지.
+        ep29 도청에서 Jonas-BURKE7 교신 포착했지만 이중첩자 여부 확신 못함.
+
+    stage_after_carlos_removal_ep36:
+      description: "ep36 카를로스 제거 직후 — 카를로스의 키가 ElPatron에게 귀속"
+      actual_keys:
+        - holder: "CIA (Greyshore / Ethan Burke)"
+          key_id: "key_1 + key_4"
+        - holder: "ElPatron (Rafael Gutierrez, 카를로스 키 포함)"
+          key_id: "key_2 + key_3"
+        - holder: "Sumin Kim"
+          key_id: "key_5"
+      actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
+      sumin_perception: "카르텔 4 : 수민 1 (변화 없음)"
+      note: "실제 분포는 ep28과 동일. 수민의 인식도 변화 없음."
+
+    stage_ep41_revelation:
+      description: "ep41 Jonas CIA 신분 공개 — 수민이 처음으로 실제 구조를 인식"
+      actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
+      sumin_new_perception: "CIA 2 : 카르텔 2 : 수민 1 (캐스팅보트)"
+      revelation: >-
+        Jonas가 수민에게 직접 고지: "나는 CIA 8년 잠입 자산이었습니다."
+        수민이 처음으로 이해: 자신은 처음부터 캐스팅보트였다.
+        어느 쪽도 단독으로 Failsafe를 열 수 없었기 때문에 수민을 살렸다.
+
   critical_artifacts:
     - id: "greyshore_ledger_marker"
       meaning: "자금 레일의 존재(403/권한 차단 포함)"
@@ -214,6 +274,27 @@ director_control_model:
     - "'기술은 손이다' 철학 아크: EP06에서 씨앗이 뿌려지고, EP18-28에서 성장하고, EP38-41에서 완성된다. 이 철학적 독백은 일기/노트가 아닌 수민의 내면 독백으로만 표현한다."
     - "수민의 캐릭터 아크: EP01-13는 수동적 놀라움/관찰, EP18-22에서 능동적 전환, EP27-41에서 게임 메이커. 각 단계의 전환점이 명확해야 한다."
     - "카르텔의 원래 목적(회계조작)에서 양자 올인으로의 전환이 스토리 초반에 분명히 드러나야 한다. El Patrón이 처음에 NSA 펀딩에 반대했다가 기술의 가능성을 보고 입장을 바꾸는 과정."
+    - |
+      [오프씬 장면 구현 원칙 — 수민 1인칭 시점 유지]
+      이 소설은 수민의 시점으로만 서술된다. 수민이 직접 목격하지 못한 장면(요나스-엘레나 마지막 대화, 이선-요나스 비밀 채널 등)은 반드시 아래 세 가지 방법 중 하나로만 구현한다:
+
+      (1) 사후 재구성 (Post-Fact Reconstruction):
+          수민이 나중에 CCTV 기록, 포렌식 로그, CIA 문서, 패킷 캡처 등을 통해 과거 장면을 간접 재구성.
+          구현 예시: ep28 엘레나 사망 장면 — 수민이 격벽이 열린 후 4분 뒤 도착, 총성 방향·위치·혈흔으로 역추산.
+          주의: 수민이 '이렇게 됐을 것이다'는 추론으로 서술해야 하며, 확정 사실처럼 전지적으로 서술 불가.
+
+      (2) 도청/감청 (Intercept via MIRROR TRAP):
+          수민의 MIRROR TRAP 시스템이 CIA 암호화 통신의 일부를 부분 복호화하여 단편적 정보를 제공.
+          구현 예시: ep29 이선-요나스 채널 — 30% 복호화, 평문 단편만 제공, 나머지는 [REDACTED].
+          핵심 원칙: 수민이 정보를 '완전히' 갖지 않는다. 불완전한 정보가 수민의 추론과 오해를 만들어 긴장 유지.
+          BURKE-7(이선 Burke 핸들러 코드) 식별은 ep29에서 이 방법으로 구현됨.
+
+      (3) 증인 보고 (Witness Testimony):
+          다른 캐릭터(주로 요나스)가 직접 수민에게 단편적 사실을 전달.
+          구현 예시: ep41 요나스 — "벨라는 잘 있다", "나도 언젠가는 잘 있어야 할 텐데"
+          핵심 원칙: 증인도 전부를 말하지 않는다. '단편적 고백' 수준에서 멈춰야 수민 시점 훼손 없이 오프씬 정보 전달 가능.
+
+      Director AI 주의사항: 위 세 방법 외의 방식(예: 갑자기 전지적 시점으로 전환, 수민이 없는 장면을 직접 서술)은 금지. 위반 시 강제 리라이트.
 
 acts:
   - id: "act1"
@@ -296,18 +377,18 @@ acts:
   - id: "act6"
     title: "Showdown and Fallout"
     description: >-
-      결전 직전 벤의 유혹(벤-밀러 연결 노출), 가족 통화, NSA의 측정체인 조작이 겹친다.
-      수민이 NSA 키 하이재킹을 역이용해 벤을 함정에 빠뜨리는 능동적 선택.
+      결전 직전 카르텔의 혜진 협박, 벤의 유혹(NSA 하청 구조 노출), NSA 파이프라인 발견이 겹친다.
+      수민이 NSA 전송 채널을 역이용해 Chase 은행 데이터를 바꿔치기하는 계획을 카르텔에 제안.
       QPU 시운전이 시작되고(진짜 레일), RSA가 실제로 붕괴한다.
       사건 직후 수민은 '보호' 명목의 구금으로 세계에서 지워진다.
     episodes: ["ep31", "ep32", "ep33", "ep34", "ep35", "ep36", "ep37", "ep38", "ep39", "ep40", "ep41"]
     milestones:
       - id: "ep31_ben_offer"
-        description: "벤의 제안 — 밀러 산하 NSA 계약 제안. 벤-밀러 연결 폭로. 수민이 NSA 백도어 키를 역이용해 벤을 역전시킴"
+        description: "벤의 제안 — 밀러 산하 NSA 계약 제안. 카르텔의 혜진 협박 전화로 수민의 선택지가 사라짐. NSA 하청 구조(NSA→벤의 회사→QuantumFront) 파악. 계약서 찢기 = 카르텔에게 공개 신호. Chase 은행 역이용 아이디어의 씨앗."
       - id: "ep32_family_voice"
         description: "혜진 영상통화 협박: 혜진은 모르는 채 평범, LST 직원이 수민 이어폰으로만 '우리가 어디 있는지 알지?' 위협"
       - id: "ep35_fbi_pressure"
-        description: "모레노 사망 직후 혜진 협박 + FBI 압박 이중 충격"
+        description: "모레노 교수 심정지(위독/ICU 이송) 직후 혜진 협박 + FBI 소피아 면책권 제안 + 이중 충격. 실제 사망은 ep37."
       - id: "ep36_patron_failsafe"
         description: "엘 파트론 Failsafe 발동 + 카를로스 제거 명시"
       - id: "ep37_showdown_quantum_part1"
@@ -315,7 +396,7 @@ acts:
       - id: "ep38_showdown_quantum_part2"
         description: "RSA 키 복구/군사 통신 해독 현실화"
       - id: "ep40_fbi_cutoff"
-        description: "사건 직후 보호구금/연락 차단"
+        description: "ep39 Deadman 47분 위기 경험 → '어느 한 조직이 라인을 끊어도 나머지 둘이 막는 구조' 공학적 설계 → 3자(CIA/Cartel/수민) 협력 제안. FBI는 법적 절차로 완전히 배제됨"
       - id: "ep41_epilogue"
         description: "세계 질서 재편 + 진상 은폐 + 수민의 유배. 요나스 '벨라는 잘 있다' 발언"
 
@@ -483,6 +564,16 @@ episodes:
     exit_conditions:
       set_flags:
         failsafe_v1_designed: true
+    # ─ TIME JUMP NOTE ────────────────────────────────────────────────────────
+    # ep12(2042-04-12) → ep13(2043-03-05): 약 11개월 오프스크린 압축.
+    # 압축 기간 주요 사건:
+    #   · Failsafe v1 설계 완성 후 고도화 (~6개월)
+    #   · Phase-Guard 알고리즘 정제, QuantumFront 내부 감시 강화 (~3개월)
+    #   · 카르텔의 수민 통제가 '연구자 계약' → '사실상 구금' 수준으로 격화
+    #   · 수민↔모레노 원격 통신 빈도 감소 (카르텔 통신 감청 강화)
+    #   · 혜진의 서울 상황 악화 (카르텔 감시망 확대)
+    # 플레이어 단서: ep13 도입부 수민 독백 + 모레노 연락두절 발견 장면으로 암시.
+    # ─────────────────────────────────────────────────────────────────────────
 
   - episode_id: "ep13"
     file: "ep13_company_roots.yaml"
@@ -739,12 +830,14 @@ episodes:
     act: "act6"
     date_range: {start: "2043-03-23T20:15", end: "2043-03-23T23:59"}
     synopsis: >-
-      벤 클라크가 밀러 산하 NSA 계약을 제안한다. 이 시점에서 벤-밀러 협력 관계가 노출된다.
-      수민은 NSA 백도어 키 하이재킹을 발견하고 이를 역이용해 벤을 함정에 빠뜨리는
-      능동적 선택을 한다. 계약서를 찢는다.
+      벤 클라크가 밀러 산하 NSA 계약을 제안한다. 그 직전, 카르텔이 수민에게 전화해 혜진의 목소리를
+      들려주며 협박한다 — 수민의 선택지는 사라진다. 수민은 QPU 데이터 전송 경로를 역추적해
+      NSA 하청 구조(NSA→벤의 회사→QuantumFront)를 파악한다. 벤-밀러 연결이 노출된다.
+      계약서를 찢는 행위는 분노가 아니라 카르텔에게 보내는 계산된 공개 신호다.
+      수민의 내면에는 NSA 채널을 역이용하는 아이디어의 씨앗이 심어진다.
     beats:
       - {id: "ep31_ben_offer", must_happen: true}
-      - {id: "ep31_sumin_hijacks_nsa_key", must_happen: true}
+      - {id: "ep31_heejin_call_and_nsa_structure", must_happen: true}
     exit_conditions:
       set_flags: {}
 
@@ -766,10 +859,11 @@ episodes:
     file: "ep33_nsa_tampering.yaml"
     title: "NSA Tampering"
     act: "act6"
-    date_range: {start: "2043-03-24T18:00", end: "2043-03-24T23:59"}
+    date_range: {start: "2043-03-25T13:40", end: "2043-03-25T23:59"}
     synopsis: >-
-      수민이 NSA가 측정체인에 백도어를 심었음을 발견한다.
-      YM 이니셜이 삽입된 딜레이 레일. 수민은 이를 조용히 문서화한다.
+      수민이 QPU 출력 데이터 전송 경로를 역추적하다 NSA 파이프라인을 발견한다.
+      QPU→벤의 회사→NSA 자동 전송 구조. YM 이니셜이 삽입된 패킷 헤더.
+      수민은 이를 조용히 문서화하고, 이 채널로 데이터를 바꿔치기할 수 있다는 아이디어를 구체화한다.
     beats:
       - {id: "ep33_nsa_tampering", must_happen: true}
     exit_conditions:
@@ -794,9 +888,12 @@ episodes:
     act: "act6"
     date_range: {start: "2043-03-26T09:00", end: "2043-03-26T22:00"}
     synopsis: >-
-      모레노 교수가 과로사로 위장된 근-암살로 사망한다. 수민에게 이중 충격이 덮친다.
-      FBI 소피아의 압박과 동시에, 카를로스가 혜진 협박 영상통화를 트리거한다.
-      혜진은 모르고, LST 직원이 이어폰으로만 수민에게 속삭인다.
+      FBI 소피아 스콜튼이 수민에게 면책권을 제안한다 — 모레노 교수에 대해 아는 것을 증언하면 모든 형사책임 면제.
+      QPU 최종 시운전 중 모레노 교수가 심정지로 쓰러진다. 응급처치로 생존하지만 중태(ICU 이송).
+      알고리즘은 완성된다. 이어 LST 팀이 혜진 협박 영상통화를 트리거한다.
+      카를로스의 명령으로 LST가 실행 — 혜진은 아무것도 모르고,
+      LST 직원이 이어폰으로만 수민에게 속삭인다. "우리가 어디 있는지 알지?"
+      # 모레노 교수 실제 사망: ep37 (2043-03-27T19:38:44Z)
     beats:
       - {id: "ep35_fbi_pressure", must_happen: true}
       - {id: "ep35_hyejin_video_threat", must_happen: true}
@@ -807,12 +904,15 @@ episodes:
     file: "ep36_patron_failsafe.yaml"
     title: "El Patron's Failsafe"
     act: "act6"
-    date_range: {start: "2043-03-27T09:00", end: "2043-03-27T22:00"}
+    date_range: {start: "2043-03-27T08:30", end: "2043-03-27T22:00"}
     synopsis: >-
-      엘 파트론이 Failsafe를 발동하며 카를로스를 제거한다(더 이상 프로젝트에 없음 명시).
+      수민이 카르텔에게 Chase 은행 역이용 공격을 제안한다(08:30) — NSA 파이프라인으로
+      데이터를 바꿔치기하는 방식. 대가는 혜진의 안전. 라파엘이 승인한다.
+      이후 엘 파트론이 Failsafe를 발동하며 카를로스를 제거한다.
       마르셀로가 "그는 더 이상 이 프로젝트에 없어"라고 짧게 말할 뿐.
       엘 파트론도 자신이 만든 것에 갇혔음을 거울 앞 2초의 정지가 보여준다.
     beats:
+      - {id: "ep36_soomin_chase_proposal", must_happen: true}
       - {id: "ep36_patron_failsafe", must_happen: true}
       - {id: "ep36_carlos_removed", must_happen: true}
     exit_conditions:
@@ -826,6 +926,8 @@ episodes:
     synopsis: >-
       보스턴 항만 지하 QPU 시운전이 개시된다. 카를로스의 자리가 비어 있다.
       마르셀로가 진입을 통제한다. 첫 번째 RSA 키 복구 시도 시작.
+      [중요] 모레노 교수 사망 확인: 2043-03-27T19:38:44Z (QPU 시운전 4분 전).
+      ep35에서 심정지로 ICU에 이송된 모레노가 심근경색으로 사망. 수민이 ICU 모니터로 확인.
     beats:
       - {id: "ep37_showdown_quantum_part1", must_happen: true}
     exit_conditions:

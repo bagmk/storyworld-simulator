@@ -35,7 +35,7 @@ episode:
 
     - id: "clue_ep17_message_in_bodies_c03"
       content: |
-        노바그라드 항만 LST(Logistics Surveillance Terminal) 시스템 로그. 시각 09:12:58, 알람: 'PLC_Valve_17 - PRESSURE_OVERRIDE - Manual_Control_Engaged'. 즉시 09:13:04에 알람 자동 소거. 기록상으로는 '시스템 오류로 인한 자동 복구'로 표기. 하지만 물리적 실제는? 화물 적재 기계의 압력 조절 밸브가 수동으로 제어되었다는 뜻. 그리고 정확히 1분 뒤, 사람이 그 기계 아래에서 꼬깟혔다. 죽음은 완벽한 기술 범죄였다.
+        보스턴 항만 자유무역지구 LST(Logistics Surveillance Terminal) 시스템 로그. 시각 09:12:58, 알람: 'PLC_Valve_17 - PRESSURE_OVERRIDE - Manual_Control_Engaged'. 즉시 09:13:04에 알람 자동 소거. 기록상으로는 '시스템 오류로 인한 자동 복구'로 표기. 하지만 물리적 실제는? 화물 적재 기계의 압력 조절 밸브가 수동으로 제어되었다는 뜻. 그리고 정확히 1분 뒤, 사람이 그 기계 아래에서 꼬깟혔다. 죽음은 완벽한 기술 범죄였다.
       trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
       inject_threshold: 0.5
       inject_method: "system_alert"

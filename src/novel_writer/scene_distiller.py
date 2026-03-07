@@ -265,6 +265,7 @@ class SceneDistiller:
                 pacing=sd.get("pacing", "building"),
                 raw_turn_count=max(1, turn_end - turn_start + 1),
             )
+            self._sanitize_scene_dialogue(scene)
             scenes.append(scene)
 
         # Keep scene order stable by timeline and re-number deterministically.
@@ -330,6 +331,68 @@ class SceneDistiller:
 
         return scenes
 
+    def _sanitize_scene_dialogue(self, scene: DistilledScene) -> None:
+        """
+        Normalize distilled dialogue so action narration is not treated as spoken quotes.
+        Moves non-spoken lines into key_actions.
+        """
+        cleaned_dialogue: list[dict] = []
+        extra_actions: list[str] = []
+
+        for row in scene.key_dialogue or []:
+            if not isinstance(row, dict):
+                continue
+            speaker = str(row.get("speaker", "")).strip() or "Unknown"
+            line = str(row.get("line", "")).strip()
+            if not line:
+                continue
+
+            spoken = self._extract_spoken_dialogue(line)
+            if spoken:
+                cleaned_dialogue.append({"speaker": speaker, "line": spoken})
+                continue
+
+            # Treat narration-like entries as actions, not spoken lines.
+            action = self._clean_action_text(line)
+            if action:
+                extra_actions.append(f"{speaker}: {action}")
+
+        scene.key_dialogue = cleaned_dialogue[:4]
+        if extra_actions:
+            scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
+
+    @staticmethod
+    def _extract_spoken_dialogue(text: str) -> str:
+        """Extract spoken quote if present; otherwise return empty."""
+        if not text:
+            return ""
+        # Strip obvious inner-thought spans.
+        cleaned = re.sub(r"\[\[.*?\]\]|\[.*?\]", "", text).strip()
+
+        # Capture quoted speech first.
+        quoted = re.findall(r"[\"“”'‘’]([^\"“”'‘’]{2,})[\"“”'‘’]", cleaned)
+        if quoted:
+            return quoted[0].strip()
+
+        # Markdown emphasis-only action lines are not dialogue.
+        if cleaned.startswith("*") or cleaned.endswith("*"):
+            return ""
+
+        # Heuristic: narration/action endings with no question mark are likely not speech.
+        if re.search(r"(하며|바라보며|고개를|시선을|확인한다|지켜본다|생각한다)[.。]?$", cleaned):
+            return ""
+
+        return ""
+
+    @staticmethod
+    def _clean_action_text(text: str) -> str:
+        """Make compact action text from raw line."""
+        out = str(text or "")
+        out = re.sub(r"\[\[.*?\]\]|\[.*?\]", "", out)
+        out = out.replace("*", "")
+        out = re.sub(r"\s+", " ", out).strip()
+        return out
+
     # ------------------------------------------------------------------ #
     # Fallback: Simple Chunking
     # ------------------------------------------------------------------ #
@@ -386,7 +449,7 @@ class SceneDistiller:
         for ix in interactions:
             turn = ix.get("turn", "?")
             speaker = ix.get("speaker_name", "?")
-            content = ix.get("content", "")
+            content = self._compact_turn_content(ix)
             # Truncate very long content
             if len(content) > 250:
                 content = content[:247] + "..."
@@ -394,6 +457,23 @@ class SceneDistiller:
             tag = "[SCENE]" if action_type == "director_event" else ""
             lines.append(f"T{turn} {tag}{speaker}: {content}")
         return "\n".join(lines)
+
+    def _compact_turn_content(self, ix: dict) -> str:
+        """Reduce simulation formatting noise before distillation."""
+        content = str(ix.get("content", "") or "")
+        action_type = str(ix.get("action_type", "dialogue") or "dialogue")
+
+        if action_type == "dialogue":
+            spoken = self._extract_spoken_dialogue(content)
+            if spoken:
+                return f"\"{spoken}\""
+            # Fallback to cleaned text if quote extraction fails.
+            return self._clean_action_text(content)
+
+        if action_type in ("action", "inner_thought"):
+            return self._clean_action_text(content)
+
+        return content
 
     @staticmethod
     def _parse_json_array(text: str) -> list[dict]:

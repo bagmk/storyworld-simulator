@@ -107,6 +107,7 @@ def resolve_chapter_file(ep: EpisodeMeta, chapters_dir: Path, fallback_dirs: lis
         f"{ep.episode_id}_chapter.md",
         f"ep{ep.number:02d}_*_chapter.md",
         f"ep{ep.number:02d}_*.md",
+        f"ep{ep.number}.md",
     ]
     search_dirs = [chapters_dir, *fallback_dirs]
     for root in search_dirs:

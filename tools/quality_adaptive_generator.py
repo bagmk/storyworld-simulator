@@ -6,14 +6,12 @@ Automatically adjusts prose generation parameters based on quality metrics.
 Iteratively regenerates scenes until quality targets are met.
 """
 
-import json
 import logging
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 import subprocess
 import sys
-import re
 import yaml
 
 from quality_analyzer import QualityAnalyzer
@@ -77,12 +75,6 @@ class QualityAdaptiveGenerator:
         best_results = None
         config_episode_id = self._load_episode_config_id(episode_config_path) or episode_id
 
-        for eid in {episode_id, config_episode_id}:
-            safe_episode_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", eid or "unknown")
-            feedback_path = Path(f"output/quality_feedback_{safe_episode_id}.json")
-            if feedback_path.exists():
-                feedback_path.unlink()
-
         while iteration < self.max_iterations:
             iteration += 1
             logger.info(f"\n{'='*70}")
@@ -129,14 +121,6 @@ class QualityAdaptiveGenerator:
                 break
 
             logger.info(f"⚠️  Weak metrics: {', '.join(weak_metrics)}")
-
-            # Write reinforcement feedback for next iteration
-            self._write_reinforcement_feedback(
-                episode_id=config_episode_id,
-                weak_metrics=weak_metrics,
-                results=results,
-                iteration=iteration
-            )
 
         # Summary
         logger.info(f"\n{'='*70}")
@@ -272,144 +256,7 @@ class QualityAdaptiveGenerator:
 
             if metric_score < threshold:
                 weak.append(metric_name)
-
-        # Hard constraint override for dialogue balance
-        dialogue = results.get('dialogue_ratio', {})
-        dialogue_pct = dialogue.get('percentage')
-        if isinstance(dialogue_pct, (int, float)):
-            if dialogue_pct < 20 or dialogue_pct > 23:
-                if 'dialogue_ratio' not in weak:
-                    weak.append('dialogue_ratio')
-
         return weak
-
-    def _build_reinforcement_directives(self, weak_metrics: List[str], results: Dict) -> List[str]:
-        """
-        Build prompt directives based on weak metrics.
-        These directives are persisted and consumed by prose_generator.py.
-        """
-        directives = []
-
-        if 'sentence_complexity' in weak_metrics:
-            avg_len = results['sentence_complexity'].get('avg_length', 0)
-            if avg_len < 9:
-                directives.append(
-                    "CRITICAL: Sentences TOO SHORT (avg={:.1f}). "
-                    "MUST combine actions with conjunctions: -고, -며, -면서. "
-                    "Target 10-14 words/sentence.".format(avg_len)
-                )
-            elif avg_len > 16:
-                directives.append(
-                    "CRITICAL: Sentences TOO LONG (avg={:.1f}). "
-                    "Break into shorter units. Target 10-14 words/sentence.".format(avg_len)
-                )
-
-        if 'dialogue_ratio' in weak_metrics:
-            pct = results['dialogue_ratio'].get('percentage', 0)
-            if pct < 20:
-                directives.append(
-                    "CRITICAL: NOT ENOUGH DIALOGUE ({:.1f}%). "
-                    "MUST include at least 5 quoted exchanges. "
-                    "Characters must speak directly in quotes. Target 20-23%.".format(pct)
-                )
-            elif pct > 23:
-                directives.append(
-                    "CRITICAL: TOO MUCH DIALOGUE ({:.1f}%). "
-                    "Balance with action and description. Target 20-23%.".format(pct)
-                )
-
-        if 'paragraph_density' in weak_metrics:
-            avg_sents = results['paragraph_density'].get('avg_sentences', 0)
-            if avg_sents < 2:
-                directives.append(
-                    "CRITICAL: Paragraphs TOO SHORT (avg={:.1f} sentences). "
-                    "Combine related actions into 2-3 sentence paragraphs.".format(avg_sents)
-                )
-            elif avg_sents > 5:
-                directives.append(
-                    "CRITICAL: Paragraphs TOO LONG (avg={:.1f} sentences). "
-                    "Split into shorter units. Keep around 2-5 sentences/paragraph.".format(avg_sents)
-                )
-
-        if 'abstract_concrete_ratio' in weak_metrics:
-            ratio = results['abstract_concrete_ratio'].get('ratio', 0)
-            if ratio == 'inf' or (isinstance(ratio, (int, float)) and ratio > 0.33):
-                directives.append(
-                    "CRITICAL: TOO MANY ABSTRACT WORDS (ratio={}). "
-                    "SHOW concrete actions: 손이 떨렸다, 목소리가 낮았다. "
-                    "AVOID: 불안했다, 긴장됐다. Use 3:1 concrete:abstract.".format(ratio)
-                )
-
-        if 'repetition_patterns' in weak_metrics:
-            violations = results['repetition_patterns'].get('violations', 0)
-            directives.append(
-                f"CRITICAL: {violations} REPETITION violations. "
-                "Vary sentence structure. No 3+ similar sentences in a row."
-            )
-
-        if 'information_novelty' in weak_metrics:
-            novelty = results['information_novelty'].get('novelty_percentage', 0)
-            directives.append(
-                f"CRITICAL: Low information novelty ({novelty:.1f}%). "
-                "Each sentence must introduce new details. Avoid repetition."
-            )
-
-        if 'scene_progression' in weak_metrics:
-            rate = results['scene_progression'].get('rate_per_50', 0)
-            if rate > 3:
-                directives.append(
-                    f"CRITICAL: TOO MANY scene transitions ({rate:.1f} per 50 lines). "
-                    "Stay in scenes longer. Develop moments. Target 2-3 per 50 lines."
-                )
-
-        if 'pov_consistency' in weak_metrics:
-            pov = results.get('pov_consistency', {})
-            directives.append(
-                "CRITICAL: POV inconsistency detected "
-                f"(first={pov.get('first_person_markers', 0)}, third={pov.get('third_person_markers', 0)}). "
-                "Use ONLY third-person close centered on 수민. "
-                "Do NOT use first-person pronouns: 나는/내/저/제. "
-                "Protagonist is male: NEVER use '그녀' for 수민."
-            )
-
-        if 'timeline_coherence' in weak_metrics:
-            tl = results.get('timeline_coherence', {})
-            directives.append(
-                "CRITICAL: Timeline clarity is weak "
-                f"(time_markers={tl.get('time_markers', 0)}, jumps={tl.get('jump_markers', 0)}). "
-                "Keep chronological order. When time shifts, mark explicitly: 잠시 후/그날 밤/다음 날/며칠 후. "
-                "When locations shift, bridge with explicit movement text."
-            )
-
-        return directives
-
-    def _write_reinforcement_feedback(
-        self,
-        episode_id: str,
-        weak_metrics: List[str],
-        results: Dict,
-        iteration: int
-    ) -> None:
-        """
-        Persist reinforcement directives for the next generation iteration.
-        """
-        directives = self._build_reinforcement_directives(weak_metrics, results)
-        payload = {
-            "episode_id": episode_id,
-            "iteration": iteration,
-            "weak_metrics": weak_metrics,
-            "directives": directives
-        }
-
-        output_dir = Path("output")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        safe_episode_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", episode_id or "unknown")
-        feedback_path = output_dir / f"quality_feedback_{safe_episode_id}.json"
-        feedback_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding='utf-8'
-        )
-        logger.info(f"✅ Reinforcement feedback written: {feedback_path}")
 
     def _print_quality_summary(self, results: Dict):
         """Print quality summary"""

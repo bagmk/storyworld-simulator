@@ -47,8 +47,11 @@ examples/Good_example/      # 레퍼런스 챕터
 
 ```bash
 pip install -r requirements.txt
-export OPENAI_API_KEY=sk-...
+cp .env.example .env
+# then edit .env and set your real key
 ```
+
+CLI scripts (`simulate.py`, `trial_simulate.py`, `generate_chapter.py`) auto-load `.env` from the project root.
 
 ## Quick Start
 

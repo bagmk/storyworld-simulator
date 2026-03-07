@@ -20,9 +20,22 @@ episode:
 
     수민은 아무 말도 하지 않는다. 콘솔 화면에는 카를로스가 마지막으로 열어둔 부품 주문서 화면이 그대로다. "Order #NG-447-A — Cryogenic component — SUSPENDED." 마지막으로 그가 본 화면.
 
-    수민은 다시 걸음을 내딛는다. 지하로. BRIDGE_SLOT에 프로비저닝된 브리지 키(Bridge Key)를 삽입. 시스템이 3-of-5 Shamir Secret 검증을 실행한다. 32밀리초 안에 세 조건이 TRUE로 판정된다: 모레노의 알고리즘 무결성 확인, NSA 백도어 코드 바이패스, QPU 임계값 도달 허가. APPROVED. 타임락(Time-Lock) 펄스가 5초 윈도우로 송출된다.
+    수민은 다시 걸음을 내딛는다. 지하로. 내려가기 직전, 보조 모니터 한쪽에 의료 알림이 뜬다. ICU 생체신호 모니터링 피드—카르텔이 모레노의 상태를 추적하던 채널.
 
-    동시에 지상에서는 FBI-CIA 합동 급습팀이 진입 명령을 기다린다. CIA 현장 연락관 이선이 FBI 소피아 팀과 합류하여 작전을 조율한다. 노바그라드 항만 진입로 3군데, 각각 차량 10대씩. 정해진 시간: 오후 7시 38분(T1). 하지만 뭔가 잘못됐다. 무전이 끊겼다. "All units, hold position. Coordinates verification in progress." 지연. 단 6분이지만, 이게 전부다.
+    [모레노 교수 사망 — 2043-03-27T19:38:44Z]
+
+    Vital signs: FLAT LINE.
+    Patient: A. Moreno (ID: PROF-001)
+    Cause: Cardiac arrest, secondary to acute stress-induced myocardial infarction.
+    Time of death: 19:38:44
+
+    수민은 그 화면을 2초 동안 본다. 모레노 교수. QPU 최종 시운전이 시작되기 4분 전. 마지막 계산을 완료한 뒤, 이틀을 버텼다. 응급처치로 살아났지만 심장이 버텨주지 않았다. 심박이 평탄선이 되는 시간: 2043-03-27T19:38:44.
+
+    수민은 그 숫자를 기억한다. 지울 수 없다.
+
+    그는 모니터를 끈다. 지하로 내려간다. BRIDGE_SLOT에 프로비저닝된 브리지 키(Bridge Key)를 삽입. 시스템이 3-of-5 Shamir Secret 검증을 실행한다. 32밀리초 안에 세 조건이 TRUE로 판정된다: 모레노의 알고리즘 무결성 확인, NSA 백도어 코드 바이패스, QPU 임계값 도달 허가. APPROVED. 타임락(Time-Lock) 펄스가 5초 윈도우로 송출된다.
+
+    동시에 지상에서는 FBI-CIA 합동 급습팀이 진입 명령을 기다린다. CIA 현장 연락관 이선이 FBI 소피아 팀과 합류하여 작전을 조율한다. 보스턴 항만 자유무역지구 진입로 3군데, 각각 차량 10대씩. 정해진 시간: 오후 7시 38분(T1). 하지만 뭔가 잘못됐다. 무전이 끊겼다. "All units, hold position. Coordinates verification in progress." 지연. 단 6분이지만, 이게 전부다.
 
     그 6분 동안 무슨 일이 벌어지는가. 첫째, 지하의 QPU가 임계 상태에 진입한다(오후 7시 44분). 냉각 시스템이 -273도 극저온 영역으로 내려간다. 헬륨-3 액화. 초전도 상태 발생. 전자 간섭 패턴(quantum interference pattern)이 안정화된다. 두 번째, 지상에서는 LST 팀의 전파 교란(RF jamming)이 시작된다(오후 7시 45분). FBI의 통신 대역: 400-470MHz가 음성 노이즈로 뒤덮인다. 세 번째, NSA 밀러가 개입한다. FBI에 거짓 좌표를 전송한다. "Target location updated: Sector E-7 instead of B-5. Redirect all units." 이선은 의심한다. 하지만 NSA 코드 네임이 있다. 이선은 움직인다.
 
@@ -67,6 +80,7 @@ episode:
   # Items carried over from a previous episode that should be addressed.
   resolved:
     - "법집행 기관의 개입 실패 → QPU 가동 직전까지 도달"
+    - "모레노 교수 사망 (2043-03-27T19:38:44Z) — QPU 시운전 시작 4분 전. 심근경색 심정지. ep35에서 위독 상태로 이송된 이후 이틀을 버팀."
 
   # Approximate target word count for the generated novel chapter
   recommended_length: 6000

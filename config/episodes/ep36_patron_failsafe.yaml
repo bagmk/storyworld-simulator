@@ -8,7 +8,7 @@ episode:
   date: "2043-03-27T07:50"
   location: "Boston Harbor — underground lab complex"
   summary: |
-    Q-Day 당일, 오전 6시 32분. 라파엘(엘 파트론)의 사무실. 한 통의 팩스가 기계에서 튀어나온다. Greyshore Capital Partners 계좌 동결 통지(OFAC Sanctions Order). 효력 발생: 24시간 이내. 그리고 35초 후, 두 번째 팩스. 노바그라드 항만 공급사 포털 공지: "URGENT: Cryogenic components order #NG-447-A suspended pending regulatory review. Estimated review period: 30-90 days." 냉각 부품이 끊긴다. 자금이 끊긴다.
+    Q-Day 당일, 오전 6시 32분. 라파엘(엘 파트론)의 사무실. 한 통의 팩스가 기계에서 튀어나온다. Greyshore Capital Partners 계좌 동결 통지(OFAC Sanctions Order). 효력 발생: 24시간 이내. 그리고 35초 후, 두 번째 팩스. 보스턴 항만 자유무역지구 공급사 포털 공지: "URGENT: Cryogenic components order #NG-447-A suspended pending regulatory review. Estimated review period: 30-90 days." 냉각 부품이 끊긴다. 자금이 끊긴다.
 
     라파엘은 팩스를 내려놓고, 사무실 벽의 거울 앞에 선다. 2초. 55세의 얼굴. 잔주름. 30년의 피로가 새벽 조명 아래 드러난다. 거울 속의 남자는 카르텔의 수장이 아니라, 지친 기술자 출신의 늙은 남자다. 한때 자신도 수민처럼 코드를 쓰던 사람이었다. 그 코드가 조직을 만들었고, 조직이 제국을 만들었고, 제국이 자신을 삼켰다. 2초가 끝난다. 거울 속의 남자가 다시 엘 파트론이 된다. 표정이 바뀌고, 어깨가 펴지고, 눈빛이 차가워진다. 가면을 쓰듯.
 
@@ -26,6 +26,24 @@ episode:
 
     이 순간, 수민은 라파엘이 얼마나 큰 전략가인지 깨닫는다. 그는 단순히 기술만 가진 테러리스트가 아니다. 정보전, 심리전, 금융전을 동시에 펼치는 전술가다. 그리고 NSA는 이 게임에서 졌다.
 
+    [수민의 역제안 — 2043-03-27T08:30]
+
+    카를로스가 제거되기 45분 전. 수민은 라파엘에게 직접 연락을 요청한다. 이례적인 일이다.
+
+    라파엘의 집무실. 두 사람만 있다. 수민이 먼저 말한다.
+
+    "Phase-Guard 소스코드는 드릴 수 없습니다." 라파엘의 눈이 좁아진다. 수민이 계속한다. "그걸 드리면 저는 필요 없어지고, 혜진도 필요 없어지죠. 저는 그 구조를 이해합니다."
+
+    수민이 노트북을 연다. "대신 이걸 드릴 수 있습니다. 밀러가 설치한 NSA 파이프라인이 있습니다. QPU 해독 결과를 NSA 서버로 자동 전송하는 채널입니다. 저는 그 채널을 통해 전송되는 데이터를 바꿀 수 있습니다. NSA는 POC가 성공했다고 인식합니다. 벤의 회사는 정상 작동한다고 생각합니다."
+
+    "그 채널로 실제로 뚫는 건 NSA가 원하는 RSA 키가 아닙니다. Chase JP Morgan의 결제 라우팅 코드입니다. 금융 계좌 접근 키. Greyshore 제재로 묶인 자산보다 훨씬 큰 규모입니다."
+
+    라파엘은 아무 말도 하지 않는다. 수민이 덧붙인다. "대가는 하나입니다. 혜진이 서울에서 안전하게 있어야 합니다. 그리고 이 작전이 끝난 후에도."
+
+    라파엘이 천천히 고개를 끄덕인다. "누가 이 계획을 알고 있나?" 수민: "저뿐입니다." 라파엘: "CIA는?" 수민: "모릅니다. 아직."
+
+    라파엘이 창밖을 바라본다. 보스턴 항만. 그리고 돌아선다. "진행해."
+
     [카를로스 제거 — 2043-03-27T09:15]
 
     오전 9시 15분. 라파엘의 두 번째 통화. 이번 수신자는 마르셀로(Marcelo)—카르텔 내부 감사 담당. 통화는 짧다. 4분 12초. 녹음 없음. 하지만 결과는 분명하다.
@@ -36,12 +54,18 @@ episode:
 
     복도 CCTV 기록: 2043-03-27T10:17:33Z. 카를로스 마지막 접근 로그. 이후 기록 없음.
 
+    10시 22분. 마르셀로가 라파엘의 집무실로 들어간다. 그의 손에 USB 드라이브 하나가 있다. 카를로스가 보관하던 Failsafe 키다. 라파엘이 받아 서랍에 넣는다. 말 없이. 이제 카를로스의 키는 라파엘(엘 파트론)이 보관한다.
+
+    # Director AI 전용 — 수민에게 직접 노출 금지:
+    # 키 실제 구조 업데이트: CIA 2개(Jonas+Greyshore) : 카르텔 2개(ElPatron+CarlosKey) : 수민 1개.
+    # 수민 인식은 여전히 카르텔 4 : 수민 1로 유지됨. 변화 없음.
+
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.
   introduced_clues:
     - id: "clue_ep36_patron_failsafe_c01"
       content: |
-        오전 6시 32분, 팩스 기계에서 종이가 튀어나온다. "OFAC SANCTIONS ORDER: Greyshore Capital Partners - Account Freeze Notice. Effective within 24 hours. All international transactions prohibited." 그리고 35초 후, 두 번째 팩스. 노바그라드 항만 공급사 포털의 공식 공지: "URGENT UPDATE: Cryogenic components order #NG-447-A status changed to 'SUSPENDED - Pending regulatory review.' Estimated review period: 30-90 days." 라파엘은 이 두 장의 팩스를 읽고, 가볍게 웃음을 짓는다. 정부의 움직임이 예상된 그대로였다는 뜻이기 때문이다.
+        오전 6시 32분, 팩스 기계에서 종이가 튀어나온다. "OFAC SANCTIONS ORDER: Greyshore Capital Partners - Account Freeze Notice. Effective within 24 hours. All international transactions prohibited." 그리고 35초 후, 두 번째 팩스. 보스턴 항만 자유무역지구 공급사 포털의 공식 공지: "URGENT UPDATE: Cryogenic components order #NG-447-A status changed to 'SUSPENDED - Pending regulatory review.' Estimated review period: 30-90 days." 라파엘은 이 두 장의 팩스를 읽고, 가볍게 웃음을 짓는다. 정부의 움직임이 예상된 그대로였다는 뜻이기 때문이다.
       trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
       inject_threshold: 0.45
       inject_method: "document_artifact"
@@ -81,9 +105,26 @@ episode:
       inject_threshold: 0.75
       inject_method: "system_alert"
 
+    - id: "clue_ep36_soomin_chase_proposal"
+      content: |
+        수민의 역제안 (2043-03-27T08:30, 라파엘 집무실):
+        조건: Phase-Guard 소스코드 제공 거절 ("드리면 저도 혜진도 필요 없어집니다")
+        대신 제안: NSA 파이프라인(밀러가 설치한 QPU→NSA 자동 전송 채널)을 이용한 데이터 바꿔치기.
+        NSA 인식: POC 정상 수신 (아무것도 모름)
+        벤의 회사 인식: 정상 운영 (아무것도 모름)
+        실제 탈취 타겟: Chase JP Morgan 결제 라우팅 코드 + 금융 계좌 접근 키
+        대가: 혜진의 영구적 안전 보장
+        라파엘 승인: "진행해."
+        CIA는 아직 모름.
+        이 계획은 수민이 단독으로 설계하고 카르텔에게 주도적으로 제안한 것이다.
+      trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
+      inject_threshold: 0.5
+      inject_method: "system_alert"
+
   # Items carried over from a previous episode that should be addressed.
   resolved:
     - "파트론이 정보·심리전까지 총괄하는 전략가임을 확정"
+    - "수민이 NSA 파이프라인을 역이용한 Chase 은행 공격을 카르텔에게 주도적으로 제안, 라파엘 승인"
 
   # Approximate target word count for the generated novel chapter
   recommended_length: 3000

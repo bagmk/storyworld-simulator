@@ -1050,15 +1050,10 @@ class DirectorAI:
                     return carried
 
         # Conservative no-guess fallback:
-        # when explicit evidence is absent, keep the cast minimal unless runtime
-        # policy asks for a slightly wider fallback to improve continuity.
-        runtime_cfg = self.episode_config.get("_rl_runtime", {}) if isinstance(self.episode_config, dict) else {}
-        fallback_size = 1
-        if isinstance(runtime_cfg, dict):
-            try:
-                fallback_size = max(1, int(runtime_cfg.get("director_fallback_cast_size", 1)))
-            except (TypeError, ValueError):
-                fallback_size = 1
+        # - default 1 (monologue/solo scene allowed)
+        # - widen to 2 only for dialogue/continuity-sensitive episodes
+        #   when explicit evidence is absent.
+        fallback_size = self._conditional_fallback_cast_size(agents, world)
 
         fallback = [protagonist.id] if protagonist else [agents[0].id]
         if fallback_size > 1:
@@ -1080,6 +1075,52 @@ class DirectorAI:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
+
+    def _conditional_fallback_cast_size(self, agents: list[Agent], world: WorldState) -> int:
+        if not isinstance(self.episode_config, dict):
+            return 1
+
+        # Explicit opt-in from episode config wins if provided.
+        try:
+            explicit = self.episode_config.get("fallback_cast_size")
+            if explicit is not None:
+                return max(1, min(2, int(explicit)))
+        except (TypeError, ValueError):
+            pass
+
+        # Default: keep monologue possible.
+        fallback_size = 1
+
+        episode_id = str(self.episode_config.get("id", ""))
+        ep_num_match = re.match(r"^ep(\d+)_", episode_id)
+        ep_num = int(ep_num_match.group(1)) if ep_num_match else 0
+        max_turns = int(self.episode_config.get("max_turns", 0) or 0)
+
+        # Heuristic 1: non-opening episodes are often continuity-sensitive.
+        continuity_sensitive = ep_num >= 2
+
+        # Heuristic 2: dialogue/meeting/briefing episodes should avoid too many
+        # accidental solo scenes when cast extraction fails.
+        text_blob = " ".join(
+            str(self.episode_config.get(k, "") or "")
+            for k in ("summary", "scene", "location")
+        ).lower()
+        dialogue_keywords = (
+            "meeting", "briefing", "interview", "conversation", "call", "contact",
+            "회의", "브리핑", "면담", "대화", "통화", "접촉",
+        )
+        dialogue_centric = any(k in text_blob for k in dialogue_keywords)
+
+        # Heuristic 3: if episode config lists multiple likely participants,
+        # prefer two-person fallback for continuity.
+        cfg_chars = self.episode_config.get("characters")
+        has_multi_character_hint = isinstance(cfg_chars, list) and len(cfg_chars) >= 2
+
+        if continuity_sensitive and (dialogue_centric or has_multi_character_hint or max_turns >= 14):
+            fallback_size = 2
+
+        # Never exceed 2 in the new fixed policy; solo remains possible.
+        return max(1, min(2, fallback_size))
 
     def _safe_llm_call(
         self,

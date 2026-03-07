@@ -106,6 +106,34 @@ world_facts:
         precisely calculated 17-second phase offset.
 
     - content: |
+        NSA SUBCONTRACTING STRUCTURE (hidden from all story actors except Miller):
+        NSA (goal + funding, Miller line)
+          → Ben Clarke's firm (execution layer + legal shield — Ben is disposable)
+            → QuantumFront / Sumin (technology production)
+
+        The structure is deliberately layered so that if legal or political exposure
+        occurs, only Ben's firm can be cut without leaving NSA fingerprints.
+        Ben Clarke does NOT know he is a legal buffer — he believes he is an
+        equal partner brokering a legitimate government contract.
+        Miller compartmentalized this intentionally: if Ben panics, he is simply
+        removed; the technology pipeline (Sumin → NSA) continues uninterrupted.
+
+        SUMIN'S DISCOVERY (EP31): By tracing QPU output packet routing, Sumin
+        identifies the automatic transfer channel: QPU data → Ben's servers →
+        NSA ingestion endpoint. She recognizes the structure's purpose and
+        realizes she can intercept this channel to substitute payload data.
+        This insight becomes the foundation for the Chase Bank operation
+        she proposes to the cartel in EP36.
+
+        CHASE BANK OPERATION (EP36 proposal, EP37-38 execution):
+        Sumin offers the cartel a substitute payload attack via the NSA pipeline:
+        instead of RSA key recovery data, the NSA ingestion endpoint receives
+        Chase JP Morgan payment routing codes + financial account access keys.
+        NSA receives what looks like a successful QPU proof-of-concept.
+        The cartel receives actionable financial exfiltration data.
+        The price Sumin names: Hyejin's safety, guaranteed in writing.
+
+    - content: |
         The three U.S. intelligence agencies are in ACTIVE CONFLICT with each other:
         - FBI (Sophia): Prioritizes legal prosecution, evidence chains, grand jury.
           Limited by procedure. Wants to dismantle the cartel through courts.
@@ -116,6 +144,26 @@ world_facts:
           Uses Yonas as a double agent inside the cartel. Seeks to prevent ANY
           single faction (including NSA) from monopolizing the technology.
         This inter-agency conflict is as dangerous to Sumin as the cartel itself.
+
+    - content: |
+        GREYSHORE CAPITAL — CIA KEY CUSTODY LOGIC:
+        Greyshore Capital LLC is a CIA-constructed financial front entity used as a
+        "dead letter box" for sensitive asset custody. The CIA does not hold Failsafe-B
+        keys directly — direct agency custody would expose key existence under FOIA
+        and oversight review. Instead, the CIA routes custody through Greyshore's
+        "secondary escrow" structure, which is legally opaque (offshore fiduciary,
+        Mexican foundation nominee layer) and operationally controlled by Ethan Burke's
+        line (not official CIA HQ).
+
+        Ethan holds one Greyshore-custodied key personally (portable HSM token).
+        After Elena's death (EP28), her key was retrieved by Yonas under CIA protocol
+        and transferred to Greyshore secondary escrow — making the CIA the effective
+        holder of TWO keys (Ethan + Elena's retrieved key), though the chain of
+        custody is deliberately fragmented to deny official attribution.
+
+        This dual-key position is what gives the CIA (Ethan line) de facto veto power
+        in any Failsafe-B activation scenario — and is the reason Ethan becomes
+        indispensable to the EP40-41 three-party negotiation.
 
     - content: |
         Sumin's Failsafe-B system embodies THREE levels of balance simultaneously:
@@ -216,9 +264,9 @@ world_facts:
   # All agents are aware of these from the start.
   public:
     - "The year is 2043. Quantum computing has advanced, but remains fragile—extremely sensitive to cryogenics, vibration, EMI, and measurement-chain latency."
-    - "QuantumFront maintains a public campus at Seaview Research Park and presents itself as a private R&D organization working on 'next-generation quantum/security.'"
+    - "QuantumFront operates from two physically separate locations: (1) the PUBLIC CAMPUS at Seaview Research Park — the official address, audit-facing operation, HR/admin, and day-to-day physics research. (2) the UNDERGROUND LAB beneath Boston Harbor Free Zone (harbor_underground_lab) — where the real QPU program runs. Staff at Seaview do not know the underground site exists. Equipment transfers between sites are disguised as 'cryo maintenance' or 'offsite calibration' shipments through Freeport logistics."
     - "Boston Harbor Free Zone is a fictional U.S. port free-zone rumored to have looser logistics, customs, and audit boundaries."
-    - "Some QuantumFront equipment, cryogenic components, and large racks move through Freeport logistics for 'offsite integration testing.'"
+    - "Some QuantumFront equipment, cryogenic components, and large racks move through Freeport logistics for 'offsite integration testing.' This is the cover story for transfers between the Seaview campus and the harbor underground lab."
     - "Greyshore Capital repeatedly appears around QuantumFront as an investment/escrow partner, but its true structure is opaque."
     - "Key figures include: Kim Sumin (quantum physicist, MIT-trained), Elena Ramirez (technical lead, former Zetanet hacker), Dr. Alex Moreno (MIT professor, phase-tracking authority, Sumin's doctoral advisor), Yonas Mehret (Boston Harbor Freeport floor supervisor), and Carlos Reyes (operations/pressure specialist)."
     - "Terms like 'Phase-Guard', 'Failsafe', and 'BRIDGE_SLOT' circulate internally, but official documentation is selectively shared."

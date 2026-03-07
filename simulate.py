@@ -33,6 +33,7 @@ from src.novel_writer.director import DirectorAI
 from src.novel_writer.orchestrator import SimulationOrchestrator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, episode_runtime_policy
+from src.novel_writer.env_loader import load_project_env
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -74,10 +75,17 @@ def parse_args() -> argparse.Namespace:
                    help="SQLite database path (default: data/simulation.db)")
     p.add_argument("--debug",      action="store_true",
                    help="Enable debug logging")
+    p.add_argument("--track-run-id", default="",
+                   help="Tracking run identifier (overrides NOVEL_RUN_ID)")
+    p.add_argument("--track-iteration", type=int, default=None,
+                   help="Tracking iteration number (overrides NOVEL_ITERATION)")
+    p.add_argument("--track-phase", default="",
+                   help="Tracking phase label (overrides NOVEL_PHASE)")
     return p.parse_args()
 
 
 def main() -> None:
+    load_project_env()
     args = parse_args()
     setup_logging(args.debug)
 
@@ -92,6 +100,21 @@ def main() -> None:
     # ── Init database ───────────────────────────────────────────────────
     db.init_db()
     logger.info("Database initialised at %s", args.db)
+    tracking = db.configure_tracking_from_env()
+    if args.track_run_id:
+        db.set_tracking_context(run_id=args.track_run_id)
+    if args.track_iteration is not None:
+        db.set_tracking_context(iteration=args.track_iteration)
+    if args.track_phase:
+        db.set_tracking_context(phase=args.track_phase)
+    tracking = db.get_tracking_context()
+    if tracking.get("run_id"):
+        logger.info(
+            "Tracking | run_id=%s iteration=%s phase=%s",
+            tracking.get("run_id"),
+            tracking.get("iteration"),
+            tracking.get("phase"),
+        )
 
     # ── Load configs ────────────────────────────────────────────────────
     logger.info("Loading episode: %s", args.episode)
@@ -191,13 +214,33 @@ def main() -> None:
     )
 
     # ── Run simulation ──────────────────────────────────────────────────
+    episode_run_id = db.begin_episode_run(
+        episode_id,
+        source="simulate",
+        metadata={"episode_yaml": str(args.episode)},
+    )
     start = datetime.utcnow()
-    logger.info("Starting episode '%s' with %d agents | budget $%.2f",
-                episode_id, len(agents), args.budget)
-
-    interactions = orchestrator.run_episode()
-
+    logger.info("Starting episode '%s' with %d agents | budget $%.2f (episode_run_id=%s)",
+                episode_id, len(agents), args.budget, episode_run_id)
+    try:
+        interactions = orchestrator.run_episode()
+    except Exception:
+        db.finish_episode_run(
+            episode_run_id,
+            status="failed",
+            metadata={"episode_yaml": str(args.episode), "failed": True},
+        )
+        raise
     elapsed = (datetime.utcnow() - start).total_seconds()
+    db.finish_episode_run(
+        episode_run_id,
+        status="complete",
+        metadata={
+            "episode_yaml": str(args.episode),
+            "interaction_count": len(interactions),
+            "elapsed_seconds": round(elapsed, 3),
+        },
+    )
     logger.info("Episode complete in %.1fs | %d interactions", elapsed, len(interactions))
 
     # ── Write outputs ───────────────────────────────────────────────────
@@ -209,6 +252,8 @@ def main() -> None:
     with sim_path.open("w", encoding="utf-8") as f:
         json.dump({
             "episode_id":   episode_id,
+            "episode_run_id": episode_run_id,
+            "tracking": db.get_tracking_context(),
             "agent_count":  len(agents),
             "total_turns":  orchestrator.turn,
             "interactions": interactions,

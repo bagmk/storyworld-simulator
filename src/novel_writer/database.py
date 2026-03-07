@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 DB_PATH = os.environ.get("DB_PATH", "data/simulation.db")
+_TRACKING_CONTEXT: dict[str, Any] = {
+    "run_id": None,
+    "iteration": None,
+    "phase": None,
+    "episode_run_id": None,
+}
 
 
 def _connect() -> sqlite3.Connection:
@@ -22,6 +28,88 @@ def _connect() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+def set_tracking_context(
+    *,
+    run_id: Optional[str] = None,
+    iteration: Optional[int] = None,
+    phase: Optional[str] = None,
+    episode_run_id: Optional[int] = None,
+    reset: bool = False,
+) -> None:
+    """Set process-local tracking context used to tag/query rows."""
+    global _TRACKING_CONTEXT
+    if reset:
+        _TRACKING_CONTEXT = {
+            "run_id": None,
+            "iteration": None,
+            "phase": None,
+            "episode_run_id": None,
+        }
+        return
+    if run_id is not None:
+        _TRACKING_CONTEXT["run_id"] = str(run_id)
+    if iteration is not None:
+        _TRACKING_CONTEXT["iteration"] = int(iteration)
+    if phase is not None:
+        _TRACKING_CONTEXT["phase"] = str(phase)
+    if episode_run_id is not None:
+        _TRACKING_CONTEXT["episode_run_id"] = int(episode_run_id)
+
+
+def get_tracking_context() -> dict[str, Any]:
+    return dict(_TRACKING_CONTEXT)
+
+
+def configure_tracking_from_env(prefix: str = "NOVEL_") -> dict[str, Any]:
+    """Populate tracking context from environment variables."""
+    run_id = os.environ.get(f"{prefix}RUN_ID")
+    iteration_raw = os.environ.get(f"{prefix}ITERATION")
+    phase = os.environ.get(f"{prefix}PHASE")
+    set_tracking_context(reset=True)
+    if run_id:
+        kwargs: dict[str, Any] = {"run_id": run_id}
+        if iteration_raw not in (None, ""):
+            try:
+                kwargs["iteration"] = int(iteration_raw)
+            except ValueError:
+                pass
+        if phase:
+            kwargs["phase"] = phase
+        set_tracking_context(**kwargs)
+    return get_tracking_context()
+
+
+def _tracking_values() -> tuple[Optional[str], Optional[int], Optional[str], Optional[int]]:
+    return (
+        _TRACKING_CONTEXT.get("run_id"),
+        _TRACKING_CONTEXT.get("iteration"),
+        _TRACKING_CONTEXT.get("phase"),
+        _TRACKING_CONTEXT.get("episode_run_id"),
+    )
+
+
+def _tracking_where(alias: str = "", include_episode_run: bool = False) -> tuple[str, list[Any]]:
+    """Build WHERE clause fragment for current tracking context."""
+    prefix = f"{alias}." if alias else ""
+    clauses: list[str] = []
+    params: list[Any] = []
+    run_id = _TRACKING_CONTEXT.get("run_id")
+    iteration = _TRACKING_CONTEXT.get("iteration")
+    episode_run_id = _TRACKING_CONTEXT.get("episode_run_id")
+    if run_id:
+        clauses.append(f"{prefix}run_id = ?")
+        params.append(run_id)
+    if iteration is not None:
+        clauses.append(f"{prefix}iteration = ?")
+        params.append(int(iteration))
+    if include_episode_run and episode_run_id is not None:
+        clauses.append(f"{prefix}episode_run_id = ?")
+        params.append(int(episode_run_id))
+    if not clauses:
+        return "", []
+    return " AND " + " AND ".join(clauses), params
 
 
 def init_db() -> None:
@@ -41,7 +129,23 @@ def init_db() -> None:
             beat_config_json TEXT NOT NULL,
             start_time      TEXT,
             end_time        TEXT,
-            status          TEXT DEFAULT 'pending'
+            status          TEXT DEFAULT 'pending',
+            run_id          TEXT,
+            iteration       INTEGER,
+            phase           TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS episode_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            episode_id       TEXT NOT NULL,
+            run_id           TEXT,
+            iteration        INTEGER,
+            phase            TEXT,
+            source           TEXT DEFAULT 'simulate',
+            status           TEXT DEFAULT 'running',
+            started_at       TEXT NOT NULL,
+            ended_at         TEXT,
+            metadata_json    TEXT DEFAULT '{}'
         );
 
         CREATE TABLE IF NOT EXISTS interactions (
@@ -55,6 +159,10 @@ def init_db() -> None:
             target_id   TEXT,
             timestamp   TEXT NOT NULL,
             metadata_json TEXT DEFAULT '{}',
+            run_id      TEXT,
+            iteration   INTEGER,
+            phase       TEXT,
+            episode_run_id INTEGER,
             FOREIGN KEY (episode_id) REFERENCES episodes(id)
         );
 
@@ -66,7 +174,11 @@ def init_db() -> None:
             turn            INTEGER,
             emotion_type    TEXT NOT NULL,
             intensity       REAL NOT NULL,
-            timestamp       TEXT NOT NULL
+            timestamp       TEXT NOT NULL,
+            run_id          TEXT,
+            iteration       INTEGER,
+            phase           TEXT,
+            episode_run_id  INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS relationships (
@@ -77,7 +189,11 @@ def init_db() -> None:
             episode_id  TEXT NOT NULL,
             turn        INTEGER NOT NULL,
             updated_at  TEXT NOT NULL,
-            UNIQUE(agent1_id, agent2_id, episode_id)
+            run_id      TEXT,
+            iteration   INTEGER,
+            phase       TEXT,
+            episode_run_id INTEGER,
+            UNIQUE(agent1_id, agent2_id, episode_id, run_id, iteration)
         );
 
         CREATE TABLE IF NOT EXISTS world_states (
@@ -85,7 +201,11 @@ def init_db() -> None:
             episode_id  TEXT NOT NULL,
             turn        INTEGER NOT NULL,
             state_json  TEXT NOT NULL,
-            timestamp   TEXT NOT NULL
+            timestamp   TEXT NOT NULL,
+            run_id      TEXT,
+            iteration   INTEGER,
+            phase       TEXT,
+            episode_run_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS persona_deltas (
@@ -95,7 +215,11 @@ def init_db() -> None:
             turn        INTEGER NOT NULL,
             changes_json TEXT NOT NULL,
             trigger     TEXT NOT NULL,
-            timestamp   TEXT NOT NULL
+            timestamp   TEXT NOT NULL,
+            run_id      TEXT,
+            iteration   INTEGER,
+            phase       TEXT,
+            episode_run_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS clues (
@@ -103,6 +227,10 @@ def init_db() -> None:
             episode_id      TEXT NOT NULL,
             clue_content    TEXT NOT NULL,
             introduced_turn INTEGER,
+            run_id          TEXT,
+            iteration       INTEGER,
+            phase           TEXT,
+            episode_run_id  INTEGER,
             PRIMARY KEY(id, episode_id)
         );
 
@@ -112,7 +240,11 @@ def init_db() -> None:
             clue_id         TEXT NOT NULL,
             episode_id      TEXT NOT NULL,
             discovered_turn INTEGER NOT NULL,
-            UNIQUE(agent_id, clue_id, episode_id)
+            run_id          TEXT,
+            iteration       INTEGER,
+            phase           TEXT,
+            episode_run_id  INTEGER,
+            UNIQUE(agent_id, clue_id, episode_id, run_id, iteration)
         );
 
         CREATE TABLE IF NOT EXISTS trials (
@@ -156,15 +288,82 @@ def init_db() -> None:
         );
 
         CREATE INDEX IF NOT EXISTS idx_interactions_episode ON interactions(episode_id);
+        CREATE INDEX IF NOT EXISTS idx_interactions_tracking ON interactions(run_id, iteration, episode_id, turn);
         CREATE INDEX IF NOT EXISTS idx_interactions_speaker ON interactions(speaker_id);
         CREATE INDEX IF NOT EXISTS idx_emotions_agent ON emotions(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_emotions_tracking ON emotions(run_id, iteration, episode_id, agent_id, turn);
         CREATE INDEX IF NOT EXISTS idx_relationships_agents ON relationships(agent1_id, agent2_id);
+        CREATE INDEX IF NOT EXISTS idx_episode_runs_tracking ON episode_runs(run_id, iteration, episode_id);
         CREATE INDEX IF NOT EXISTS idx_trials_episode ON trials(episode_id);
         CREATE INDEX IF NOT EXISTS idx_trial_exemplars_episode ON trial_exemplars(episode_id);
         CREATE INDEX IF NOT EXISTS idx_steering_history_episode ON steering_history(episode_id, agent_id);
     """)
+    _ensure_tracking_schema(conn)
     conn.commit()
     conn.close()
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl_suffix: str) -> None:
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column in cols:
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_suffix}")
+
+
+def _ensure_tracking_schema(conn: sqlite3.Connection) -> None:
+    """Best-effort schema migration for existing DBs."""
+    tracked_tables = {
+        "episodes": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+        },
+        "interactions": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "emotions": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "relationships": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "world_states": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "persona_deltas": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "clues": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+        "agent_knowledge": {
+            "run_id": "TEXT",
+            "iteration": "INTEGER",
+            "phase": "TEXT",
+            "episode_run_id": "INTEGER",
+        },
+    }
+    for table, cols in tracked_tables.items():
+        for name, ddl in cols.items():
+            _ensure_column(conn, table, name, ddl)
 
 
 # ---------------------------------------------------------------------------
@@ -198,10 +397,15 @@ def upsert_episode(episode_id: str, beat_config: dict,
                    start_time: Optional[str] = None,
                    end_time: Optional[str] = None) -> None:
     conn = _connect()
+    run_id, iteration, phase, _episode_run_id = _tracking_values()
     conn.execute("""
-        INSERT OR REPLACE INTO episodes (id, beat_config_json, start_time, end_time, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (episode_id, json.dumps(beat_config), start_time, end_time, status))
+        INSERT OR REPLACE INTO episodes
+        (id, beat_config_json, start_time, end_time, status, run_id, iteration, phase)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        episode_id, json.dumps(beat_config), start_time, end_time, status,
+        run_id, iteration, phase,
+    ))
     conn.commit()
     conn.close()
 
@@ -219,23 +423,76 @@ def update_episode_status(episode_id: str, status: str,
     conn.close()
 
 
+def begin_episode_run(
+    episode_id: str,
+    *,
+    source: str = "simulate",
+    status: str = "running",
+    metadata: Optional[dict[str, Any]] = None,
+) -> int:
+    conn = _connect()
+    run_id, iteration, phase, _episode_run_id = _tracking_values()
+    cur = conn.execute("""
+        INSERT INTO episode_runs
+        (episode_id, run_id, iteration, phase, source, status, started_at, metadata_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        episode_id, run_id, iteration, phase, source, status,
+        datetime.utcnow().isoformat(), json.dumps(metadata or {}, ensure_ascii=False),
+    ))
+    conn.commit()
+    run_row_id = int(cur.lastrowid)
+    conn.close()
+    set_tracking_context(episode_run_id=run_row_id)
+    return run_row_id
+
+
+def finish_episode_run(
+    episode_run_id: int,
+    *,
+    status: str = "complete",
+    metadata: Optional[dict[str, Any]] = None,
+) -> None:
+    conn = _connect()
+    if metadata is None:
+        conn.execute(
+            "UPDATE episode_runs SET status=?, ended_at=? WHERE id=?",
+            (status, datetime.utcnow().isoformat(), episode_run_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE episode_runs SET status=?, ended_at=?, metadata_json=? WHERE id=?",
+            (
+                status,
+                datetime.utcnow().isoformat(),
+                json.dumps(metadata, ensure_ascii=False),
+                episode_run_id,
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Interaction persistence
 # ---------------------------------------------------------------------------
 
 def save_interaction(interaction) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
         INSERT OR REPLACE INTO interactions
         (id, episode_id, turn, speaker_id, speaker_name, content,
-         action_type, target_id, timestamp, metadata_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         action_type, target_id, timestamp, metadata_json,
+         run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         interaction.id, interaction.episode_id, interaction.turn,
         interaction.speaker_id, interaction.speaker_name, interaction.content,
         interaction.action_type, interaction.target_id,
         interaction.timestamp.isoformat(),
         json.dumps(interaction.metadata),
+        run_id, iteration, phase, episode_run_id,
     ))
     conn.commit()
     conn.close()
@@ -243,9 +500,10 @@ def save_interaction(interaction) -> None:
 
 def load_episode_interactions(episode_id: str) -> list[dict]:
     conn = _connect()
-    rows = conn.execute("""
-        SELECT * FROM interactions WHERE episode_id=? ORDER BY turn, timestamp
-    """, (episode_id,)).fetchall()
+    where_tracking, params_tracking = _tracking_where()
+    rows = conn.execute(f"""
+        SELECT * FROM interactions WHERE episode_id=?{where_tracking} ORDER BY turn, timestamp
+    """, [episode_id, *params_tracking]).fetchall()
     conn.close()
     result = []
     for row in rows:
@@ -263,6 +521,9 @@ def load_agent_interactions(agent_id: str, episode_id: Optional[str] = None,
     if episode_id:
         query += " AND episode_id=?"
         params.append(episode_id)
+    where_tracking, params_tracking = _tracking_where()
+    query += where_tracking
+    params.extend(params_tracking)
     query += " ORDER BY turn, timestamp"
     if limit:
         query += f" LIMIT {limit}"
@@ -284,21 +545,26 @@ def save_emotion(agent_id: str, episode_id: str, turn: int,
                  emotion_type: str, intensity: float,
                  interaction_id: Optional[str] = None) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
         INSERT INTO emotions
-        (agent_id, interaction_id, episode_id, turn, emotion_type, intensity, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (agent_id, interaction_id, episode_id, turn, emotion_type, intensity,
-          datetime.utcnow().isoformat()))
+        (agent_id, interaction_id, episode_id, turn, emotion_type, intensity, timestamp,
+         run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        agent_id, interaction_id, episode_id, turn, emotion_type, intensity,
+        datetime.utcnow().isoformat(), run_id, iteration, phase, episode_run_id,
+    ))
     conn.commit()
     conn.close()
 
 
 def load_agent_emotions(agent_id: str, episode_id: str) -> list[dict]:
     conn = _connect()
-    rows = conn.execute("""
-        SELECT * FROM emotions WHERE agent_id=? AND episode_id=? ORDER BY turn
-    """, (agent_id, episode_id)).fetchall()
+    where_tracking, params_tracking = _tracking_where()
+    rows = conn.execute(f"""
+        SELECT * FROM emotions WHERE agent_id=? AND episode_id=?{where_tracking} ORDER BY turn
+    """, [agent_id, episode_id, *params_tracking]).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -328,11 +594,12 @@ def load_previous_episode_final_emotions(agent_id: str, current_episode_id: str)
 
         # Find the latest prior episode number that actually has emotion rows
         # for this agent. This allows continuity even if episodes are skipped.
-        rows = conn.execute("""
+        where_tracking, params_tracking = _tracking_where()
+        rows = conn.execute(f"""
             SELECT DISTINCT episode_id
             FROM emotions
-            WHERE agent_id = ?
-        """, (agent_id,)).fetchall()
+            WHERE agent_id = ?{where_tracking}
+        """, [agent_id, *params_tracking]).fetchall()
 
         prev_num: Optional[int] = None
         for row in rows:
@@ -353,13 +620,14 @@ def load_previous_episode_final_emotions(agent_id: str, current_episode_id: str)
         # Pull descending by turn/timestamp and keep first row per emotion_type.
         # This preserves each emotion's most recent value instead of only
         # emotions present at the single final turn.
-        rows = conn.execute("""
+        where_tracking, params_tracking = _tracking_where()
+        rows = conn.execute(f"""
             SELECT emotion_type, intensity
             FROM emotions
             WHERE agent_id = ?
-              AND episode_id LIKE ?
+              AND episode_id LIKE ?{where_tracking}
             ORDER BY turn DESC, timestamp DESC
-        """, (agent_id, prev_pattern)).fetchall()
+        """, [agent_id, prev_pattern, *params_tracking]).fetchall()
         conn.close()
 
         latest_by_emotion: dict[str, float] = {}
@@ -393,11 +661,13 @@ def _is_trial_episode_id(episode_id: str) -> bool:
 
 
 def _completed_story_episode_ids(conn: sqlite3.Connection) -> list[str]:
-    rows = conn.execute("""
+    where_tracking, params_tracking = _tracking_where()
+    rows = conn.execute(f"""
         SELECT id
         FROM episodes
         WHERE status = 'complete'
-    """).fetchall()
+        {where_tracking}
+    """, params_tracking).fetchall()
     return [str(r["id"]) for r in rows]
 
 
@@ -431,12 +701,14 @@ def load_previous_episode_relationships(agent_id: str, current_episode_id: str) 
             return {}
 
         placeholders = ",".join("?" for _ in prior_ids)
+        where_tracking, params_tracking = _tracking_where()
         rows = conn.execute(f"""
             SELECT episode_id, agent2_id, value
             FROM relationships
             WHERE agent1_id = ?
               AND episode_id IN ({placeholders})
-        """, [agent_id, *prior_ids]).fetchall()
+              {where_tracking}
+        """, [agent_id, *prior_ids, *params_tracking]).fetchall()
     finally:
         conn.close()
 
@@ -465,12 +737,14 @@ def load_previous_episode_known_clues(agent_id: str, current_episode_id: str) ->
             return set()
 
         placeholders = ",".join("?" for _ in prior_ids)
+        where_tracking, params_tracking = _tracking_where()
         rows = conn.execute(f"""
             SELECT clue_id
             FROM agent_knowledge
             WHERE agent_id = ?
               AND episode_id IN ({placeholders})
-        """, [agent_id, *prior_ids]).fetchall()
+              {where_tracking}
+        """, [agent_id, *prior_ids, *params_tracking]).fetchall()
     finally:
         conn.close()
 
@@ -497,13 +771,15 @@ def load_previous_episode_persona_deltas(
             return []
 
         placeholders = ",".join("?" for _ in prior_ids)
+        where_tracking, params_tracking = _tracking_where()
         rows = conn.execute(f"""
             SELECT episode_id, turn, trigger, changes_json
             FROM persona_deltas
             WHERE agent_id = ?
               AND episode_id IN ({placeholders})
+              {where_tracking}
             ORDER BY turn ASC, timestamp ASC
-        """, [agent_id, *prior_ids]).fetchall()
+        """, [agent_id, *prior_ids, *params_tracking]).fetchall()
     finally:
         conn.close()
 
@@ -555,11 +831,13 @@ def load_episode_history_context(
             prior_ids = prior_ids[-max_episodes:]
 
         placeholders = ",".join("?" for _ in prior_ids)
+        where_tracking, params_tracking = _tracking_where()
         rows = conn.execute(f"""
             SELECT id, beat_config_json
             FROM episodes
             WHERE id IN ({placeholders})
-        """, prior_ids).fetchall()
+              {where_tracking}
+        """, [*prior_ids, *params_tracking]).fetchall()
     finally:
         conn.close()
 
@@ -603,12 +881,16 @@ def load_episode_history_context(
 def save_relationship(agent1_id: str, agent2_id: str, value: float,
                       episode_id: str, turn: int) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
         INSERT OR REPLACE INTO relationships
-        (agent1_id, agent2_id, value, episode_id, turn, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (agent1_id, agent2_id, value, episode_id, turn,
-          datetime.utcnow().isoformat()))
+        (agent1_id, agent2_id, value, episode_id, turn, updated_at,
+         run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        agent1_id, agent2_id, value, episode_id, turn,
+        datetime.utcnow().isoformat(), run_id, iteration, phase, episode_run_id,
+    ))
     conn.commit()
     conn.close()
 
@@ -619,19 +901,25 @@ def save_relationship(agent1_id: str, agent2_id: str, value: float,
 
 def save_world_state(episode_id: str, turn: int, state: dict) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
-        INSERT INTO world_states (episode_id, turn, state_json, timestamp)
-        VALUES (?, ?, ?, ?)
-    """, (episode_id, turn, json.dumps(state), datetime.utcnow().isoformat()))
+        INSERT INTO world_states
+        (episode_id, turn, state_json, timestamp, run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        episode_id, turn, json.dumps(state), datetime.utcnow().isoformat(),
+        run_id, iteration, phase, episode_run_id,
+    ))
     conn.commit()
     conn.close()
 
 
 def load_world_states(episode_id: str) -> list[dict]:
     conn = _connect()
-    rows = conn.execute("""
-        SELECT * FROM world_states WHERE episode_id=? ORDER BY turn
-    """, (episode_id,)).fetchall()
+    where_tracking, params_tracking = _tracking_where()
+    rows = conn.execute(f"""
+        SELECT * FROM world_states WHERE episode_id=?{where_tracking} ORDER BY turn
+    """, [episode_id, *params_tracking]).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -645,15 +933,17 @@ def load_previous_episode_final_state(current_episode_id: str) -> Optional[dict]
     """
     conn = _connect()
     # Find the most recent completed episode that comes before this one
-    row = conn.execute("""
+    where_tracking, params_tracking = _tracking_where("ws")
+    row = conn.execute(f"""
         SELECT ws.state_json
         FROM world_states ws
         JOIN episodes e ON e.id = ws.episode_id
         WHERE e.status = 'complete'
           AND e.id < ?
+          {where_tracking}
         ORDER BY e.id DESC, ws.turn DESC
         LIMIT 1
-    """, (current_episode_id,)).fetchone()
+    """, [current_episode_id, *params_tracking]).fetchone()
     conn.close()
     if row:
         try:
@@ -670,12 +960,16 @@ def load_previous_episode_final_state(current_episode_id: str) -> Optional[dict]
 def save_persona_delta(agent_id: str, episode_id: str, turn: int,
                        changes: dict, trigger: str) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
         INSERT INTO persona_deltas
-        (agent_id, episode_id, turn, changes_json, trigger, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (agent_id, episode_id, turn, json.dumps(changes), trigger,
-          datetime.utcnow().isoformat()))
+        (agent_id, episode_id, turn, changes_json, trigger, timestamp,
+         run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        agent_id, episode_id, turn, json.dumps(changes), trigger,
+        datetime.utcnow().isoformat(), run_id, iteration, phase, episode_run_id,
+    ))
     conn.commit()
     conn.close()
 
@@ -687,10 +981,12 @@ def save_persona_delta(agent_id: str, episode_id: str, turn: int,
 def upsert_clue(clue_id: str, episode_id: str, content: str,
                 introduced_turn: Optional[int] = None) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
-        INSERT OR REPLACE INTO clues (id, episode_id, clue_content, introduced_turn)
-        VALUES (?, ?, ?, ?)
-    """, (clue_id, episode_id, content, introduced_turn))
+        INSERT OR REPLACE INTO clues
+        (id, episode_id, clue_content, introduced_turn, run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (clue_id, episode_id, content, introduced_turn, run_id, iteration, phase, episode_run_id))
     conn.commit()
     conn.close()
 
@@ -698,19 +994,21 @@ def upsert_clue(clue_id: str, episode_id: str, content: str,
 def save_agent_knowledge(agent_id: str, clue_id: str,
                          episode_id: str, discovered_turn: int) -> None:
     conn = _connect()
+    run_id, iteration, phase, episode_run_id = _tracking_values()
     conn.execute("""
         INSERT OR IGNORE INTO agent_knowledge
-        (agent_id, clue_id, episode_id, discovered_turn)
-        VALUES (?, ?, ?, ?)
-    """, (agent_id, clue_id, episode_id, discovered_turn))
+        (agent_id, clue_id, episode_id, discovered_turn, run_id, iteration, phase, episode_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (agent_id, clue_id, episode_id, discovered_turn, run_id, iteration, phase, episode_run_id))
     conn.commit()
     conn.close()
 
 
 def load_episode_clues(episode_id: str) -> list[dict]:
     conn = _connect()
+    where_tracking, params_tracking = _tracking_where()
     rows = conn.execute(
-        "SELECT * FROM clues WHERE episode_id=?", (episode_id,)
+        f"SELECT * FROM clues WHERE episode_id=?{where_tracking}", [episode_id, *params_tracking]
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

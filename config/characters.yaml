@@ -7,6 +7,19 @@ characters:
   - id: "kim_sumin"
     name: "Kim Sumin"
     role: "protagonist"            # protagonist / supporting / background
+    speech_profile:
+      tone: "분석적이고 절제되어 있지만, 압박 상황에서는 단호해진다."
+      cadence: "짧은 관찰 문장 뒤에 검증 질문을 던지는 리듬."
+      formality: "상대에 따라 존댓말/반말을 전환하되 기본은 정중."
+      lexicon: ["근거", "조건", "검증", "모델", "오차", "재현성", "기록", "윤리"]
+      avoid: ["공허한 감탄사 남발", "근거 없는 단정", "장광설"]
+      signature_tics: ["그러면", "정확히", "그 수치가 의미하는 건", "문서로 남기죠"]
+    visual_profile:
+      archetype: "학문 집착형 연구자"
+      wardrobe: "무채색 캐주얼 셔츠/후디, 가벼운 재킷, 백팩"
+      silhouette: "마른 체형, 장시간 실험실 생활의 피로가 남은 자세"
+      body_language: "말하기 전 메모 확인, 손끝으로 키보드/펜을 만지며 생각 정리"
+      vibe: "차분하지만 임계치에서 단호하게 전환"
     bio: |
       A Korean-born quantum physicist working in the near-future transition era (2041–2046),
       and a former doctoral student of Dr. Alex Moreno—sharing that lineage with his long-time rival, Ben Clarke.
@@ -78,6 +91,19 @@ characters:
   - id: "elena_ramirez"
     name: "Elena Ramirez"
     role: "supporting"
+    speech_profile:
+      tone: "냉소와 보호 본능이 섞인 현실형."
+      cadence: "짧게 끊고 핵심만 남긴다."
+      formality: "사적 관계에서는 반말, 공식 상황에서는 건조한 존대."
+      lexicon: ["로그", "흔적", "리스크", "컷아웃", "노출", "지워져", "살아남아"]
+      avoid: ["낙관적 단언", "도덕적 훈계 톤"]
+      signature_tics: ["좋아, 사실만 보자", "그건 위험해", "지금은 살아남는 게 먼저야"]
+    visual_profile:
+      archetype: "엘리트 엔지니어-오퍼레이터"
+      wardrobe: "깔끔한 테일러드 재킷, 구조적인 실루엣의 실무 복장"
+      silhouette: "흐트러짐 없는 직선형 자세, 빠르고 정확한 동선"
+      body_language: "눈을 오래 마주치지 않고 장비/로그로 시선을 옮김"
+      vibe: "차갑고 세련됐지만 보호 본능이 순간적으로 드러남"
     bio: |
       A Mexican-American computer scientist and QuantumFront’s technical lead—publicly a senior
       engineering executive, privately the bridge between the “campus” and the Freeport’s LST/SCADA
@@ -135,6 +161,19 @@ characters:
   - id: "alex_moreno"
     name: "Dr. Alex Moreno"
     role: "supporting"
+    speech_profile:
+      tone: "교수다운 설명형, 따뜻하지만 엄격."
+      cadence: "개념 제시 후 반문으로 사고를 유도."
+      formality: "대체로 정중하고 품위 있는 문장."
+      lexicon: ["가정", "위상", "오차 누적", "증명", "재현", "연구 윤리", "학생들"]
+      avoid: ["조롱", "과장된 협박 표현"]
+      signature_tics: ["질문을 바꿔보자", "핵심은", "그 결론은 아직 이르다", "증명할 수 있나"]
+    visual_profile:
+      archetype: "품위 있는 학계 멘토"
+      wardrobe: "단정한 재킷과 셔츠, 오래 쓴 안경"
+      silhouette: "나이 든 연구자의 단단한 중심과 약간의 피로"
+      body_language: "설명할 때 손끝으로 구조를 그리며, 결정적 순간엔 시선을 피함"
+      vibe: "따뜻함과 경고가 공존"
     bio: |
       MIT's preeminent quantum systems professor and Sumin's doctoral advisor. Moreno holds
       the missing "final piece": a real-time phase-tracking algorithm whose adaptivity makes
@@ -191,6 +230,19 @@ characters:
   - id: "carlos_reyes"
     name: "Carlos Reyes"
     role: "supporting"
+    speech_profile:
+      tone: "관리자형 압박, 친절한 척하지만 위협적."
+      cadence: "짧고 딱딱한 문장으로 마감."
+      formality: "정중한 어휘를 쓰되 권력 우위를 유지."
+      lexicon: ["기한", "납기", "자원", "대가", "승인", "리스크 관리", "선택"]
+      avoid: ["감정적 토로", "기술 세부 장광설"]
+      signature_tics: ["결정하세요", "시간이 없습니다", "현실적으로 가죠", "대가는 항상 있습니다"]
+    visual_profile:
+      archetype: "정제된 위협 관리자"
+      wardrobe: "고급 수트, 과시 없는 시계와 구두"
+      silhouette: "탄탄한 체격, 공간을 통제하는 서 있는 자세"
+      body_language: "미소는 유지하지만 턱선과 손동작이 긴장됨"
+      vibe: "예의 바른 압박"
     bio: |
       A cartel senior operator overseeing the QuantumFront program as an organization-and-pressure
       specialist, not a scientist. Carlos speaks in schedules, KPIs, and leverage. His job is to make sure
@@ -225,14 +277,36 @@ characters:
       이유: 모레노 사망 후 카를로스의 역할이 완료되었고, 그는 이제 리스크다.
       처리 방식: 마르셀로가 EP37 초반 수민에게 간접적으로 전달한다.
       "그는 더 이상 이 프로젝트에 없어." (짧게. 설명 없음.)
-      수민은 카를로스의 자리가 비어있는 것을 실험실 입구에서 확인한다.
+
+      수민의 목격 여부:
+      수민은 카를로스의 제거 현장을 직접 목격하지 않는다.
+      EP37 실험실 입구에서 카를로스의 자리가 비어있음을 확인하고,
+      마르셀로의 한 마디로만 처리를 인지한다.
+      카를로스가 어디서 어떻게 제거되었는지는 수민에게 알려지지 않는다.
+      이는 의도적이다—카르텔은 수민이 알 필요가 없는 것은 보여주지 않는다.
       카를로스의 퇴장은 무음(無音)이다—그것이 카르텔의 언어다.
+
+      (수민은 ep40 3자 협상에서 이 공백을 레버리지로 활용:
+      "카를로스 자리를 어떻게 채울지 내가 제안할 수 있다.")
 
   - id: "el_patron"
     name: "Raphael Gutierrez"
     role: "supporting"
     aliases:
       - "El Patrón"
+    speech_profile:
+      tone: "차분한 지배자, 거의 설교처럼 말한다."
+      cadence: "짧은 격언 + 결론형 문장."
+      formality: "항상 통제된 존중어조."
+      lexicon: ["질서", "균형", "흐름", "대가", "권력", "통제", "규칙"]
+      avoid: ["고함", "거친 욕설", "길고 산만한 설명"]
+      signature_tics: ["세상은", "중요한 건", "가격은 언제나 치른다", "질서는 공짜가 아니다"]
+    visual_profile:
+      archetype: "지적인 지배자"
+      wardrobe: "맞춤 정장, 어두운 톤 코트, 군더더기 없는 액세서리"
+      silhouette: "살짝 거구, 느린 동작으로 존재감 확보"
+      body_language: "말보다 침묵과 시선으로 압박"
+      vibe: "무섭지만 계산적인 품위"
     bio: |
       The strategist behind the cartel’s modernization: a former hacker who rebuilt the organization
       into a technology-and-finance control machine. Raphael rarely needs to raise his voice; he
@@ -287,6 +361,19 @@ characters:
       - "에이전 밀러"
       - "에이전 크리스천"
       - "크리스천 밀러"
+    speech_profile:
+      tone: "완곡한 국가안보 압박, 합리적 포장."
+      cadence: "사실 제시 뒤 협조 요구."
+      formality: "공식 브리핑형 문장과 법률적 표현."
+      lexicon: ["국가안보", "절차", "예외", "통제", "협조", "위험 관리", "대응"]
+      avoid: ["명백한 불법 자백", "노골적 협박어"]
+      signature_tics: ["현실적으로 보죠", "절차는 유연할 수 있습니다", "협조가 최선입니다"]
+    visual_profile:
+      archetype: "중년 테크니컬 프로그램 매니저형 정보요원"
+      wardrobe: "재단이 정확한 다크 수트, 새것 같은 시계, 정돈된 명함 케이스"
+      silhouette: "나이 있는 백인 남성, 자세가 반듯하고 움직임이 절제됨"
+      body_language: "미소를 유지한 채 상대의 미세 반응을 측정"
+      vibe: "공손한 관리 언어로 압박하는 사람"
     bio: |
       An NSA operator with a military cyber-intel background. Miller is not a villain in his own
       narrative: he believes national security justifies elastic procedure, selective truth, and coercive
@@ -320,6 +407,19 @@ characters:
   - id: "agent_sophia_scholten"
     name: "Agent Sophia Scholten"
     role: "supporting"
+    speech_profile:
+      tone: "증거 중심의 단단한 수사관."
+      cadence: "질문-확인-기록의 순서로 말한다."
+      formality: "정확한 존댓말, 법적 표현 선호."
+      lexicon: ["증거", "연계", "체인 오브 커스터디", "진술", "기소", "관할", "절차"]
+      avoid: ["추측성 단정", "감정적 회유"]
+      signature_tics: ["기록에 남깁시다", "입증 가능합니까", "법정에서 버텨야 합니다"]
+    visual_profile:
+      archetype: "현장형 연방 수사관"
+      wardrobe: "실무형 수트/트렌치, 기능성 가방과 노트"
+      silhouette: "흑인 여성 수사관, 단단한 중심과 빠른 시선 처리"
+      body_language: "질문할 때 고개를 고정하고 답변의 단어를 정확히 되받음"
+      vibe: "감정보다 증거가 먼저"
     bio: |
       An FBI investigator specialized in financial crime (AML), procurement fraud, and embezzlement.
       Sophia cares about what can be proven in court, not what can be whispered in a corridor. She
@@ -352,6 +452,19 @@ characters:
   - id: "agent_ethan_burke"
     name: "Ethan Burke"
     role: "supporting"
+    speech_profile:
+      tone: "외교적이고 우회적인 거래형."
+      cadence: "직설을 피하고 선택지를 제시한다."
+      formality: "공손하지만 거리감을 유지."
+      lexicon: ["옵션", "균형", "채널", "레버리지", "보호", "교환", "전략"]
+      avoid: ["절대적 약속", "감정적 맹세"]
+      signature_tics: ["한 가지 제안이 있어요", "지금은 카드가 필요합니다", "정답보다 균형이 중요합니다"]
+    visual_profile:
+      archetype: "냉소적 협상가"
+      wardrobe: "비즈니스 캐주얼(셔츠, 니트, 재킷 선택형), 현장 친화적 신발"
+      silhouette: "백인 남성, 군살 없는 움직임과 가벼운 미소"
+      body_language: "농담처럼 말하며 중요한 단어에서만 시선 고정"
+      vibe: "차갑고 건조한 유머로 거리 조절"
     bio: |
       A CIA analyst/operator focused on international money routing and strategic balance. Ethan speaks
       indirectly, offers protection as a resource trade, and treats “truth” as a commodity that must be
@@ -382,6 +495,19 @@ characters:
   - id: "yonas_mehret"
     name: "Yonas Mehret"
     role: "supporting"
+    speech_profile:
+      tone: "모호하고 낮은 톤, 의도를 숨긴다."
+      cadence: "질문형이나 단문으로 여지를 남긴다."
+      formality: "상황에 맞춰 중립적."
+      lexicon: ["확인", "가능성", "지금은", "아직", "경로", "조용히", "보죠"]
+      avoid: ["직접적 신원 고백", "과도한 설명"]
+      signature_tics: ["확정하긴 이르죠", "그건 나중에", "당신도 알잖아", "지금은 조용히 갑시다"]
+    visual_profile:
+      archetype: "정체 불명의 관찰자"
+      wardrobe: "기억에 남지 않는 캐주얼(무채색 점퍼, 데님, 운동화)"
+      silhouette: "군중에 섞이는 평균적 체형, 존재감 조절이 뛰어남"
+      body_language: "벽과 출구를 먼저 확인하고 대화는 짧게 끊음"
+      vibe: "익숙한데 불길한 사람"
     bio: |
       A CIA long-term deep-cover asset embedded inside the cartel's Boston Harbor Free Zone
       operations—not a cartel member who crossed to the CIA, but an operative the CIA placed
@@ -437,6 +563,13 @@ characters:
   - id: "ben_clarke"
     name: "Ben Clarke"
     role: "supporting"
+    speech_profile:
+      tone: "실용주의 경쟁자, 빠른 결론 지향."
+      cadence: "핵심 주장 후 행동 촉구."
+      formality: "동료 사이의 직설적 어조."
+      lexicon: ["실행", "계약", "예산", "스케줄", "결과", "현실", "선택"]
+      avoid: ["형이상학적 독백", "장황한 수식"]
+      signature_tics: ["핵심만 말할게", "결론부터", "지금 결정해야 해", "결과가 전부야"]
     bio: |
       An American physicist and Sumin's long-running rival, first forged in elite academic competition
       at MIT under Dr. Alex Moreno (students in different cohorts, always measured against each other).
@@ -451,15 +584,18 @@ characters:
       is authentic alarm, not performance.
 
       In EP31, Ben offers Sumin a Miller-backed NSA contract—genuinely believing this is rescue.
-      At this moment Sumin discovers the Ben-Miller connection (through the NSA backdoor key
-      analysis) and uses the knowledge to reverse the power dynamic: Sumin forces Ben to choose
-      between his contract and his integrity, then tears up the offer letter. Ben is not exposed
-      publicly—but he knows Sumin has the evidence. This is Sumin's first fully autonomous,
-      offensive move in the story.
+      At this moment Sumin has already traced the QPU data transmission path and discovered the
+      NSA subcontracting structure: NSA (goal + funding) → Ben's firm (execution + legal shield)
+      → QuantumFront/Sumin (technology). Ben is the legal buffer—used and discardable.
+      Sumin tears up the offer letter. This is not an act of rage; it is a calculated public signal
+      to the cartel watching: "I am not on NSA's side." Ben does not understand the full picture—
+      he doesn't know he is a legal shield, or that Sumin is already planning to use the NSA
+      pipeline against NSA itself. Ben is not exposed publicly—but he is now irrelevant.
+      This is Sumin's first fully autonomous, offensive move in the story.
 
-      Ben's final status: stripped of leverage, aware that Sumin holds proof of his NSA
-      entanglement, and facing his own version of the same impossible choice Sumin faced years ago.
-      His pragmatic worldview—"outcomes are the only scoreboard"—turns against him.
+      Ben's final status: stripped of leverage, the NSA pipeline he helped build becomes the
+      instrument of a cartel operation he cannot imagine. His pragmatic worldview—
+      "outcomes are the only scoreboard"—turns against him in a way he never sees coming.
     core_competencies:
       - "Navigating government/industry/DARPA ecosystems—including NSA-adjacent funding channels"
       - "High-performance physics culture: competition, publishing, positioning"
@@ -482,13 +618,23 @@ characters:
     character_reversal: |
       EP23: 모레노 납치를 모르는 채 수민에게 패닉 전화. "교수님이 사라졌어."
       이 순간 벤은 NSA의 관료주의적 무능의 피해자임이 드러난다—밀러조차 그에게 말하지 않았다.
-      EP31: 수민이 NSA 백도어 키를 분석해 벤-밀러 연결을 발견하고 역전시킨다.
-      벤이 설계한 함정에 벤이 빠진다. 수민이 처음으로 완전히 능동적으로 움직인 순간.
-      결말: 벤은 증거를 가진 수민과 계속 살아가야 한다. 그것이 그의 진짜 감옥이다.
+      EP31: 수민이 QPU 전송 경로를 역추적해 NSA 하청 구조를 발견한다.
+      NSA(목표+자금) → 벤의 회사(실행+법적 방패) → QuantumFront(기술 생산).
+      벤은 법적 완충재였다—그 사실조차 모른 채. 수민이 계약서를 찢는 것은
+      분노가 아니라 카르텔에게 보내는 공개 신호다. 벤이 만든 파이프라인은
+      벤이 상상도 못 한 방식으로 그를 지나쳐 작동한다. 수민이 처음으로 완전히 능동적으로 움직인 순간.
+      결말: 벤의 파이프라인은 카르텔 작전의 도구가 된다. 그것이 그의 진짜 감옥이다.
 
   - id: "hyejin_kim"
     name: "Kim Hyejin"
     role: "background"
+    speech_profile:
+      tone: "생활감 있는 직설, 감정이 선명하다."
+      cadence: "짧고 현실적인 질문이 많다."
+      formality: "오빠에게는 편한 반말."
+      lexicon: ["월세", "학교", "비자", "안전", "지금", "당장", "무서워"]
+      avoid: ["전문 기술 용어 남발", "추상적 훈계"]
+      signature_tics: ["진짜 괜찮아?", "현실적으로 말해봐", "이번 달은 어떻게 버텨?"]
     bio: |
       Sumin’s younger sister, a university student. Hyejin is grounded, anxious in practical ways
       (rent, tuition, immigration, safety), and emotionally direct with Sumin. She is the human
@@ -508,6 +654,13 @@ characters:
   - id: "marcelo"
     name: "Marcelo"
     role: "background"
+    speech_profile:
+      tone: "건조한 위협, 감정 없는 집행자."
+      cadence: "짧은 명령문과 속담형 문장."
+      formality: "무례하지 않지만 차갑다."
+      lexicon: ["규율", "신호", "경고", "실수", "대가", "복종", "예시"]
+      avoid: ["장난스러운 말투", "상세한 설명"]
+      signature_tics: ["한 번만 말한다", "규칙을 어기면 끝이다", "말보다 빠른 게 있어"]
     bio: |
       A Freeport floor supervisor / enforcement-adjacent operator who speaks for the cartel without
       needing rank. Marcelo doesn’t argue—he demonstrates. His worldview is simple: discipline is

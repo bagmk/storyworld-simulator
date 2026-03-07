@@ -34,12 +34,13 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from src.novel_writer.config_loader import load_episode
+from src.novel_writer.config_loader import load_episode, load_characters
 from src.novel_writer.llm_client import LLMClient
 from src.novel_writer.scene_distiller import SceneDistiller
 from src.novel_writer.prose_generator import ProseGenerator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
+from src.novel_writer.env_loader import load_project_env
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -68,6 +69,8 @@ def parse_args() -> argparse.Namespace:
                    help="Agent ID for POV protagonist (e.g., kim_sumin)")
     p.add_argument("--protagonist-name", default="Kim Sumin",
                    help="Display name of protagonist for prose (default: Kim Sumin)")
+    p.add_argument("--characters",      default="config/characters.yaml",
+                   help="Path to character YAML for voice profiles (default: config/characters.yaml)")
     p.add_argument("--model",          default="gpt-4o-mini",
                    help="Default LLM model")
     p.add_argument("--premium",        default="gpt-5-mini",
@@ -87,10 +90,17 @@ def parse_args() -> argparse.Namespace:
                    help="SQLite database path")
     p.add_argument("--debug",          action="store_true",
                    help="Enable debug logging")
+    p.add_argument("--track-run-id", default="",
+                   help="Tracking run identifier (overrides NOVEL_RUN_ID)")
+    p.add_argument("--track-iteration", type=int, default=None,
+                   help="Tracking iteration number (overrides NOVEL_ITERATION)")
+    p.add_argument("--track-phase", default="",
+                   help="Tracking phase label (overrides NOVEL_PHASE)")
     return p.parse_args()
 
 
 def main() -> None:
+    load_project_env()
     args = parse_args()
     setup_logging(args.debug)
     logger = logging.getLogger("generate_chapter")
@@ -102,6 +112,21 @@ def main() -> None:
     # Override DB path
     db.DB_PATH = args.db
     db.init_db()
+    db.configure_tracking_from_env()
+    if args.track_run_id:
+        db.set_tracking_context(run_id=args.track_run_id)
+    if args.track_iteration is not None:
+        db.set_tracking_context(iteration=args.track_iteration)
+    if args.track_phase:
+        db.set_tracking_context(phase=args.track_phase)
+    tracking = db.get_tracking_context()
+    if tracking.get("run_id"):
+        logger.info(
+            "Tracking | run_id=%s iteration=%s phase=%s",
+            tracking.get("run_id"),
+            tracking.get("iteration"),
+            tracking.get("phase"),
+        )
 
     # Load episode config from YAML
     logger.info("Loading episode config: %s", args.episode_config)
@@ -109,6 +134,26 @@ def main() -> None:
     episode_id = args.episode
     rl_policy = load_policy()
     episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
+
+    # Load character profiles for voice/style guidance in prose generation.
+    character_profiles = []
+    try:
+        agents = load_characters(args.characters)
+        for a in agents:
+            character_profiles.append(
+                {
+                    "id": a.id,
+                    "name": a.name,
+                    "aliases": list(a.aliases or []),
+                    "speech_profile": dict(a.speech_profile or {}),
+                    "visual_profile": dict(a.visual_profile or {}),
+                }
+            )
+        logger.info("Loaded %d character voice profiles from %s",
+                    len(character_profiles), args.characters)
+    except Exception as exc:
+        logger.warning("Could not load character voice profiles from %s: %s",
+                       args.characters, exc)
 
     # Determine target words
     target_words = args.words or episode_config.get("recommended_length", 3500)
@@ -193,6 +238,7 @@ def main() -> None:
         llm=llm,
         episode_config=episode_config,
         output_dir=args.output,
+        character_profiles=character_profiles,
         max_history_episodes=int(rl_policy.get("prose_history_max_episodes", 12) or 12),
         runtime_policy=rl_policy,
     )

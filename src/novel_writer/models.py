@@ -119,6 +119,8 @@ class Agent:
     invariants: list[str]
     goals: list[str]
     aliases: list[str] = field(default_factory=list)
+    speech_profile: dict = field(default_factory=dict)
+    visual_profile: dict = field(default_factory=dict)
     memory: Memory = field(default_factory=Memory)
     persona: dict = field(default_factory=dict)  # dynamic personality state
 
@@ -131,6 +133,8 @@ class Agent:
             role=cfg.get("role", "supporting"),
             bio=cfg.get("bio", ""),
             aliases=cfg.get("aliases", []),
+            speech_profile=cfg.get("speech_profile", {}) or {},
+            visual_profile=cfg.get("visual_profile", {}) or {},
             invariants=cfg.get("invariants", []),
             goals=cfg.get("goals", []),
         )
@@ -141,6 +145,8 @@ class Agent:
         a.persona = {
             "name": a.name,
             "aliases": a.aliases,
+            "speech_profile": a.speech_profile,
+            "visual_profile": a.visual_profile,
             "bio": a.bio,
             "invariants": a.invariants,
             "goals": a.goals,
@@ -155,6 +161,8 @@ class Agent:
             "role": self.role,
             "bio": self.bio,
             "aliases": self.aliases,
+            "speech_profile": self.speech_profile,
+            "visual_profile": self.visual_profile,
             "invariants": self.invariants,
             "goals": self.goals,
             "persona": self.persona,

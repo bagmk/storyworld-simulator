@@ -208,8 +208,13 @@ def build_world_state(episode_config: dict, world_facts: dict,
     except ValueError:
         ep_time = datetime.utcnow()
 
+    summary_text = str(episode_config.get("summary", "") or "").strip()
+    # Use only the opening paragraph as the initial scene seed.
+    # Feeding the full episode summary at turn 1 lets agents jump to later beats.
+    opening_scene = summary_text.split("\n\n")[0].strip() if summary_text else ""
+
     world = WorldState(
-        current_scene=episode_config.get("summary", ""),
+        current_scene=opening_scene or summary_text,
         active_agents=[a.id for a in agents],
         location=episode_config.get("location", "Unknown Location"),
         time=ep_time,

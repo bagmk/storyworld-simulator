@@ -39,6 +39,7 @@ from src.novel_writer.config_loader import load_episode, load_world_facts, load_
 from src.novel_writer.trial_runner import TrialRunner
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, episode_runtime_policy
+from src.novel_writer.env_loader import load_project_env
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -85,6 +86,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    load_project_env()
     args = parse_args()
     setup_logging(args.debug)
     logger = logging.getLogger("trial_simulate")
