@@ -7,6 +7,9 @@ openai>=1.30.0
 # Config parsing
 PyYAML>=6.0
 
+# Discord bot loop orchestration
+discord.py>=2.4.0
+
 
 # notebook + analysis
 pandas>=2.0

@@ -165,3 +165,42 @@ bash tools/run_quality_pipeline.sh ep05_unexpected_visitors
 - 스토리 데이터는 코드가 아니라 `config/*.yaml`에서 관리됩니다.
 - 품질 실험 스크립트는 `tools/`에 모아두었습니다.
 - 코어 로직은 `src/novel_writer` 패키지에 통합되어 있습니다.
+
+## Discord 3-Agent Loop (MVP)
+
+Discord에서 아래 3단계를 자동 반복하는 루프 봇입니다.
+
+1. Simulator Agent: `simulate.py` + `generate_chapter.py` 실행, 산출물 업로드
+2. Reviewer Agent: 품질분석 + LLM 리뷰(스토리 내용 비판 / 글 자체 비판)
+3. Fixer Agent: 리뷰를 기반으로 에피소드 YAML(`episode.pacing/max_turns/recommended_length/summary`) 자동 수정
+
+### 준비
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+# .env에 DISCORD_BOT_TOKEN 설정
+# 선택: 에이전트별 LLM 키 분리 시 TOKEN / TOKEN2 / TOKEN3 설정
+```
+
+Discord Developer Portal에서 Bot을 생성하고 서버에 초대한 뒤,
+Message Content Intent를 켜야 합니다.
+
+메시지 커맨드:
+- `!novel-loop`
+- `!novel-loop-reset`
+
+### 실행
+
+```bash
+python tools/discord_loop_bot.py
+```
+
+Discord 채널에서:
+
+```text
+!novel-loop ep01_academic_presentation --max-cycles 3 --target-words 2200 --scenes 6 --budget 4.0
+```
+
+상태 파일:
+- `data/discord_loop_state.json`
