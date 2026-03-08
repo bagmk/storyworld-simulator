@@ -41,6 +41,7 @@ from src.novel_writer.prose_generator import ProseGenerator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
 from src.novel_writer.env_loader import load_project_env
+from src.novel_writer.review_feedback import load_reader_review, resolve_reader_review_path
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -96,6 +97,8 @@ def parse_args() -> argparse.Namespace:
                    help="Tracking iteration number (overrides NOVEL_ITERATION)")
     p.add_argument("--track-phase", default="",
                    help="Tracking phase label (overrides NOVEL_PHASE)")
+    p.add_argument("--reader-review-md", default="",
+                   help="Optional reader review markdown for readability/style steering")
     return p.parse_args()
 
 
@@ -131,9 +134,32 @@ def main() -> None:
     # Load episode config from YAML
     logger.info("Loading episode config: %s", args.episode_config)
     episode_config = load_episode(args.episode_config)
-    episode_id = args.episode
+    episode_id = str(episode_config.get("id") or args.episode).strip()
+    if args.episode and args.episode != episode_id:
+        logger.info(
+            "Episode ID normalized from CLI '%s' to config id '%s'",
+            args.episode,
+            episode_id,
+        )
     rl_policy = load_policy()
     episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
+    reader_feedback: dict = {}
+    review_path = resolve_reader_review_path(
+        explicit_path=args.reader_review_md,
+        episode_id=episode_id,
+        output_dir=args.output,
+    )
+    if review_path:
+        reader_feedback = load_reader_review(str(review_path))
+        if reader_feedback:
+            logger.info(
+                "Loaded reader review feedback from %s (weak=%d, tips=%d)",
+                review_path,
+                len(reader_feedback.get("what_felt_boring_or_hard", []) or []),
+                len(reader_feedback.get("style_tips", []) or []),
+            )
+        else:
+            logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
 
     # Load character profiles for voice/style guidance in prose generation.
     character_profiles = []
@@ -200,7 +226,12 @@ def main() -> None:
 
     # === Stage 1: Scene Distillation ===
     logger.info("─── Stage 1: Scene Distillation ───")
-    distiller = SceneDistiller(llm=llm, episode_config=episode_config, runtime_policy=rl_policy)
+    distiller = SceneDistiller(
+        llm=llm,
+        episode_config=episode_config,
+        runtime_policy=rl_policy,
+        reader_feedback=reader_feedback,
+    )
 
     distill_start = datetime.utcnow()
     scenes = distiller.distill(
@@ -241,6 +272,7 @@ def main() -> None:
         character_profiles=character_profiles,
         max_history_episodes=int(rl_policy.get("prose_history_max_episodes", 12) or 12),
         runtime_policy=rl_policy,
+        reader_feedback=reader_feedback,
     )
 
     prose_start = datetime.utcnow()

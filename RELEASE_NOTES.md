@@ -44,3 +44,39 @@
 6. Cleanup and snapshots
 - Removed: `tools/quality_adaptive_generator.py`
 - Added backup snapshots under: `backup/run_reset_*`
+
+# Release Notes (2026-03-08)
+
+- Branch: `main`
+- Scope: Reader-feedback-driven prose quality improvements + loop automation updates
+
+## Highlights
+
+1. Prose readability and pacing upgrades
+- Expanded `src/novel_writer/prose_generator.py` with stronger readability controls.
+- Added rhythm constraints, technical-term gloss guidance, and safer paragraph normalization.
+- Reinforced transition/polish behavior to reduce dense analytical flow and improve breathing points.
+
+2. Review-feedback integration path
+- Added `src/novel_writer/review_feedback.py` for handling review-derived improvement signals.
+- Updated orchestration and simulation flow to incorporate review-informed adjustments:
+  - `src/novel_writer/orchestrator.py`
+  - `simulate.py`
+  - `trial_simulate.py`
+  - `src/novel_writer/trial_runner.py`
+
+3. Discord loop bot and fixer agent improvements
+- Updated `tools/discord_loop_bot.py` to improve multi-agent loop behavior.
+- Converted fixer-agent prompt instructions to Korean while preserving strict JSON schema compatibility.
+- Updated loop state tracking in `data/discord_loop_state.json`.
+
+4. Story configuration refresh
+- Updated episode and storyline configs:
+  - `config/episodes/ep36_patron_failsafe.yaml`
+  - `config/episodes/ep38_showdown_quantum_part2.yaml`
+  - `config/episodes/ep40_fbi_cutoff.yaml`
+  - `config/episodes/ep41_epilogue.yaml`
+  - `config/storyline.yaml`
+
+5. Generation entrypoint updates
+- Updated `generate_chapter.py` and related generation wiring for the latest loop/review flow.

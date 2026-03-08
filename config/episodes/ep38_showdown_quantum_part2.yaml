@@ -10,6 +10,8 @@ episode:
   summary: |
     Q-Day. 2043년 3월 27일 오후 8시.
 
+    수민은 지하 통제실 한쪽 벽에 등을 대고 서 있다. 라파엘의 허가로 이 자리에 있다. "당신이 설계한 시스템이니, 당신이 지켜봐야지." 그 말이 허락이었는지 감시였는지 모른다.
+
     El Patrón이 Carlos에게 지시한다. "Failsafe 키를 삽입해. 3개면 된다."
 
     Carlos가 USB 슬롯에 키를 삽입한다:
@@ -41,35 +43,17 @@ episode:
 
     El Patrón: "누가 가져갔어?!"
 
-    Jonas: "모르겠습니다. 보안 로그를 확인해보겠습니다."
+    Jonas: "모르겠습니다."
 
-    ---
+    방 안에 침묵이 흐른다. 수민은 그 침묵의 질감을 느낀다. Jonas는 당황하지 않는다. 너무 차분하다. ep29 밤에 모니터링 콘솔에서 읽었던 평문 단편이 머릿속에서 소환된다. "BURKE-7: As long as it takes, Jonas. That's the job."
 
-    [같은 시각, 워싱턴 DC - CIA 본부]
+    El Patrón도 같은 것을 느꼈는지, 목소리가 낮아진다.
 
-    이선이 모니터를 본다.
-    화면:
-    "Shamir Secret Sharing verification in progress...
-     2 of 5 keys authenticated.
-     Source: CIA_SECURE_NODE_12
+    "Elena의 키가... CIA로 넘어간 거야?"
 
-     Key #3 (Greyshore): ✓ VALID (original)
-     Key #4 (Elena/Jonas): ✓ VALID (original)
+    Jonas는 대답하지 않는다.
 
-     Status: 2 keys verified. Waiting for 1 additional key..."
-
-    이선이 미소 짓는다.
-    "우리가 2개. 그들이 2개. 수민씨... 당신이 마지막입니다."
-
-    ---
-
-    El Patrón이 진실을 깨닫는다.
-
-    "Elena의 키가... CIA로 넘어갔어?"
-
-    Jonas는 침묵한다.
-
-    El Patrón: "너... 이중 스파이였어?"
+    El Patrón: "너... CIA 스파이였어?"
 
     Jonas (차분하게): "저를 쏘시면, CIA가 즉시 알고리즘을 전세계에 공개합니다. 암호화폐 시장 붕괴. 당신의 Greyshore 자산... 전부 무용지물이 됩니다."
 
@@ -77,7 +61,21 @@ episode:
 
     "...협박하는 거야?"
 
-    Jonas: "아뇨. 사실을 말씀드리는 겁니다. 이제 선택하세요. 협력하거나, 전부 잃거나."
+    Jonas: "아뇨. 사실을 말씀드리는 겁니다."
+
+    수민은 등을 벽에서 뗀다. 머릿속으로 빠르게 계산한다.
+    카르텔: 2개 (El Patrón + Carlos). CIA: 2개 (Greyshore 원본 + Elena 키). 수민: 1개.
+    Shamir 3-of-5. 어느 쪽도 단독으로 3개를 확보할 수 없다.
+
+    두 세력이 서로를 겨누고 있다. 그리고 수민의 키 하나가 그 균형의 추를 결정한다.
+
+    수민이 입을 연다.
+
+    "잠깐요."
+
+    두 사람이 수민을 본다.
+
+    "둘 다 들으세요. 저 없이는 어차피 못 열어요. 어느 쪽이 3개를 쥐든, 72시간마다 제 패스프레이즈가 필요합니다. 저를 죽이면 Deadman switch가 발동되고 알고리즘이 전세계에 공개됩니다. 이제 선택하세요. 싸우다 같이 망하거나, 협력하거나."
 
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.
@@ -91,14 +89,30 @@ episode:
 
     - id: "clue_ep38_showdown_quantum_part2_c02"
       content: |
-        같은 시각, 워싱턴 DC CIA 본부. 이선이 모니터를 본다. 화면: "Shamir Secret Sharing verification in progress... 2 of 5 keys authenticated. Source: CIA_SECURE_NODE_12. Key #3 (Greyshore): ✓ VALID (original). Key #4 (Elena/Jonas): ✓ VALID (original). Status: 2 keys verified. Waiting for 1 additional key..." 이선이 미소 짓는다. "우리가 2개. 그들이 2개. 수민씨... 당신이 마지막입니다." CIA는 Greyshore 키(FBI 압수품)와 Elena 키(Jonas가 전달)를 모두 확보했다. El Patrón은 이 사실을 모른다.
+        수민이 통제실에서 직접 목격하고 계산한 키 구조 (2043-03-27 저녁):
+
+        카르텔: 2개 (El Patrón + Carlos)
+        CIA: 2개 (Greyshore 원본 + Elena 키 — Jonas가 ep28에서 회수해 CIA로 전달)
+        수민: 1개
+
+        수민이 이 구조를 파악한 근거:
+        - 카르텔이 Greyshore 복제본을 삽입했을 때 INVALID 판정 → Greyshore 원본이 다른 곳에 있다
+        - Jonas의 금고가 비어 있다 → Elena 키가 Jonas 손을 거쳐 CIA로 넘어갔다
+        - ep29에서 우연히 읽은 평문 단편: "BURKE-7: As long as it takes, Jonas. That's the job." → Jonas는 CIA에 보고하고 있었다
+
+        수민이 ep38에서 처음으로 2:2:1 구조를 명확히 인식함.
+        이 인식이 수민의 중재 제안의 근거.
+
+        # Director AI 전용:
+        # 이선(CIA)과의 3자 통화에서 이선이 직접 "CIA 2개" 확인해줌 — ep40.
+        # ep41 Jonas 고백은 엘레나 처형 명령 경위 등 상세 내막의 추가 공개.
       trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
       inject_threshold: 0.5
       inject_method: "system_alert"
 
     - id: "clue_ep38_showdown_quantum_part2_c03"
       content: |
-        El Patrón이 Jonas를 심문한다. "Elena의 키는 어디 있어?!" Jonas (차분하게): "금고에 넣었습니다." 금고를 연다. 비어있다. El Patrón: "누가 가져갔어?!" Jonas: "모르겠습니다. 보안 로그를 확인해보겠습니다." 하지만 Jonas의 표정은 너무 차분하다. El Patrón이 깨닫는다. "너... 이중 스파이였어?" Jonas는 침묵한다. 그 침묵이 답이다.
+        El Patrón이 Jonas를 심문한다. "Elena의 키는 어디 있어?!" Jonas (차분하게): "금고에 넣었습니다." 금고를 연다. 비어있다. El Patrón: "누가 가져갔어?!" Jonas: "모르겠습니다." 하지만 Jonas의 표정은 너무 차분하다. 수민도, El Patrón도 같은 것을 느낀다. El Patrón이 말한다. "너... CIA 스파이였어?" Jonas는 침묵한다. 그 침묵이 답이다. 수민은 그 침묵을 보면서 ep29의 평문 단편을 떠올린다. 의심이 확신이 되는 순간.
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.55
       inject_method: "npc_question"
@@ -112,7 +126,18 @@ episode:
 
     - id: "clue_ep38_showdown_quantum_part2_c05"
       content: |
-        수민은 멀리서 이 모든 걸 지켜본다. El Patrón 2개, CIA 2개. 2:2 대치. 그리고 마지막 1개 키가 자신에게 있다. 수민은 깨닫는다. 자신이 캐스팅 보트라는 것을. 어느 쪽에 키를 주느냐에 따라 세계의 균형이 바뀐다. 하지만 수민은 어느 쪽도 선택하지 않는다. 대신, 양쪽 모두에게 조건을 건다: "72시간마다 내 password가 없으면 시스템이 멈춘다. 나를 죽이면 deadman switch가 발동되어 모든 해독 결과가 전세계에 공개된다. 양쪽 모두 나 없이는 못 돌린다." 이 2:2 대치 상황에서 수민이 코디네이터가 된다. 독재자가 아니라 중재자. 어느 쪽도 혼자서는 시스템을 운영할 수 없고, 수민을 제거할 수도 없는 구조. 이게 수민이 EP30에서 설계한 균형의 최종 실현이다. 손이 움직였다. 내 손이. 수술인지 살인인지 아직 모르겠다.
+        수민이 통제실에서 직접 계산하고 내리는 결론 (수민 1인칭 인식):
+
+        카르텔 2 : CIA 2 : 수민 1. 어느 쪽도 단독으로 3개를 확보할 수 없다.
+        수민의 키 1개가 캐스팅보트다.
+
+        수민은 어느 쪽도 선택하지 않는다. 대신 양쪽 모두에게 조건을 건다:
+        "72시간마다 제 패스프레이즈가 없으면 시스템이 멈춥니다. 저를 죽이면 Deadman switch가 발동됩니다."
+
+        수민이 처음으로 '도구'에서 '중재자'로 전환하는 순간.
+        이 결정은 수민이 라파엘의 허락을 받아 통제실에 직접 있었기 때문에 가능했다.
+
+        손이 움직였다. 내 손이. 수술인지 살인인지 아직 모르겠다.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.65
       inject_method: "environmental_cue"

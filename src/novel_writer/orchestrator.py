@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import uuid
+from collections import deque
 from datetime import datetime
 from typing import Optional
 
@@ -24,10 +25,13 @@ from .models import Agent, WorldState, ClueManager, Interaction, Memory, Steerin
 from .director import DirectorAI
 from .llm_client import LLMClient
 from . import database as db
+from .review_feedback import build_feedback_prompt_block
 
 logger = logging.getLogger(__name__)
 
 MAX_REGENERATION_ATTEMPTS = 3
+TURN_LOCAL_REPEAT_JACCARD = 0.68
+TURN_LOCAL_REPEAT_WINDOW = 3
 
 
 class SimulationOrchestrator:
@@ -53,6 +57,7 @@ class SimulationOrchestrator:
         episode_id: str,
         episode_config: dict,
         steering_contexts: Optional[dict[str, SteeringContext]] = None,
+        reader_feedback: Optional[dict] = None,
     ) -> None:
         self.agents       = agents
         self.agent_map    = {a.id: a for a in agents}
@@ -63,6 +68,7 @@ class SimulationOrchestrator:
         self.episode_id   = episode_id
         self.episode_config = episode_config
         self.steering_contexts = steering_contexts or {}
+        self.reader_feedback = reader_feedback or {}
 
         self.turn         = 0
         self.max_turns    = episode_config.get("max_turns", 60)
@@ -191,7 +197,7 @@ class SimulationOrchestrator:
         self.world.update({"content": proposed_action})
 
         # Parse structured response
-        text, emotions, relationship_deltas, clue_references, turn_mode, exit_scene = \
+        text, emotions, relationship_deltas, clue_references, turn_mode, exit_scene, action_text, dialogue_text = \
             self._parse_agent_response(proposed_action, agent)
 
         action_type = "dialogue"
@@ -216,6 +222,8 @@ class SimulationOrchestrator:
                 "agenda": self._agent_agendas.get(agent.id, ""),
                 "turn_mode": turn_mode,
                 "exit_scene": exit_scene,
+                "action": action_text,
+                "dialogue": dialogue_text,
             },
         )
         self.interactions.append(interaction)
@@ -477,6 +485,16 @@ class SimulationOrchestrator:
                 f"\n## Storyline Guardrail\n{context['storyline_hint']}\n"
                 f"Keep this turn aligned with the current milestone.\n"
             )
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=4)
+        if review_guidance:
+            system += (
+                "\n## Reader-Focused Style Guardrail\n"
+                "Minimize repetitive phrase loops and over-dense jargon.\n"
+                "Keep emotional beats precise instead of repeatedly restating the same tension.\n"
+                "When multiple characters are present, keep addressee/speaker reference explicit.\n"
+                "If technical terms are used, only the first mention can carry a short plain-language hint.\n"
+                f"{review_guidance}\n"
+            )
 
         steering = context.get("steering")
         if steering and isinstance(steering, SteeringContext):
@@ -522,6 +540,12 @@ class SimulationOrchestrator:
                 f"Continue from this intention or adapt based on what happened.\n\n"
             )
 
+        action_dialogue_inner_cap = 90
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            action_dialogue_inner_cap = min(action_dialogue_inner_cap, 70)
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            action_dialogue_inner_cap = min(action_dialogue_inner_cap, 65)
+
         user_msg += (
             f"## Your Turn\n"
             f"What do you say or do next? Respond as {agent.name}.\n"
@@ -537,8 +561,28 @@ class SimulationOrchestrator:
             f"EXIT_SCENE: [yes/no — use yes only if this character naturally leaves]\n"
             f"Do not invent named events/meetings/sessions not present in Current Scene or Recent Events.\n"
             f"AGENDA: [1-2 sentence plan for what you intend to do or explore next turn]\n"
-            f"Keep ACTION + DIALOGUE + INNER together under ~90 Korean words total.\n"
+            f"Keep ACTION + DIALOGUE + INNER together under ~{action_dialogue_inner_cap} Korean words total.\n"
+            f"If 2+ characters are in-scene, include at least one explicit addressee or name cue in DIALOGUE.\n"
+            f"Avoid repeating the same technical metric unless you add new actionable meaning.\n"
         )
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            user_msg += (
+                "Prefer 1-2 short sentences in DIALOGUE/INNER each; avoid long explanatory chains.\n"
+            )
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            user_msg += (
+                "If a technical term appears this turn, mention it once and move to action/reaction.\n"
+            )
+        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰"):
+            user_msg += (
+                "Do not stack similar gesture/observation beats in one turn.\n"
+                "Choose one strongest gesture cue and advance the scene.\n"
+            )
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+            user_msg += (
+                "Speaker clarity priority: in each spoken DIALOGUE line, include a clear addressee/name cue.\n"
+                "Do not restate character introductions for people already in-scene.\n"
+            )
 
         return system, [{"role": "user", "content": user_msg}]
 
@@ -580,6 +624,22 @@ class SimulationOrchestrator:
                                self.turn, agent.id)
                 continue
 
+            if self._is_locally_repetitive_turn(agent, response):
+                correction_prefix = (
+                    "Your previous response repeated your recent turn pattern too closely. "
+                    "Keep the same scene facts, but change action/wording and advance the interaction."
+                )
+                logger.info(
+                    "Turn %d: local repetition detected for %s; regenerating.",
+                    self.turn, agent.id,
+                )
+                continue
+
+            guardrail_correction = self._reader_guardrail_correction(agent, response)
+            if guardrail_correction:
+                correction_prefix = guardrail_correction
+                continue
+
             # Invariant check
             ok, correction = self.director.check_invariant(agent, response)
             if not ok:
@@ -616,12 +676,12 @@ class SimulationOrchestrator:
 
     def _parse_agent_response(
         self, raw: str, agent: Agent
-    ) -> tuple[str, dict, dict, list[str], str, bool]:
+    ) -> tuple[str, dict, dict, list[str], str, bool, str, str]:
         """
         Parse structured agent response into components.
 
         Returns (dialogue_text, emotions_dict, relationship_deltas, clue_refs,
-                 turn_mode, exit_scene)
+                 turn_mode, exit_scene, parsed_action_text, parsed_dialogue_text)
         Also extracts and stores AGENDA for next-turn injection.
         """
         turn_mode_raw = (self._extract_field(raw, "TURN_MODE") or "dialogue").strip().lower()
@@ -637,7 +697,10 @@ class SimulationOrchestrator:
 
         dialogue = self._extract_field(raw, "DIALOGUE") or ""
         inner    = self._extract_field(raw, "INNER") or ""
-        action   = self._extract_field(raw, "ACTION") or ""
+        action_raw = self._extract_field(raw, "ACTION") or ""
+        action = action_raw.strip()
+        if action.lower() in ("(none)", "none", "없음", "(없음)"):
+            action = ""
         exit_scene = self._parse_bool_field(raw, "EXIT_SCENE")
 
         # Fallback: extract first quoted span if DIALOGUE field is missing.
@@ -684,7 +747,7 @@ class SimulationOrchestrator:
         if agenda and agenda.lower() not in ("(none)", "(없음)"):
             self._agent_agendas[agent.id] = agenda
 
-        return text, emotions, rel_deltas, clues, turn_mode, exit_scene
+        return text, emotions, rel_deltas, clues, turn_mode, exit_scene, action, dialogue
 
     @staticmethod
     def _normalize_ref(value: str) -> str:
@@ -923,6 +986,69 @@ class SimulationOrchestrator:
             return flat
         return flat[:max_len - 3] + "..."
 
+    def _feedback_mentions(self, *keywords: str) -> bool:
+        if not self.reader_feedback:
+            return False
+        corpus = []
+        for key in ("what_felt_boring_or_hard", "style_tips"):
+            vals = self.reader_feedback.get(key, []) or []
+            corpus.extend(str(v) for v in vals if isinstance(v, str))
+        corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
+        all_text = " ".join(corpus).lower()
+        return any(str(k).lower() in all_text for k in keywords if k)
+
+    def _reader_guardrail_correction(self, agent: Agent, raw_response: str) -> str:
+        """
+        Lightweight deterministic checks tied to reader feedback.
+        Returns correction text when a regeneration is needed.
+        """
+        if not raw_response or not self.reader_feedback:
+            return ""
+
+        dialogue = (self._extract_field(raw_response, "DIALOGUE") or "").strip()
+        inner = (self._extract_field(raw_response, "INNER") or "").strip()
+        action = (self._extract_field(raw_response, "ACTION") or "").strip()
+        merged = " ".join(x for x in [action, dialogue, inner] if x).strip() or raw_response
+
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            metric_tokens = self._extract_metric_tokens(merged)
+            if len(metric_tokens) >= 3:
+                return (
+                    "Your previous response packs too many technical metrics/jargon in one turn. "
+                    "Keep at most one core technical term and focus on action/reaction."
+                )
+        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰"):
+            if self._has_dense_repetitive_imagery(merged):
+                return (
+                    "Your previous response repeats gesture/observation cues too densely. "
+                    "Keep one strongest physical cue and move the interaction forward."
+                )
+
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            if len(dialogue) > 100 or len(inner) > 80:
+                return (
+                    "Your previous response is too dense. Rewrite with shorter DIALOGUE/INNER "
+                    "using 1-2 short sentences each."
+                )
+
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+            low = dialogue.lower()
+            if dialogue and low not in ("(silent)", "(none)"):
+                active_names = [
+                    self.agent_map[aid].name
+                    for aid in self.world.active_agents
+                    if aid in self.agent_map and aid != agent.id
+                ]
+                has_name_cue = any(name and name in dialogue for name in active_names)
+                has_address_cue = bool(re.search(r"(씨|님|선배|교수|자네|너|당신|에게|한테)", dialogue))
+                if len(active_names) >= 1 and not (has_name_cue or has_address_cue):
+                    return (
+                        "Your previous response is ambiguous about who is being addressed. "
+                        "Rewrite DIALOGUE with one explicit name/addressee cue."
+                    )
+
+        return ""
+
     # ------------------------------------------------------------------ #
     # Loop Guard: Repetition Detection
     # ------------------------------------------------------------------ #
@@ -941,18 +1067,19 @@ class SimulationOrchestrator:
         if len(recent) < self._loop_guard_window:
             return False
 
-        # Extract ACTION fields for comparison
+        # Compare normalized action signatures first (high precision), then full text fallback.
         actions = []
+        metric_mentions: list[set[str]] = []
         for ix in recent:
-            raw = ix.content
-            act = self._extract_field(raw, "ACTION") or ""
+            act = str((ix.metadata or {}).get("action", "")).strip()
             if not act:
-                # Use first 60 chars of content as fallback
-                act = raw[:60]
-            actions.append(act.lower().strip())
+                # content is already parsed prose; use compact fallback from it.
+                act = re.sub(r"\[[^\]]+\]", "", ix.content or "")
+                act = re.sub(r"[*\"'“”‘’]", "", act).strip()
+            actions.append(self._normalize_loop_text(act))
+            metric_mentions.append(self._extract_metric_tokens(act))
 
         # Check similarity: count how many pairs share >60% word overlap
-        from collections import Counter
         similar_count = 0
         for i in range(len(actions)):
             for j in range(i + 1, len(actions)):
@@ -964,8 +1091,152 @@ class SimulationOrchestrator:
                 if overlap > 0.6:
                     similar_count += 1
 
+        metric_counts: dict[str, int] = {}
+        for row in metric_mentions:
+            for token in row:
+                metric_counts[token] = metric_counts.get(token, 0) + 1
+        repeated_metric_loop = any(c >= 3 for c in metric_counts.values())
+
         # If enough similar pairs, we have a loop
-        return similar_count >= self._loop_guard_threshold
+        return similar_count >= self._loop_guard_threshold or repeated_metric_loop
+
+    def _is_locally_repetitive_turn(self, agent: Agent, raw_response: str) -> bool:
+        """
+        Reject near-duplicate turns from the same agent before they are persisted.
+        This catches short-range repetition earlier than global loop-guard injection.
+        """
+        recent_same_agent = [
+            i for i in reversed(self.interactions[-8:])
+            if i.speaker_id == agent.id and i.action_type != "director_event"
+        ][:TURN_LOCAL_REPEAT_WINDOW]
+        if not recent_same_agent:
+            return False
+
+        action = self._extract_field(raw_response, "ACTION") or ""
+        dialogue = self._extract_field(raw_response, "DIALOGUE") or ""
+        inner = self._extract_field(raw_response, "INNER") or ""
+        candidate = " ".join(x for x in [action, dialogue, inner] if x).strip() or raw_response
+        cand_norm = self._normalize_loop_text(candidate)
+        if not cand_norm:
+            return False
+        cand_words = set(cand_norm.split())
+        if not cand_words:
+            return False
+        cand_metric_tokens = self._extract_metric_tokens(candidate)
+        cand_dialogue_norm = self._normalize_loop_text(dialogue)
+        cand_dialogue_words = set(cand_dialogue_norm.split()) if cand_dialogue_norm else set()
+
+        recent_scores = deque(maxlen=TURN_LOCAL_REPEAT_WINDOW)
+        dialogue_scores = deque(maxlen=TURN_LOCAL_REPEAT_WINDOW)
+        metric_overlap_hits = 0
+        metric_overlap_threshold = 1 if self._feedback_mentions(
+            "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
+        ) else 2
+        for ix in recent_same_agent:
+            prev_action = str((ix.metadata or {}).get("action", "")).strip()
+            prev_text = " ".join(x for x in [prev_action, ix.content or ""] if x).strip()
+            prev_norm = self._normalize_loop_text(prev_text)
+            if not prev_norm:
+                continue
+            prev_words = set(prev_norm.split())
+            if not prev_words:
+                continue
+            overlap = len(cand_words & prev_words) / max(len(cand_words | prev_words), 1)
+            recent_scores.append(overlap)
+            prev_metric_tokens = self._extract_metric_tokens(prev_text)
+            if cand_metric_tokens and prev_metric_tokens and cand_metric_tokens & prev_metric_tokens:
+                metric_overlap_hits += 1
+
+            prev_dialogue = ""
+            if isinstance(ix.metadata, dict):
+                prev_dialogue = str(ix.metadata.get("dialogue", "") or "")
+            if not prev_dialogue:
+                prev_dialogue = str(ix.content or "")
+            prev_dialogue_norm = self._normalize_loop_text(prev_dialogue)
+            prev_dialogue_words = set(prev_dialogue_norm.split()) if prev_dialogue_norm else set()
+            if cand_dialogue_words and prev_dialogue_words:
+                d_overlap = len(cand_dialogue_words & prev_dialogue_words) / max(
+                    len(cand_dialogue_words | prev_dialogue_words), 1
+                )
+                dialogue_scores.append(d_overlap)
+
+        return (
+            any(score >= TURN_LOCAL_REPEAT_JACCARD for score in recent_scores)
+            or (
+                self._feedback_mentions(
+                    "반복", "중복", "늘어지", "같은 정보", "같은 문구", "기술", "용어", "약자", "acronym"
+                )
+                and metric_overlap_hits >= 1
+                and any(score >= 0.58 for score in dialogue_scores)
+            )
+            or metric_overlap_hits >= metric_overlap_threshold
+        )
+
+    @staticmethod
+    def _normalize_loop_text(text: str) -> str:
+        """Normalize text for repetition-loop comparison."""
+        if not text:
+            return ""
+        cleaned = str(text).lower()
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        stop = {
+            "그리고", "하지만", "그냥", "정말", "매우", "조금", "다시", "그", "이", "저",
+            "to", "the", "a", "an", "and", "or", "is", "are",
+        }
+        toks = [t for t in cleaned.split() if len(t) > 1 and t not in stop]
+        return " ".join(toks[:16])
+
+    @staticmethod
+    def _extract_metric_tokens(text: str) -> set[str]:
+        """Extract repeated technical metric tokens for loop detection."""
+        raw = str(text or "").lower()
+        aliases = {
+            "t₂": "t2",
+            "t2": "t2",
+            "latency": "latency",
+            "rsa-2048": "rsa-2048",
+            "coherence": "coherence",
+            "코히런스": "coherence",
+            "drift": "drift",
+            "위상 드리프트": "phase-drift",
+            "실시간": "realtime",
+            "보상 회로": "compensation-circuit",
+            "nsa": "nsa",
+            "darpa": "darpa",
+            "qpu": "qpu",
+            "phase-guard": "phase-guard",
+            "greyshore": "greyshore",
+        }
+        out: set[str] = set()
+        for key, val in aliases.items():
+            if key in raw:
+                out.add(val)
+        # Catch repeated all-caps style clue markers (e.g., COHERENCE, DRIFT).
+        for token in re.findall(r"\b[A-Z]{3,14}\b", str(text or "")):
+            out.add(token.lower())
+        for m in re.findall(r"\d+(?:\.\d+)?(?:ms|초|배|%|x)?", raw):
+            if len(m) >= 2:
+                out.add(m)
+        return out
+
+    @staticmethod
+    def _has_dense_repetitive_imagery(text: str) -> bool:
+        """
+        Detect dense repetition of gesture/observation cues in one turn.
+        Keeps sensitivity modest to avoid suppressing natural physical detail.
+        """
+        raw = str(text or "").lower()
+        if not raw:
+            return False
+        cues = [
+            "제스처", "표정", "손동작", "손끝", "시선",
+            "어깨", "숨", "고개", "정적", "침묵", "미간", "관찰",
+        ]
+        counts = [raw.count(c) for c in cues]
+        max_count = max(counts) if counts else 0
+        repeated_types = sum(1 for c in counts if c >= 2)
+        return max_count >= 3 or repeated_types >= 2
 
     def _force_scene_transition(self) -> None:
         """Director injects a scene-advancing event to break the repetition loop."""

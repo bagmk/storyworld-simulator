@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import time
 import sys
@@ -94,11 +96,44 @@ def _run_cmd(
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def _list_worktree_change_candidates() -> set[str]:
+    """
+    Return modified/deleted/untracked worktree paths relative to repo root.
+    """
+    rc, out, _ = _run_cmd(
+        ["git", "ls-files", "-m", "-d", "-o", "--exclude-standard", "--", "."],
+        timeout_sec=30,
+    )
+    if rc != 0:
+        return set()
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def _sha256_for_relpath(rel_path: str) -> str | None:
+    p = (REPO_ROOT / rel_path).resolve()
+    try:
+        p.relative_to(REPO_ROOT)
+    except ValueError:
+        return None
+    if not p.exists() or not p.is_file():
+        return None
+    h = hashlib.sha256()
+    try:
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
 async def _run_cmd_stream(
     cmd: list[str],
     timeout_sec: int = 3600,
     extra_env: dict[str, str] | None = None,
     on_line: Any = None,
+    on_heartbeat: Any = None,
+    heartbeat_sec: int = 0,
 ) -> tuple[int, str, str]:
     env = os.environ.copy()
     if extra_env:
@@ -117,7 +152,17 @@ async def _run_cmd_stream(
 
     async def _drain() -> int:
         while True:
-            raw = await proc.stdout.readline()
+            if heartbeat_sec > 0:
+                try:
+                    raw = await asyncio.wait_for(proc.stdout.readline(), timeout=heartbeat_sec)
+                except asyncio.TimeoutError:
+                    if on_heartbeat is not None:
+                        await on_heartbeat()
+                    if proc.returncode is not None:
+                        break
+                    continue
+            else:
+                raw = await proc.stdout.readline()
             if not raw:
                 break
             line = raw.decode("utf-8", errors="replace")
@@ -348,9 +393,9 @@ def _format_review_md(
 
 def _build_fixer_prompt(review_md: str, code_context: str) -> str:
     return (
-        "You are Fixer Agent.\n"
-        "Given reader review and current code snippets, identify root cause and propose real code edits.\n"
-        "Return strict JSON:\n"
+        "너는 Fixer Agent다.\n"
+        "독자 리뷰와 현재 코드 스니펫을 바탕으로, 문제의 원인을 분석하고 실제 코드 수정안을 제시하라.\n"
+        "아래 스키마의 JSON만 엄격히 반환하라:\n"
         "{\n"
         '  "root_cause_analysis": [string, ...],\n'
         '  "change_summary": [string, ...],\n'
@@ -363,13 +408,14 @@ def _build_fixer_prompt(review_md: str, code_context: str) -> str:
         "    }\n"
         "  ]\n"
         "}\n"
-        "Rules:\n"
-        "- Edit code only. Do NOT edit config/episodes files.\n"
-        "- Focus on readability/style issues from the reader review.\n"
-        "- Use exact find/replace snippets that exist in files.\n"
-        "- Keep edits small and safe.\n\n"
-        f"Reader review:\n{review_md[:9000]}\n\n"
-        f"Code context:\n{code_context[:18000]}"
+        "규칙:\n"
+        "- 코드만 수정 대상으로 삼아라. config/episodes 파일은 절대 수정하지 마라.\n"
+        "- 독자 리뷰에서 지적된 가독성/문체 문제 해결에 집중하라.\n"
+        "- find/replace는 실제 파일에 존재하는 정확한 코드 조각을 사용하라.\n"
+        "- JSON 바깥의 설명 문장/코드블록/주석은 출력하지 마라.\n"
+        "- root_cause_analysis, change_summary, edits.reason은 한국어로 작성하라.\n\n"
+        f"독자 리뷰:\n{review_md[:9000]}\n\n"
+        f"코드 컨텍스트:\n{code_context[:18000]}"
     )
 
 
@@ -390,6 +436,52 @@ def _build_code_context_for_fixer() -> str:
         text = p.read_text(encoding="utf-8", errors="replace")
         blocks.append(f"\n### FILE: {rel}\n{text[:5000]}")
     return "\n".join(blocks)
+
+
+def _looks_english_heavy(text: str) -> bool:
+    if not text:
+        return False
+    ascii_letters = sum(1 for c in text if ("a" <= c.lower() <= "z"))
+    hangul_letters = sum(1 for c in text if "\uac00" <= c <= "\ud7a3")
+    return ascii_letters > (hangul_letters * 2 + 20)
+
+
+def _needs_korean_fixer_data(data: dict[str, Any]) -> bool:
+    if not isinstance(data, dict):
+        return False
+    parts: list[str] = []
+    for key in ("root_cause_analysis", "change_summary"):
+        vals = data.get(key, [])
+        if isinstance(vals, list):
+            parts.extend(str(v) for v in vals)
+    edits = data.get("edits", [])
+    if isinstance(edits, list):
+        for e in edits:
+            if isinstance(e, dict):
+                parts.append(str(e.get("reason", "")))
+    return _looks_english_heavy("\n".join(parts))
+
+
+async def _translate_fixer_data_to_korean(llm: LLMClient, fixer_data: dict[str, Any]) -> dict[str, Any]:
+    prompt = (
+        "다음 JSON의 설명 텍스트만 한국어로 번역해서 같은 스키마의 JSON으로 반환하라.\n"
+        "중요:\n"
+        "- edits.path, edits.find, edits.replace는 절대 변경하지 마라.\n"
+        "- root_cause_analysis, change_summary, edits.reason만 자연스러운 한국어로 변환하라.\n"
+        "- JSON 외 텍스트를 출력하지 마라.\n\n"
+        f"JSON:\n{json.dumps(fixer_data, ensure_ascii=False)}"
+    )
+    raw = await asyncio.to_thread(
+        llm.chat,
+        [{"role": "user", "content": prompt}],
+        None,
+        True,
+        "discord_fixer_translate_ko",
+        None,
+        1600,
+    )
+    parsed = _parse_json_safe(raw)
+    return parsed if isinstance(parsed, dict) else fixer_data
 
 
 def _apply_code_edits(edits: list[dict[str, Any]]) -> tuple[list[str], list[str], list[str]]:
@@ -426,6 +518,37 @@ def _apply_code_edits(edits: list[dict[str, Any]]) -> tuple[list[str], list[str]
         applied.append(f"{i}. {rel} ({reason or 'updated'})")
         changed_paths.append(rel)
     return applied, failed, changed_paths
+
+
+def _run_codex_fix(review_md_path: Path, summary_out_path: Path) -> tuple[int, str, str]:
+    prompt = (
+        "다음 리뷰 파일을 읽고 코드베이스를 직접 수정하라.\n"
+        f"리뷰 파일: {review_md_path}\n\n"
+        "요구사항:\n"
+        "1) 왜 이런 문제가 생겼는지 원인 분석\n"
+        "2) 시뮬레이터/챕터 생성 관련 코드를 실제로 수정\n"
+        "3) config/episodes/* 는 절대 수정 금지\n"
+        "4) 수정 후 문법 체크(변경 파일 대상) 수행\n"
+        "5) 마지막 답변은 한국어로, 아래 형식으로 간단히:\n"
+        "- Fixer 고민(원인 분석)\n"
+        "- 코드 수정 요약\n"
+        "- 적용된 코드 변경 파일 목록\n"
+        "- 남은 리스크\n"
+        "6) 중요: 사용자가 더티 워크트리 상태에서 진행을 명시적으로 승인했다.\n"
+        "   기존 변경이 있어도 질문하지 말고, 해당 변경을 보존한 채 최소 diff로 계속 진행하라.\n"
+        "   '어떻게 진행할지 선택해달라' 같은 확인 질문을 절대 출력하지 마라.\n"
+    )
+    cmd = [
+        "codex",
+        "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd",
+        str(REPO_ROOT),
+        "-o",
+        str(summary_out_path),
+        prompt,
+    ]
+    return _run_cmd(cmd, timeout_sec=1800)
 
 
 def _build_cmd_parser() -> argparse.ArgumentParser:
@@ -657,6 +780,14 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         "--budget", str(job.budget),
         "--output", str(run_dir),
     ]
+    previous_review_md: Path | None = None
+    if cycle > 1:
+        previous_review_md = _find_latest(run_dir, f"{episode_id}_cycle{cycle - 1}_review.md")
+        if previous_review_md is None:
+            previous_review_md = _find_latest(run_dir, f"{episode_id}_cycle*_review.md")
+    if previous_review_md is not None:
+        sim_cmd.extend(["--reader-review-md", str(previous_review_md)])
+        await channel.send(f"리뷰 피드백 적용: `{previous_review_md.name}`")
     turn_re = re.compile(r"Turn\s+(\d+)\s*/\s*(\d+)")
     last_turn = 0
     checkpoints_sent: set[int] = set()
@@ -700,16 +831,42 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         "--output", str(run_dir),
         "--budget", str(job.budget),
     ]
+    if previous_review_md is not None:
+        gen_cmd.extend(["--reader-review-md", str(previous_review_md)])
     if job.target_words > 0:
         gen_cmd.extend(["--words", str(job.target_words)])
     if job.scenes > 0:
         gen_cmd.extend(["--scenes", str(job.scenes)])
     await channel.send("챕터 생성 진행 중...")
-    rc, _, err2 = await asyncio.to_thread(
-        _run_cmd,
+
+    gen_flags = {
+        "stage1": False,
+        "stage2": False,
+        "distilled": False,
+    }
+
+    async def _on_gen_line(line: str) -> None:
+        low = line.lower()
+        if ("stage 1" in low or "scene distillation" in low) and not gen_flags["stage1"]:
+            gen_flags["stage1"] = True
+            await channel.send("챕터 생성: 장면 압축 단계 진행 중...")
+        if ("stage 2" in low or "prose generation" in low) and not gen_flags["stage2"]:
+            gen_flags["stage2"] = True
+            await channel.send("챕터 생성: 본문 생성 단계 진행 중...")
+        if ("distilled" in low and "scene" in low) and not gen_flags["distilled"]:
+            gen_flags["distilled"] = True
+            await channel.send("챕터 생성: 장면 압축 완료, 본문 작성으로 넘어갑니다.")
+
+    async def _on_gen_heartbeat() -> None:
+        await channel.send("챕터 생성 진행 중... (멈춘 게 아니라 계속 작업 중입니다)")
+
+    rc, _, err2 = await _run_cmd_stream(
         gen_cmd,
         3600,
         {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "")},
+        _on_gen_line,
+        _on_gen_heartbeat,
+        45,
     )
     if rc != 0:
         await _send_text(channel, f"챕터 생성 실패\n```{err2[-1500:]}```")
@@ -722,14 +879,22 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         await channel.send("챕터 파일을 찾지 못했습니다.")
         return False, {}
 
+    # Keep a per-cycle chapter snapshot so chapters are not overwritten in-place.
+    cycle_chapter = run_dir / f"{episode_id}_cycle{cycle}_chapter.md"
+    try:
+        shutil.copyfile(chapter, cycle_chapter)
+    except Exception:
+        await channel.send(f"사이클 챕터 스냅샷 저장 실패: `{cycle_chapter}`")
+        return False, {}
+
     # Keep chapter markdown local only; notify completion in channel.
-    await channel.send(f"챕터 생성 완료 (로컬 저장): `{chapter}`")
+    await channel.send(f"챕터 생성 완료 (로컬 저장): `{cycle_chapter}`")
     await channel.send(f"{SIM_DONE_TAG} cycle={cycle} episode={episode_id} chapter={chapter.name}")
 
     return True, {
         "episode_id": episode_id,
         "episode_file": str(episode_file),
-        "chapter": str(chapter),
+        "chapter": str(cycle_chapter),
         "run_output_dir": str(run_dir),
         "channel_id": job.channel_id,
         "reviewer_bot_token": job.reviewer_bot_token,
@@ -807,60 +972,102 @@ async def run_reviewer_agent(channel: discord.abc.Messageable, cycle: int, ctx: 
 async def run_fixer_agent(channel: discord.abc.Messageable, cycle: int, ctx: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
     run_dir = Path(ctx["run_output_dir"])
     episode_id = ctx["episode_id"]
-    review_md = Path(ctx["review_md"]).read_text(encoding="utf-8")
-    code_context = _build_code_context_for_fixer()
-
-    llm = LLMClient(
-        model="gpt-4o-mini",
-        premium_model="gpt-5-mini",
-        budget_usd=3.0,
-        api_key=os.environ.get("OPENAI_API_KEY", ""),
-    )
+    review_md_path = Path(ctx["review_md"])
     channel_id = int(ctx["channel_id"])
     fixer_bot_token = ctx.get("fixer_bot_token", "")
     await _send_text_with_token(
         channel, channel_id, f"3) Fixer Agent 시작 (cycle {cycle})", fixer_bot_token, required=True
     )
-    fixer_raw = await asyncio.to_thread(
-        llm.chat,
-        [{"role": "user", "content": _build_fixer_prompt(review_md, code_context)}],
-        None,
-        True,
-        "discord_fixer",
-        None,
-        2200,
-    )
-    fixer_data = _parse_json_safe(fixer_raw)
-    summary = fixer_data.get("change_summary", []) if isinstance(fixer_data, dict) else []
-    analysis = fixer_data.get("root_cause_analysis", []) if isinstance(fixer_data, dict) else []
-    edits = fixer_data.get("edits", []) if isinstance(fixer_data, dict) else []
-    edits = edits if isinstance(edits, list) else []
 
-    applied, failed, changed_paths = _apply_code_edits(edits)
+    summary_out_path = run_dir / f"{episode_id}_cycle{cycle}_fixer_summary.md"
+    before_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
+    before_hashes = {
+        path: digest
+        for path in before_candidates
+        if (digest := _sha256_for_relpath(path)) is not None
+    }
+
+    rc, out, err = await asyncio.to_thread(_run_codex_fix, review_md_path, summary_out_path)
+    if rc != 0:
+        tail = (err or out)[-1500:]
+        await _send_text_with_token(
+            channel,
+            channel_id,
+            f"{RUN_END_TAG} fixer 실행 실패\n```{tail}```",
+            fixer_bot_token,
+            required=True,
+        )
+        return False, ctx
+
+    after_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
+    all_candidates = sorted(before_candidates | after_candidates)
+    changed_entries: list[dict[str, Any]] = []
+    changed_paths: list[str] = []
+    for path in all_candidates:
+        before_sha = before_hashes.get(path)
+        after_sha = _sha256_for_relpath(path)
+        if before_sha == after_sha:
+            continue
+        if before_sha is None and after_sha is not None:
+            change_type = "created_or_untracked"
+        elif before_sha is not None and after_sha is None:
+            change_type = "deleted"
+        else:
+            change_type = "modified"
+        changed_entries.append(
+            {
+                "path": path,
+                "change_type": change_type,
+                "before_sha256": before_sha,
+                "after_sha256": after_sha,
+            }
+        )
+        changed_paths.append(path)
+
+    changed_paths = sorted(changed_paths)
+    changed_files_json_path = run_dir / f"{episode_id}_cycle{cycle}_changed_files.json"
+    changed_files_json_path.write_text(
+        json.dumps(
+            {
+                "episode_id": episode_id,
+                "cycle": cycle,
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "changed_files": changed_entries,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     diff_path = run_dir / f"{episode_id}_cycle{cycle}_fix.diff"
     diff_cmd = ["git", "diff", "--", *changed_paths] if changed_paths else ["git", "diff", "--", "."]
     _, diff_text, _ = await asyncio.to_thread(_run_cmd, diff_cmd, 30)
     diff_path.write_text(diff_text or "# No diff\n", encoding="utf-8")
-
-    analysis_text = "\n".join([f"- {s}" for s in analysis]) if analysis else "- (분석 생성 없음)"
-    summary_text = "\n".join([f"- {s}" for s in summary]) if summary else "- (수정 요약 없음)"
-    applied_text = "\n".join([f"- {s}" for s in applied]) if applied else "- (적용된 코드 변경 없음)"
-    failed_text = "\n".join([f"- {s}" for s in failed]) if failed else "- 없음"
+    summary_text = (
+        summary_out_path.read_text(encoding="utf-8", errors="replace").strip()
+        if summary_out_path.exists()
+        else "(fixer 요약 파일 없음)"
+    )
+    changed_text = "\n".join(f"- {p}" for p in changed_paths) if changed_paths else "- 없음"
     await _send_file_with_token(
         channel, channel_id, diff_path, f"{episode_id} fix diff", fixer_bot_token, required=True
+    )
+    await _send_file_with_token(
+        channel,
+        channel_id,
+        changed_files_json_path,
+        f"{episode_id} cycle changed files json",
+        fixer_bot_token,
+        required=True,
     )
     await _send_text_with_token(
         channel,
         channel_id,
         f"{FIX_DONE_TAG} cycle={cycle} episode={episode_id}\n"
-        "Fixer 고민(원인 분석):\n"
-        f"{analysis_text}\n\n"
-        "코드 수정 요약:\n"
         f"{summary_text}\n\n"
-        "적용된 코드 변경:\n"
-        f"{applied_text}\n\n"
-        "적용 실패 항목:\n"
-        f"{failed_text}",
+        "실제 변경 파일:\n"
+        f"{changed_text}",
         fixer_bot_token,
         required=True,
     )

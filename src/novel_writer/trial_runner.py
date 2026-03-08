@@ -73,6 +73,7 @@ class TrialRunner:
         characters_config: list[dict],
         world_facts: dict,
         storyline: dict,
+        reader_feedback: Optional[dict] = None,
         model: str = "gpt-4o-mini",
         premium_model: str = "gpt-5-mini",
         total_budget: float = 15.0,
@@ -85,6 +86,7 @@ class TrialRunner:
         self.characters_config = characters_config
         self.world_facts = world_facts
         self.storyline = storyline
+        self.reader_feedback = reader_feedback or {}
         self.model = model
         self.premium_model = premium_model
         self.total_budget = total_budget
@@ -251,6 +253,7 @@ class TrialRunner:
             episode_id=trial_episode_id,
             episode_config=self.episode_config,
             steering_contexts=steering_contexts,
+            reader_feedback=self.reader_feedback,
         )
 
         interactions = orchestrator.run_episode()

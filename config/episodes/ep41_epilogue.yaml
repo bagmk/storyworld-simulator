@@ -234,7 +234,20 @@ episode:
   # The Director AI monitors and injects trigger events if they go unnoticed.
   introduced_clues:
     - id: "clue_ep41_epilogue_c01"
-      content: "30일 후. NSA-카르텔 협력 루머(진상 불투명). 학계/산업계 재편: 중요 인물 사라지거나 등장(판도 뒤집힘). 밀러 국장: "양자 위협 파악·완화. 포스트-양자 암호로 전환." (거짓. 라파엘은 여전히 RSA 해독 기술 소유. 독점 가치 저하로 '협력' 자세로 전환. 비공식 거래: "post-quantum 개발 주도하는 동안 조용히 있겠다.") 보스턴 항만 자유무역지구 "구조적 붕괴로 안전 폐쇄". 증거 청소됨. 모레노 교수, 팀원 20명, 실종. 요나스: 3개월 후 파나마 컨설팅 법인 이사회 "Carlos" 이름 등록(사진 없음). 신원 불명. 라파엘이 숨김. QuantumFront: MIT 기록 "defunct". 모든 논문·발표 삭제. 수민 이름 어떤 논문에도 없음.
+      content: |
+        Q-Day + 80일, 수민이 보는 세상의 단면:
+
+        [뉴스 헤드라인 — 2043-06-15 기준]
+        - Clarke Quantum Solutions: SEC 조사 개시. NSA 계약 관련 문서 위조 혐의. 벤 클라크 법정 출두 예정.
+        - POC 계약서 유출: NSA-벤 클라크 연결고리 드러남. DARPA 공동 자금 출처 의혹.
+        - 밀러 NSA 부국장: 의회 청문회 소환. "국가 안보를 위한 합법적 조치였다" 주장.
+        - 보스턴 항만 자유무역지구: "구조적 붕괴로 안전 폐쇄". 모레노 교수 연구팀 20명 실종 기밀 처리, 서서히 잊혀짐.
+        - QuantumFront: MIT 기록 "defunct". 모든 논문·발표 삭제. 수민 이름 어떤 기록에도 없음.
+
+        # Director AI 전용:
+        # 이 모든 것은 CIA의 작품이다. CIA는 NSA를 법정으로 보내는 대신 손을 털었다.
+        # 벤 클라크는 NSA의 도구였지만, 그걸 알았든 몰랐든 지금은 법적 책임을 홀로 지고 있다.
+        # 수민은 이 구조를 안다. 그리고 그 구조의 설계에 자신이 일부 관여했다는 것도.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.65
       inject_method: "environmental_cue"
@@ -256,7 +269,26 @@ episode:
       inject_method: "environmental_cue"
 
     - id: "clue_ep41_epilogue_c02"
-      content: "밀러 직위 상승('혼란 최소화 공로'). 축하 서한 짧고 건조. 모레노/연구실 실종으로 전세계 경악했으나 기밀로 처리, 서서히 잊혀짐. 엘 파트론(라파엘): 그림자에서 벗어남. 양지의 더 깊은 곳에서, 정부·기업 권력 너머로 조직 새롭게 설계 시작. 라파엘이 수민을 보호하기 시작한 이유: "넌 없으면 아무것도 작동하지 않아. 그래서 난 너를 보호해야 해."
+      content: |
+        Q-Day + 80일, 각 세력의 현재:
+
+        NSA (악당):
+        - 밀러 부국장: 의회 청문회 소환. POC 계약 구조 전체가 공개 도마에 오름.
+        - NSA는 "기술 독점 시도" 프레임으로 여론의 표적이 됨. CIA가 모든 증거를 NSA 방향으로 정렬한 결과.
+        - 벤 클라크는 NSA의 방패막이였다가 이제 NSA의 희생양이 됨.
+
+        CIA (공존):
+        - 이선 (CIA 대표): 72시간 재인증 구조에 합류. 카르텔과 수익 배분.
+        - CIA는 법정 밖에 있다. 모든 실행은 카르텔과 수민을 통했고, NSA에 책임을 넘겼다.
+
+        카르텔 (공존):
+        - 라파엘 구티에레즈(El Patrón): 72시간 재인증 구조에 합류. CIA와 수익 배분.
+        - 라파엘이 수민을 보호하는 이유: "넌 없으면 아무것도 작동하지 않아. 그래서 난 너를 보호해야 해."
+        - 요나스: 3개월 후 파나마 컨설팅 법인 이사회에 "Carlos" 이름 등록 (사진 없음).
+
+        수민 (중재자):
+        - CIA-카르텔 공존 구조의 설계자이자 열쇠. 72시간마다 세상의 균형을 유지.
+        - 자유는 없다. 하지만 권력은 있다. 찝찝한 공존.
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.75
       inject_method: "environmental_cue"
@@ -265,6 +297,30 @@ episode:
       content: "독자도 과학 기술 윤리에 대해 생각해보는 계기가 될 수 있게 독백 "기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다. 나는 손을 씻을 수 없게 됐다.""
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.85
+      inject_method: "environmental_cue"
+
+    - id: "clue_ep41_ben_regret"
+      content: |
+        수민이 벤에게 느끼는 미안함 (소설 텍스트 구현 방향):
+
+        벤 클라크는 알았을까? NSA가 자신의 회사를 어떻게 쓸 것인지.
+        수민의 판단: 아마 몰랐을 것이다. 벤은 현실을 모르는 사람이었다. MIT 때도, 38층 호텔 라운지에서도.
+        이제 그 현실이 법정 소환장으로 돌아왔다.
+
+        수민이 소리 내어 하지 못하는 말: "미안하다, 벤."
+        → 수민이 이 말을 소리 내어 하지 못하는 이유: 말이 되면 책임이 된다. 책임을 인정하면, 이 구조 전체에 자신이 공모했다는 것을 인정하는 것이다.
+        → 그래서 그 말은 소리가 되지 않는다. 독백으로만 남는다.
+
+        이것이 수민의 찝찝함의 핵심:
+        - NSA가 악당이 된 건 맞다. 하지만 그 과정에서 벤이라는 무고한(?) 방패막이가 희생됐다.
+        - CIA가 NSA를 법정으로 보내는 구조를 만든 것도 결국 수민이 중재한 공존 딜의 일부다.
+        - 수민은 그 구조를 알고도 막지 않았다. 아니, 막을 수 없었다.
+
+        # Director AI 전용:
+        # 벤에 대한 미안함은 수민의 마지막 도덕적 잔여물.
+        # 이것이 "찝찝한 공존"의 구체적 얼굴이다.
+      trigger: "a small environmental detail catches the protagonist's attention"
+      inject_threshold: 0.6
       inject_method: "environmental_cue"
 
     - id: "clue_ep41_jonas_cia_reveal"

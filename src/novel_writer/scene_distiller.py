@@ -24,6 +24,7 @@ from typing import Optional
 
 from .llm_client import LLMClient
 from . import database as db
+from .review_feedback import build_feedback_prompt_block
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +81,12 @@ class SceneDistiller:
         llm: LLMClient,
         episode_config: Optional[dict] = None,
         runtime_policy: Optional[dict] = None,
+        reader_feedback: Optional[dict] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config or {}
         self.runtime_policy = runtime_policy or {}
+        self.reader_feedback = reader_feedback or {}
 
     # ------------------------------------------------------------------ #
     # Public: Distill Episode
@@ -208,6 +211,19 @@ class SceneDistiller:
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
             f"6. Do NOT invent content not present in the log. Only compress and select.\n\n"
+        )
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
+        if review_guidance:
+            prompt += (
+                "## Reader Feedback Priorities\n"
+                "Favor readability when selecting what survives compression.\n"
+                "If technical explanations repeat, keep only the clearest first mention.\n"
+                "Prefer concise summaries over long duplicate emotional narration.\n"
+                "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
+                "from the same speaker.\n"
+                f"{review_guidance}\n\n"
+            )
+        prompt += (
             f"Reply with a JSON array of {target_scenes} scene objects:\n"
             f"```json\n"
             f"[\n"
@@ -266,6 +282,8 @@ class SceneDistiller:
                 raw_turn_count=max(1, turn_end - turn_start + 1),
             )
             self._sanitize_scene_dialogue(scene)
+            scene.key_actions = self._dedupe_semantic_lines(scene.key_actions, limit=8)
+            scene.discoveries = self._dedupe_semantic_lines(scene.discoveries, limit=6)
             scenes.append(scene)
 
         # Keep scene order stable by timeline and re-number deterministically.
@@ -338,6 +356,7 @@ class SceneDistiller:
         """
         cleaned_dialogue: list[dict] = []
         extra_actions: list[str] = []
+        seen_lines: set[str] = set()
 
         for row in scene.key_dialogue or []:
             if not isinstance(row, dict):
@@ -349,6 +368,11 @@ class SceneDistiller:
 
             spoken = self._extract_spoken_dialogue(line)
             if spoken:
+                fp = self._dialogue_fingerprint(spoken)
+                if fp and fp in seen_lines:
+                    continue
+                if fp:
+                    seen_lines.add(fp)
                 cleaned_dialogue.append({"speaker": speaker, "line": spoken})
                 continue
 
@@ -360,6 +384,12 @@ class SceneDistiller:
         scene.key_dialogue = cleaned_dialogue[:4]
         if extra_actions:
             scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
+
+    @staticmethod
+    def _dialogue_fingerprint(text: str) -> str:
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", str(text or "").lower())
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
 
     @staticmethod
     def _extract_spoken_dialogue(text: str) -> str:
@@ -509,6 +539,42 @@ class SceneDistiller:
             seen.add(vv)
             out.append(vv)
         return out
+
+    def _dedupe_semantic_lines(self, values: list[str], limit: int) -> list[str]:
+        """
+        Remove near-duplicate lines that differ only by small surface variation.
+        Keeps the most concise representation first and preserves order.
+        """
+        ordered = self._dedupe_preserve_order(list(values or []))
+        kept: list[str] = []
+        fingerprints: list[set[str]] = []
+
+        for line in ordered:
+            fp = self._line_fingerprint_set(line)
+            if not fp:
+                continue
+            if any(self._fingerprint_overlap(fp, prev) >= 0.78 for prev in fingerprints):
+                continue
+            kept.append(line)
+            fingerprints.append(fp)
+            if len(kept) >= max(1, limit):
+                break
+        return kept
+
+    @staticmethod
+    def _line_fingerprint_set(text: str) -> set[str]:
+        cleaned = str(text or "").lower()
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        stop = {"그리고", "하지만", "그러나", "그는", "그녀는", "the", "and", "for"}
+        tokens = [t for t in cleaned.split() if len(t) >= 2 and t not in stop]
+        return set(tokens[:18])
+
+    @staticmethod
+    def _fingerprint_overlap(a: set[str], b: set[str]) -> float:
+        if not a or not b:
+            return 0.0
+        return len(a & b) / max(len(a | b), 1)
 
     @staticmethod
     def _token_overlap_score(a: str, b: str) -> float:

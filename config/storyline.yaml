@@ -283,11 +283,14 @@ director_control_model:
           구현 예시: ep28 엘레나 사망 장면 — 수민이 격벽이 열린 후 4분 뒤 도착, 총성 방향·위치·혈흔으로 역추산.
           주의: 수민이 '이렇게 됐을 것이다'는 추론으로 서술해야 하며, 확정 사실처럼 전지적으로 서술 불가.
 
-      (2) 도청/감청 (Intercept via MIRROR TRAP):
-          수민의 MIRROR TRAP 시스템이 CIA 암호화 통신의 일부를 부분 복호화하여 단편적 정보를 제공.
-          구현 예시: ep29 이선-요나스 채널 — 30% 복호화, 평문 단편만 제공, 나머지는 [REDACTED].
+      (2) 우연한 발견 (Accidental Intercept):
+          수민이 QPU 보정 로그 확인, Failsafe 통신 레이어 점검 등 물리학자 본연의 작업 중
+          내부 네트워크 모니터링 콘솔에서 암호화 오류로 평문 노출된 통신 단편을 우연히 목격.
+          수민은 패킷 복호화 방법을 모른다. 이미 평문으로 노출된 조각들만 읽는다.
+          구현 예시: ep29 Jonas-BURKE7 채널 — 암호화 레이어 오버헤드 오류로 일부 헤더·메시지가 평문 노출. 나머지는 [암호화 — 해독 불가].
           핵심 원칙: 수민이 정보를 '완전히' 갖지 않는다. 불완전한 정보가 수민의 추론과 오해를 만들어 긴장 유지.
-          BURKE-7(이선 Burke 핸들러 코드) 식별은 ep29에서 이 방법으로 구현됨.
+          수민은 해킹·패킷 분석 전문가가 아님. 노출된 평문을 읽는 것이 한계.
+          BURKE-7(에단 Burke 핸들러 코드) 식별은 ep29에서 이 방법으로 구현됨.
 
       (3) 증인 보고 (Witness Testimony):
           다른 캐릭터(주로 요나스)가 직접 수민에게 단편적 사실을 전달.
@@ -398,7 +401,10 @@ acts:
       - id: "ep40_fbi_cutoff"
         description: "ep39 Deadman 47분 위기 경험 → '어느 한 조직이 라인을 끊어도 나머지 둘이 막는 구조' 공학적 설계 → 3자(CIA/Cartel/수민) 협력 제안. FBI는 법적 절차로 완전히 배제됨"
       - id: "ep41_epilogue"
-        description: "세계 질서 재편 + 진상 은폐 + 수민의 유배. 요나스 '벨라는 잘 있다' 발언"
+        description: >-
+          NSA-벤 클라크 뉴스 폭로(CIA 설계). 벤 법정 소환, 밀러 청문회. 수민의 찝찝한 미안함(벤).
+          CIA-카르텔 공존 72시간 재인증 구조 가동. Jonas CIA 8년 잠입 고백. 수민 캐스팅보트 자각.
+          자유 없음, 권력 있음. 찝찝한 공존으로 마무리.
 
 episodes:
   - episode_id: "ep01"
@@ -980,17 +986,22 @@ episodes:
     file: "ep41_epilogue.yaml"
     title: "Epilogue: Exile"
     act: "act6"
-    date_range: {start: "2043-03-30T23:15", end: "2043-03-30T23:15"}
+    date_range: {start: "2043-06-15T09:00", end: "2043-06-15T10:00"}
     synopsis: >-
-      RSA 붕괴의 여파로 학계/산업/정보기관 판도가 뒤집힌다.
-      진상은 은폐되고, 연구소는 역사에서 삭제되며, 수민은 사실상 연금/유배로 사라진다.
-      요나스가 커피를 가져오며 "벨라는 잘 있다"라고 말한다.
-      수민이 72시간마다 세계를 멈추거나 돌릴 수 있는 권력을 얻지만, 자유는 잃는다.
+      Q-Day + 80일. NSA-벤 클라크 연결고리가 뉴스에 폭로되고 벤의 회사는 SEC 조사와 법정 소환에 직면한다.
+      모든 법적 책임의 화살표는 NSA를 향한다—CIA가 설계한 결말이다.
+      수민은 이것이 CIA의 작품임을 알지만 벤에게 미안하다는 말을 소리 내어 할 수 없다.
+      72시간 재인증: CIA(이선)와 카르텔(라파엘)이 동시 접속, 수민이 중간에서 열쇠를 돌린다.
+      CIA-카르텔 공존 구조는 수민이 중재한 딜이다. 악당은 NSA다.
+      Jonas가 CIA 8년 잠입 자산이었음을 수민에게 처음 고백하고, 수민은 처음으로 캐스팅보트였음을 깨닫는다.
+      자유는 없다. 하지만 권력은 있다. 찝찝한 공존으로 끝.
     beats:
       - {id: "ep41_epilogue", must_happen: true}
     exit_conditions:
       set_flags:
         sumin_removed_from_world: true
+        nsa_exposed_as_villain: true
+        cia_cartel_coexistence: true
 
 director_runtime_playbook:
   episode_handout_protocol:

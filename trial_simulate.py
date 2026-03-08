@@ -40,6 +40,7 @@ from src.novel_writer.trial_runner import TrialRunner
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, episode_runtime_policy
 from src.novel_writer.env_loader import load_project_env
+from src.novel_writer.review_feedback import load_reader_review, resolve_reader_review_path
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -80,6 +81,8 @@ def parse_args() -> argparse.Namespace:
                    help="Output directory (default: output/)")
     p.add_argument("--db",         default="data/simulation.db",
                    help="SQLite database path")
+    p.add_argument("--reader-review-md", default="",
+                   help="Optional reader review markdown to steer style/readability")
     p.add_argument("--debug",      action="store_true",
                    help="Enable debug logging")
     return p.parse_args()
@@ -119,6 +122,26 @@ def main() -> None:
 
     logger.info("Loading world facts: %s", args.world)
     world_facts = load_world_facts(args.world)
+    reader_feedback: dict = {}
+    review_path = resolve_reader_review_path(
+        explicit_path=args.reader_review_md,
+        episode_id=episode_id,
+        output_dir=args.output,
+    )
+    if review_path:
+        reader_feedback = load_reader_review(str(review_path))
+        if reader_feedback:
+            logger.info(
+                "Loaded reader review feedback from %s (weak=%d, tips=%d)",
+                review_path,
+                len(reader_feedback.get("what_felt_boring_or_hard", []) or []),
+                len(reader_feedback.get("style_tips", []) or []),
+            )
+        else:
+            logger.warning(
+                "Reader review file parsed but yielded no actionable guidance: %s",
+                review_path,
+            )
 
     storyline: dict = {}
     storyline_path = Path(args.storyline)
@@ -150,6 +173,7 @@ def main() -> None:
         success_threshold=args.success_threshold,
         output_dir=args.output,
         db_path=args.db,
+        reader_feedback=reader_feedback,
     )
 
     start = datetime.utcnow()

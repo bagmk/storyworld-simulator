@@ -29,6 +29,7 @@ from typing import Optional
 from .llm_client import LLMClient
 from .scene_distiller import DistilledScene
 from . import database as db
+from .review_feedback import build_feedback_prompt_block
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class ProseGenerator:
         include_all_episode_context: bool = True,
         max_history_episodes: Optional[int] = None,
         runtime_policy: Optional[dict] = None,
+        reader_feedback: Optional[dict] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config
@@ -67,6 +69,7 @@ class ProseGenerator:
         self.previous_episode_context = previous_episode_context
         self.include_all_episode_context = include_all_episode_context
         self.runtime_policy = runtime_policy or {}
+        self.reader_feedback = reader_feedback or {}
         if max_history_episodes is None and self.runtime_policy.get("prose_history_max_episodes") is not None:
             self.max_history_episodes = int(self.runtime_policy.get("prose_history_max_episodes"))
         else:
@@ -80,7 +83,7 @@ class ProseGenerator:
         self,
         scenes: list[DistilledScene],
         protagonist_name: str = "Kim Sumin",
-        style: str = "first_person",
+        style: str = "third_person_close",
         target_words: int = 3500,
     ) -> str:
         """
@@ -106,8 +109,14 @@ class ProseGenerator:
 
         # Generate prose for each scene
         prose_sections: list[str] = []
+        established_anchors: set[str] = set()
         for i, scene in enumerate(scenes):
             prev_section = prose_sections[-1] if prose_sections else None
+            scene_anchor_source = "\n".join(
+                [d for d in scene.discoveries if isinstance(d, str)]
+                + [scene.narrative_summary or ""]
+            )
+            scene_anchors = self._extract_anchor_terms(scene_anchor_source)
             section = self._generate_scene_prose(
                 scene=scene,
                 scene_index=i,
@@ -118,25 +127,29 @@ class ProseGenerator:
                 word_budget=scene_budgets[i],
                 prev_section_tail=prev_section[-300:] if prev_section else None,
                 previous_episode_context=continuity_context,
+                established_anchors=sorted(established_anchors)[:24],
             )
             prose_sections.append(section)
+            established_anchors.update(scene_anchors[:12])
             logger.info(
                 "Scene %d/%d '%s': %d words",
                 i + 1, len(scenes), scene.title, len(section.split()),
             )
 
-        # Generate transitions between scenes
+        chapter_anchors = self._collect_episode_anchor_terms(episode_context)
+        coverage_anchors = self._select_anchor_terms_for_coverage(chapter_anchors)
+        coverage_anchors = self._tune_coverage_anchors(coverage_anchors)
         combined = self._combine_with_transitions(
-            prose_sections, scenes, episode_context, style,
+            prose_sections, scenes, episode_context, style
         )
 
-        # Collect episode-wide anchors and require them through final polish.
-        chapter_anchors = self._collect_episode_anchor_terms(episode_context)
-
-        # Polish
-        final = self._polish(combined, target_words, style, chapter_anchors)
-        final = self._ensure_anchor_coverage(final, chapter_anchors, target_words, style)
+        # Polish and guardrails
+        final = self._polish(combined, target_words, style, coverage_anchors)
+        final = self._ensure_anchor_coverage(final, coverage_anchors, target_words, style)
+        final = self._reader_feedback_final_pass(final, target_words, style, coverage_anchors)
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
+        final = self._reduce_local_repetition(final)
+        final = self._normalize_paragraphs(final)
 
         # Write
         out_path = self.output_dir / f"{episode_id}_chapter.md"
@@ -336,6 +349,7 @@ class ProseGenerator:
         word_budget: int,
         prev_section_tail: Optional[str] = None,
         previous_episode_context: Optional[str] = None,
+        established_anchors: Optional[list[str]] = None,
     ) -> str:
         """Generate literary prose for one distilled scene."""
         pov = "first person" if style == "first_person" else "third person close"
@@ -379,6 +393,12 @@ class ProseGenerator:
         )
         anchors = self._extract_anchor_terms(anchor_source)
         anchors_text = ", ".join(anchors[:16]) if anchors else "(none)"
+        established = [a.strip() for a in (established_anchors or []) if isinstance(a, str) and a.strip()]
+        established_lower = {a.lower() for a in established}
+        recalled = [a for a in anchors if a.lower() in established_lower][:10]
+        new_anchors = [a for a in anchors if a.lower() not in established_lower][:10]
+        recalled_text = ", ".join(recalled) if recalled else "(none)"
+        new_anchor_text = ", ".join(new_anchors) if new_anchors else "(none)"
 
         # Position description
         if scene_index == 0:
@@ -389,6 +409,9 @@ class ProseGenerator:
             position = "CLIMAX — this is the pivotal moment; give it full emotional weight"
         else:
             position = f"MIDDLE (scene {scene_index + 1}/{total_scenes}) — develop naturally"
+
+        readability = self._readability_controls()
+        term_glossary = self._build_scene_term_glossary(scene, matched_beats, blocked_terms=established)
 
         system = (
             "You are writing a Korean serialized techno-thriller chapter scene.\n"
@@ -429,6 +452,14 @@ class ProseGenerator:
             f"Location: {scene.location}\n"
             f"Characters: {', '.join(scene.characters_present)}\n\n"
             f"## POV and Time Guidance\n{pov_and_time}\n"
+            f"## Readability and Rhythm Constraints\n"
+            f"- Keep paragraph rhythm breathable: usually {readability['paragraph_min']}-{readability['paragraph_max']} sentences per paragraph.\n"
+            f"- Alternate inner thought and outer action to avoid continuous analytical voice.\n"
+            f"- Use short sentence beats at tension peaks for pacing contrast.\n"
+            f"- Avoid repeating the same tension phrasing across nearby paragraphs.\n\n"
+            f"- Avoid repeating identical numeric literals (e.g., same milliseconds/ratios) in adjacent paragraphs unless plot-critical.\n\n"
+            f"- In dialogue-heavy stretches, anchor speaker identity with short action beats or name cues every 1-2 exchanges.\n"
+            f"- If three or more characters are present, avoid ambiguous pronouns for consecutive lines.\n\n"
             f"## Essential Content (from simulation)\n"
             f"Key dialogue:\n{dialogue_text}\n"
             f"Dialogue source status: {'simulation key dialogue exists' if has_source_dialogue else 'simulation key dialogue sparse; infer naturally'}\n\n"
@@ -436,6 +467,21 @@ class ProseGenerator:
             f"Discoveries/revelations:\n{discoveries_text}\n\n"
             f"Scene summary: {scene.narrative_summary}\n\n"
         )
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+            prompt += (
+                "## Speaker Clarity Priority\n"
+                "- In every dialogue cluster, attach explicit speaker/addressee cues.\n"
+                "- Avoid back-to-back ambiguous pronoun-only dialogue lines.\n"
+                "- Do not reintroduce already-known characters with repetitive identity labels.\n\n"
+            )
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
+        if review_guidance:
+            prompt += (
+                "## Reader Feedback Priorities\n"
+                "Apply these priorities while preserving the same events.\n"
+                "Use them to reduce local repetition and improve reading flow.\n"
+                f"{review_guidance}\n\n"
+            )
         if previous_episode_context:
             prompt += f"## Cross-Episode Continuity\n{previous_episode_context}\n\n"
 
@@ -445,6 +491,19 @@ class ProseGenerator:
             prompt += (
                 f"## Must-Keep Evidence Anchors (use exact surface forms)\n"
                 f"{anchors_text}\n\n"
+            )
+            prompt += (
+                f"## Anchor Freshness Control\n"
+                f"- Already established earlier in chapter: {recalled_text}\n"
+                f"- Newly introduced in this scene: {new_anchor_text}\n"
+                f"- For already established anchors, prefer one short callback only.\n"
+                f"- Do not restate the same numeric claim or metric explanation more than once in this scene.\n\n"
+            )
+        if term_glossary:
+            prompt += (
+                f"## Optional Reader-Friendly Gloss (use sparingly)\n"
+                f"{term_glossary}\n\n"
+                f"Rule: If technical terms appear, add a very short sensory/plain-language gloss on first mention only.\n\n"
             )
         if scene_character_guide:
             prompt += (
@@ -458,6 +517,9 @@ class ProseGenerator:
             f"Write a scene of about {word_budget} words.\n"
             f"Keep the same story events and discoveries, but render them as immersive fiction.\n"
             f"Let dialogue emerge naturally from tension and intent; avoid uniform speaking voices.\n"
+            f"Keep technical exposition lightweight: do not stack unexplained jargon in consecutive sentences.\n"
+            f"For any technical term on first mention, add a brief plain-language cue (about 3-8 Korean words) once.\n"
+            f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
 
@@ -465,7 +527,7 @@ class ProseGenerator:
         # for the same word target; keep a higher ceiling to avoid truncation.
         scene_max_tokens = min(4800, max(1800, word_budget * 5))
 
-        return self.llm.chat(
+        generated = self.llm.chat(
             [{"role": "user", "content": prompt}],
             system=system,
             purpose="prose_scene_gen",
@@ -473,12 +535,219 @@ class ProseGenerator:
             temperature=float(self.runtime_policy.get("prose_scene_temperature", 0.75) or 0.75),
             max_tokens=scene_max_tokens,
         )
+        needs_revision, reasons = self._scene_needs_readability_revision(generated)
+        if needs_revision:
+            generated = self._revise_scene_readability_once(
+                text=generated,
+                reasons=reasons,
+                word_budget=word_budget,
+                style=style,
+            )
+        return generated
 
     @staticmethod
     def _truncate_text(text: str, limit: int) -> str:
         if len(text) <= limit:
             return text
         return text[: max(0, limit - 3)].rstrip() + "..."
+
+    def _readability_controls(self) -> dict[str, int]:
+        """Readability defaults, overridable via runtime policy."""
+        min_sent = int(self.runtime_policy.get("prose_paragraph_min_sentences", 1) or 1)
+        max_sent = int(self.runtime_policy.get("prose_paragraph_max_sentences", 3) or 3)
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            # Reader explicitly asked for tighter paragraph breathing.
+            max_sent = min(max_sent, 2)
+        min_sent = max(1, min(4, min_sent))
+        max_sent = max(min_sent, min(5, max_sent))
+        return {"paragraph_min": min_sent, "paragraph_max": max_sent}
+
+    def _scene_needs_readability_revision(self, text: str) -> tuple[bool, list[str]]:
+        if not text or not self.reader_feedback:
+            return False, []
+
+        reasons: list[str] = []
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        max_sentences = self._readability_controls()["paragraph_max"]
+
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            long_blocks = 0
+            for block in blocks:
+                sents = self._split_korean_sentences(block)
+                if len(sents) > (max_sentences + 1):
+                    long_blocks += 1
+            if long_blocks >= 1:
+                reasons.append("문단 호흡이 길고 압축이 부족함")
+            dense_blocks = 0
+            for block in blocks:
+                acronym_hits = len(re.findall(r"\b[A-Z]{2,6}\b", block))
+                paren_hits = block.count("(") + block.count(")")
+                number_hits = len(re.findall(r"\d+(?:\.\d+)?", block))
+                if acronym_hits + number_hits + paren_hits >= 8:
+                    dense_blocks += 1
+            if dense_blocks >= 1:
+                reasons.append("정보가 한 문단에 과밀하게 몰려 읽기 호흡이 끊김")
+
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            low = text.lower()
+            jargon_terms = [
+                "실시간", "보상 회로", "위상 드리프트", "t2", "t₂",
+                "coherence", "drift", "latency", "qpu", "rsa-2048",
+            ]
+            repeated = [t for t in jargon_terms if low.count(t.lower()) >= 3]
+            if repeated:
+                reasons.append(
+                    "기술 용어 반복 과다: " + ", ".join(repeated[:4])
+                )
+            acronym_terms = re.findall(r"\b[A-Z]{2,6}\b", text)
+            if len(acronym_terms) >= 6:
+                reasons.append("약어/대문자 기술 표기가 과밀함")
+
+        if self._feedback_mentions("반복", "중복", "늘어지", "묘사", "빛", "손동작"):
+            repetitive_tokens = ["제스처", "표정", "손동작", "빛", "손", "시선", "어깨", "숨", "정적"]
+            repeated_imagery = [t for t in repetitive_tokens if text.count(t) >= 4]
+            if repeated_imagery:
+                reasons.append("유사 감각/동작 묘사 반복: " + ", ".join(repeated_imagery[:3]))
+
+        return bool(reasons), reasons
+
+    def _revise_scene_readability_once(
+        self,
+        text: str,
+        reasons: list[str],
+        word_budget: int,
+        style: str,
+    ) -> str:
+        pov = "first person" if style == "first_person" else "third person close"
+        reason_text = "; ".join(r for r in reasons if r).strip() or "가독성 개선 필요"
+        prompt = (
+            "다음 한국어 장면 산문을 같은 사건 흐름으로 유지하면서 1회 리라이트하라.\n"
+            f"개선 사유: {reason_text}\n\n"
+            "제약:\n"
+            f"- 시점 유지: {pov}\n"
+            f"- 분량 유지: 약 {word_budget}단어(크게 벗어나지 말 것)\n"
+            "- 긴 설명문을 줄이고 문단 호흡을 짧게 분할\n"
+            "- 같은 기술 용어/수치를 연속 문단에서 반복 설명하지 말 것\n"
+            "- 기술 용어 첫 언급만 짧게 풀고 이후는 짧은 콜백으로 처리\n"
+            "- 약어/대문자 기술 표기는 첫 등장에만 짧게 풀고 이후 최소화\n"
+            "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
+            "- 출력은 소설 본문만\n\n"
+            f"원문:\n{text}"
+        )
+        revised = self.llm.chat(
+            [{"role": "user", "content": prompt}],
+            purpose="prose_scene_readability_revise",
+            use_premium=True,
+            temperature=float(self.runtime_policy.get("prose_scene_readability_temperature", 0.35) or 0.35),
+            max_tokens=min(4800, max(1800, word_budget * 5)),
+        )
+        return revised or text
+
+    def _feedback_mentions(self, *keywords: str) -> bool:
+        if not self.reader_feedback:
+            return False
+        corpus = []
+        for key in ("what_felt_boring_or_hard", "style_tips"):
+            vals = self.reader_feedback.get(key, []) or []
+            corpus.extend(str(v) for v in vals if isinstance(v, str))
+        corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
+        all_text = " ".join(corpus).lower()
+        return any(str(k).lower() in all_text for k in keywords if k)
+
+    def _reader_feedback_final_pass(
+        self,
+        text: str,
+        target_words: int,
+        style: str,
+        chapter_anchors: Optional[list[str]] = None,
+    ) -> str:
+        """
+        Final low-temperature pass that explicitly applies reader feedback.
+        This catches residual repetition/speaker-clarity issues after normal polish.
+        """
+        if not text or not self.reader_feedback:
+            return text
+
+        needs_pass = self._feedback_mentions(
+            "반복", "중복", "늘어지", "긴 문장", "문장이 길", "긴 문단", "문단이 길",
+            "기술", "기술 설명", "용어", "약어", "약자", "누가 누구", "화자", "대사 구분", "헷갈",
+        )
+        if not needs_pass:
+            return text
+
+        pov = "first person" if style == "first_person" else "third person close"
+        anchors = chapter_anchors or []
+        anchors_text = ", ".join(anchors[:20]) if anchors else "(none)"
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=6)
+        prompt = (
+            "다음 한국어 소설 본문을 사건/정보/감정선 순서를 유지한 채 1회 리라이트하라.\n"
+            "핵심 목적: 독자 리뷰 반영(반복 축소, 문단 호흡 개선, 기술 용어 과밀 완화, 화자 명확성 강화).\n\n"
+            "제약:\n"
+            f"- 시점 유지: {pov}\n"
+            f"- 분량: 약 {target_words}단어 근처 유지\n"
+            "- 동일 정보/표현의 반복은 삭제 또는 통합\n"
+            "- 긴 문단은 1-2문장 단위로 자연 분할\n"
+            "- 기술 용어/약어는 첫 등장만 짧게 풀고 이후는 짧은 콜백\n"
+            "- 대화 구간은 1-2회 발화마다 누가 말하는지 드러나게 정리\n"
+            "- 이미 알려진 인물을 매번 새 호칭으로 재소개하지 말 것\n"
+            f"- 가능한 맥락에서 다음 앵커를 보존: {anchors_text}\n"
+            "- 출력은 소설 본문만\n\n"
+            "독자 피드백:\n"
+            f"{review_guidance}\n\n"
+            f"원문:\n{text}"
+        )
+        revised = self.llm.chat(
+            [{"role": "user", "content": prompt}],
+            purpose="prose_reader_feedback_pass",
+            use_premium=True,
+            temperature=float(self.runtime_policy.get("prose_reader_feedback_temperature", 0.25) or 0.25),
+            max_tokens=min(16000, max(6000, target_words * 5)),
+        )
+        return revised or text
+
+    def _build_scene_term_glossary(
+        self,
+        scene: DistilledScene,
+        matched_beats: list[tuple[str, str]],
+        blocked_terms: Optional[list[str]] = None,
+    ) -> str:
+        """
+        Build short plain-language gloss hints for frequent technical terms.
+        Keeps jargon readable without flattening techno-thriller tone.
+        """
+        if not bool(self.runtime_policy.get("prose_enable_term_gloss", True)):
+            return ""
+
+        source = "\n".join(
+            [d for d in scene.discoveries if isinstance(d, str)]
+            + [btxt for _, btxt in matched_beats if btxt]
+            + [scene.narrative_summary or ""]
+        )
+        if not source.strip():
+            return ""
+
+        glossary = {
+            "QPU": "양자 계산을 실제로 처리하는 칩",
+            "RSA-2048": "일반적으로 깨기 어려운 암호 체계",
+            "DARPA": "미국 국방 고등연구 프로젝트 기관",
+            "NSA": "미국 국가안보 관련 정보기관",
+            "50ms": "눈 깜빡임에 가까운 아주 짧은 지연",
+            "T₂": "양자 상태가 버티는 시간 척도",
+            "latency": "입력부터 반응까지 걸리는 시간",
+            "protocol": "시스템이 합의해 따르는 규칙",
+            "fail-safe": "문제가 나면 자동으로 안전 모드로 전환하는 장치",
+        }
+
+        hits: list[str] = []
+        low_source = source.lower()
+        blocked = {str(t).lower() for t in (blocked_terms or [])}
+        for term in glossary:
+            if term.lower() in low_source:
+                if any(term.lower() in b or b in term.lower() for b in blocked):
+                    continue
+                hits.append(f"- {term}: {glossary[term]}")
+
+        return "\n".join(hits[:6])
 
     @staticmethod
     def _extract_anchor_terms(text: str) -> list[str]:
@@ -530,6 +799,79 @@ class ProseGenerator:
                 anchors.append(q)
         return anchors[:40]
 
+    @staticmethod
+    def _select_anchor_terms_for_coverage(anchors: list[str]) -> list[str]:
+        """
+        Keep only high-signal anchors for final coverage checks.
+        Avoid forcing dense numeric jargon that often causes repetitive restatement.
+        """
+        if not anchors:
+            return []
+
+        primary: list[str] = []
+        fallback: list[str] = []
+        seen: set[str] = set()
+
+        for raw in anchors:
+            term = str(raw or "").strip()
+            if not term:
+                continue
+            key = term.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+
+            # Skip pure numeric tokens; they are often redundant in prose.
+            if re.fullmatch(r"[0-9]{3,}", term):
+                continue
+            if len(term) < 3:
+                continue
+
+            has_letters = bool(re.search(r"[A-Za-z가-힣]", term))
+            has_caps_code = bool(re.search(r"[A-Z]{2,}", term))
+            has_hyphen = "-" in term
+
+            if has_letters and (has_caps_code or has_hyphen):
+                primary.append(term)
+            elif has_letters and len(term) <= 28:
+                fallback.append(term)
+
+        selected = (primary + fallback)[:12]
+        return selected
+
+    def _tune_coverage_anchors(self, anchors: list[str]) -> list[str]:
+        """
+        Reader feedback often flags technical-term density and repetition.
+        Keep enough anchors for evidence fidelity, but avoid jargon-heavy overload.
+        """
+        if not anchors:
+            return []
+        strict_jargon_control = self._feedback_mentions(
+            "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
+        )
+        max_terms = 8 if strict_jargon_control else 12
+        tuned: list[str] = []
+        for term in anchors:
+            if strict_jargon_control and self._is_dense_jargon_anchor(term):
+                continue
+            tuned.append(term)
+            if len(tuned) >= max_terms:
+                break
+        if tuned:
+            return tuned
+        return anchors[: max(4, min(max_terms, len(anchors)))]
+
+    @staticmethod
+    def _is_dense_jargon_anchor(term: str) -> bool:
+        t = str(term or "").strip()
+        if not t:
+            return False
+        has_caps = bool(re.search(r"[A-Z]{2,}", t))
+        has_num = bool(re.search(r"\d", t))
+        has_symbol = bool(re.search(r"[-_/×%]", t))
+        has_caps_only = bool(re.fullmatch(r"[A-Z]{2,8}", t))
+        return (has_caps and has_num) or (has_caps and has_symbol) or has_caps_only
+
     # ------------------------------------------------------------------ #
     # Transitions
     # ------------------------------------------------------------------ #
@@ -576,15 +918,22 @@ class ProseGenerator:
         """Generate a 2-4 sentence transition between scenes."""
         prev_title = prev_scene.title if prev_scene else "previous scene"
         next_title = next_scene.title if next_scene else "next scene"
+        prev_loc = (prev_scene.location if prev_scene and prev_scene.location else "unknown")
+        next_loc = (next_scene.location if next_scene and next_scene.location else "unknown")
+        next_chars = ", ".join((next_scene.characters_present if next_scene else [])[:4]) or "unknown"
 
         prompt = (
-            f"Write a 2-4 sentence {pov} internal monologue or brief scene transition.\n\n"
+            f"Write a 2-4 sentence {pov} brief scene transition.\n\n"
             f"Leaving: '{prev_title}'\n"
+            f"Leaving location: {prev_loc}\n"
             f"...{prev_tail}\n\n"
             f"Entering: '{next_title}'\n"
+            f"Entering location: {next_loc}\n"
+            f"Entering characters (important): {next_chars}\n"
             f"{next_head}...\n\n"
-            f"The transition should feel like a natural breath between moments — "
-            f"a thought, a physical movement, a shift in attention. "
+            f"The transition should feel like a natural breath between moments: "
+            f"one concrete movement + one short thought + one attention shift. "
+            f"Make spatial continuity explicit in one sentence, and avoid abstract wording. "
             f"Write in Korean. Write ONLY the transition text."
         )
         return self.llm.chat(
@@ -636,12 +985,31 @@ class ProseGenerator:
             f"Also ensure:\n"
             f"- Consistent {pov} voice throughout (Korean)\n"
             f"- No simulation artifacts (turn numbers, metadata, labels)\n"
-            f"- Paragraphs should usually contain 2-4 sentences\n"
+            f"- Paragraphs should usually contain {self._readability_controls()['paragraph_min']}-{self._readability_controls()['paragraph_max']} sentences\n"
             f"- Sentence rhythm should vary naturally (avoid repetitive cadence)\n"
             f"- Natural paragraph breaks at emotional beats\n"
+            f"- If technical terms appear, keep first mention briefly readable with plain-language context\n"
             f"- No identical phrases or descriptions repeated\n\n"
+            f"- Do not repeat the same numeric literal in adjacent paragraphs unless strictly necessary\n"
+            f"- If a key metric was already explained once, later mentions should be very brief callbacks\n"
+            f"- Avoid repeating acronym expansions; use concise references after first explanation\n"
+            f"- Improve speaker clarity in dialogue passages using short action/name cues\n"
             f"- Preserve these anchor terms exactly when context allows: {anchors_text}\n"
             f"- If any anchor is missing, add it naturally without changing core events\n\n"
+        )
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+            prompt += (
+                "- In dialogue runs, explicitly tag speaker/addressee cues frequently enough "
+                "to avoid ambiguity\n"
+                "- Remove repetitive character re-introduction phrases\n"
+            )
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
+        if review_guidance:
+            prompt += (
+                "Additional reader feedback to honor during polish:\n"
+                f"{review_guidance}\n\n"
+            )
+        prompt += (
             f"Full chapter text:\n\n{text}"
         )
 
@@ -677,11 +1045,19 @@ class ProseGenerator:
 
         present = [a for a in anchors if has_anchor(text, a)]
         # Reasonable floor across episodes; only trigger when clearly under-covered.
-        required_present = min(10, max(6, len(anchors) // 3))
+        required_present = min(5, max(2, len(anchors) // 5))
+        if self._feedback_mentions("기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            # Prioritize readability when reviews repeatedly complain about jargon/repetition.
+            required_present = min(required_present, max(1, len(anchors) // 6))
+        if target_words < 2200:
+            required_present = min(required_present, 2)
         if len(present) >= required_present:
             return text
 
-        missing = [a for a in anchors if a not in present][:15]
+        missing_cap = 3 if self._feedback_mentions(
+            "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
+        ) else 6
+        missing = [a for a in anchors if a not in present][:missing_cap]
         pov = "first person" if style == "first_person" else "third person close"
         prompt = (
             f"Revise this Korean chapter to preserve story flow while increasing evidence fidelity.\n\n"
@@ -691,6 +1067,7 @@ class ProseGenerator:
             f"- Keep total length near {target_words} words.\n"
             f"- Integrate these missing anchor terms verbatim and naturally:\n"
             f"  {', '.join(missing)}\n\n"
+            f"- Do not repeat full technical explanations; use short callbacks if already introduced.\n"
             f"Return only revised chapter text.\n\n"
             f"Chapter:\n{text}"
         )
@@ -751,6 +1128,80 @@ class ProseGenerator:
 
         return out
 
+    def _reduce_local_repetition(self, text: str) -> str:
+        """
+        Deterministic cleanup for local repetition that often survives LLM polish.
+        Removes near-duplicate adjacent sentences while preserving event order.
+        """
+        if not text:
+            return text
+
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        recent_sentence_fp: list[str] = []
+
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+
+            block_fp = self._block_fingerprint(block)
+            if block_fp and out_blocks:
+                prev_block_fp = self._block_fingerprint(out_blocks[-1])
+                if self._is_near_duplicate_sentence(block_fp, prev_block_fp):
+                    continue
+
+            sentences = self._split_korean_sentences(block)
+            if not sentences:
+                continue
+
+            keep: list[str] = []
+            for sent in sentences:
+                fp = self._sentence_fingerprint(sent)
+                if fp and any(self._is_near_duplicate_sentence(fp, prev) for prev in recent_sentence_fp):
+                    continue
+                keep.append(sent)
+                if fp:
+                    recent_sentence_fp.append(fp)
+                    if len(recent_sentence_fp) > 3:
+                        recent_sentence_fp.pop(0)
+
+            if keep:
+                out_blocks.append(" ".join(keep))
+
+        return "\n\n".join(out_blocks)
+
+    @staticmethod
+    def _block_fingerprint(block: str) -> str:
+        cleaned = str(block or "").lower()
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        toks = [t for t in cleaned.split() if len(t) > 1]
+        return " ".join(toks[:36])
+
+    @staticmethod
+    def _sentence_fingerprint(sentence: str) -> str:
+        cleaned = str(sentence or "").lower()
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        stop = {
+            "그리고", "하지만", "그러나", "그래서", "정말", "아주", "매우", "조금",
+            "the", "a", "an", "and", "or", "to", "is", "are",
+        }
+        toks = [t for t in cleaned.split() if len(t) > 1 and t not in stop]
+        return " ".join(toks[:18])
+
+    @staticmethod
+    def _is_near_duplicate_sentence(a: str, b: str) -> bool:
+        if not a or not b:
+            return False
+        ta = set(a.split())
+        tb = set(b.split())
+        if not ta or not tb:
+            return False
+        overlap = len(ta & tb) / max(len(ta | tb), 1)
+        return overlap >= 0.8
+
     @staticmethod
     def _ensure_transition_marker(text: str) -> str:
         if not text:
@@ -767,28 +1218,68 @@ class ProseGenerator:
         blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
         normalized: list[str] = []
 
+        max_sentences = self._readability_controls()["paragraph_max"]
+
         for block in blocks:
             if block.startswith("#") or block.startswith("*") or block.startswith("---"):
                 normalized.append(block)
                 continue
 
-            sentences = [
-                s.strip()
-                for s in re.split(r'(?<=[.!?])\s+', block)
-                if s.strip()
-            ]
+            sentences = self._split_korean_sentences(block)
 
-            if len(sentences) <= 4:
+            if len(sentences) <= max_sentences:
                 normalized.append(" ".join(sentences) if sentences else block)
                 continue
 
-            # Split long blocks into 3-sentence chunks.
-            for i in range(0, len(sentences), 3):
-                chunk = " ".join(sentences[i:i + 3]).strip()
+            # Split long blocks into configurable chunks to keep readable breathing points.
+            for i in range(0, len(sentences), max_sentences):
+                chunk = " ".join(sentences[i:i + max_sentences]).strip()
                 if chunk:
                     normalized.append(chunk)
 
         return "\n\n".join(normalized)
+
+    @staticmethod
+    def _split_korean_sentences(block: str) -> list[str]:
+        """
+        Split Korean prose into sentence-like chunks.
+        Uses punctuation first, then a soft-length fallback when punctuation is sparse.
+        """
+        text = str(block or "").strip()
+        if not text:
+            return []
+
+        # Primary split: explicit sentence punctuation.
+        by_punct = [
+            s.strip()
+            for s in re.split(r'(?<=[.!?…])\s+|(?<=[다요죠]\.)\s+', text)
+            if s.strip()
+        ]
+        if len(by_punct) > 1:
+            return by_punct
+
+        # Fallback for long blocks with sparse punctuation.
+        if len(text) <= 220:
+            return [text]
+
+        tokens = text.split()
+        if len(tokens) < 12:
+            return [text]
+
+        chunks: list[str] = []
+        buf: list[str] = []
+        buf_chars = 0
+        for tok in tokens:
+            buf.append(tok)
+            buf_chars += len(tok) + 1
+            if buf_chars >= 120 and (tok.endswith(",") or tok.endswith(")") or buf_chars >= 170):
+                chunks.append(" ".join(buf).strip())
+                buf = []
+                buf_chars = 0
+        if buf:
+            chunks.append(" ".join(buf).strip())
+
+        return [c for c in chunks if c]
 
     # ------------------------------------------------------------------ #
     # Scene Word Budget
@@ -852,22 +1343,28 @@ class ProseGenerator:
         scenes: list[DistilledScene],
     ) -> None:
         """Write the chapter Markdown file."""
-        scene_summary = "\n".join(
-            f"  {i + 1}. {s.title} ({s.pacing})"
-            for i, s in enumerate(scenes)
-        )
         header = (
             f"# {title}\n\n"
             f"*Episode: {episode_id}*\n\n"
             f"---\n\n"
         )
-        footer = (
-            f"\n\n---\n\n"
-            f"*Scene structure:*\n{scene_summary}\n"
-            f"\n"
-            f"*Evidence ledger:*\n{self._build_evidence_ledger()}\n"
-        )
-        path.write_text(header + content + footer, encoding="utf-8")
+        chapter_text = header + content
+
+        # Reader-facing chapter should avoid replaying clue text verbatim.
+        # Keep appendix optional for debugging/benchmark traceability only.
+        if bool(self.runtime_policy.get("prose_append_debug_ledger", False)):
+            scene_summary = "\n".join(
+                f"  {i + 1}. {s.title} ({s.pacing})"
+                for i, s in enumerate(scenes)
+            )
+            chapter_text += (
+                f"\n\n---\n\n"
+                f"*Scene structure:*\n{scene_summary}\n"
+                f"\n"
+                f"*Evidence ledger:*\n{self._build_evidence_ledger()}\n"
+            )
+
+        path.write_text(chapter_text, encoding="utf-8")
 
     def _build_evidence_ledger(self) -> str:
         """Compact clue ledger for traceability and fidelity checks."""
