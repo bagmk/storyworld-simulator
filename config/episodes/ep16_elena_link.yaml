@@ -1,5 +1,5 @@
 # episodes/ep16_elena_confession.yaml
-# Episode 23: "Elena Confession"
+# Episode 16: "Elena Confession"
 # source: MERGED from ep16_elena_carlos_dynamic + ep23_elena_link + ep24_elena_past
 # Generated from beats_all.yaml (director-AI schema v2)
 # MERGE NOTE: This episode consolidates the Elena subplot arc
@@ -19,10 +19,16 @@ episode:
     며칠 후 밤, 연구동 옥상. 엘레나가 담배를 피우며 기다린다. 검은색 USB를 건넨다. "확인해 봐. 내 이름은 절대 나오지 않도록." LST 'Family/Watch' 탭의 존재를 알려줌 — 아이들 4명의 위치·통신·학교 시간표 전부 기록. 엘레나의 손에서 아이들 사진을 보여줌 — 지갑 속 빛바랜 사진, 마르코(장남), 소피아(차남), 루카스(삼남), 이사벨(막내). "이 아이들이 학교에서 5미터만 벗어나도 즉시 경고가 떴다."
 
     [Part 3 — Elena의 과거 (2028년 플래시백)]
-    엘레나의 Zetanet 시절. 별칭 'Zenith', 8명의 해커 조직. 목표: 정부 감시 폭로. DCMS 침투, PRISM-ALPHA 문건 발견. CIA Ethan Burke의 접근과 엘레나의 거절. 2028년 8월 19일 — 여동생 Bella(19세) 실종. "기술을 원합니다. 아니면 시체를 돌려드릴까요?" 라파엘 구티에레즈의 등장과 계약. Zetanet은 해체되지 않고 '변신' — CryoLab Research Division으로.
+    엘레나의 Zetanet 시절. 별칭 'Zenith', 8명의 해커 조직. 목표: 정부 감시 폭로. DCMS 침투, PRISM-ALPHA 문건 발견. CIA Ethan Burke의 접근과 엘레나의 거절. 2028년 8월 19일 — 여동생 Bella(19세) 실종. "기술을 원합니다. 아니면 시체를 돌려드릴까요?" 라파엘 구티에레즈의 등장과 계약. Zetanet은 해체되지 않고 '변신' — CryoLab Research Division으로. Zetanet 활동 기간: 2026-2032년 (마지막 CIA 접촉: 2032년 부에노스아이레스).
 
-    [Part 4 — Failsafe 키 복제]
-    [2043년 3월 18일로 복귀] El Patrón이 Elena에게 Failsafe 키를 맡김. "수민 곁에서 지켜줘." Elena는 이미 CIA Burke에게 협박당하는 중 — Bella의 행방. 그날 밤 USB를 복제, 원본은 El Patrón에게, 복제본은 CIA로. Elena의 독백: "나의 마지막 배신."
+    [Part 4 — Failsafe 키 위탁]
+    [2043년 3월 18일로 복귀] El Patrón이 Elena에게 Failsafe 키를 맡김. "수민 곁에서 지켜줘." Elena는 Bella의 행방을 쥐고 있는 누군가를 두려워하며 키를 목에 걸고 다닌다. 그녀의 독백: "이 키가 내 목숨보다 소중한 건지, 내 목숨이 이 키보다 싼 건지 모르겠다."
+    # Director AI 전용 — 소설 텍스트에 직접 서술 금지:
+    # Elena가 실제로 키를 CIA로 전달하는 행위는 ep16에서 발생하지 않는다.
+    # 수민은 이 장면에 없었기 때문이다. Elena가 키를 어떻게 다루었는지는
+    # ep38 현장에서 Jonas의 금고가 빈 것으로 드러나며,
+    # ep41 Jonas 고백에서 "Elena 키가 CIA로 전달됨"이 최초 확정된다.
+    # ep16에서는 "Elena가 키를 보관한다"는 사실까지만 서술할 것.
 
   # Clues that MUST surface during this episode.
   # The Director AI monitors and injects trigger events if they go unnoticed.
@@ -100,23 +106,27 @@ episode:
 
     - id: "clue_ep16_elena_confession_c11"
       content: |
-        Zetanet 해킹 조직의 공식 기록. 설립: 2026년. 구성원: 8명. 목표: 정부 감시 프로그램 폭로 및 데이터 해방. 활동 기간: 2026-2028년 (2년 7개월). 체포자: 5명. 사망자: 1명 (자살). 조직 결말: 공식 해체 선언 2028년 8월. 하지만 USB의 '진짜 기록' 파일에 따르면, Zetanet은 '해체'되지 않았다. 단지 '변신'했다. 동일 인원이 'CryoLab Research Division'이라는 새로운 이름 아래 재결집되었으며, 자금처는 이제 카르텔이었다.
+        Zetanet 해킹 조직의 공식 기록. 설립: 2026년. 구성원: 8명. 목표: 정부 감시 프로그램 폭로 및 데이터 해방. 활동 기간: 2026-2032년 (마지막 접촉: 2032년 11월 부에노스아이레스). 체포자: 5명. 사망자: 1명 (자살). 조직 결말: 공식 해체 선언 2028년 8월. 하지만 USB의 '진짜 기록' 파일에 따르면, Zetanet은 '해체'되지 않았다. 단지 '변신'했다. 동일 인원이 'CryoLab Research Division'이라는 새로운 이름 아래 재결집되었으며, 자금처는 이제 카르텔이었다.
       trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
       inject_threshold: 0.5
       inject_method: "system_alert"
 
     - id: "clue_ep16_elena_confession_c12"
       content: |
-        [2043년 3월 18일] El Patrón이 Elena에게 Failsafe 키를 맡긴다. 작은 USB, 텅스텐 합금 케이스. "수민 곁에서 지켜줘. 넌 그녀와 가장 가깝잖아." 하지만 Elena는 이미 CIA Ethan Burke에게 협박받고 있었다. Bella. 12년 전 사라진 여동생. "협력하면 여동생을 돌려드리죠." 그날 밤, Elena는 USB를 복제했다. 원본은 El Patrón에게, 복제본은 CIA로. 암호화된 이메일. 제목: "Package ready". 첨부: failsafe_key_#4_elena.enc. Elena의 손이 떨렸다. 이것이 그녀의 마지막 배신이었다.
+        [2043년 3월 18일] El Patrón이 Elena에게 Failsafe 키를 맡긴다. 작은 USB, 텅스텐 합금 케이스. "수민 곁에서 지켜줘. 넌 그와 가장 가깝잖아." Elena는 키를 받으면서 눈을 내리깐다. 수민은 그 눈빛을 기억한다. 무언가를 이미 결정한 사람의 눈빛. 하지만 그것이 무엇인지는 수민도, 독자도 이 시점에서 알 수 없다.
+        # Director AI 전용 — 수민에게 직접 노출 금지:
+        # Elena가 키를 CIA로 전달한 경로와 시점은 ep16에서 절대 서술하지 않는다.
+        # 수민은 "Elena가 무언가를 결심한 것 같다"는 느낌만 감지한다.
+        # 진실(키→CIA 전달)은 ep38 Jonas 금고 확인 + ep41 Jonas 고백으로 완성.
       trigger: "protagonist handles a document, portal page, or printed artifact related to the scene"
       inject_threshold: 0.55
       inject_method: "document_artifact"
 
   # Items carried over from a previous episode that should be addressed.
   resolved:
-    - "엘레나의 이중 배신 구조 확립: 카르텔과 CIA 사이의 줄타기"
-    - "Bella 실종 사건을 통한 엘레나의 동기 확립"
-    - "Failsafe 키 복제 → CIA 유출 경로 확인"
+    - "엘레나의 코어 동기 확립: Bella 실종, 아이들 협박, Zetanet 시절(2026-2032) 흔적"
+    - "수민이 Elena의 USB를 통해 카르텔 구조의 윤곽을 처음 파악"
+    - "Elena가 Failsafe 키를 보관 중임을 수민이 인지 (키의 행방은 ep38까지 미정)"
 
   # Approximate target word count for the generated novel chapter
   recommended_length: 7000

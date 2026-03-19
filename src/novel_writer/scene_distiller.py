@@ -159,11 +159,13 @@ class SceneDistiller:
         """Extract clue/beat definitions from episode config."""
         clues = self.episode_config.get("introduced_clues", [])
         beats = []
+        compact_beats = self._reader_prefers_compact_beats()
         for c in clues:
             if isinstance(c, dict):
+                raw_content = str(c.get("content", "") or "")
                 beats.append({
                     "id": c.get("id", ""),
-                    "content": c.get("content", ""),
+                    "content": self._compress_beat_content(raw_content) if compact_beats else raw_content,
                     "method": c.get("inject_method", ""),
                 })
         return beats
@@ -180,6 +182,7 @@ class SceneDistiller:
         target_scenes: int,
     ) -> list[DistilledScene]:
         """Use LLM to segment interactions into distilled scenes."""
+        canonical_speakers = self._build_canonical_speaker_map(interactions)
         # Format interactions compactly
         turns_text = self._format_turns_compact(interactions)
 
@@ -210,7 +213,10 @@ class SceneDistiller:
             f"3. **Keep** only the most impactful dialogue lines (2-4 per scene)\n"
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
-            f"6. Do NOT invent content not present in the log. Only compress and select.\n\n"
+            f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary.\n"
+            f"7. Keep technical-term onboarding compact: first clear mention only, later references summarized.\n"
+            f"8. In summaries, mix short/medium sentence lengths and include concrete action cues for speaker clarity.\n"
+            f"9. Do NOT invent content not present in the log. Only compress and select.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -222,6 +228,102 @@ class SceneDistiller:
                 "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
                 "from the same speaker.\n"
                 f"{review_guidance}\n\n"
+            )
+        repeat_terms = self.reader_feedback.get("repetition_watch_terms", []) or []
+        cleaned_repeat_terms = []
+        generic_repeat_terms = {"묘사", "표현", "설명", "감정", "분위기", "정보"}
+        for raw in repeat_terms:
+            term = re.sub(
+                r"\s+(반복|중복|과다|과잉|묘사|표현)$",
+                "",
+                str(raw or "").strip(),
+                flags=re.IGNORECASE,
+            ).strip()
+            if term and term not in generic_repeat_terms:
+                cleaned_repeat_terms.append(term)
+        if cleaned_repeat_terms:
+            prompt += (
+                "## Repetition Watch Terms\n"
+                "- Reader flagged these motif words as repetitive in recent drafts.\n"
+                f"- Terms: {', '.join(cleaned_repeat_terms[:6])}\n"
+                "- Preserve each term at most once unless a beat explicitly requires it.\n\n"
+            )
+        jargon_terms = self.reader_feedback.get("jargon_watch_terms", []) or []
+        cleaned_jargon_terms = []
+        for raw in jargon_terms:
+            term = str(raw or "").strip()
+            term = term.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789"))
+            term = re.sub(r"\s+", " ", term).strip()
+            if term:
+                cleaned_jargon_terms.append(term)
+        if cleaned_jargon_terms:
+            prompt += (
+                "## Jargon Watch Terms\n"
+                "- Reader reported these terms as hard to follow when repeated without context.\n"
+                f"- Terms: {', '.join(cleaned_jargon_terms[:6])}\n"
+                "- If needed, preserve only one clear first mention and summarize later references.\n\n"
+            )
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if isinstance(constraints, dict) and constraints:
+            lines: list[str] = []
+            para_sent_cap = constraints.get("max_sentences_per_paragraph")
+            jargon_cap = constraints.get("max_jargon_terms_per_paragraph")
+            dense_cap = constraints.get("max_sentences_in_dense_info")
+            if isinstance(para_sent_cap, int):
+                lines.append(f"- Keep scene summary paragraphs under about {para_sent_cap} sentence(s).")
+            if isinstance(jargon_cap, int):
+                lines.append(f"- Keep technical/jargon concepts to about {jargon_cap} per paragraph.")
+            if isinstance(dense_cap, int):
+                lines.append(f"- Compress dense explanatory runs into <= {dense_cap} sentence chunks.")
+            if lines:
+                prompt += "## Numeric Style Constraints\n" + "\n".join(lines) + "\n\n"
+        feedback_corpus = " ".join(
+            str(x)
+            for key in ("what_felt_boring_or_hard", "style_tips", "reader_comment")
+            for x in (
+                self.reader_feedback.get(key, [])
+                if isinstance(self.reader_feedback.get(key, []), list)
+                else [self.reader_feedback.get(key, "")]
+            )
+            if str(x).strip()
+        ).lower()
+        if any(k in feedback_corpus for k in ("장면 전환", "전환", "복도", "발표장", "흐름")):
+            prompt += (
+                "When location/time shifts, keep one short transition cue sentence in scene summary "
+                "(example shape: '수민은 복도로 나섰다.').\n\n"
+            )
+        if any(k in feedback_corpus for k in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "단조", "건조")):
+            prompt += (
+                "If source turns include checklist/list-like technical explanation strings, "
+                "compress them into one concise action consequence sentence instead of preserving list form.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "속도감이 단조")):
+            prompt += (
+                "Vary sentence length inside summaries (mix short and medium beats) to avoid rhythmic monotony.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려")):
+            prompt += (
+                "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction.\n"
+                "This prevents mid-scene pacing drops.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("심리", "내면", "설명적", "감정선", "표정", "행동", "보여")):
+            prompt += (
+                "Prefer observable emotion evidence (micro-action, gaze, posture) over abstract "
+                "psychological explanation in summaries.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("감정의 파고", "감정 파고", "감정의 고저", "감정 고저", "긴장 완화", "작은 유머", "유머", "친근한 묘사")):
+            prompt += (
+                "Across consecutive scenes, keep emotional wave contrast visible "
+                "(e.g., one brief easing beat before renewed tension).\n\n"
+            )
+        if any(k in feedback_corpus for k in ("인물", "이름", "직책", "역할", "구분", "헷갈")):
+            prompt += (
+                "When many characters appear, add one short role/title cue on first mention in each scene "
+                "(example shape: '모레노 CTO', '밀러 투자 파트너').\n\n"
+            )
+        if any(k in feedback_corpus for k in ("초반", "따라가기 힘들", "맥락", "인물 설명 없이", "누군지")):
+            prompt += (
+                "For opening scenes, add one brief orientation line clarifying who is present and why this exchange matters.\n\n"
             )
         prompt += (
             f"Reply with a JSON array of {target_scenes} scene objects:\n"
@@ -282,6 +384,18 @@ class SceneDistiller:
                 raw_turn_count=max(1, turn_end - turn_start + 1),
             )
             self._sanitize_scene_dialogue(scene)
+            self._compress_expository_dialogue(scene)
+            scene.characters_present = self._canonicalize_name_list(
+                scene.characters_present,
+                canonical_speakers,
+            )
+            for row in scene.key_dialogue:
+                if not isinstance(row, dict):
+                    continue
+                row["speaker"] = self._canonicalize_name(
+                    str(row.get("speaker", "")).strip(),
+                    canonical_speakers,
+                )
             scene.key_actions = self._dedupe_semantic_lines(scene.key_actions, limit=8)
             scene.discoveries = self._dedupe_semantic_lines(scene.discoveries, limit=6)
             scenes.append(scene)
@@ -349,6 +463,51 @@ class SceneDistiller:
 
         return scenes
 
+    def _reader_prefers_compact_beats(self) -> bool:
+        if not self.reader_feedback:
+            return False
+        corpus = " ".join(
+            str(x)
+            for key in ("what_felt_boring_or_hard", "style_tips", "reader_comment")
+            for x in (
+                self.reader_feedback.get(key, [])
+                if isinstance(self.reader_feedback.get(key, []), list)
+                else [self.reader_feedback.get(key, "")]
+            )
+            if str(x).strip()
+        ).lower()
+        return any(
+            k in corpus for k in (
+                "기술", "용어", "약어", "약자", "전문", "jargon", "acronym",
+                "반복", "중복", "리스트", "목록", "나열", "정보 전달",
+            )
+        )
+
+    @staticmethod
+    def _compress_beat_content(text: str, max_chars: int = 180) -> str:
+        """
+        Keep beat fidelity while preventing clue payloads from over-dominating
+        the distillation prompt with repeated technical listing.
+        """
+        raw = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not raw:
+            return ""
+        parts = re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", raw)
+        kept: list[str] = []
+        for part in parts:
+            p = part.strip()
+            if not p:
+                continue
+            if kept and p.lower() == kept[-1].lower():
+                continue
+            kept.append(p)
+            if len(" ".join(kept)) >= max_chars:
+                break
+        compact = " ".join(kept).strip()
+        if len(compact) <= max_chars:
+            return compact
+        return compact[: max(0, max_chars - 1)].rstrip() + "…"
+
     def _sanitize_scene_dialogue(self, scene: DistilledScene) -> None:
         """
         Normalize distilled dialogue so action narration is not treated as spoken quotes.
@@ -368,7 +527,9 @@ class SceneDistiller:
 
             spoken = self._extract_spoken_dialogue(line)
             if spoken:
-                fp = self._dialogue_fingerprint(spoken)
+                speaker_fp = self._dialogue_fingerprint(speaker)
+                line_fp = self._dialogue_fingerprint(spoken)
+                fp = f"{speaker_fp}::{line_fp}" if line_fp else ""
                 if fp and fp in seen_lines:
                     continue
                 if fp:
@@ -385,11 +546,97 @@ class SceneDistiller:
         if extra_actions:
             scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
 
+    def _compress_expository_dialogue(self, scene: DistilledScene) -> None:
+        """
+        Trim info-dump style quotes and preserve impact via short action beats.
+        """
+        compact: list[dict] = []
+        extra_actions: list[str] = []
+        explain_pattern = re.compile(r"(왜냐하면|즉|다시 말해|정리하면|요약하면|핵심은|결론은|설명하자면)")
+        for row in scene.key_dialogue or []:
+            if not isinstance(row, dict):
+                continue
+            speaker = str(row.get("speaker", "")).strip() or "Unknown"
+            line = re.sub(r"\s+", " ", str(row.get("line", "") or "")).strip()
+            if not line:
+                continue
+            if len(line) > 90 and explain_pattern.search(line):
+                cut = re.split(r"[,;]|(?:\s+그리고\s+)|(?:\s+하지만\s+)", line, maxsplit=1)[0].strip()
+                if cut and cut != line:
+                    line = cut.rstrip(". ") + "…"
+                extra_actions.append(f"{speaker}는 말을 짧게 정리하고 반응을 살폈다.")
+            compact.append({"speaker": speaker, "line": line})
+        scene.key_dialogue = compact[:4]
+        if extra_actions:
+            scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
+
     @staticmethod
     def _dialogue_fingerprint(text: str) -> str:
         cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", str(text or "").lower())
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
+
+    @staticmethod
+    def _norm_name_key(text: str) -> str:
+        return re.sub(r"[^0-9a-z가-힣]+", "", str(text or "").lower())
+
+    def _build_canonical_speaker_map(self, interactions: list[dict]) -> dict[str, str]:
+        """
+        Build a conservative alias->canonical display-name map from raw interaction logs.
+        This stabilizes name attribution when LLM distillation outputs mixed labels/titles.
+        """
+        key_to_names: dict[str, set[str]] = {}
+        for ix in interactions:
+            if str(ix.get("speaker_id", "")).strip() == "director":
+                continue
+            canonical = str(ix.get("speaker_name", "")).strip()
+            if not canonical:
+                continue
+            raw_parts = [canonical]
+            raw_parts.extend(
+                token for token in re.split(r"[\s\-_/]+", canonical)
+                if len(token.strip()) >= 2
+            )
+            if re.fullmatch(r"[가-힣]{3,4}", canonical):
+                raw_parts.append(canonical[-2:])
+            for part in raw_parts:
+                key = self._norm_name_key(part)
+                if not key:
+                    continue
+                key_to_names.setdefault(key, set()).add(canonical)
+        return {
+            key: next(iter(names))
+            for key, names in key_to_names.items()
+            if len(names) == 1
+        }
+
+    def _canonicalize_name(self, name: str, canonical_map: dict[str, str]) -> str:
+        raw = str(name or "").strip()
+        if not raw:
+            return raw
+        key = self._norm_name_key(raw)
+        if key in canonical_map:
+            return canonical_map[key]
+        for cand_key, canonical in canonical_map.items():
+            if len(cand_key) < 2:
+                continue
+            if key and (key in cand_key or cand_key in key):
+                return canonical
+        return raw
+
+    def _canonicalize_name_list(self, names: list[str], canonical_map: dict[str, str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in names or []:
+            fixed = self._canonicalize_name(str(raw or "").strip(), canonical_map)
+            if not fixed:
+                continue
+            fp = self._norm_name_key(fixed)
+            if fp in seen:
+                continue
+            seen.add(fp)
+            out.append(fixed)
+        return out
 
     @staticmethod
     def _extract_spoken_dialogue(text: str) -> str:

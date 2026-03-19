@@ -1,5 +1,5 @@
 # episodes/ep40_fbi_cutoff.yaml
-# Episode 48: "FBI Cutoff"
+# Episode 40: "FBI Cutoff"
 # source: ep8_fbi_cutoff
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -41,7 +41,7 @@ episode:
 
     이선이 정리한다:
     "현황 정리하겠습니다.
-    CIA: 2개 키 보유 (Greyshore + Elena)
+    CIA: 2개 키 보유 (Jonas 원본키 + Elena 키)
     Cartel: 2개 키 보유 (El Patrón + Carlos)
     수민: 1개 키 보유
 
@@ -106,7 +106,7 @@ episode:
   introduced_clues:
     - id: "clue_ep40_fbi_cutoff_c01"
       content: |
-        3자 화상회의. 화면 3개: 이선 (CIA, Langley), 수민 (중립 지역), El Patrón (멕시코시티). 이선이 정리한다: "CIA: 2개 키 보유 (Greyshore + Elena). Cartel: 2개 키 보유 (El Patrón + Carlos). 수민: 1개 키 보유. Shamir 3-of-5 구조상, 3개가 모여야 작동. 누구도 단독 실행 불가능합니다." El Patrón: "Soomin, 당신이 우리를 선택하면 3개." 수민: "3개 모여도 72시간마다 제 password 필요해요. Brain-only. 기록 안 함." 이선: "그리고 당신이 죽으면?" 수민: "Deadman switch. 알고리즘 전세계 공개. 암호화폐 시장 붕괴. 여러분 모두 파산."
+        3자 화상회의. 화면 3개: 이선 (CIA, Langley), 수민 (중립 지역), El Patrón (멕시코시티). 이선이 정리한다: "CIA: 2개 키 보유 (Jonas 원본키 + Elena 키). Cartel: 2개 키 보유 (El Patrón + Carlos). 수민: 1개 키 보유. Shamir 3-of-5 구조상, 3개가 모여야 작동. 누구도 단독 실행 불가능합니다." El Patrón: "Soomin, 당신이 우리를 선택하면 3개." 수민: "3개 모여도 72시간마다 제 password 필요해요. Brain-only. 기록 안 함." 이선: "그리고 당신이 죽으면?" 수민: "Deadman switch. 알고리즘 전세계 공개. 암호화폐 시장 붕괴. 여러분 모두 파산."
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.45
       inject_method: "npc_question"

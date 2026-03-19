@@ -24,8 +24,9 @@ import subprocess
 import time
 import sys
 import ssl
+import urllib.parse
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,30 @@ CMD_START = "!novel-loop"
 CMD_RESET = "!novel-loop-reset"
 CMD_REVIEW = "!novel-review"
 CMD_FIX = "!novel-fix"
+CMD_STOP = "!novel-stop"
+
+PROTECTED_FIXER_RULE_FILES: dict[str, list[str]] = {
+    "src/novel_writer/prose_generator.py": [
+        "COLON_DIALOGUE_LABEL_BAN = (",
+        "f\"{COLON_DIALOGUE_LABEL_BAN}\\n\"",
+        "`이름: \\\"대사\\\"` 형식",
+    ],
+}
+
+STOP_REQUESTED_CHANNELS: set[int] = set()
+FIXER_APPLY_LOCK = asyncio.Lock()
+
+
+def _request_stop(channel_id: int) -> None:
+    STOP_REQUESTED_CHANNELS.add(int(channel_id))
+
+
+def _clear_stop(channel_id: int) -> None:
+    STOP_REQUESTED_CHANNELS.discard(int(channel_id))
+
+
+def _is_stop_requested(channel_id: int) -> bool:
+    return int(channel_id) in STOP_REQUESTED_CHANNELS
 
 
 @dataclass
@@ -75,6 +100,9 @@ class JobConfig:
     run_output_dir: str
     reviewer_bot_token: str
     fixer_bot_token: str
+    manager_bot_token: str
+    parallel_branches: int
+    manager_period: int
 
 
 def _run_cmd(
@@ -134,6 +162,8 @@ async def _run_cmd_stream(
     on_line: Any = None,
     on_heartbeat: Any = None,
     heartbeat_sec: int = 0,
+    max_silence_sec: int = 0,
+    should_stop: Any = None,
 ) -> tuple[int, str, str]:
     env = os.environ.copy()
     if extra_env:
@@ -149,26 +179,54 @@ async def _run_cmd_stream(
     assert proc.stdout is not None
 
     lines: list[str] = []
+    idle_timeout_triggered = False
+    silence_elapsed = 0
 
     async def _drain() -> int:
+        nonlocal idle_timeout_triggered, silence_elapsed
         while True:
+            if should_stop is not None and bool(should_stop()):
+                proc.kill()
+                await proc.wait()
+                return 130
             if heartbeat_sec > 0:
                 try:
                     raw = await asyncio.wait_for(proc.stdout.readline(), timeout=heartbeat_sec)
                 except asyncio.TimeoutError:
-                    if on_heartbeat is not None:
-                        await on_heartbeat()
                     if proc.returncode is not None:
                         break
+                    # Reduce false "still running" heartbeats right after process exit.
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=0.05)
+                        break
+                    except asyncio.TimeoutError:
+                        pass
+                    silence_elapsed += heartbeat_sec
+                    if max_silence_sec > 0 and silence_elapsed >= max_silence_sec:
+                        idle_timeout_triggered = True
+                        proc.kill()
+                        await proc.wait()
+                        return 124
+                    if should_stop is not None and bool(should_stop()):
+                        proc.kill()
+                        await proc.wait()
+                        return 130
+                    if on_heartbeat is not None:
+                        await on_heartbeat()
                     continue
             else:
                 raw = await proc.stdout.readline()
             if not raw:
                 break
+            silence_elapsed = 0
             line = raw.decode("utf-8", errors="replace")
             lines.append(line)
             if on_line is not None:
                 await on_line(line.rstrip("\n"))
+            if should_stop is not None and bool(should_stop()):
+                proc.kill()
+                await proc.wait()
+                return 130
         return await proc.wait()
 
     try:
@@ -177,6 +235,8 @@ async def _run_cmd_stream(
         proc.kill()
         await proc.wait()
         return 124, "".join(lines), "timeout"
+    if idle_timeout_triggered:
+        return 124, "".join(lines), f"idle-timeout({max_silence_sec}s)"
     return rc, "".join(lines), ""
 
 
@@ -217,10 +277,11 @@ def _resolve_openai_api_key() -> str:
     return key
 
 
-def _resolve_stage_bot_tokens() -> tuple[str, str]:
+def _resolve_stage_bot_tokens() -> tuple[str, str, str]:
     reviewer_bot = _env_value("DISCORD_BOT_TOKEN2", "TOKEN2", "token2")
     fixer_bot = _env_value("DISCORD_BOT_TOKEN3", "TOKEN3", "token3")
-    return reviewer_bot, fixer_bot
+    manager_bot = _env_value("DISCORD_BOT_TOKEN4", "TOKEN4", "token4")
+    return reviewer_bot, fixer_bot, manager_bot
 
 
 def _extract_episode_meta(episode_file: Path) -> tuple[str, str]:
@@ -326,6 +387,76 @@ def _build_reviewer_prompt(chapter_text: str) -> str:
         "- reader_comment should be 4~6 sentences.\n\n"
         f"Chapter text:\n{chapter_text[:16000]}"
     )
+
+
+def _build_manager_prompt(
+    cycle: int,
+    branch_scores: list[dict[str, Any]],
+    cycle_review_snippets: list[str],
+    periodic_review_snippets: list[str],
+) -> str:
+    return (
+        "너는 매니저 에이전트다. 목표는 리뷰 점수를 장기적으로 올리는 것이다.\n"
+        "아래 데이터를 보고 Fixer에게 줄 강한 코드수정 지시를 작성하라.\n"
+        "반드시 JSON만 출력하라.\n"
+        "{\n"
+        '  "cycle_summary": [string, ...],\n'
+        '  "cross_branch_issues": [string, ...],\n'
+        '  "fixer_priority_actions": [string, ...],\n'
+        '  "score_strategy": [string, ...],\n'
+        '  "periodic_diagnosis": [string, ...]\n'
+        "}\n"
+        "규칙:\n"
+        "- 코드 수준 개선 지시만 작성(프롬프트/후처리/안전장치/리듬/가독성).\n"
+        "- config/episodes 수정 지시는 금지.\n"
+        "- 지시는 짧고 명령형으로 작성.\n"
+        "- 한국어로 작성.\n\n"
+        f"[현재 사이클] {cycle}\n"
+        f"[브랜치 점수 요약]\n{json.dumps(branch_scores, ensure_ascii=False)}\n\n"
+        f"[이번 사이클 리뷰 발췌(브랜치 5개)]\n" + "\n---\n".join(cycle_review_snippets[:5]) + "\n\n"
+        f"[장기 리뷰 발췌(주기 집계)]\n" + ("\n---\n".join(periodic_review_snippets[:25]) if periodic_review_snippets else "(없음)")
+    )
+
+
+def _format_manager_md(
+    episode_id: str,
+    cycle: int,
+    manager_data: dict[str, Any],
+    branch_scores: list[dict[str, Any]],
+) -> str:
+    def _items(key: str) -> list[str]:
+        vals = manager_data.get(key, [])
+        if not isinstance(vals, list):
+            return []
+        return [str(v).strip() for v in vals if str(v).strip()]
+
+    lines = [
+        f"# Manager Report: {episode_id} (cycle {cycle})",
+        "",
+        "## Branch Score Snapshot",
+    ]
+    for row in branch_scores:
+        b = row.get("branch", "?")
+        thrill = row.get("thrill_score_10", "n/a")
+        style = row.get("style_score_10", "n/a")
+        lines.append(f"- {b}: thrill={thrill}, style={style}")
+
+    mapping = [
+        ("cycle_summary", "Cycle Summary"),
+        ("cross_branch_issues", "Cross-Branch Issues"),
+        ("fixer_priority_actions", "Fixer Priority Actions"),
+        ("score_strategy", "Score Strategy"),
+        ("periodic_diagnosis", "Periodic Diagnosis (every manager period)"),
+    ]
+    for key, title in mapping:
+        lines.extend(["", f"## {title}"])
+        vals = _items(key)
+        if vals:
+            for v in vals:
+                lines.append(f"- {v}")
+        else:
+            lines.append("- (none)")
+    return "\n".join(lines).strip() + "\n"
 
 
 def _parse_json_safe(text: str) -> dict[str, Any]:
@@ -537,6 +668,8 @@ def _run_codex_fix(review_md_path: Path, summary_out_path: Path) -> tuple[int, s
         "6) 중요: 사용자가 더티 워크트리 상태에서 진행을 명시적으로 승인했다.\n"
         "   기존 변경이 있어도 질문하지 말고, 해당 변경을 보존한 채 최소 diff로 계속 진행하라.\n"
         "   '어떻게 진행할지 선택해달라' 같은 확인 질문을 절대 출력하지 마라.\n"
+        "7) 금지 규칙 보호: src/novel_writer/prose_generator.py 의 콜론 대사 금지 규칙은\n"
+        "   수정/삭제/우회하지 마라. 해당 규칙은 고정 정책이다.\n"
     )
     cmd = [
         "codex",
@@ -559,6 +692,8 @@ def _build_cmd_parser() -> argparse.ArgumentParser:
     p.add_argument("--scenes", type=int, default=0)
     p.add_argument("--budget", type=float, default=4.0)
     p.add_argument("--protagonist", default="")
+    p.add_argument("--parallel", type=int, default=5)
+    p.add_argument("--manager-period", type=int, default=5)
     return p
 
 
@@ -697,6 +832,45 @@ async def _rest_send_text(channel_id: int, text: str, bot_token: str) -> None:
                     raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
 
 
+async def _rest_send_text_return_message_id(channel_id: int, text: str, bot_token: str) -> int | None:
+    content = str(text).strip()
+    if not content:
+        return None
+    headers = {"Authorization": f"Bot {bot_token}"}
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        async with session.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages",
+            headers=headers,
+            json={"content": content[:1900]},
+        ) as resp:
+            body = await resp.text()
+            if resp.status >= 300:
+                raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
+            try:
+                data = json.loads(body)
+                mid = data.get("id")
+                return int(mid) if mid else None
+            except Exception:
+                return None
+
+
+async def _rest_add_reaction(channel_id: int, message_id: int, emoji: str, bot_token: str) -> None:
+    headers = {"Authorization": f"Bot {bot_token}"}
+    encoded = urllib.parse.quote(emoji, safe="")
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        async with session.put(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/reactions/{encoded}/@me",
+            headers=headers,
+        ) as resp:
+            if resp.status >= 300:
+                body = await resp.text()
+                raise RuntimeError(f"REST reaction failed: {resp.status} {body[:240]}")
+
+
 async def _rest_send_file(channel_id: int, path: Path, note: str, bot_token: str) -> None:
     if not path.exists():
         return
@@ -766,9 +940,17 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
     episode_file = _resolve_episode_file(job.episode_key)
     episode_id, protagonist_from_yaml = _extract_episode_meta(episode_file)
     protagonist = job.protagonist or protagonist_from_yaml or "kim_sumin"
+    branch_label = run_dir.name if run_dir.name.startswith("branch_") else "main"
+    sim_tag = f"[{branch_label}]"
+
+    if _is_stop_requested(job.channel_id):
+        await channel.send(f"{sim_tag} {RUN_END_TAG} 중지됨: 사용자 요청({CMD_STOP})")
+        return False, {"stopped": True}
 
     await channel.send(
-        f"1) Simulator Agent 시작 (cycle {cycle})\n- episode: `{episode_id}`"
+        f"{sim_tag} 1) Simulator Agent 시작 (cycle {cycle})\n"
+        f"- episode: `{episode_id}`\n"
+        f"- run_dir: `{run_dir}`"
     )
 
     sim_cmd = [
@@ -787,7 +969,7 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
             previous_review_md = _find_latest(run_dir, f"{episode_id}_cycle*_review.md")
     if previous_review_md is not None:
         sim_cmd.extend(["--reader-review-md", str(previous_review_md)])
-        await channel.send(f"리뷰 피드백 적용: `{previous_review_md.name}`")
+        await channel.send(f"{sim_tag} 리뷰 피드백 적용: `{previous_review_md.name}`")
     turn_re = re.compile(r"Turn\s+(\d+)\s*/\s*(\d+)")
     last_turn = 0
     checkpoints_sent: set[int] = set()
@@ -809,7 +991,7 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
             if progress >= checkpoint and checkpoint not in checkpoints_sent:
                 checkpoints_sent.add(checkpoint)
                 await channel.send(
-                    f"시뮬레이션 진행: {checkpoint}% (Turn {turn}/{total})"
+                    f"{sim_tag} 시뮬레이션 진행: {checkpoint}% (Turn {turn}/{total})"
                 )
 
     rc, _, err = await _run_cmd_stream(
@@ -817,11 +999,15 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         3600,
         {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "")},
         _on_sim_line,
+        should_stop=lambda: _is_stop_requested(job.channel_id),
     )
+    if rc == 130:
+        await channel.send(f"{sim_tag} {RUN_END_TAG} 중지됨: 사용자 요청({CMD_STOP})")
+        return False, {"stopped": True}
     if rc != 0:
-        await _send_text(channel, f"시뮬레이션 실패\n```{err[-1500:]}```")
+        await _send_text(channel, f"{sim_tag} 시뮬레이션 실패\n```{err[-1500:]}```")
         return False, {}
-    await channel.send("시뮬레이션 완료. 챕터 생성을 시작합니다.")
+    await channel.send(f"{sim_tag} 시뮬레이션 완료. 챕터 생성을 시작합니다.")
 
     gen_cmd = [
         "python3", "generate_chapter.py",
@@ -837,7 +1023,7 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         gen_cmd.extend(["--words", str(job.target_words)])
     if job.scenes > 0:
         gen_cmd.extend(["--scenes", str(job.scenes)])
-    await channel.send("챕터 생성 진행 중...")
+    await channel.send(f"{sim_tag} 챕터 생성 진행 중...")
 
     gen_flags = {
         "stage1": False,
@@ -858,8 +1044,14 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
             await channel.send("챕터 생성: 장면 압축 완료, 본문 작성으로 넘어갑니다.")
 
     async def _on_gen_heartbeat() -> None:
-        await channel.send("챕터 생성 진행 중... (멈춘 게 아니라 계속 작업 중입니다)")
+        heartbeat_count[0] += 1
+        if heartbeat_count[0] == 1 or heartbeat_count[0] % 4 == 0:
+            mins = int((heartbeat_count[0] * 45) / 60)
+            await channel.send(
+                f"{sim_tag} 챕터 생성 진행 중... ({mins}분째 출력 없음, 작업 계속 시도 중)"
+            )
 
+    heartbeat_count = [0]
     rc, _, err2 = await _run_cmd_stream(
         gen_cmd,
         3600,
@@ -867,16 +1059,21 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         _on_gen_line,
         _on_gen_heartbeat,
         45,
+        1200,
+        lambda: _is_stop_requested(job.channel_id),
     )
+    if rc == 130:
+        await channel.send(f"{sim_tag} {RUN_END_TAG} 중지됨: 사용자 요청({CMD_STOP})")
+        return False, {"stopped": True}
     if rc != 0:
-        await _send_text(channel, f"챕터 생성 실패\n```{err2[-1500:]}```")
+        await _send_text(channel, f"{sim_tag} 챕터 생성 실패\n```{err2[-1500:]}```")
         return False, {}
 
     chapter = run_dir / f"{episode_id}_chapter.md"
     if not chapter.exists():
         chapter = _find_latest(run_dir, f"{episode_id}*chapter.md")
     if chapter is None:
-        await channel.send("챕터 파일을 찾지 못했습니다.")
+        await channel.send(f"{sim_tag} 챕터 파일을 찾지 못했습니다.")
         return False, {}
 
     # Keep a per-cycle chapter snapshot so chapters are not overwritten in-place.
@@ -884,12 +1081,12 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
     try:
         shutil.copyfile(chapter, cycle_chapter)
     except Exception:
-        await channel.send(f"사이클 챕터 스냅샷 저장 실패: `{cycle_chapter}`")
+        await channel.send(f"{sim_tag} 사이클 챕터 스냅샷 저장 실패: `{cycle_chapter}`")
         return False, {}
 
     # Keep chapter markdown local only; notify completion in channel.
-    await channel.send(f"챕터 생성 완료 (로컬 저장): `{cycle_chapter}`")
-    await channel.send(f"{SIM_DONE_TAG} cycle={cycle} episode={episode_id} chapter={chapter.name}")
+    await channel.send(f"{sim_tag} 챕터 생성 완료 (로컬 저장): `{cycle_chapter}`")
+    await channel.send(f"{sim_tag} {SIM_DONE_TAG} cycle={cycle} episode={episode_id} chapter={chapter.name}")
 
     return True, {
         "episode_id": episode_id,
@@ -969,109 +1166,303 @@ async def run_reviewer_agent(channel: discord.abc.Messageable, cycle: int, ctx: 
     }
 
 
+async def run_manager_agent(
+    channel: discord.abc.Messageable,
+    cycle: int,
+    job: JobConfig,
+    branch_contexts: list[dict[str, Any]],
+) -> tuple[bool, dict[str, Any]]:
+    episode_id = str(branch_contexts[0].get("episode_id", "unknown")).strip() if branch_contexts else "unknown"
+    run_dir = Path(job.run_output_dir)
+    manager_md_path = run_dir / f"{episode_id}_cycle{cycle}_manager.md"
+
+    branch_scores: list[dict[str, Any]] = []
+    cycle_review_snippets: list[str] = []
+    for ix, ctx in enumerate(branch_contexts, start=1):
+        qpath = Path(str(ctx.get("quality_json", "")))
+        rpath = Path(str(ctx.get("review_md", "")))
+        qdata: dict[str, Any] = {}
+        if qpath.exists():
+            try:
+                qdata = json.loads(qpath.read_text(encoding="utf-8"))
+            except Exception:
+                qdata = {}
+        branch_scores.append(
+            {
+                "branch": f"B{ix:02d}",
+                "thrill_score_10": qdata.get("thrill_score_10", "n/a"),
+                "style_score_10": qdata.get("style_score_10", "n/a"),
+                "one_line_verdict": qdata.get("one_line_verdict", ""),
+            }
+        )
+        if rpath.exists():
+            cycle_review_snippets.append(rpath.read_text(encoding="utf-8", errors="replace")[:2500])
+
+    periodic_review_snippets: list[str] = []
+    if job.manager_period > 0 and cycle % job.manager_period == 0:
+        branch_dirs = sorted((Path(job.run_output_dir)).glob("branch_*"))
+        for bdir in branch_dirs:
+            for c in range(max(1, cycle - job.manager_period + 1), cycle + 1):
+                p = bdir / f"{episode_id}_cycle{c}_review.md"
+                if p.exists():
+                    periodic_review_snippets.append(p.read_text(encoding="utf-8", errors="replace")[:1800])
+
+    llm = LLMClient(
+        model="gpt-4o-mini",
+        premium_model="gpt-5-mini",
+        budget_usd=4.0,
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
+    )
+    manager_raw = await asyncio.to_thread(
+        llm.chat,
+        [{"role": "user", "content": _build_manager_prompt(cycle, branch_scores, cycle_review_snippets, periodic_review_snippets)}],
+        None,
+        True,
+        "discord_manager",
+        None,
+        2200,
+    )
+    manager_data = _parse_json_safe(manager_raw)
+    manager_md_path.write_text(
+        _format_manager_md(episode_id, cycle, manager_data, branch_scores),
+        encoding="utf-8",
+    )
+
+    manager_bot_token = job.manager_bot_token
+    channel_id = int(job.channel_id)
+    avg_thrill = 0.0
+    avg_style = 0.0
+    score_count = 0
+    for row in branch_scores:
+        try:
+            avg_thrill += float(row.get("thrill_score_10"))
+            avg_style += float(row.get("style_score_10"))
+            score_count += 1
+        except Exception:
+            pass
+    if score_count > 0:
+        avg_thrill /= score_count
+        avg_style /= score_count
+
+    periodic_note = (
+        f"\n주기 진단 실행: 최근 {job.manager_period}사이클 리뷰 종합 완료"
+        if periodic_review_snippets
+        else ""
+    )
+    manager_msg = (
+        "M) Manager Agent 종합 분석 완료\n"
+        f"- cycle: {cycle}\n"
+        f"- branches: {len(branch_contexts)}\n"
+        f"- avg thrill/style: {avg_thrill:.2f}/{avg_style:.2f}"
+        f"{periodic_note}"
+    )
+    manager_message_id: int | None = None
+    if manager_bot_token:
+        try:
+            manager_message_id = await _rest_send_text_return_message_id(channel_id, manager_msg, manager_bot_token)
+        except Exception:
+            manager_message_id = None
+    if manager_message_id is None:
+        sent = await channel.send(manager_msg)
+        manager_message_id = int(sent.id)
+
+    if max(avg_thrill, avg_style) >= 8.0 and manager_message_id is not None:
+        if manager_bot_token:
+            try:
+                await _rest_add_reaction(channel_id, manager_message_id, "❤️", manager_bot_token)
+            except Exception:
+                try:
+                    msg_obj = await channel.fetch_message(manager_message_id)
+                    await msg_obj.add_reaction("❤️")
+                except Exception:
+                    pass
+        else:
+            try:
+                msg_obj = await channel.fetch_message(manager_message_id)
+                await msg_obj.add_reaction("❤️")
+            except Exception:
+                pass
+
+    return True, {
+        "episode_id": episode_id,
+        "run_output_dir": str(run_dir),
+        "review_md": str(manager_md_path),
+        "channel_id": job.channel_id,
+        "fixer_bot_token": job.fixer_bot_token,
+        "reviewer_bot_token": job.reviewer_bot_token,
+        "manager_bot_token": job.manager_bot_token,
+    }
+
+
 async def run_fixer_agent(channel: discord.abc.Messageable, cycle: int, ctx: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
     run_dir = Path(ctx["run_output_dir"])
     episode_id = ctx["episode_id"]
     review_md_path = Path(ctx["review_md"])
     channel_id = int(ctx["channel_id"])
     fixer_bot_token = ctx.get("fixer_bot_token", "")
-    await _send_text_with_token(
-        channel, channel_id, f"3) Fixer Agent 시작 (cycle {cycle})", fixer_bot_token, required=True
-    )
-
-    summary_out_path = run_dir / f"{episode_id}_cycle{cycle}_fixer_summary.md"
-    before_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
-    before_hashes = {
-        path: digest
-        for path in before_candidates
-        if (digest := _sha256_for_relpath(path)) is not None
-    }
-
-    rc, out, err = await asyncio.to_thread(_run_codex_fix, review_md_path, summary_out_path)
-    if rc != 0:
-        tail = (err or out)[-1500:]
+    if FIXER_APPLY_LOCK.locked():
         await _send_text_with_token(
             channel,
             channel_id,
-            f"{RUN_END_TAG} fixer 실행 실패\n```{tail}```",
+            "3) Fixer Agent 대기 중... (다른 fixer가 코드 수정 중)",
             fixer_bot_token,
             required=True,
         )
-        return False, ctx
 
-    after_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
-    all_candidates = sorted(before_candidates | after_candidates)
-    changed_entries: list[dict[str, Any]] = []
-    changed_paths: list[str] = []
-    for path in all_candidates:
-        before_sha = before_hashes.get(path)
-        after_sha = _sha256_for_relpath(path)
-        if before_sha == after_sha:
-            continue
-        if before_sha is None and after_sha is not None:
-            change_type = "created_or_untracked"
-        elif before_sha is not None and after_sha is None:
-            change_type = "deleted"
-        else:
-            change_type = "modified"
-        changed_entries.append(
-            {
-                "path": path,
-                "change_type": change_type,
-                "before_sha256": before_sha,
-                "after_sha256": after_sha,
-            }
+    async with FIXER_APPLY_LOCK:
+        await _send_text_with_token(
+            channel, channel_id, f"3) Fixer Agent 시작 (cycle {cycle})", fixer_bot_token, required=True
         )
-        changed_paths.append(path)
 
-    changed_paths = sorted(changed_paths)
-    changed_files_json_path = run_dir / f"{episode_id}_cycle{cycle}_changed_files.json"
-    changed_files_json_path.write_text(
-        json.dumps(
-            {
-                "episode_id": episode_id,
-                "cycle": cycle,
-                "generated_at": datetime.utcnow().isoformat() + "Z",
-                "changed_files": changed_entries,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+        summary_out_path = run_dir / f"{episode_id}_cycle{cycle}_fixer_summary.md"
+        before_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
+        before_hashes = {
+            path: digest
+            for path in before_candidates
+            if (digest := _sha256_for_relpath(path)) is not None
+        }
+        protected_before_text: dict[str, str] = {}
+        for rel in PROTECTED_FIXER_RULE_FILES:
+            p = REPO_ROOT / rel
+            if p.exists():
+                protected_before_text[rel] = p.read_text(encoding="utf-8", errors="replace")
+        # Hard snapshot: episode configs are immutable for Fixer.
+        episode_cfg_before: dict[str, str] = {}
+        for p in sorted((REPO_ROOT / "config" / "episodes").glob("*.yaml")):
+            rel = str(p.relative_to(REPO_ROOT))
+            episode_cfg_before[rel] = p.read_text(encoding="utf-8", errors="replace")
 
-    diff_path = run_dir / f"{episode_id}_cycle{cycle}_fix.diff"
-    diff_cmd = ["git", "diff", "--", *changed_paths] if changed_paths else ["git", "diff", "--", "."]
-    _, diff_text, _ = await asyncio.to_thread(_run_cmd, diff_cmd, 30)
-    diff_path.write_text(diff_text or "# No diff\n", encoding="utf-8")
-    summary_text = (
-        summary_out_path.read_text(encoding="utf-8", errors="replace").strip()
-        if summary_out_path.exists()
-        else "(fixer 요약 파일 없음)"
-    )
-    changed_text = "\n".join(f"- {p}" for p in changed_paths) if changed_paths else "- 없음"
-    await _send_file_with_token(
-        channel, channel_id, diff_path, f"{episode_id} fix diff", fixer_bot_token, required=True
-    )
-    await _send_file_with_token(
-        channel,
-        channel_id,
-        changed_files_json_path,
-        f"{episode_id} cycle changed files json",
-        fixer_bot_token,
-        required=True,
-    )
-    await _send_text_with_token(
-        channel,
-        channel_id,
-        f"{FIX_DONE_TAG} cycle={cycle} episode={episode_id}\n"
-        f"{summary_text}\n\n"
-        "실제 변경 파일:\n"
-        f"{changed_text}",
-        fixer_bot_token,
-        required=True,
-    )
-    return True, ctx
+        rc, out, err = await asyncio.to_thread(_run_codex_fix, review_md_path, summary_out_path)
+        if rc != 0:
+            tail = (err or out)[-1500:]
+            await _send_text_with_token(
+                channel,
+                channel_id,
+                f"{RUN_END_TAG} fixer 실행 실패\n```{tail}```",
+                fixer_bot_token,
+                required=True,
+            )
+            return False, ctx
+
+        protected_restore_notes: list[str] = []
+        for rel, markers in PROTECTED_FIXER_RULE_FILES.items():
+            p = REPO_ROOT / rel
+            if not p.exists():
+                continue
+            current = p.read_text(encoding="utf-8", errors="replace")
+            if all(marker in current for marker in markers):
+                continue
+            before_text = protected_before_text.get(rel)
+            if before_text is not None:
+                p.write_text(before_text, encoding="utf-8")
+                protected_restore_notes.append(f"- {rel}: 금지 규칙 변경 감지 -> 자동 원복")
+            else:
+                protected_restore_notes.append(f"- {rel}: 금지 규칙 변경 감지 (원본 스냅샷 없음)")
+
+        # Hard-restore any config/episodes changes (modify/create/delete).
+        episode_cfg_notes: list[str] = []
+        episode_cfg_after_paths = {
+            str(p.relative_to(REPO_ROOT))
+            for p in sorted((REPO_ROOT / "config" / "episodes").glob("*.yaml"))
+        }
+        before_paths = set(episode_cfg_before.keys())
+        for rel in sorted(before_paths | episode_cfg_after_paths):
+            abs_path = REPO_ROOT / rel
+            if rel in episode_cfg_before and abs_path.exists():
+                current = abs_path.read_text(encoding="utf-8", errors="replace")
+                if current != episode_cfg_before[rel]:
+                    abs_path.write_text(episode_cfg_before[rel], encoding="utf-8")
+                    episode_cfg_notes.append(f"- {rel}: 변경 감지 -> 자동 원복")
+            elif rel in episode_cfg_before and not abs_path.exists():
+                abs_path.write_text(episode_cfg_before[rel], encoding="utf-8")
+                episode_cfg_notes.append(f"- {rel}: 삭제 감지 -> 자동 복원")
+            elif rel not in episode_cfg_before and abs_path.exists():
+                abs_path.unlink()
+                episode_cfg_notes.append(f"- {rel}: 신규 생성 감지 -> 자동 삭제")
+
+        after_candidates = await asyncio.to_thread(_list_worktree_change_candidates)
+        all_candidates = sorted(before_candidates | after_candidates)
+        changed_entries: list[dict[str, Any]] = []
+        changed_paths: list[str] = []
+        for path in all_candidates:
+            before_sha = before_hashes.get(path)
+            after_sha = _sha256_for_relpath(path)
+            if before_sha == after_sha:
+                continue
+            if before_sha is None and after_sha is not None:
+                change_type = "created_or_untracked"
+            elif before_sha is not None and after_sha is None:
+                change_type = "deleted"
+            else:
+                change_type = "modified"
+            changed_entries.append(
+                {
+                    "path": path,
+                    "change_type": change_type,
+                    "before_sha256": before_sha,
+                    "after_sha256": after_sha,
+                }
+            )
+            changed_paths.append(path)
+
+        changed_paths = sorted(changed_paths)
+        changed_files_json_path = run_dir / f"{episode_id}_cycle{cycle}_changed_files.json"
+        changed_files_json_path.write_text(
+            json.dumps(
+                {
+                    "episode_id": episode_id,
+                    "cycle": cycle,
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                    "changed_files": changed_entries,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        diff_path = run_dir / f"{episode_id}_cycle{cycle}_fix.diff"
+        diff_cmd = ["git", "diff", "--", *changed_paths] if changed_paths else ["git", "diff", "--", "."]
+        _, diff_text, _ = await asyncio.to_thread(_run_cmd, diff_cmd, 30)
+        diff_path.write_text(diff_text or "# No diff\n", encoding="utf-8")
+        summary_text = (
+            summary_out_path.read_text(encoding="utf-8", errors="replace").strip()
+            if summary_out_path.exists()
+            else "(fixer 요약 파일 없음)"
+        )
+        if protected_restore_notes:
+            summary_text += (
+                "\n\n[보호 규칙 적용 결과]\n"
+                + "\n".join(protected_restore_notes)
+            )
+        if episode_cfg_notes:
+            summary_text += (
+                "\n\n[에피소드 설정 보호 결과]\n"
+                + "\n".join(episode_cfg_notes)
+            )
+        changed_text = "\n".join(f"- {p}" for p in changed_paths) if changed_paths else "- 없음"
+        await _send_file_with_token(
+            channel, channel_id, diff_path, f"{episode_id} fix diff", fixer_bot_token, required=True
+        )
+        await _send_file_with_token(
+            channel,
+            channel_id,
+            changed_files_json_path,
+            f"{episode_id} cycle changed files json",
+            fixer_bot_token,
+            required=True,
+        )
+        await _send_text_with_token(
+            channel,
+            channel_id,
+            f"{FIX_DONE_TAG} cycle={cycle} episode={episode_id}\n"
+            f"{summary_text}\n\n"
+            "실제 변경 파일:\n"
+            f"{changed_text}",
+            fixer_bot_token,
+            required=True,
+        )
+        return True, ctx
 
 
 async def run_full_cycle(channel: discord.abc.Messageable, job: JobConfig) -> None:
@@ -1082,20 +1473,49 @@ async def run_full_cycle(channel: discord.abc.Messageable, job: JobConfig) -> No
 
     cycle = cycle_start
     while True:
+        if _is_stop_requested(job.channel_id):
+            await channel.send(f"{RUN_END_TAG} 중지 완료: 사용자 요청({CMD_STOP})")
+            _clear_stop(job.channel_id)
+            return
         if job.max_cycles > 0 and cycle > job.max_cycles:
             break
         try:
-            ok1, ctx = await run_simulator_agent(channel, job, cycle)
-            if not ok1:
-                await channel.send(f"{RUN_END_TAG} 실패: simulator 단계")
+            branch_count = max(1, int(job.parallel_branches))
+            branch_dirs = [f"branch_{i:02d}" for i in range(1, branch_count + 1)]
+            await channel.send(
+                f"사이클 {cycle} 시작: 병렬 브랜치 {branch_count}개 실행\n"
+                f"- run_root: `{job.run_output_dir}`\n"
+                f"- branches: {', '.join(branch_dirs)}"
+            )
+
+            async def _run_branch(branch_idx: int) -> tuple[bool, dict[str, Any]]:
+                branch_dir = Path(job.run_output_dir) / f"branch_{branch_idx:02d}"
+                branch_dir.mkdir(parents=True, exist_ok=True)
+                branch_job = replace(job, run_output_dir=str(branch_dir))
+                ok1, ctx1 = await run_simulator_agent(channel, branch_job, cycle)
+                if not ok1:
+                    return ok1, ctx1
+                ok2, ctx2 = await run_reviewer_agent(channel, cycle, ctx1)
+                return ok2, ctx2
+
+            branch_results = await asyncio.gather(*[_run_branch(i) for i in range(1, branch_count + 1)])
+            failed = [(i + 1, ctx) for i, (ok, ctx) in enumerate(branch_results) if not ok]
+            if failed:
+                if any(isinstance(ctx, dict) and ctx.get("stopped") for _, ctx in failed):
+                    _clear_stop(job.channel_id)
+                    return
+                await channel.send(
+                    f"{RUN_END_TAG} 실패: 병렬 브랜치 {len(failed)}/{branch_count}개 실패"
+                )
+                return
+            branch_ctxs = [ctx for ok, ctx in branch_results if ok]
+
+            okm, manager_ctx = await run_manager_agent(channel, cycle, job, branch_ctxs)
+            if not okm:
+                await channel.send(f"{RUN_END_TAG} 실패: manager 단계")
                 return
 
-            ok2, ctx = await run_reviewer_agent(channel, cycle, ctx)
-            if not ok2:
-                await channel.send(f"{RUN_END_TAG} 실패: reviewer 단계")
-                return
-
-            ok3, _ = await run_fixer_agent(channel, cycle, ctx)
+            ok3, _ = await run_fixer_agent(channel, cycle, manager_ctx)
             if not ok3:
                 await channel.send(f"{RUN_END_TAG} 실패: fixer 단계")
                 return
@@ -1108,13 +1528,14 @@ async def run_full_cycle(channel: discord.abc.Messageable, job: JobConfig) -> No
             return
 
     await channel.send(f"{RUN_END_TAG} 완료: max_cycles={job.max_cycles}")
+    _clear_stop(job.channel_id)
 
 
 async def async_main() -> None:
     os.chdir(REPO_ROOT)
     load_project_env(REPO_ROOT)
     _force_load_env_keys(
-        ["OPENAI_API_KEY", "DISCORD_BOT_TOKEN", "DISCORD_BOT_TOKEN2", "DISCORD_BOT_TOKEN3"]
+        ["OPENAI_API_KEY", "DISCORD_BOT_TOKEN", "DISCORD_BOT_TOKEN2", "DISCORD_BOT_TOKEN3", "DISCORD_BOT_TOKEN4"]
     )
     ROOT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1122,7 +1543,7 @@ async def async_main() -> None:
     if not token:
         raise RuntimeError("Set DISCORD_BOT_TOKEN in .env")
     _resolve_openai_api_key()
-    reviewer_bot_token, fixer_bot_token = _resolve_stage_bot_tokens()
+    reviewer_bot_token, fixer_bot_token, manager_bot_token = _resolve_stage_bot_tokens()
 
     intents = discord.Intents.default()
     intents.message_content = True
@@ -1148,6 +1569,14 @@ async def async_main() -> None:
             if STATE_FILE.exists():
                 STATE_FILE.unlink()
             await message.channel.send("상태 파일 삭제 완료: `data/discord_loop_state.json`")
+            return
+
+        if content.startswith(CMD_STOP):
+            _request_stop(message.channel.id)
+            await message.channel.send(
+                f"중지 요청 수신: {CMD_STOP}\n"
+                "현재 실행 중인 단계가 정리되는 즉시 루프를 멈춥니다."
+            )
             return
 
         if content.startswith(CMD_REVIEW):
@@ -1249,12 +1678,14 @@ async def async_main() -> None:
         except SystemExit:
             await message.channel.send(
                 "사용법: !novel-loop <episode_key> [--max-cycles 3] [--target-words 2200] "
-                "[--scenes 6] [--budget 4.0] [--protagonist kim_sumin]\n"
+                "[--scenes 6] [--budget 4.0] [--protagonist kim_sumin] "
+                "[--parallel 5] [--manager-period 5]\n"
                 "참고: --max-cycles 0 이면 중지할 때까지 무한 반복"
             )
             return
 
         await message.channel.send("명령 수신 완료. 작업을 시작합니다.")
+        _clear_stop(message.channel.id)
         run_date, run_id, run_dir = _allocate_run_output_dir()
         await message.channel.send(
             f"- run: `{run_date}/{run_id}`\n"
@@ -1273,6 +1704,9 @@ async def async_main() -> None:
             run_output_dir=str(run_dir),
             reviewer_bot_token=reviewer_bot_token,
             fixer_bot_token=fixer_bot_token,
+            manager_bot_token=manager_bot_token,
+            parallel_branches=max(1, int(args.parallel)),
+            manager_period=max(1, int(args.manager_period)),
         )
         asyncio.create_task(run_full_cycle(message.channel, job))
 

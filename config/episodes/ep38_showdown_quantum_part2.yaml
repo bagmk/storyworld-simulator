@@ -1,5 +1,5 @@
 # episodes/ep38_showdown_quantum_part2.yaml
-# Episode 46: "Showdown Quantum Part 2"
+# Episode 38: "Showdown Quantum Part 2"
 # source: ep8_showdown_quantum_part2
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -17,7 +17,7 @@ episode:
     Carlos가 USB 슬롯에 키를 삽입한다:
     - Slot 1: El Patrón's key ✓
     - Slot 2: Carlos's key ✓
-    - Slot 3: Greyshore key (FBI 압수 후 복구한 복제본)
+    - Slot 3: Elena 키 복제본 (FBI 압수 이후 카르텔이 복구를 시도한 포렌식 복제본)
 
     [ERROR]
     화면에 붉은 경고:
@@ -64,7 +64,7 @@ episode:
     Jonas: "아뇨. 사실을 말씀드리는 겁니다."
 
     수민은 등을 벽에서 뗀다. 머릿속으로 빠르게 계산한다.
-    카르텔: 2개 (El Patrón + Carlos). CIA: 2개 (Greyshore 원본 + Elena 키). 수민: 1개.
+    카르텔: 2개 (El Patrón + Carlos). CIA: 2개 (Jonas 원본키 + Elena 키). 수민: 1개.
     Shamir 3-of-5. 어느 쪽도 단독으로 3개를 확보할 수 없다.
 
     두 세력이 서로를 겨누고 있다. 그리고 수민의 키 하나가 그 균형의 추를 결정한다.
@@ -82,7 +82,7 @@ episode:
   introduced_clues:
     - id: "clue_ep38_showdown_quantum_part2_c01"
       content: |
-        El Patrón이 Carlos에게 지시한다. "Failsafe 키 삽입. 3개면 충분해." Carlos가 USB 슬롯에 키를 넣는다: Slot 1 (El Patrón's key) ✓, Slot 2 (Carlos's key) ✓, Slot 3 (Greyshore key - FBI 압수 후 복구한 복제본). 하지만 화면에 붉은 경고가 뜬다: "Shamir Secret Sharing verification failed. 2 of 5 keys authenticated. Key #3: INVALID (forensic copy detected - cryptographic signature mismatch). Require 1 additional ORIGINAL key for activation." El Patrón의 얼굴이 굳는다. "복제 키를 감지했어?" 그는 Elena의 키를 찾으려 하지만... Jonas가 "금고에 넣었습니다"라고 했던 그 키가 사라졌다.
+        El Patrón이 Carlos에게 지시한다. "Failsafe 키 삽입. 3개면 충분해." Carlos가 USB 슬롯에 키를 넣는다: Slot 1 (El Patrón's key) ✓, Slot 2 (Carlos's key) ✓, Slot 3 (Elena 키 복제본 - FBI 압수 이후 카르텔이 복구를 시도한 포렌식 복제본). 하지만 화면에 붉은 경고가 뜬다: "Shamir Secret Sharing verification failed. 2 of 5 keys authenticated. Key #3: INVALID (forensic copy detected - cryptographic signature mismatch). Require 1 additional ORIGINAL key for activation." El Patrón의 얼굴이 굳는다. "복제 키를 감지했어?" 그는 Elena의 키를 찾으려 하지만... Jonas가 "금고에 넣었습니다"라고 했던 그 키가 사라졌다.
       trigger: "agent cross-checks telemetry/logs or inspects code paths during the scene"
       inject_threshold: 0.45
       inject_method: "system_alert"
@@ -92,11 +92,11 @@ episode:
         수민이 통제실에서 직접 목격하고 계산한 키 구조 (2043-03-27 저녁):
 
         카르텔: 2개 (El Patrón + Carlos)
-        CIA: 2개 (Greyshore 원본 + Elena 키 — Jonas가 ep28에서 회수해 CIA로 전달)
+        CIA: 2개 (Jonas 원본키 + Elena 키 — Jonas가 ep28에서 회수해 CIA로 전달)
         수민: 1개
 
         수민이 이 구조를 파악한 근거:
-        - 카르텔이 Greyshore 복제본을 삽입했을 때 INVALID 판정 → Greyshore 원본이 다른 곳에 있다
+        - 카르텔이 Elena 키 복제본을 삽입했을 때 INVALID 판정 → 원본 Elena 키가 다른 곳에 있다
         - Jonas의 금고가 비어 있다 → Elena 키가 Jonas 손을 거쳐 CIA로 넘어갔다
         - ep29에서 우연히 읽은 평문 단편: "BURKE-7: As long as it takes, Jonas. That's the job." → Jonas는 CIA에 보고하고 있었다
 

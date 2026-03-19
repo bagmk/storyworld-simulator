@@ -52,11 +52,13 @@ class DirectorAI:
         clue_manager: ClueManager,
         llm: LLMClient,
         storyline: Optional[dict] = None,
+        reader_feedback: Optional[dict] = None,
     ) -> None:
         self.episode_config = episode_config
         self.world_facts = world_facts
         self.clue_manager = clue_manager
         self.storyline = storyline or {}
+        self.reader_feedback = reader_feedback or {}
         self.llm = llm
         self.debug_log: list[dict] = []
 
@@ -429,6 +431,14 @@ class DirectorAI:
         method: str, world: WorldState
     ) -> str:
         """Generate a natural in-world event that surfaces a clue."""
+        guidance = ""
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            guidance = (
+                "\nReader guidance:\n"
+                "- Avoid checklist-like technical listing.\n"
+                "- Keep at most one technical term in this event unless absolutely necessary.\n"
+                "- Prioritize a concrete sensory/action cue over repeated metrics.\n"
+            )
         prompt = (
             f"You are a story director. A required story clue hasn't surfaced naturally.\n\n"
             f"Current scene: {world.current_scene}\n"
@@ -436,6 +446,7 @@ class DirectorAI:
             f"Clue to surface: {clue_content}\n"
             f"Suggested trigger: {trigger}\n"
             f"Method: {method}\n\n"
+            f"{guidance}"
             f"Write a brief (1-3 sentence) in-world event or observation that naturally "
             f"introduces this clue without being too on-the-nose. "
             f"Write it as a scene narration, not as dialogue."
@@ -445,6 +456,18 @@ class DirectorAI:
             purpose="director_clue_injection",
             use_premium=True,
         )
+
+    def _feedback_mentions(self, *keywords: str) -> bool:
+        if not self.reader_feedback:
+            return False
+        corpus = []
+        for key in ("what_felt_boring_or_hard", "style_tips"):
+            vals = self.reader_feedback.get(key, []) or []
+            corpus.extend(str(v) for v in vals if isinstance(v, str))
+        corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
+        all_text = " ".join(corpus).lower()
+        lowered = [str(k).lower() for k in keywords if k]
+        return any(k in all_text for k in lowered)
 
     # ------------------------------------------------------------------ #
     # 5. Resolution Validation

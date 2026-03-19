@@ -1,5 +1,5 @@
 # episodes/ep33_nsa_tampering.yaml
-# Episode 41: "NSA Tampering"
+# Episode 33: "NSA Tampering"
 # source: ep8_nsa_tampering
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -8,11 +8,9 @@ episode:
   date: "2043-03-25T13:40"
   location: "QuantumFront HQ — mixed locations (office, corridors, comms nodes)"
   summary: |
-    최종 QPU 시연을 18시간 앞두고, 수민은 밀러가 제공한 'quantum-readout-calibration-kit-v3.1.4' 모듈의 커밋 로그를 들여다본다. 작성자: LST_automation_v2.7. NSA 보안 하청사 자동화 계정이다. 수민은 더 파고든다.
+    최종 QPU 시연을 18시간 앞두고, 수민은 QPU 출력 검증 작업을 하다가 이상한 것을 발견한다. 해독 결과를 검증하는 루틴이 실행될 때마다, 시스템 네트워크 모니터에 예상치 못한 외부 트래픽이 잠시 찍힌다. 수민이 QPU 제어 시스템에서 자동 생성되는 배포 로그를 열었을 때, 그 안에 평문으로 박혀 있는 주석 블록이 눈에 들어온다. 삭제하지 않고 남겨진 자동화 주석이었다.
 
-    모듈 안에 숨겨진 서브루틴이 있다. QPU 해독 결과가 나오는 즉시 NSA 서버 풀로 사본을 전송하는 코드다. 타임스탬프도 같이 간다. 수민이 결과를 보기 전에 NSA가 먼저 본다. 이것이 밀러의 설계였다.
-
-    더 깊은 곳에 주석이 있었다. NSA 자동화 계정이 직접 박아 넣은 코드 주석:
+    'quantum-readout-calibration-kit-v3.1.4' 배포 로그 — 작성 계정: LST_automation_v2.7 (NSA 보안 하청사 자동화 계정). 로그 파일 끝에 붙어 있는 주석:
 
     # PRIORITY: NSA_FIRST_READ
     # QPU decode output → pipe to TEMPEST-1 before local display
@@ -20,7 +18,7 @@ episode:
     # Objective: US Govt secures first 1,000 RSA keys before commercial delivery
     # Control the feed, control the outcome.
 
-    수민은 멈춘다. NSA의 목표는 처음부터 명확했다. QPU로 RSA 키를 발급받는 것. 벤의 회사는 그 실행을 위한 합법적 포장지. QuantumFront는 기술 공급자. 수민은 그 구조의 맨 아래였다. 엘레나가 말했던 것처럼. "넌 그 사이의 칩이야."
+    수민은 멈춘다. 코드를 분석한 게 아니다. 로그 파일에 누군가가 그냥 남겨놓은 주석 텍스트를 읽은 것이다. 하지만 그 텍스트가 말하는 것은 명확했다. NSA의 목표는 처음부터 이것이었다. QPU 해독 결과를 수민보다 먼저 받아보는 것. 벤의 회사는 그 실행을 위한 합법적 포장지. QuantumFront는 기술 공급자. 수민은 그 구조의 맨 아래였다. 엘레나가 말했던 것처럼. "넌 그 사이의 칩이야."
 
     ---
 
@@ -44,7 +42,8 @@ episode:
     - NSA: 0개
 
     # Director AI 전용 — 소설 텍스트에 직접 노출 금지:
-    # 실제 구조: CIA 2개(Jonas+Greyshore) : 카르텔 2개(ElPatron+Carlos) : 수민 1개.
+    # 실제 구조: CIA 2개(Jonas key_1 원본 + Elena key_4 회수 후) : 카르텔 2개(ElPatron key_2 + Carlos key_3) : 수민 1개(key_5).
+    # Greyshore는 키 보유자가 아님. CIA가 직접 Jonas/Elena 키 라인으로 보유.
     # 수민은 ep41에서야 Jonas = CIA임을 알게 되며 실제 구조를 인식한다.
     # 이 시점(ep33)에서 수민의 오해(카르텔 4:수민 1)는 서사 긴장의 핵심이다.
 
@@ -60,7 +59,7 @@ episode:
   introduced_clues:
     - id: "clue_ep33_nsa_tampering_c01"
       content: |
-        수민이 밀러가 제공한 'quantum-readout-calibration-kit-v3.1.4' 모듈의 커밋 로그를 확인한다. 작성자: LST_automation_v2.7 — NSA 보안 하청사 자동화 계정. 모듈 내부에 숨겨진 서브루틴: QPU 해독 결과가 출력되는 즉시 NSA 서버 풀로 사본을 자동 전송하는 코드. 수민이 결과를 확인하기 전에 NSA가 먼저 받아본다. 구조: NSA(목표 설정) → 벤의 회사(실행 채널) → QuantumFront/수민(기술 생산). 수민은 그 구조의 맨 아래에 있었다.
+        수민이 QPU 출력 검증 작업 중 시스템 네트워크 모니터에서 예상치 못한 외부 트래픽 기록을 발견한다. QPU 해독 루틴이 실행될 때마다 외부 IP 방향으로 짧은 패킷이 나간다. 수민이 자동 생성된 배포 로그(deploy_log_calibration_kit_v3.1.4.txt)를 열었을 때, 로그 파일 하단에 평문으로 남겨진 자동화 주석 블록이 보인다. 작성 계정: LST_automation_v2.7. 주석: "PRIORITY: NSA_FIRST_READ / QPU decode output → pipe to TEMPEST-1 before local display." 수민이 코드를 역분석한 것이 아니다. 누군가가 로그에 그냥 남겨둔 텍스트를 읽은 것이다. 하지만 그것으로 충분했다. 구조: NSA(목표 설정) → 벤의 회사(실행 채널) → QuantumFront/수민(기술 생산). 수민은 그 구조의 맨 아래에 있었다.
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.45
       inject_method: "npc_question"

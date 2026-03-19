@@ -1,5 +1,5 @@
 # episodes/ep36_patron_failsafe.yaml
-# Episode 44: "Patron Failsafe"
+# Episode 36: "Patron Failsafe"
 # source: ep8_patron_failsafe
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -57,7 +57,7 @@ episode:
     이제 카를로스의 키는 라파엘의 서랍 안에 있다.
 
     # Director AI 전용 — 수민에게 직접 노출 금지:
-    # 키 실제 구조 업데이트: CIA 2개(Jonas+Greyshore) : 카르텔 2개(ElPatron+CarlosKey) : 수민 1개.
+    # 키 실제 구조 업데이트: CIA 2개(Jonas 원본키+Elena 키) : 카르텔 2개(ElPatron+CarlosKey) : 수민 1개.
     # 수민 인식은 여전히 카르텔 4 : 수민 1로 유지됨. 변화 없음.
 
   # Clues that MUST surface during this episode.

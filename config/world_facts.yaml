@@ -120,10 +120,10 @@ world_facts:
 
         SUMIN'S DISCOVERY (EP31): By tracing QPU output packet routing, Sumin
         identifies the automatic transfer channel: QPU data → Ben's servers →
-        NSA ingestion endpoint. She recognizes the structure's purpose and
-        realizes she can intercept this channel to substitute payload data.
+        NSA ingestion endpoint. He recognizes the structure's purpose and
+        realizes he can intercept this channel to substitute payload data.
         This insight becomes the foundation for the Chase Bank operation
-        she proposes to the cartel in EP36.
+        he proposes to the cartel in EP36.
 
         CHASE BANK OPERATION (EP36 proposal, EP37-38 execution):
         Sumin offers the cartel a substitute payload attack via the NSA pipeline:
@@ -146,24 +146,43 @@ world_facts:
         This inter-agency conflict is as dangerous to Sumin as the cartel itself.
 
     - content: |
-        GREYSHORE CAPITAL — CIA KEY CUSTODY LOGIC:
-        Greyshore Capital LLC is a CIA-constructed financial front entity used as a
-        "dead letter box" for sensitive asset custody. The CIA does not hold Failsafe-B
-        keys directly — direct agency custody would expose key existence under FOIA
-        and oversight review. Instead, the CIA routes custody through Greyshore's
-        "secondary escrow" structure, which is legally opaque (offshore fiduciary,
-        Mexican foundation nominee layer) and operationally controlled by Ethan Burke's
-        line (not official CIA HQ).
+        GREYSHORE CAPITAL — TRUE IDENTITY AND ROLE:
+        Greyshore Capital LLC is a CARTEL-CONSTRUCTED financial front entity, NOT a
+        CIA-constructed entity. It was established by El Patrón (Rafael Gutiérrez)
+        and Carlos Reyes as the primary money-laundering vehicle for the cartel's
+        Boston Harbor Free Zone operations.
 
-        Ethan holds one Greyshore-custodied key personally (portable HSM token).
-        After Elena's death (EP28), her key was retrieved by Yonas under CIA protocol
-        and transferred to Greyshore secondary escrow — making the CIA the effective
-        holder of TWO keys (Ethan + Elena's retrieved key), though the chain of
-        custody is deliberately fragmented to deny official attribution.
+        HOW GREYSHORE WORKS:
+        - Publicly presented as a legitimate "fintech investment fund" (Delaware LLC)
+        - Receives funds through: QuantumFront "investment" invoices, fabricated
+          equipment procurement payments, and phantom consulting fees
+        - Routes money through a Mexican foundation nominee layer and offshore
+          fiduciary accounts before returning as "clean" capital
+        - OFAC designated Greyshore in 2043 (ep24 timeline), freezing $862.3M
+          in accounts — this freeze is what triggers Rafael's Failsafe activation in ep36
 
-        This dual-key position is what gives the CIA (Ethan line) de facto veto power
-        in any Failsafe-B activation scenario — and is the reason Ethan becomes
-        indispensable to the EP40-41 three-party negotiation.
+        CIA'S RELATIONSHIP WITH GREYSHORE:
+        The CIA does NOT own or control Greyshore. However:
+        - The CIA (Ethan Burke line) has been aware of Greyshore's structure for years
+          through Yonas's embedded intelligence collection
+        - The CIA uses this knowledge as LEVERAGE — the threat of OFAC action or
+          FBI exposure of Greyshore is a negotiating chip
+        - The FBI (Sophia's unit) is actively investigating Greyshore as a money
+          laundering vehicle — this is a primary thread of Sophia's prosecution case
+        - CIA periodically interferes with FBI investigation timing to preserve
+          Yonas's cover and protect CIA operational interests
+
+        GREYSHORE AND FAILSAFE KEYS:
+        Greyshore has NO role as a Failsafe key holder.
+        The five key custodians are: Jonas(key_1), El Patrón(key_2), Carlos(key_3),
+        Elena(key_4), Sumin(key_5). Greyshore is NOT in this list.
+        Any reference to "Greyshore as key holder" in earlier drafts is incorrect
+        and should be treated as superseded by this definition.
+
+        Ethan Burke (CIA) holds his OWN personal key (Jonas's key_1) through Jonas's
+        CIA handler relationship — not through Greyshore.
+        After Elena's death, Jonas retrieves Elena's key (key_4) and delivers it
+        to CIA directly — again, NOT through Greyshore.
 
     - content: |
         Sumin's Failsafe-B system embodies THREE levels of balance simultaneously:
@@ -264,7 +283,72 @@ world_facts:
   # All agents are aware of these from the start.
   public:
     - "The year is 2043. Quantum computing has advanced, but remains fragile—extremely sensitive to cryogenics, vibration, EMI, and measurement-chain latency."
-    - "QuantumFront operates from two physically separate locations: (1) the PUBLIC CAMPUS at Seaview Research Park — the official address, audit-facing operation, HR/admin, and day-to-day physics research. (2) the UNDERGROUND LAB beneath Boston Harbor Free Zone (harbor_underground_lab) — where the real QPU program runs. Staff at Seaview do not know the underground site exists. Equipment transfers between sites are disguised as 'cryo maintenance' or 'offsite calibration' shipments through Freeport logistics."
+
+    - |
+      LOCATION MASTER MAP — Boston Harbor Free Zone Ecosystem:
+      All locations below exist within or adjacent to the Boston Harbor Free Zone (BHFZ).
+      The entire ecosystem is physically connected but operationally siloed.
+
+      [LOCATION 1] SEAVIEW RESEARCH PARK — QuantumFront PUBLIC CAMPUS
+        Address: Seaview Research Park, Boston Harbor adjacent (above-ground)
+        Floors: 1F–8F (standard office tower)
+          1F: Lobby, reception, visitor management
+          2F: Finance, HR, legal compliance (Sumin's initial workstation)
+          3F-4F: Lab A–D (physics research — non-QPU, civilian-facing)
+          5F: Executive offices (Carlos has an office here)
+          6F: Elena's technical team (data center access room)
+          7F-8F: Conference rooms, server room (public-facing IT)
+        Role: Official company address. Audit-facing. All regulatory filings use this address.
+        Staff: ~120 people. NONE know the underground site exists.
+        Equipment transfers: Disguised as "cryo maintenance" or "offsite calibration"
+        shipments. Physically transported via Freeport logistics (see below).
+
+      [LOCATION 2] BOSTON HARBOR FREE ZONE (BHFZ) — FREEPORT LOGISTICS
+        Address: Boston Harbor Free Zone, Pier 14 logistics corridor
+        Role: The legal gray zone between federal jurisdiction, port authority rules,
+        and free-zone charter. Handles container movement for 61% of harbor throughput.
+        Yonas Mehret's cover role: Freeport floor supervisor (Level D access)
+        Key feature: Level D access badges allow sub-basement transit — the physical
+        link between surface logistics and the underground lab (Sub-48)
+        Equipment arriving here from Seaview: Tagged as "offsite calibration return."
+        Equipment going underground: Transferred via Level D service elevator (Sub-1 to Sub-6)
+
+      [LOCATION 3] SUB-48 — BOSTON HARBOR UNDERGROUND LAB (harbor_underground_lab)
+        Physical location: Directly beneath Boston Harbor Free Zone, accessed via
+        Level D service elevator from Freeport logistics corridor
+        Floor structure (ascending depth):
+          Sub-1 (B1): Service corridor, loading dock, equipment staging area
+          Sub-2 (B2): LST (Logistics Surveillance Terminal) operations center
+            - SCADA control for harbor operations
+            - PLC_Valve_17 and related physical infrastructure controls
+            - Yonas's primary intelligence collection point
+          Sub-3 (B3): Administrative/security level
+            - Carlos's primary workspace (Sub-48 operations)
+            - Surveillance monitoring (cameras, LVOC audio detection)
+            - Rafael's remote conference room (video link to Mexico City)
+          Sub-4 (B4): Research support level
+            - Elena's CryoLab secondary workspace
+            - Moreno's forced-confinement lab (after ep23)
+            - QPU ancillary systems (measurement chain, SIEM)
+          Sub-5 (B5): CryoLab Main — QPU PRIMARY LEVEL
+            - The actual QPU hardware (cryogenic housing, SQUID arrays)
+            - BRIDGE_SLOT #7 (Sumin's biometric + physical key insertion point)
+            - CryoLab Main "메인실" where the ep27 key insertion ceremony occurs
+            - Temperature maintained at -196°C / 77K
+          Sub-6 (B6): Power and infrastructure
+            - Backup generators, cooling systems
+            - Deadman switch physical hardware
+            - Emergency egress (connects to harbor drainage tunnels)
+        Staff: ~35 people. All aware of cartel affiliation. None know the full key structure.
+        The "Sub-48" name derives from the 48-hour emergency lockdown protocol embedded
+        in the facility's original construction spec.
+
+      [LOCATION 4] BOSTON HARBOR — SURFACE AREA
+        The physical port. Container cranes visible from Sub-48 upper floors.
+        Sumin's ep39 confinement location: FBI temporary safe house, above-ground,
+        adjacent to Freeport logistics corridor (disguised as port authority office).
+        Sumin's ep41 long-term residence: 38F residential block, BHFZ zone perimeter.
+
     - "Boston Harbor Free Zone is a fictional U.S. port free-zone rumored to have looser logistics, customs, and audit boundaries."
     - "Some QuantumFront equipment, cryogenic components, and large racks move through Freeport logistics for 'offsite integration testing.' This is the cover story for transfers between the Seaview campus and the harbor underground lab."
     - "Greyshore Capital repeatedly appears around QuantumFront as an investment/escrow partner, but its true structure is opaque."

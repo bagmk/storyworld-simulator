@@ -1,5 +1,5 @@
 # episodes/ep28_betrayal_elena_death.yaml
-# Episode 36: "Betrayal Elena Death"
+# Episode 28: "Betrayal Elena Death"
 # source: ep6_betrayal_elena_death
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -18,9 +18,13 @@ episode:
 
     수민이 엘레나의 손을 잡는다. 차갑고 축축하다. "살아서 나가자. 둘 다." 엘레나가 고개를 끄덕인다. 하지만 그녀의 눈빛은 이미 무언가를 포기한 사람의 눈빛이다.
 
-    [모레노 교수의 강제 실행 — 같은 시각, 지하 B-Level 격리실]
-
-    모레노 교수가 키보드 앞에 앉아 있다. 손이 멈춰있다. 화면에는 자신의 알고리즘—PARAFT v2.1의 최종 컴파일 명령이 깜빡이고 있다. 뒤에서 카르텔 요원이 서 있다. "실행하세요, 교수님." 모레노의 이마에 땀이 맺힌다. "이걸 실행하면 내 연구가 무기가 된다." 요원이 태블릿을 보여준다. 화면에는 모레노의 제자들이 격리된 방에 앉아있는 CCTV 영상. "학생들은 안전합니다. 지금은요." 모레노의 손이 떨린다. 키보드 위에서 0.5초 멈춘다. 그리고 Enter를 누른다. 학생들을 위해서. 화면: "Algorithm validation begins (signature: Moreno_L_t_module_v4.2)". 18:09 UTC, 실시간 선형 보정 모듈 실행. 모레노가 의자에 기대며 눈을 감는다. "미안하다, 수민아."
+    # Director AI 전용 — 소설 텍스트에 직접 서술 금지:
+    # 모레노 교수는 같은 시각(18:09 UTC) B-Level 격리실에서 PARAFT v2.1 최종 알고리즘을 강제 실행했다.
+    # 학생들의 안전을 위협받는 상황에서 자발적 선택의 여지 없이 Enter를 눌렀다.
+    # 수민은 이 장면을 직접 보지 않는다. 사후에 QPU 로그(clue_c05)를 통해 간접적으로 재구성할 뿐이다.
+    # 강제 실행 사실 자체는 ep28에서 수민에게 노출되지 않는다.
+    # "미안하다, 수민아" 발화는 소설 텍스트에 직접 등장하지 않는다.
+    # ep41에서 Jonas 고백 또는 모레노 생전 기록(필요 시)으로만 처리.
 
     [엘레나의 죽음 — 2043-03-19 23:40, 수민의 직접 목격]
 
@@ -159,7 +163,9 @@ episode:
 
     - id: "clue_ep28_betrayal_elena_death_c05"
       content: |
-        모레노 교수 강제 실행 흔적:
+        수민이 사후에 확인하는 QPU 시뮬레이션 로그 (수민 시점 — 재구성):
+
+        엘레나가 사망하고 몇 시간 후, 수민은 연구실 서버에서 이 로그를 찾아낸다.
 
         CryoLab quantum simulation log: qsim_runtime_2043-03-19.log
         - 14:22 UTC: Moreno starts kernel compilation
@@ -167,9 +173,17 @@ episode:
         - 18:09 UTC: Real-time linear correction module executed
         - 23:35 UTC: Process termination (SIGKILL - abnormal)
 
-        모레노의 알고리즘 핵심이 강제로 실행되었다. 아직 완전하지 않지만 작동했다.
-        23:35분, 엘레나가 움직이기 시작한 바로 그 시간에 모레노의 프로세스가 강제 종료됨.
-        모레노는 지금 살아있지만 극도로 쇠약한 상태다 — 이것은 끝이 아직 아니다.
+        수민의 추론: 서명이 모레노 교수의 것이다. 하지만 타임스탬프가 이상하다.
+        18:09 UTC — 수민이 엘레나와 옥상에서 대화하고 있던 바로 그 시간대.
+        23:35 — 엘레나가 복도에서 쓰러지기 5분 전.
+        수민은 일지를 닫는다. 모레노 교수가 직접 실행했는지, 누군가에게 강제당했는지,
+        이 로그만으로는 알 수 없다. 하지만 서명이 모레노의 것이라는 사실이
+        수민의 가슴 속에 돌덩어리처럼 내려앉는다.
+
+        # Director AI 전용 — 수민에게 직접 확정 노출 금지:
+        # 모레노는 학생들 CCTV 위협을 받고 강제로 Enter를 눌렀다.
+        # 수민은 이 사실을 ep28에서 알 수 없다. 추론만 가능.
+        # ep41에서 Jonas 고백 또는 모레노 자신의 증언이 확정하는 구조.
       trigger: "an NPC raises the point in conversation or asks a leading question"
       inject_threshold: 0.65
       inject_method: "npc_question"

@@ -1,5 +1,5 @@
 # episodes/ep22_failsafe_seed.yaml
-# Episode 30: "Failsafe Seed"
+# Episode 22: "Failsafe Seed"
 # source: ep6_failsafe_seed
 # Generated from beats_all.yaml (director-AI schema v2)
 
@@ -85,7 +85,12 @@ episode:
 
     - id: "clue_ep22_failsafe_seed_c08"
       content: |
-        'Control Matrix' 설계: Shamir 3-of-5 Secret Sharing. 5개 키: El Patrón, Carlos, Greyshore, Elena, Sumin. failsafe_b 프로젝트, 2043-03-17 14:23:45 생성. 언어: Quantum-Native Assembly + Lattice. 함수: threshold_validator(), key_distribution(), sync_orchestrator().
+        'Control Matrix' 설계: Shamir 3-of-5 Secret Sharing. 5개 키: Jonas, El Patrón, Carlos, Elena, Sumin. failsafe_b 프로젝트, 2043-03-17 14:23:45 생성. 언어: Quantum-Native Assembly + Lattice. 함수: threshold_validator(), key_distribution(), sync_orchestrator().
+        # Director AI 전용 — 소설 텍스트에 직접 서술 금지:
+        # 이 시점(ep22) 수민은 Jonas의 실제 정체(CIA)를 모른다.
+        # Jonas 키가 누구 소유인지도 수민은 ep22에서 알 수 없다.
+        # 키 5인방 목록은 Director AI만 알고 있는 실제 구조이며, 수민에게는 ep41에서야 Jonas=CIA가 드러난다.
+        # Greyshore는 키 보유자가 아님. 수민이 ep22에서 Greyshore를 키 보유자로 언급하는 것은 POV 위반.
 
         핵심 메커니즘:
         - 3개 키 모여야 startup 가능

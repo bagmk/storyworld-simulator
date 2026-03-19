@@ -25,7 +25,7 @@ from .models import Agent, WorldState, ClueManager, Interaction, Memory, Steerin
 from .director import DirectorAI
 from .llm_client import LLMClient
 from . import database as db
-from .review_feedback import build_feedback_prompt_block
+from .review_feedback import build_feedback_prompt_block, count_feedback_term_occurrences
 
 logger = logging.getLogger(__name__)
 
@@ -495,6 +495,13 @@ class SimulationOrchestrator:
                 "If technical terms are used, only the first mention can carry a short plain-language hint.\n"
                 f"{review_guidance}\n"
             )
+        repeat_terms = self._feedback_repeat_terms()
+        if repeat_terms:
+            system += (
+                "\n## Reader Repetition Watch Terms\n"
+                f"- {', '.join(repeat_terms[:6])}\n"
+                "- Use at most one of these terms per turn unless plot-critical.\n"
+            )
 
         steering = context.get("steering")
         if steering and isinstance(steering, SteeringContext):
@@ -540,11 +547,7 @@ class SimulationOrchestrator:
                 f"Continue from this intention or adapt based on what happened.\n\n"
             )
 
-        action_dialogue_inner_cap = 90
-        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
-            action_dialogue_inner_cap = min(action_dialogue_inner_cap, 70)
-        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
-            action_dialogue_inner_cap = min(action_dialogue_inner_cap, 65)
+        action_dialogue_inner_cap, action_cap, dialogue_cap, inner_cap = self._reader_turn_word_caps()
 
         user_msg += (
             f"## Your Turn\n"
@@ -562,6 +565,7 @@ class SimulationOrchestrator:
             f"Do not invent named events/meetings/sessions not present in Current Scene or Recent Events.\n"
             f"AGENDA: [1-2 sentence plan for what you intend to do or explore next turn]\n"
             f"Keep ACTION + DIALOGUE + INNER together under ~{action_dialogue_inner_cap} Korean words total.\n"
+            f"Target caps per field: ACTION <= {action_cap} words, DIALOGUE <= {dialogue_cap} words, INNER <= {inner_cap} words.\n"
             f"If 2+ characters are in-scene, include at least one explicit addressee or name cue in DIALOGUE.\n"
             f"Avoid repeating the same technical metric unless you add new actionable meaning.\n"
         )
@@ -569,19 +573,86 @@ class SimulationOrchestrator:
             user_msg += (
                 "Prefer 1-2 short sentences in DIALOGUE/INNER each; avoid long explanatory chains.\n"
             )
+        if self._feedback_mentions("25단어", "25 단어", "25word", "긴 문장 자동 분할", "문장 자동 분할기"):
+            sentence_cap = self._feedback_sentence_word_cap(default=25)
+            user_msg += (
+                f"Keep each DIALOGUE/INNER sentence under about {sentence_cap} words; split longer lines into 2 short beats.\n"
+            )
         if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
             user_msg += (
                 "If a technical term appears this turn, mention it once and move to action/reaction.\n"
             )
-        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰"):
+        if self._feedback_mentions("처음 등장", "첫 등장", "첫 언급", "괄호", "정의", "풀어쓰기", "비유", "약어"):
+            user_msg += (
+                "If you introduce a new technical term/acronym, add one short plain-language gloss once.\n"
+                "Use a concise parenthetical cue or one brief analogy, then continue with action.\n"
+            )
+        if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선"):
+            user_msg += (
+                "For the same concept, keep one stable term only (e.g., pick one and reuse consistently).\n"
+                "Do not alternate near-synonyms across adjacent turns.\n"
+            )
+        if repeat_terms:
+            repeat_cap = self._feedback_term_repeat_cap(default=2)
+            user_msg += (
+                f"Reader-flagged repetition words this turn: {', '.join(repeat_terms[:6])}. "
+                f"Keep each such term under about {repeat_cap} use(s) per turn.\n"
+            )
+        jargon_term_cap = self._feedback_jargon_term_cap(default=2)
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym"):
+            user_msg += (
+                f"Limit distinct technical terms to about {jargon_term_cap} per turn. "
+                "If more are needed, keep only core terms and compress the rest.\n"
+            )
+        paragraph_sentence_cap = self._feedback_paragraph_sentence_cap()
+        if paragraph_sentence_cap is not None:
+            user_msg += (
+                f"Keep each field compact: ACTION/DIALOGUE/INNER should usually stay within about {paragraph_sentence_cap} sentence(s).\n"
+            )
+        if self._feedback_mentions("목록", "나열", "줄바꿈", "쪼개", "분할"):
+            user_msg += (
+                "If information feels list-like, split it into short beat-sized lines instead of one dense sentence.\n"
+            )
+        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰", "시선", "행동 묘사"):
             user_msg += (
                 "Do not stack similar gesture/observation beats in one turn.\n"
                 "Choose one strongest gesture cue and advance the scene.\n"
             )
-        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "인물", "역할", "구분", "호칭", "이름", "speaker"):
             user_msg += (
                 "Speaker clarity priority: in each spoken DIALOGUE line, include a clear addressee/name cue.\n"
+                "Use stable naming (avoid switching titles for the same person in adjacent turns).\n"
                 "Do not restate character introductions for people already in-scene.\n"
+                "Add one short action/tone cue in ACTION to disambiguate who is speaking.\n"
+            )
+        if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
+            user_msg += (
+                "Emotion rendering priority: do not over-explain feelings in INNER.\n"
+                "Show one concrete action/expression cue in ACTION and keep INNER short.\n"
+            )
+        if self._feedback_mentions("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트"):
+            user_msg += (
+                "Dialogue impact priority: avoid lecture-style DIALOGUE.\n"
+                "Compress factual delivery to 1 short sentence, then add one emotional/action beat.\n"
+            )
+        if self._feedback_mentions("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려"):
+            user_msg += (
+                "If dialogue keeps running, insert one concise action/reaction beat to keep pacing from flattening.\n"
+                "Avoid back-to-back long explanatory dialogue turns.\n"
+            )
+        if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름", "단문"):
+            user_msg += (
+                "On scene/focus shift turns, start with one concrete short transition sentence before details.\n"
+            )
+        if self._feedback_mentions("감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사"):
+            user_msg += (
+                "Emotion-wave priority: maintain tension but add one brief humanizing beat when natural.\n"
+                "Avoid keeping emotional intensity at one flat level for multiple turns.\n"
+            )
+        if self._feedback_mentions("가능성", "계산", "추론", "판단", "반복", "중복", "늘어지"):
+            user_msg += (
+                "Avoid repeating the same analytic words (e.g., possibility/calculation) across turns.\n"
+                "If intent is unchanged, imply it through action or one short callback.\n"
             )
 
         return system, [{"role": "user", "content": user_msg}]
@@ -995,7 +1066,190 @@ class SimulationOrchestrator:
             corpus.extend(str(v) for v in vals if isinstance(v, str))
         corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
         all_text = " ".join(corpus).lower()
-        return any(str(k).lower() in all_text for k in keywords if k)
+        lowered = [str(k).lower() for k in keywords if k]
+        if any(k in all_text for k in lowered):
+            return True
+
+        # Rhythm monotony complaints are often phrased without explicit "긴 문장" wording.
+        if any(k in lowered for k in ("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴")):
+            if any(token in all_text for token in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "단조롭게", "리듬이 반복", "속도감이 단조", "속도감이 떨어", "템포가 느려", "템포가 떨어")):
+                return True
+
+        # Reader often describes jargon overload as "체크리스트/나열/목록" without saying "기술 용어".
+        if any(k in lowered for k in ("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym")):
+            if any(token in all_text for token in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "건조", "단조롭")):
+                return True
+
+        # Early reader confusion can be expressed without explicit "화자/대사 구분" terms.
+        if any(k in lowered for k in ("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "인물", "역할", "구분", "호칭", "이름", "말투", "어투", "톤", "speaker")):
+            if any(token in all_text for token in ("초반", "따라가기 힘들", "맥락", "인물 설명 없이", "누군지")):
+                return True
+
+        # Expository dialogue pain can appear as "정보 전달 위주/감정의 고저 부족".
+        if any(k in lowered for k in ("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트")):
+            if any(token in all_text for token in ("정보 전달 위주", "설명 위주", "감정의 고저", "감정 고저", "대화가 대부분", "건조", "긴 회의", "회의·대화", "대화 장면", "대사가 계속")):
+                return True
+
+        # Emotional wave notes may appear as "긴장 완화/유머/친근한 묘사/파고".
+        if any(k in lowered for k in ("감정선", "감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사")):
+            if any(token in all_text for token in ("감정의 파고", "감정 파고", "감정의 고저", "감정 고저", "긴장 완화", "작은 유머", "유머", "친근한 묘사")):
+                return True
+        return False
+
+    def _feedback_repeat_terms(self) -> list[str]:
+        terms = self.reader_feedback.get("repetition_watch_terms", []) or []
+        generic_terms = {
+            "중요한", "간단한", "자연스러운", "효과적인", "신선한", "분명한",
+            "설명", "감정", "정보", "표현", "분위기", "임팩트", "감각", "비유", "감각비유", "감각 비유",
+        }
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in terms:
+            term = str(raw or "").strip()
+            term = re.sub(r"^[^0-9a-zA-Z가-힣]+|[^0-9a-zA-Z가-힣]+$", "", term)
+            term = re.sub(r"[^0-9a-zA-Z가-힣\s]+", " ", term)
+            term = re.sub(r"\s+", " ", term).strip()
+            term = re.sub(r"\s+(반복|중복|과다|과잉|묘사|표현)$", "", term, flags=re.IGNORECASE).strip()
+            if len(term) > 24:
+                continue
+            if len(term) < 2 and not re.fullmatch(r"[가-힣]", term):
+                continue
+            if len(term.split()) > 2:
+                continue
+            if re.search(r"[가-힣A-Za-z0-9]+(?:이나|거나)\s+[가-힣A-Za-z0-9]+", term):
+                continue
+            if re.search(r"\s(?:또는|및|와|과)\s", f" {term} "):
+                continue
+            if not re.search(r"[0-9a-zA-Z가-힣]", term):
+                continue
+            compact = re.sub(r"\s+", "", term)
+            variants = [term]
+            if compact != term and len(compact) >= 2:
+                variants.append(compact)
+            for variant in variants:
+                key = variant.lower()
+                if len(key) < 2 and not re.fullmatch(r"[가-힣]", key):
+                    continue
+                if key in seen or key in generic_terms:
+                    continue
+                seen.add(key)
+                out.append(variant)
+        return out[:8]
+
+    def _feedback_jargon_terms(self) -> list[str]:
+        terms = self.reader_feedback.get("jargon_watch_terms", []) or []
+        generic_terms = {"기술", "기술 용어", "전문 용어", "용어", "약어", "약자", "설명", "표현"}
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in terms:
+            term = str(raw or "").strip()
+            term = term.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789"))
+            term = re.sub(r"[^0-9a-zA-Z가-힣\s_\-\.]+", " ", term)
+            term = re.sub(r"\s+", " ", term).strip()
+            if len(term) < 2 or len(term) > 32:
+                continue
+            key = term.lower()
+            if key in seen or key in generic_terms:
+                continue
+            if not re.search(r"[A-Za-z가-힣]", term):
+                continue
+            seen.add(key)
+            out.append(term)
+            if len(out) >= 8:
+                break
+        return out
+
+    def _feedback_style_constraints(self) -> dict:
+        raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        return raw if isinstance(raw, dict) else {}
+
+    def _feedback_term_repeat_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_term_repeats_per_scene")
+        if raw is None:
+            raw = constraints.get("max_term_repeats_per_paragraph", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(5, cap))
+
+    def _feedback_sentence_word_cap(self, default: int = 25) -> int:
+        constraints = self._feedback_style_constraints()
+        raw_hi = constraints.get("sentence_chars_max")
+        try:
+            hi = int(raw_hi)
+        except (TypeError, ValueError):
+            return default
+        return max(10, min(default, int(round(hi / 3.2))))
+
+    def _feedback_paragraph_sentence_cap(self) -> Optional[int]:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_sentences_per_paragraph")
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return max(1, min(8, cap))
+
+    def _feedback_jargon_term_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_jargon_terms_per_paragraph", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(8, cap))
+
+    def _reader_turn_word_caps(self) -> tuple[int, int, int, int]:
+        """
+        Dynamic compactness caps for ACTION/DIALOGUE/INNER based on reader pain points.
+        Returns (total_cap, action_cap, dialogue_cap, inner_cap).
+        """
+        total_cap = 90
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+            total_cap = min(total_cap, 70)
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+            total_cap = min(total_cap, 65)
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "인물", "역할", "구분", "호칭", "이름", "speaker"):
+            total_cap = min(total_cap, 58)
+        if self._feedback_mentions("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려"):
+            total_cap = min(total_cap, 56)
+        if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
+            total_cap = min(total_cap, 60)
+        if self._feedback_mentions("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트"):
+            total_cap = min(total_cap, 60)
+
+        action_cap = max(12, min(26, total_cap // 3))
+        dialogue_cap = max(24, min(52, total_cap - action_cap - 12))
+        inner_cap = max(12, min(24, total_cap - action_cap - dialogue_cap))
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "인물", "역할", "구분", "호칭", "이름", "speaker"):
+            dialogue_cap = min(dialogue_cap, 36)
+            inner_cap = min(inner_cap, 18)
+        if self._feedback_mentions("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트"):
+            dialogue_cap = min(dialogue_cap, 34)
+        if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여", "긴 회의", "회의·대화", "템포가 느려"):
+            inner_cap = min(inner_cap, 14)
+        return total_cap, action_cap, dialogue_cap, inner_cap
+
+    @staticmethod
+    def _count_feedback_term_occurrences(text: str, term: str) -> int:
+        return count_feedback_term_occurrences(text, term)
+
+    @staticmethod
+    def _dialogue_voice_is_monotone(text: str) -> bool:
+        quoted = re.findall(r"[\"“]([^\"”\n]{3,120})[\"”]", text or "")
+        if len(quoted) < 3:
+            return False
+        endings = []
+        for q in quoted[:8]:
+            q = re.sub(r"\s+", " ", q).strip()
+            if not q:
+                continue
+            endings.append(q[-2:] if len(q) >= 2 else q)
+        if len(endings) < 3:
+            return False
+        return len(set(endings)) <= 1
 
     def _reader_guardrail_correction(self, agent: Agent, raw_response: str) -> str:
         """
@@ -1009,15 +1263,56 @@ class SimulationOrchestrator:
         inner = (self._extract_field(raw_response, "INNER") or "").strip()
         action = (self._extract_field(raw_response, "ACTION") or "").strip()
         merged = " ".join(x for x in [action, dialogue, inner] if x).strip() or raw_response
+        total_cap, action_cap, dialogue_cap, inner_cap = self._reader_turn_word_caps()
+        count_words = lambda s: len(re.findall(r"[0-9A-Za-z가-힣]+", str(s or "")))
+        if count_words(merged) > total_cap:
+            return (
+                "Your previous response is too long for this scene pacing. "
+                "Compress ACTION/DIALOGUE/INNER while keeping the same intent."
+            )
+        if count_words(action) > action_cap or count_words(dialogue) > dialogue_cap or count_words(inner) > inner_cap:
+            return (
+                "Your previous field lengths are unbalanced. "
+                "Rewrite with shorter ACTION/DIALOGUE/INNER and keep one clear focus."
+            )
 
         if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
             metric_tokens = self._extract_metric_tokens(merged)
-            if len(metric_tokens) >= 3:
+            acronym_hits = len(re.findall(r"\b[A-Z]{2,8}\b", merged))
+            recent_overlap = self._recent_metric_overlap_count(metric_tokens, window=5)
+            if len(metric_tokens) >= 3 or acronym_hits >= 3 or recent_overlap >= 2:
                 return (
-                    "Your previous response packs too many technical metrics/jargon in one turn. "
-                    "Keep at most one core technical term and focus on action/reaction."
+                    "Your previous response repeats or over-packs technical metrics/jargon. "
+                    "Keep at most one core technical term, avoid acronym stacking, and focus on action/reaction."
                 )
-        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰"):
+            jargon_terms = self._feedback_jargon_terms()
+            if jargon_terms:
+                repeated_jargon_terms = [
+                    t for t in jargon_terms
+                    if self._count_feedback_term_occurrences(merged, t) >= 2
+                ]
+                if repeated_jargon_terms:
+                    return (
+                        "Your previous response repeats reader-flagged technical terms too much. "
+                        "Keep one core term with a short plain cue, then move to action."
+                    )
+            repeat_terms = self._feedback_repeat_terms()
+            if repeat_terms:
+                repeat_cap = self._feedback_term_repeat_cap(default=2)
+                repeated = [
+                    t for t in repeat_terms
+                    if self._count_feedback_term_occurrences(merged, t) > repeat_cap
+                ]
+                reused = [
+                    t for t in repeat_terms
+                    if self._count_feedback_term_occurrences(merged, t) >= 1
+                ]
+                if repeated or len(reused) > repeat_cap:
+                    return (
+                        "Your previous response reuses reader-flagged repeated terms too heavily. "
+                        "Keep only one such term and vary wording via concrete action."
+                    )
+        if self._feedback_mentions("반복", "중복", "늘어지", "제스처", "표정", "손동작", "관찰", "시선", "행동 묘사"):
             if self._has_dense_repetitive_imagery(merged):
                 return (
                     "Your previous response repeats gesture/observation cues too densely. "
@@ -1025,13 +1320,51 @@ class SimulationOrchestrator:
                 )
 
         if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
-            if len(dialogue) > 100 or len(inner) > 80:
+            dialogue_sent = len([s for s in re.split(r'(?<=[.!?…])\s+|(?<=[다요죠]\.)\s+', dialogue) if s.strip()])
+            inner_sent = len([s for s in re.split(r'(?<=[.!?…])\s+|(?<=[다요죠]\.)\s+', inner) if s.strip()])
+            if len(dialogue) > 100 or len(inner) > 80 or dialogue_sent > 2 or inner_sent > 2:
                 return (
                     "Your previous response is too dense. Rewrite with shorter DIALOGUE/INNER "
                     "using 1-2 short sentences each."
                 )
+        if self._feedback_mentions("25단어", "25 단어", "25word", "긴 문장 자동 분할", "문장 자동 분할기"):
+            sentence_cap = self._feedback_sentence_word_cap(default=25)
+            if self._has_overlong_sentence(dialogue, max_words=sentence_cap) or self._has_overlong_sentence(inner, max_words=sentence_cap):
+                return (
+                    f"Your previous response includes a sentence over about {sentence_cap} words. "
+                    "Split long lines into 2 shorter sentences while preserving intent."
+                )
+        if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
+            if len(inner) > 70 and not action:
+                return (
+                    "Your previous response over-explains inner feelings without observable action. "
+                    "Add one concrete ACTION cue and shorten INNER."
+                )
+            if self._recent_cognitive_overlap_count(inner or merged, window=6) >= 2:
+                return (
+                    "Your previous response reuses similar analytical/cognitive wording from recent turns. "
+                    "Cut inner-analysis phrasing and advance via one concrete action cue."
+                )
+        if self._feedback_mentions("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트"):
+            if self._is_expository_dialogue(dialogue):
+                return (
+                    "Your previous DIALOGUE is too expository. "
+                    "Compress facts into one short line and add one emotional/action cue."
+                )
+        if self._feedback_mentions("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려"):
+            if count_words(dialogue) > 30 and count_words(action) < 4:
+                return (
+                    "Your previous DIALOGUE runs too long without action beats. "
+                    "Shorten dialogue and add one concrete action/reaction cue for pacing."
+                )
+        if self._feedback_mentions("가능성", "계산", "추론", "판단", "반복", "중복", "늘어지", "심리", "내면"):
+            if self._has_repetitive_cognitive_terms(inner or merged):
+                return (
+                    "Your previous response repeats analytical inner wording. "
+                    "Use one short inner beat and move the intent into concrete action/dialogue."
+                )
 
-        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "speaker"):
+        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "인물", "역할", "구분", "호칭", "이름", "말투", "어투", "톤", "speaker"):
             low = dialogue.lower()
             if dialogue and low not in ("(silent)", "(none)"):
                 active_names = [
@@ -1040,14 +1373,42 @@ class SimulationOrchestrator:
                     if aid in self.agent_map and aid != agent.id
                 ]
                 has_name_cue = any(name and name in dialogue for name in active_names)
+                has_action_name_cue = any(name and name in action for name in active_names)
                 has_address_cue = bool(re.search(r"(씨|님|선배|교수|자네|너|당신|에게|한테)", dialogue))
-                if len(active_names) >= 1 and not (has_name_cue or has_address_cue):
+                if len(active_names) >= 1 and not (has_name_cue or has_action_name_cue or has_address_cue):
                     return (
                         "Your previous response is ambiguous about who is being addressed. "
-                        "Rewrite DIALOGUE with one explicit name/addressee cue."
+                        "Rewrite DIALOGUE/ACTION with one explicit name/addressee cue."
+                    )
+                if len(dialogue) > 85:
+                    return (
+                        "Your previous DIALOGUE is too long and risks speaker ambiguity. "
+                        "Split into shorter lines and keep one clear addressee cue."
+                    )
+                if self._feedback_mentions("말투", "어투", "톤", "고유한 말투") and self._dialogue_voice_is_monotone(dialogue):
+                    return (
+                        "Your previous DIALOGUE sounds too uniform in tone and sentence endings. "
+                        "Keep intent same but vary diction and cadence to keep speaker distinction."
                     )
 
         return ""
+
+    @staticmethod
+    def _has_overlong_sentence(text: str, max_words: int = 25) -> bool:
+        if not text:
+            return False
+        sentences = [
+            s.strip()
+            for s in re.split(r'(?<=[.!?…])\s+|(?<=[다요죠]\.)\s+|\n+', text)
+            if s.strip()
+        ]
+        if not sentences:
+            sentences = [text.strip()]
+        for sent in sentences:
+            words = re.findall(r"[0-9A-Za-z가-힣]+", sent)
+            if len(words) > max_words:
+                return True
+        return False
 
     # ------------------------------------------------------------------ #
     # Loop Guard: Repetition Detection
@@ -1199,8 +1560,10 @@ class SimulationOrchestrator:
             "coherence": "coherence",
             "코히런스": "coherence",
             "drift": "drift",
+            "드리프트": "phase-drift",
             "위상 드리프트": "phase-drift",
             "실시간": "realtime",
+            "보상": "compensation",
             "보상 회로": "compensation-circuit",
             "nsa": "nsa",
             "darpa": "darpa",
@@ -1220,6 +1583,72 @@ class SimulationOrchestrator:
                 out.add(m)
         return out
 
+    def _recent_metric_overlap_count(self, candidate_tokens: set[str], window: int = 5) -> int:
+        """
+        Count how many recent turns reuse the candidate's metric/jargon tokens.
+        Helps block cross-speaker jargon echo loops before they propagate.
+        """
+        if not candidate_tokens:
+            return 0
+        recent = [
+            i for i in self.interactions[-max(1, window):]
+            if i.action_type != "director_event"
+        ]
+        hits = 0
+        for ix in recent:
+            action = str((ix.metadata or {}).get("action", "")).strip()
+            dialogue = str((ix.metadata or {}).get("dialogue", "")).strip()
+            prev_text = " ".join(x for x in [action, dialogue, ix.content or ""] if x).strip()
+            prev_tokens = self._extract_metric_tokens(prev_text)
+            if prev_tokens and candidate_tokens & prev_tokens:
+                hits += 1
+        return hits
+
+    def _recent_cognitive_overlap_count(self, text: str, window: int = 6) -> int:
+        """
+        Count overlap of cognitive-analysis cues with recent turns.
+        Used to prevent multi-turn "analysis loop" wording.
+        """
+        candidate_tokens = self._extract_cognitive_tokens(text)
+        if not candidate_tokens:
+            return 0
+        recent = [
+            i for i in self.interactions[-max(1, window):]
+            if i.action_type != "director_event"
+        ]
+        hits = 0
+        for ix in recent:
+            action = str((ix.metadata or {}).get("action", "")).strip()
+            dialogue = str((ix.metadata or {}).get("dialogue", "")).strip()
+            prev_text = " ".join(x for x in [action, dialogue, ix.content or ""] if x).strip()
+            prev_tokens = self._extract_cognitive_tokens(prev_text)
+            if prev_tokens and candidate_tokens & prev_tokens:
+                hits += 1
+        return hits
+
+    @staticmethod
+    def _extract_cognitive_tokens(text: str) -> set[str]:
+        """
+        Extract short cognitive-analysis cues that often get repeated in slow loops.
+        """
+        raw = str(text or "").lower()
+        cue_map = {
+            "가능성": "possibility",
+            "계산": "calculation",
+            "추론": "inference",
+            "판단": "judgement",
+            "가정": "assumption",
+            "시나리오": "scenario",
+            "확률": "probability",
+            "결론": "conclusion",
+            "고민": "deliberation",
+        }
+        out: set[str] = set()
+        for key, val in cue_map.items():
+            if key in raw:
+                out.add(val)
+        return out
+
     @staticmethod
     def _has_dense_repetitive_imagery(text: str) -> bool:
         """
@@ -1237,6 +1666,38 @@ class SimulationOrchestrator:
         max_count = max(counts) if counts else 0
         repeated_types = sum(1 for c in counts if c >= 2)
         return max_count >= 3 or repeated_types >= 2
+
+    @staticmethod
+    def _has_repetitive_cognitive_terms(text: str) -> bool:
+        """
+        Detect repetitive inner-analysis wording that slows pacing.
+        """
+        raw = str(text or "").lower()
+        if not raw:
+            return False
+        cues = [
+            "가능성", "계산", "판단", "추론", "결론", "시나리오", "확률", "가정",
+        ]
+        repeated_types = 0
+        for cue in cues:
+            if raw.count(cue) >= 2:
+                repeated_types += 1
+        return repeated_types >= 2
+
+    @staticmethod
+    def _is_expository_dialogue(dialogue: str) -> bool:
+        """
+        Detect dialogue lines that over-index on explanation delivery.
+        """
+        text = str(dialogue or "").strip()
+        if not text:
+            return False
+        low = text.lower()
+        explain_hits = len(re.findall(r"(왜냐하면|즉|다시 말해|정리하면|요약하면|핵심은|결론은|설명하자면)", low))
+        technical_hits = len(re.findall(r"\b[A-Z]{2,8}\b", text)) + len(re.findall(r"\d+(?:\.\d+)?", text))
+        if len(text) >= 110 and (explain_hits >= 1 or technical_hits >= 2):
+            return True
+        return explain_hits >= 2
 
     def _force_scene_transition(self) -> None:
         """Director injects a scene-advancing event to break the repetition loop."""

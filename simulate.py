@@ -34,7 +34,12 @@ from src.novel_writer.orchestrator import SimulationOrchestrator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, episode_runtime_policy
 from src.novel_writer.env_loader import load_project_env
-from src.novel_writer.review_feedback import load_reader_review, resolve_reader_review_path
+from src.novel_writer.review_feedback import (
+    ensure_jargon_watch_terms,
+    ensure_repetition_watch_terms,
+    load_reader_review,
+    resolve_reader_review_path,
+)
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -151,15 +156,26 @@ def main() -> None:
         explicit_path=args.reader_review_md,
         episode_id=episode_id,
         output_dir=args.output,
+        prefer_run_id=str(tracking.get("run_id") or ""),
     )
     if review_path:
         reader_feedback = load_reader_review(str(review_path))
+        reader_feedback = ensure_repetition_watch_terms(reader_feedback)
+        reader_feedback = ensure_jargon_watch_terms(reader_feedback)
         if reader_feedback:
+            repeat_terms = reader_feedback.get("repetition_watch_terms", []) or []
+            jargon_terms = reader_feedback.get("jargon_watch_terms", []) or []
+            style_constraints = reader_feedback.get("style_constraints", {}) or {}
+            fixer_actions = reader_feedback.get("fixer_priority_actions", []) or []
             logger.info(
-                "Loaded reader review feedback from %s (weak=%d, tips=%d)",
+                "Loaded reader review feedback from %s (weak=%d, fixer=%d, tips=%d, repeat_terms=%d, jargon_terms=%d, style_constraints=%d)",
                 review_path,
                 len(reader_feedback.get("what_felt_boring_or_hard", []) or []),
+                len(fixer_actions),
                 len(reader_feedback.get("style_tips", []) or []),
+                len(repeat_terms),
+                len(jargon_terms),
+                len(style_constraints) if isinstance(style_constraints, dict) else 0,
             )
         else:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
@@ -199,6 +215,7 @@ def main() -> None:
         clue_manager=clue_mgr,
         storyline=storyline,
         llm=llm,
+        reader_feedback=reader_feedback,
     )
     storyline_ctx = director.storyline_context
     current_milestone = storyline_ctx.get("current", {})

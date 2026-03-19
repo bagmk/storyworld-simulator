@@ -145,48 +145,55 @@ core_entities:
 
   failsafe_key_stages:
     # Failsafe-B 키 보유 상태 단계별 추적 (Director AI 전용 — 수민에게 직접 노출 금지)
-    # 수민 인식 vs 실제 구조가 ep41에서 처음으로 일치한다.
+    # 키 구조 원칙: 5명 각 1개씩 독립 보유. Greyshore는 키 보유자 아님.
+    # NSA-Miller는 계약서 명목상만 포함, 실제 키 미전달.
+    # 수민 인식 vs 실제 구조는 ep40(부분)과 ep41(완전)에서 단계적으로 수렴한다.
     stage_initial_ep26:
       description: "ep26 Failsafe 계약 체결 직후"
       actual_keys:
-        - holder: "Jonas Mehret (CIA 침투 자산)"
+        - holder: "Jonas Mehret (CIA 침투 자산, 표면상 카르텔 컨설턴트)"
           key_id: "key_1"
-        - holder: "ElPatron (Rafael Gutierrez)"
+          note: "Jonas 독자 보유 1개. 대리 보관 아님."
+        - holder: "ElPatron / Rafael Gutierrez (카르텔 수장)"
           key_id: "key_2"
-        - holder: "Carlos"
+          note: "ElPatron 직접 보유. Jonas 대리 아님."
+        - holder: "Carlos (카르텔 내부 관리자)"
           key_id: "key_3"
-        - holder: "Elena Arbaido (CIA 자산)"
+        - holder: "Elena Ramirez (CIA 자산)"
           key_id: "key_4"
-        - holder: "Sumin Kim"
+        - holder: "Sumin Kim (브리지 키 설계자)"
           key_id: "key_5"
+      actual_distribution: "실질: CIA 측 2(Jonas key_1 + Elena key_4) : 카르텔 2(ElPatron+Carlos) : 수민 1"
       sumin_perception: "카르텔 3(ElPatron+Carlos+Jonas) : Elena CIA 1 : 수민 1"
-      note: "수민은 ep26 시점에서 Jonas를 카르텔 측으로 오해"
+      note: >-
+        수민은 ep26 시점에서 Jonas를 카르텔 측으로 오해.
+        Greyshore는 키 보유자 목록에 포함되지 않음.
+        NSA-Miller는 계약서 명목상만, 실물 키는 영원히 미전달.
 
     stage_after_elena_death_ep28:
-      description: "ep28 엘레나 사망 직후 — Jonas가 엘레나의 키를 회수하여 CIA에 전달"
+      description: "ep28 엘레나 사망 직후 — Jonas가 엘레나의 key_4를 회수하여 CIA에 전달"
       actual_keys:
-        - holder: "Jonas Mehret → CIA (Greyshore 계좌로 전달)"
-          key_id: "key_1 (원래 Jonas 보유)"
-        - holder: "CIA (Greyshore / Ethan Burke 계열)"
-          key_id: "key_4 (원래 Elena 보유, Jonas 회수 후 CIA 전달)"
+        - holder: "Jonas Mehret (CIA 잠입 자산) — key_1 원본 보유 유지, key_4 회수 후 CIA 전달"
+          key_id: "key_1 + key_4(회수→CIA)"
         - holder: "ElPatron (Rafael Gutierrez)"
           key_id: "key_2"
         - holder: "Carlos"
           key_id: "key_3"
         - holder: "Sumin Kim"
           key_id: "key_5"
-      actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
-      sumin_perception: "카르텔 4(Jonas+ElPatron+Carlos+엘레나키회수) : 수민 1"
+      actual_distribution: "CIA 2(key_1 Jonas + key_4 Elena회수) : 카르텔 2(key_2+key_3) : 수민 1(key_5)"
+      sumin_perception: "카르텔 4(Jonas+ElPatron+Carlos+엘레나키Jonas회수) : 수민 1"
       note: >-
-        수민은 Jonas를 여전히 카르텔 측으로 오해. ep41까지 이 오해 유지.
-        ep29 도청에서 Jonas-BURKE7 교신 포착했지만 이중첩자 여부 확신 못함.
+        수민은 Jonas가 Elena 키를 카르텔을 위해 회수했다고 오해.
+        ep29 BURKE-7 도청에서 Jonas-CIA 교신 포착했지만 이중첩자 여부 확신 못함.
+        ep40까지 이 오해 구조 유지.
 
     stage_after_carlos_removal_ep36:
-      description: "ep36 카를로스 제거 직후 — 카를로스의 키가 ElPatron에게 귀속"
+      description: "ep36 카를로스 제거 직후 — 카를로스의 key_3이 ElPatron에게 귀속"
       actual_keys:
-        - holder: "CIA (Greyshore / Ethan Burke)"
+        - holder: "CIA (key_1 Jonas 원본 + key_4 Elena 회수분)"
           key_id: "key_1 + key_4"
-        - holder: "ElPatron (Rafael Gutierrez, 카를로스 키 포함)"
+        - holder: "ElPatron (Rafael Gutierrez, key_2 원본 + key_3 Carlos 귀속)"
           key_id: "key_2 + key_3"
         - holder: "Sumin Kim"
           key_id: "key_5"
@@ -194,14 +201,25 @@ core_entities:
       sumin_perception: "카르텔 4 : 수민 1 (변화 없음)"
       note: "실제 분포는 ep28과 동일. 수민의 인식도 변화 없음."
 
-    stage_ep41_revelation:
-      description: "ep41 Jonas CIA 신분 공개 — 수민이 처음으로 실제 구조를 인식"
+    stage_ep40_negotiation:
+      description: "ep40 3자 화상협상 — 이선이 CIA 2개 키(Jonas 원본키 + Elena 키) 보유를 공개"
       actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
-      sumin_new_perception: "CIA 2 : 카르텔 2 : 수민 1 (캐스팅보트)"
+      sumin_partial_perception: "CIA 2 : 카르텔 2 : 수민 1 — 분포는 인지, 그러나 key_1 = Jonas 것임은 미인지"
+      note: >-
+        수민은 ep40에서 CIA가 2개를 보유한다는 것을 공개 협상 자리에서 처음 알게 됨.
+        이선은 'Jonas 원본키 + Elena 키'라고 표현. 수민은 Jonas가 CIA 자산임을 아직 모름.
+        수민 인식: "Jonas가 CIA에 키를 팔았나? 아니면 Jonas가 원래 CIA였나?"
+        이 의문이 ep41 Jonas 고백에서 완전 해소됨.
+
+    stage_ep41_revelation:
+      description: "ep41 Jonas CIA 신분 공개 — 수민이 처음으로 실제 구조 완전 인식"
+      actual_distribution: "CIA 2 : 카르텔 2 : 수민 1"
+      sumin_new_perception: "CIA 2(key_1=Jonas것, key_4=Elena것) : 카르텔 2 : 수민 1 (처음부터 캐스팅보트)"
       revelation: >-
         Jonas가 수민에게 직접 고지: "나는 CIA 8년 잠입 자산이었습니다."
-        수민이 처음으로 이해: 자신은 처음부터 캐스팅보트였다.
-        어느 쪽도 단독으로 Failsafe를 열 수 없었기 때문에 수민을 살렸다.
+        수민이 완전히 이해: key_1이 Jonas 것 = CIA 것이었다.
+        ep40에서 이선이 말한 'Jonas 원본키' = Jonas가 CIA 자산이어서 CIA 보유.
+        수민은 처음부터 캐스팅보트였다. 어느 쪽도 단독으로 Failsafe를 열 수 없었다.
 
   critical_artifacts:
     - id: "greyshore_ledger_marker"
@@ -303,12 +321,12 @@ acts:
   - id: "act1"
     title: "Introduction and Set-Up"
     description: >-
-      학회에서 시작해 NSA의 첫 접근과 유령 자금(benefactor)의 냄새가 쌓인다.
+      제네바 학회에서 시작해 NSA의 첫 접근과 유령 자금(benefactor)의 냄새가 쌓인다.
       수민의 야망이 처음으로 '권력의 세계'와 접촉한다.
     episodes: ["ep01", "ep02"]
     milestones:
       - id: "ep01_academic_presentation"
-        description: "MIT 학회에서 모레노 발표 + NSA 밀러의 첫 접근/그랜트 단서(초기 국가안보 그림자)"
+        description: "제네바 학회에서 모레노 발표 + NSA 밀러의 첫 접근/그랜트 단서(초기 국가안보 그림자)"
       - id: "ep02_ben_encounter"
         description: "벤과 재회(성공/유혹/이동 제안) + CryoLab 장비·예산 불일치 단서. 벤이 밀러와 연결된 DARPA 계약을 언급"
 
@@ -413,7 +431,7 @@ episodes:
     act: "act1"
     date_range: {start: "2041-05-21T10:00", end: "2041-05-21T18:00"}
     synopsis: >-
-      MIT 학회에서 모레노의 발표와 NSA 그랜트 단서가 등장한다.
+      제네바 학회에서 모레노의 발표와 NSA 그랜트 단서가 등장한다.
       밀러의 첫 접근으로 수민은 연구가 '권력의 도구'가 될 수 있음을 체감한다.
     beats:
       - {id: "ep01_academic_presentation", must_happen: true}
@@ -722,7 +740,7 @@ episodes:
     act: "act4"
     date_range: {start: "2043-03-16T19:00", end: "2043-03-16T23:59"}
     synopsis: >-
-      MIT 학회 귀환 중 케임브리지 인근 Route 2A에서 모레노와 연구팀 납치.
+      제네바 학회 후 보스턴으로 귀환 중이던 모레노, 케임브리지 인근 Route 2A에서 납치.
       벤 클라크가 수민에게 먼저 "모레노 교수 연락이 안 된다"고 전화(NSA 소속인데 정보 없어 당황).
       NSA가 실시간 감청을 했음에도 'priority delay authorized'로 의도적으로 늦게 보고.
     beats:
