@@ -928,7 +928,11 @@ async def async_main() -> None:
             if chapter_path and chapter_path.exists():
                 word_count = len(chapter_path.read_text(encoding="utf-8", errors="replace").split())
                 try:
-                    await _send_file(message.channel, chapter_path, f"📖 최근 챕터 — {word_count}단어 (`{chapter_path.name}`)")
+                    await _send_file_with_token(
+                        message.channel, ch_id,
+                        chapter_path, f"📖 최근 챕터 — {word_count}단어 (`{chapter_path.name}`)",
+                        manager_bot_token,
+                    )
                 except Exception:
                     await _send_text_with_token(
                         message.channel, ch_id,
@@ -1172,8 +1176,6 @@ async def async_main() -> None:
                     return "chapter"
                 if text.startswith(f"{DAILY_TAG}[REVIEW] 🔍 품질 자동 검수 중"):
                     return "review"
-                if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
-                    return "auto"
                 if text.startswith(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프"):
                     return "auto"  # 사이클마다 새 뜨레드 생성
                 if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
@@ -1237,6 +1239,8 @@ async def async_main() -> None:
                     or text.startswith(f"{DAILY_TAG}[ERROR] ")
                 ):
                     return manager_bot_token
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
+                    return fixer_bot_token
                 return ""
 
             def _completion_keys_for_text(text: str) -> list[str]:
@@ -1375,9 +1379,15 @@ async def async_main() -> None:
 
             async def _upload(path: Path, note: str) -> None:
                 try:
-                    await _send_file(message.channel, path, note)
+                    await _send_file_with_token(
+                        message.channel, message.channel.id, path, note, manager_bot_token
+                    )
                 except Exception:
-                    await _send_text(message.channel, f"{note} (파일 업로드 실패: `{path.name}`)")
+                    await _send_text_with_token(
+                        message.channel, message.channel.id,
+                        f"{note} (파일 업로드 실패: `{path.name}`)",
+                        manager_bot_token,
+                    )
 
             await _send_text_with_token(
                 message.channel,
