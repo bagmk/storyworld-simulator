@@ -648,37 +648,159 @@ Fixer가 코드를 수정하기 **전**에 대상 파일 전체를 `backup_befor
 
 최근 3사이클의 평균 점수 변화가 ±0.3 이내이면 "같은 방식의 수정은 효과가 없다"는 경고를 매니저 프롬프트에 자동으로 추가합니다. 이 경고가 붙으면 Codex는 이전에 시도하지 않은 파일·함수를 먼저 찾도록 유도됩니다.
 
-**5사이클마다 심층 회고 (Deep Review):**
+**5사이클마다 심층 회고 + Factor Analysis (Deep Review):**
 
-`!novel-daily`를 5번 실행할 때마다 매니저가 과거 최대 5회 실행의 리뷰 히스토리를 함께 불러와서 종합 진단을 수행합니다.
+`!novel-daily`를 5번 실행할 때마다 매니저가 세 가지 보고서를 순서대로 Manager 쓰레드에 게시하고, 이를 종합해 Codex에게 강한 최종 지시사항을 줍니다.
 
 | 일반 사이클 | 5사이클 심층 회고 |
 |---|---|
 | 현재 사이클 점수만 분석 | 과거 5회 실행 리뷰까지 포함 |
 | 이번 실행 내 추세 추적 | 장기 반복 패턴 탐지 |
 | 다음 수정 방향 제시 | 이전에 안 건드린 파일 강제 포함 |
+| — | Factor Analysis 보고서 추가 실행 |
 | — | 효과 없는 수정 명시적 금지 |
 
-심층 회고에서 매니저는 "이번이 5사이클 회고다. 이전에 한 번도 건드리지 않은 파일/함수를 반드시 1개 이상 포함하라"는 지시를 Codex에게 줍니다.
+**Manager 쓰레드에 게시되는 3단계 보고서:**
 
-**매니저가 Codex에게 주는 지시 형식:**
+```text
+① [MANAGER] 📊 Factor Analysis 보고서  ← 누적 diff 임베딩 분석
+② [MANAGER] 📈 점수 이력               ← 이번 실행 사이클별 점수+변경파일
+③ [MANAGER] 🔴 통합 강한 지시사항      ← GPT가 ①②를 합쳐 Codex에게 줄 최종 지시
+```
+
+---
+
+#### Factor Analysis 파이프라인 (5사이클마다 실행)
+
+매 5사이클마다 `output/daily/` 전체를 스캔해 누적된 모든 Fixer 코드 변경 기록을 수집하고, 선형 모델로 "어떤 방향의 코드 변경이 어떤 점수를 올리는가"를 추론합니다.
+
+**데이터 포인트 정의:**
+
+각 Fixer 사이클 N을 하나의 데이터 포인트로 취급합니다.
+
+```
+X_N  = backup_before_fixer_cycle(N+1) − backup_before_fixer_cycleN  (코드 변경 diff)
+Y_N  = score_cycle(N+1) − score_cycle(N)                            (점수 변화 delta)
+```
+
+즉, "사이클 N의 코드 수정(X)이 다음 사이클 점수 변화(Y)에 어떤 영향을 줬는가"를 모델링합니다.
+
+**평가 대상 점수 (Y — 5차원):**
+
+| 변수 | 설명 |
+|---|---|
+| `thrill_score_10` | 긴장감/몰입감 |
+| `style_score_10` | 문체/가독성 |
+| `causality_score_10` | 인과성/개연성 |
+| `character_score_10` | 캐릭터 일관성/동기 |
+| `scene_function_score_10` | 장면 기능성/서사 진행도 |
+
+**Step 1 — Diff 임베딩:**
+
+각 Fixer 사이클의 코드 변경 diff (+/- 줄만 추출)를 OpenAI `text-embedding-3-small` 모델로 1536차원 벡터로 변환합니다. 이미 임베딩한 diff는 `data/factor_embedding_cache.json`에 캐시해서 중복 API 호출을 방지합니다.
+
+```
+diff_text_N  →  embed(diff_text_N)  =  x_N ∈ ℝ^1536
+```
+
+**Step 2 — PCA (주성분 분석):**
+
+N개의 임베딩 행렬 `X ∈ ℝ^(N×1536)`에 PCA를 적용해 분산의 80%를 설명하는 상위 K개의 주성분으로 압축합니다.
+
+```
+X_pca = X · V_K    where  V_K ∈ ℝ^(1536×K),  K = min(N−1, 10)
+```
+
+각 주성분(PC)은 "코드 변경의 한 방향"을 의미합니다. PC의 loadings(가중치)가 높은 diff 토큰을 역추적하면 그 방향이 무엇인지 해석할 수 있습니다.
+
+예시:
+```
+PC1 (분산 38%): avoid_transition_terms, max_transition_openers, 그리고, 그러자
+→ "연결어/전환 억제 방향의 코드 변경 축"
+
+PC2 (분산 24%): max_jargon_terms, force_reaction_after_jargon, 괄호 설명
+→ "기술 용어 밀도 제어 축"
+```
+
+**Step 3 — Lasso 회귀:**
+
+각 점수 차원 y_k (k = 1..5)에 대해 Lasso 회귀를 적용합니다.
+
+```
+ŷ_k = β_0 + β_1·PC1 + β_2·PC2 + ... + β_K·PCK    (Lasso 정규화)
+
+Lasso 목적함수:
+  min  ‖y_k − X_pca · β‖² + α · ‖β‖₁
+   β
+
+α = 0.1  (N < 10일 때)
+α = 0.05 (N ≥ 10일 때)
+```
+
+Lasso의 L1 페널티는 중요하지 않은 PC 계수를 0으로 만들어 자동으로 유효한 방향만 선택합니다. 계수 β_j의 부호와 크기가 핵심 인사이트입니다.
+
+```
+β_j > 0  →  PC_j 방향의 코드 변경이 y_k 점수를 올림
+β_j < 0  →  PC_j 방향의 코드 변경이 y_k 점수를 내림
+|β_j|    →  영향의 강도
+```
+
+**데이터가 쌓일수록 분석이 정밀해지는 구조:**
+
+```
+5번째  실행: ~5개  포인트 → 방향성 탐색 (K ≤ 4)
+10번째 실행: ~10개 포인트 → Lasso 계수 신뢰도 상승
+15번째 실행: ~15개 포인트 → 패턴 확정, 금지 항목 명확화
+20번째 실행: ~20개 포인트 → 인터랙션 효과 탐지 가능
+```
+
+**Factor Analysis 보고서 예시 출력:**
+
+```text
+[MANAGER] 📊 Factor Analysis 보고서 (누적 데이터: 10개 Fixer 사이클)
+
+PCA 주성분 — 코드 변경의 주요 축:
+  PC1 (분산 38%): avoid_transition_terms, max_transition_openers, 그리고
+  PC2 (분산 24%): max_jargon_terms, force_reaction_after_jargon
+  PC3 (분산 18%): normalize_scene, scene_floor, _MAX_WORDS_PER_SCENE
+
+점수별 Lasso 회귀 계수 (양수 = 해당 축 수정 시 점수 상승):
+  [긴장감]  R²=0.68  |  PC1: +0.41  PC3: +0.38
+  [문체]    R²=0.71  |  PC1: +0.61  PC2: -0.22
+  [인과성]  R²=0.58  |  PC2: +0.48
+  [캐릭터]  R²=0.44  |  PC1: +0.29
+  [씬기능]  R²=0.63  |  PC3: +0.55
+
+🔴 강한 신호 — Codex 수정 우선순위:
+  1. PC1 (연결어 억제) → 문체 올림 ↑ (계수 +0.61)
+  2. PC3 (씬 구조 변경) → 씬기능 올림 ↑ (계수 +0.55)
+  3. PC2 (용어 밀도 억제) → 인과성 올림 ↑ (계수 +0.48)
+  4. PC1 (연결어 억제) → 긴장감 올림 ↑ (계수 +0.41)
+
+최근 챕터 전문: [소설 전체 내용 — Codex가 수정 전 반드시 읽을 것]
+```
+
+이 보고서와 점수 이력을 합쳐 GPT가 `🔴 통합 강한 지시사항`을 생성하고, Codex는 두 정보를 모두 참고해 코드를 수정합니다.
+
+**매니저가 Codex에게 주는 최종 지시 형식:**
 
 ```text
 진단:
 - 현재 점수가 낮은 핵심 원인: prose_generator.py의 transition 처리가 반복 패턴 유발
+- Factor Analysis 근거: PC1(연결어 축)이 문체/긴장감 점수와 가장 강한 양의 상관 (β=+0.61/+0.41)
 - 이전 수정 중 효과 없었던 것: prose_generator.py 동일 함수 3회 수정 — 점수 변화 없음
 
 시작점:
-- 1차 파일: scene_distiller.py
-- 1차 함수: normalize_scene_timeline, adjust_scene_target_for_feedback
-- 이유: 씬 병합 로직이 과도해 장면이 너무 압축되고 있음
+- 1차 파일: prose_generator.py
+- 1차 함수: _transition_replacement_catalog, avoid_transition_terms 처리 블록
+- 이유: Factor Analysis가 연결어 억제 방향이 가장 강한 긍정 신호라고 확인
 
 실행 항목:
-1. normalize_scene_timeline에서 병합 기준을 완화
-2. 씬 전환 신호가 소실되지 않도록 key_actions 보존 로직 추가
+1. avoid_transition_terms 목록을 확장하고 max_transition_openers_per_block을 1로 강제
+2. 씬 구조 변경(PC3 방향)도 씬기능 점수와 상관 — normalize_scene_timeline 병합 기준 완화
 
 금지 항목:
-- prose_generator.py의 _transition_replacement_catalog 재수정 (3회 시도 후 효과 없음)
+- 3회 이상 시도했지만 효과 없었던 scene_distiller.py의 _coerce_turn_number 재수정
 
 검증:
 - python3 -m unittest tests.test_reader_feedback_guards

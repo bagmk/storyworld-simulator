@@ -825,6 +825,8 @@ async def async_main() -> None:
                     return "review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
                     return "auto"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
+                    return "auto_review"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
                     return "fixer"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 YAML 검수 시작"):
@@ -857,7 +859,7 @@ async def async_main() -> None:
                 if text.startswith(f"{DAILY_TAG}[REVIEW] "):
                     if "품질 자동 검수 중" not in text:
                         return "review"
-                if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🧾 AI 리뷰 상세"):
                     return "auto_review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] "):
                     if "AI 자동 개선 루프 시작" not in text:
