@@ -399,23 +399,32 @@ class SceneDistiller:
 
         # Convert to DistilledScene objects
         scenes: list[DistilledScene] = []
+        available_turns = [
+            self._coerce_turn_number(ix.get("turn"), default=0)
+            for ix in interactions
+        ]
+        available_turns = sorted(turn for turn in available_turns if turn > 0)
         for i, sd in enumerate(scenes_data):
-            raw_start = int(sd.get("turn_start", 0) or 0)
-            raw_end = int(sd.get("turn_end", 0) or 0)
-            turn_start, turn_end = (raw_start, raw_end) if raw_start <= raw_end else (raw_end, raw_start)
+            payload = self._normalize_scene_payload(sd)
+            turn_start, turn_end = self._coerce_scene_turn_range(
+                payload,
+                available_turns=available_turns,
+                scene_index=i,
+                total_scenes=len(scenes_data),
+            )
             scene = DistilledScene(
                 scene_number=i + 1,
-                title=sd.get("title", f"Scene {i + 1}"),
+                title=payload.get("title") or f"Scene {i + 1}",
                 turn_range=(turn_start, turn_end),
-                location=sd.get("location", ep_location),
-                characters_present=sd.get("characters", []),
-                key_dialogue=sd.get("key_dialogue", []),
-                key_actions=sd.get("key_actions", []),
-                discoveries=sd.get("discoveries", []),
-                emotional_arc=sd.get("emotional_arc", ""),
-                beat_references=sd.get("beat_refs", []),
-                narrative_summary=sd.get("summary", ""),
-                pacing=sd.get("pacing", "building"),
+                location=payload.get("location") or ep_location,
+                characters_present=payload.get("characters", []),
+                key_dialogue=payload.get("key_dialogue", []),
+                key_actions=payload.get("key_actions", []),
+                discoveries=payload.get("discoveries", []),
+                emotional_arc=payload.get("emotional_arc", ""),
+                beat_references=payload.get("beat_refs", []),
+                narrative_summary=payload.get("summary", ""),
+                pacing=payload.get("pacing", "building"),
                 raw_turn_count=max(1, turn_end - turn_start + 1),
             )
             self._apply_scene_readability_guards(scene, canonical_speakers)
@@ -441,7 +450,7 @@ class SceneDistiller:
             clue_id = str(md.get("clue_id", "")).strip()
             if not clue_id:
                 continue
-            turn = int(ix.get("turn", 0) or 0)
+            turn = self._coerce_turn_number(ix.get("turn", 0), default=0)
             if turn <= 0:
                 continue
             turn_to_clues.setdefault(turn, []).append(clue_id)
@@ -704,6 +713,10 @@ class SceneDistiller:
             score += 1
         if len((left.narrative_summary or "").strip()) <= 90 or len((right.narrative_summary or "").strip()) <= 90:
             score += 1
+        if self._scene_core_concern_signature(left) and (
+            self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
+        ):
+            score += 2
         if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
             score += 2
         if self._summary_is_mood_heavy(left.narrative_summary) or self._summary_is_mood_heavy(right.narrative_summary):
@@ -1379,6 +1392,18 @@ class SceneDistiller:
             parts.append("responsibility")
         return "|".join(parts[:3])
 
+    def _scene_core_concern_signature(self, scene: DistilledScene) -> str:
+        return self._core_concern_signature(
+            " ".join(
+                [
+                    str(scene.narrative_summary or ""),
+                    " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
+                    " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                    str(scene.emotional_arc or ""),
+                ]
+            )
+        )
+
     def _is_redundant_core_concern(self, left: str, right: str) -> bool:
         left_sig = self._core_concern_signature(left)
         right_sig = self._core_concern_signature(right)
@@ -1626,8 +1651,8 @@ class SceneDistiller:
             if not chunk:
                 continue
 
-            start_turn = chunk[0].get("turn", 0)
-            end_turn = chunk[-1].get("turn", 0)
+            start_turn = self._coerce_turn_number(chunk[0].get("turn", 0), default=0)
+            end_turn = self._coerce_turn_number(chunk[-1].get("turn", 0), default=start_turn)
             chars = list({ix.get("speaker_name", "?") for ix in chunk if ix.get("speaker_id") != "director"})
             dialogue = [
                 {"speaker": ix["speaker_name"], "line": ix["content"][:150]}
@@ -1698,6 +1723,11 @@ class SceneDistiller:
             result = json.loads(text)
             if isinstance(result, list):
                 return result
+            if isinstance(result, dict):
+                for key in ("scenes", "items", "data"):
+                    value = result.get(key)
+                    if isinstance(value, list):
+                        return value
         except json.JSONDecodeError:
             pass
         # Try finding array in text
@@ -1710,6 +1740,150 @@ class SceneDistiller:
             except json.JSONDecodeError:
                 pass
         return []
+
+    @staticmethod
+    def _coerce_turn_number(value, default: int = 0) -> int:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, (list, tuple)):
+            first = value[0] if value else default
+            return SceneDistiller._coerce_turn_number(first, default=default)
+        raw = str(value or "")
+        if not raw.strip():
+            return default
+        raw = raw.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")).strip()
+        match = re.search(r"(?<!\d)(\d{1,5})(?!\d)", raw)
+        if not match:
+            return default
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _coerce_string_list(value) -> list[str]:
+        if isinstance(value, list):
+            return [
+                str(item).strip()
+                for item in value
+                if str(item).strip()
+            ]
+        if isinstance(value, str):
+            parts = re.split(r"[,/|]\s*|\n+", value)
+            return [part.strip() for part in parts if part.strip()]
+        return []
+
+    @staticmethod
+    def _coerce_dialogue_rows(value) -> list[dict]:
+        if isinstance(value, dict):
+            value = [value]
+        elif isinstance(value, str):
+            value = [value]
+        elif not isinstance(value, list):
+            return []
+
+        rows: list[dict] = []
+        for raw in value:
+            if isinstance(raw, dict):
+                speaker = str(raw.get("speaker", "") or raw.get("name", "")).strip() or "Unknown"
+                line = str(raw.get("line", "") or raw.get("content", "")).strip()
+            else:
+                text = str(raw or "").strip()
+                if not text:
+                    continue
+                match = re.match(r"^\s*([^:：]{1,40})\s*[:：]\s*(.+?)\s*$", text)
+                if match:
+                    speaker = match.group(1).strip() or "Unknown"
+                    line = match.group(2).strip()
+                else:
+                    speaker = "Unknown"
+                    line = text
+            if not line:
+                continue
+            rows.append({"speaker": speaker, "line": line})
+        return rows
+
+    def _normalize_scene_payload(self, raw_scene) -> dict:
+        if not isinstance(raw_scene, dict):
+            return {}
+        return {
+            "title": str(raw_scene.get("title", "")).strip(),
+            "turn_start": raw_scene.get("turn_start", 0),
+            "turn_end": raw_scene.get("turn_end", 0),
+            "turn_range": raw_scene.get("turn_range"),
+            "location": str(raw_scene.get("location", "")).strip(),
+            "characters": self._coerce_string_list(
+                raw_scene.get("characters", raw_scene.get("characters_present", []))
+            ),
+            "key_dialogue": self._coerce_dialogue_rows(raw_scene.get("key_dialogue", [])),
+            "key_actions": self._coerce_string_list(raw_scene.get("key_actions", [])),
+            "discoveries": self._coerce_string_list(raw_scene.get("discoveries", [])),
+            "emotional_arc": str(raw_scene.get("emotional_arc", "")).strip(),
+            "beat_refs": self._coerce_string_list(
+                raw_scene.get("beat_refs", raw_scene.get("beat_references", []))
+            ),
+            "summary": str(
+                raw_scene.get("summary", raw_scene.get("narrative_summary", ""))
+            ).strip(),
+            "pacing": str(raw_scene.get("pacing", "building")).strip() or "building",
+        }
+
+    def _coerce_scene_turn_range(
+        self,
+        payload: dict,
+        available_turns: list[int],
+        scene_index: int,
+        total_scenes: int,
+    ) -> tuple[int, int]:
+        fallback_start, fallback_end = self._fallback_scene_turn_range(
+            available_turns,
+            scene_index,
+            total_scenes,
+        )
+        raw_range = payload.get("turn_range")
+        if isinstance(raw_range, str) and raw_range.strip():
+            parts = re.findall(r"\d{1,5}", raw_range.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")))
+            raw_start = parts[0] if parts else payload.get("turn_start", fallback_start)
+            raw_end = parts[1] if len(parts) >= 2 else parts[0] if parts else payload.get("turn_end", fallback_end)
+        elif isinstance(raw_range, (list, tuple)) and raw_range:
+            raw_start = raw_range[0]
+            raw_end = raw_range[1] if len(raw_range) >= 2 else raw_range[0]
+        else:
+            raw_start = payload.get("turn_start", fallback_start)
+            raw_end = payload.get("turn_end", fallback_end)
+
+        start = self._coerce_turn_number(raw_start, default=fallback_start)
+        end = self._coerce_turn_number(raw_end, default=fallback_end)
+        if available_turns:
+            start = max(available_turns[0], min(available_turns[-1], start))
+            end = max(available_turns[0], min(available_turns[-1], end))
+        if start > end:
+            start, end = end, start
+        return start, end
+
+    def _fallback_scene_turn_range(
+        self,
+        available_turns: list[int],
+        scene_index: int,
+        total_scenes: int,
+    ) -> tuple[int, int]:
+        if not available_turns:
+            base = max(1, scene_index + 1)
+            return base, base
+        total = max(1, total_scenes)
+        start_idx = min(
+            len(available_turns) - 1,
+            (scene_index * len(available_turns)) // total,
+        )
+        end_idx = min(
+            len(available_turns) - 1,
+            max(start_idx, ((scene_index + 1) * len(available_turns) - 1) // total),
+        )
+        return available_turns[start_idx], available_turns[end_idx]
 
     @staticmethod
     def _dedupe_preserve_order(values: list[str]) -> list[str]:

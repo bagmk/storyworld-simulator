@@ -824,6 +824,12 @@ class DirectorAI:
                 "a plain consequence or immediate physical reaction, then force a decision, "
                 "interruption, or movement."
             )
+        if progress_signal["repeated_concern"]:
+            return (
+                "The exchange is revisiting the same leverage point. Do not restate it again. "
+                "Either close the scene now or make the next turn create a new consequence, "
+                "choice, interruption, or movement."
+            )
         if progress_signal["flat_tension"]:
             return (
                 "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "
@@ -1180,6 +1186,12 @@ class DirectorAI:
                 "12) Do not spend the next turn defining or interpreting the situation again. "
                 "Show pressure through visible reaction, interruption, gesture, movement, or a blunt choice.\n"
             )
+        repeated_concern_rule = ""
+        if progress_signal["repeated_concern"]:
+            repeated_concern_rule = (
+                "13) Recent turns are revisiting the same concern. Do not paraphrase it again; "
+                "either end the scene or force a new consequence, choice, interruption, or movement.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1203,6 +1215,7 @@ class DirectorAI:
             f"{jargon_reaction_rule}"
             f"{brevity_rule}"
             f"{show_dont_tell_rule}"
+            f"{repeated_concern_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1287,6 +1300,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to stop repeated technical explanation without new emotional turn"
+        elif progress_signal["repeated_concern"] and len(recent) >= 4:
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to stop revisiting the same concern without new consequence"
         elif progress_signal["flat_tension"] and (progress_signal["closure_ready"] or len(recent) >= 6):
             end_scene = True
             reason = (reason + "; " if reason else "") + \
@@ -1441,6 +1458,7 @@ class DirectorAI:
                 "technical_stall": False,
                 "flat_tension": False,
                 "explanation_loop": False,
+                "repeated_concern": False,
             }
 
         recent_speakers = [
@@ -1458,16 +1476,18 @@ class DirectorAI:
         technical_stall = self._has_repetitive_technical_exchange(recent)
         flat_tension = self._has_flat_tension_plateau(recent)
         explanation_loop = self._has_explanatory_loop(recent)
+        repeated_concern = self._has_repeated_core_concern_exchange(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
-        ) or technical_stall or flat_tension or explanation_loop
+        ) or technical_stall or flat_tension or explanation_loop or repeated_concern
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
             "technical_stall": technical_stall,
             "flat_tension": flat_tension,
             "explanation_loop": explanation_loop,
+            "repeated_concern": repeated_concern,
         }
 
     def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:
@@ -1509,6 +1529,26 @@ class DirectorAI:
             for i in recent_interactions[-3:]
         )
         return not emotion_or_action_shift
+
+    def _has_repeated_core_concern_exchange(self, recent_interactions: list[dict]) -> bool:
+        concern_signatures = [
+            self._progress_concern_signature(str(i.get("content", "")))
+            for i in recent_interactions[-4:]
+        ]
+        concern_signatures = [sig for sig in concern_signatures if sig]
+        if len(concern_signatures) < 2:
+            return False
+        overlap_pairs = sum(
+            1
+            for idx in range(1, len(concern_signatures))
+            if concern_signatures[idx] & concern_signatures[idx - 1]
+        )
+        if overlap_pairs < 2:
+            return False
+        return not any(
+            self._has_emotional_or_decisive_shift(str(i.get("content", "")))
+            for i in recent_interactions[-2:]
+        )
 
     def _has_flat_tension_plateau(self, recent_interactions: list[dict]) -> bool:
         if len(recent_interactions) < 4:
@@ -1583,6 +1623,24 @@ class DirectorAI:
         ):
             if term in low:
                 tokens.add(term)
+        return tokens
+
+    @staticmethod
+    def _progress_concern_signature(text: str) -> set[str]:
+        low = str(text or "").lower()
+        if not low.strip():
+            return set()
+        tokens: set[str] = set()
+        if re.search(r"(외부 지원|지원 구조|지원|후원|자원|예산|resource|support|funding)", low):
+            tokens.add("support")
+        if re.search(r"(실시간|real-time|latency|지연|보정|control loop|제어 루프|compensation)", low):
+            tokens.add("realtime")
+        if re.search(r"(통제|통제권|권한|주도권|authority|control)", low):
+            tokens.add("control")
+        if re.search(r"(책임|책임질|감시 한도|oversight|accountability|liability)", low):
+            tokens.add("responsibility")
+        if re.search(r"(위험|리스크|불안|압박|긴장|대가|후폭풍|부담)", low):
+            tokens.add("stakes")
         return tokens
 
     @staticmethod

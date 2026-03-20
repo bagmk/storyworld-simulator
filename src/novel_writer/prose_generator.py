@@ -512,8 +512,10 @@ class ProseGenerator:
             f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
+            f"- Once a fact, threat, or decision lands, the next sentence should show consequence, reaction, or movement instead of paraphrasing it.\n"
             f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
             f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
+            f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
@@ -761,10 +763,12 @@ class ProseGenerator:
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"Each paragraph should add one fresh observation, decision, or emotional turn instead of circling the same tension.\n"
+            f"After an important statement lands, move immediately to visible consequence, reaction, or movement instead of a second paraphrase.\n"
             f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
             f"After that explanation, move straight to reaction, emotion, or decision.\n"
             f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
+            f"If the focal subject changed, establish who acts first at the paragraph opening.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
         prompt += (
@@ -1688,8 +1692,13 @@ class ProseGenerator:
             low = block.lower()
             change_hits = len(re.findall(r"(결국|곧|바로|그때|마침내|곧장|이어|그러자|하지만|그 순간)", block))
             action_hits = len(re.findall(r"(움직|돌렸|건넸|밀었|열었|접었|멈췄|들었|내려놓|올려다|바뀌|흔들|숨을)", block))
-            repeat_hits = len(re.findall(r"(생각|계산|판단|설명|반복|다시)", low))
-            if change_hits == 0 and action_hits <= 1 and repeat_hits >= 2:
+            repeat_hits = len(re.findall(r"(생각|계산|판단|설명|반복|다시|정리하면|즉|의미는|뜻이었다)", low))
+            pressure_hits = len(re.findall(r"(정적|침묵|긴장|압박|불안|숨을 죽|시선이 멈|말끝이 무거|턱선이 굳)", low))
+            quote_hits = len(re.findall(r"[\"“][^\"”\n]{8,}[\"”]", block))
+            if change_hits == 0 and action_hits <= 1 and (repeat_hits >= 2 or pressure_hits >= 2):
+                static_blocks += 1
+                continue
+            if quote_hits >= 2 and change_hits == 0 and action_hits == 0 and repeat_hits >= 1:
                 static_blocks += 1
         return static_blocks >= 1
 

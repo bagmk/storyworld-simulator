@@ -30,6 +30,7 @@ The old generate_chapter.py (using novel_generator.py) still works for compariso
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -535,27 +536,103 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
     raw_list = json.loads(Path(path).read_text(encoding="utf-8"))
     scenes: list[DistilledScene] = []
     for item in raw_list:
-        turn_range = list(item.get("turn_range", [0, 0]))[:2]
-        if len(turn_range) < 2:
-            turn_range = (turn_range + [0, 0])[:2]
+        turn_range = _normalize_turn_range(item.get("turn_range", [0, 0]))
         scenes.append(
             DistilledScene(
-                scene_number=int(item.get("scene_number", 0)),
+                scene_number=_coerce_intish(item.get("scene_number", 0), default=len(scenes) + 1),
                 title=str(item.get("title", "")),
-                turn_range=(int(turn_range[0]), int(turn_range[1])),
+                turn_range=turn_range,
                 location=str(item.get("location", "")),
-                characters_present=list(item.get("characters_present", []) or []),
-                key_dialogue=list(item.get("key_dialogue", []) or []),
-                key_actions=list(item.get("key_actions", []) or []),
-                discoveries=list(item.get("discoveries", []) or []),
+                characters_present=_coerce_string_list(item.get("characters_present", [])),
+                key_dialogue=_coerce_dialogue_rows(item.get("key_dialogue", [])),
+                key_actions=_coerce_string_list(item.get("key_actions", [])),
+                discoveries=_coerce_string_list(item.get("discoveries", [])),
                 emotional_arc=str(item.get("emotional_arc", "")),
-                beat_references=list(item.get("beat_references", []) or []),
+                beat_references=_coerce_string_list(item.get("beat_references", [])),
                 narrative_summary=str(item.get("narrative_summary", "")),
                 pacing=str(item.get("pacing", "")),
-                raw_turn_count=int(item.get("raw_turn_count", 0)),
+                raw_turn_count=max(1, _coerce_intish(item.get("raw_turn_count", 0), default=1)),
             )
         )
     return scenes
+
+
+def _coerce_intish(value, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, (list, tuple)):
+        first = value[0] if value else default
+        return _coerce_intish(first, default=default)
+    raw = str(value or "")
+    if not raw.strip():
+        return default
+    raw = raw.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")).strip()
+    match = re.search(r"(?<!\d)(\d{1,5})(?!\d)", raw)
+    if not match:
+        return default
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_turn_range(raw_range) -> tuple[int, int]:
+    if isinstance(raw_range, str):
+        values = re.findall(
+            r"\d{1,5}",
+            raw_range.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")),
+        )[:2]
+    else:
+        values = list(raw_range)[:2] if isinstance(raw_range, (list, tuple)) else [raw_range]
+    if len(values) < 2:
+        fill = values[0] if values else 0
+        values = (values + [fill, fill])[:2]
+    start = _coerce_intish(values[0], default=0)
+    end = _coerce_intish(values[1], default=start)
+    return (start, end) if start <= end else (end, start)
+
+
+def _coerce_string_list(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        parts = re.split(r"[,/|]\s*|\n+", value)
+        return [part.strip() for part in parts if part.strip()]
+    return []
+
+
+def _coerce_dialogue_rows(value) -> list[dict]:
+    if isinstance(value, dict):
+        value = [value]
+    elif isinstance(value, str):
+        value = [value]
+    elif not isinstance(value, list):
+        return []
+
+    rows: list[dict] = []
+    for raw in value:
+        if isinstance(raw, dict):
+            speaker = str(raw.get("speaker", "") or raw.get("name", "")).strip() or "Unknown"
+            line = str(raw.get("line", "") or raw.get("content", "")).strip()
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            match = re.match(r"^\s*([^:：]{1,40})\s*[:：]\s*(.+?)\s*$", text)
+            if match:
+                speaker = match.group(1).strip() or "Unknown"
+                line = match.group(2).strip()
+            else:
+                speaker = "Unknown"
+                line = text
+        if not line:
+            continue
+        rows.append({"speaker": speaker, "line": line})
+    return rows
 
 
 def _log_sentence_pattern_warnings(
@@ -743,16 +820,33 @@ def main() -> None:
         )
     else:
         distill_start = datetime.utcnow()
-        scenes = distiller.distill(
-            episode_id=episode_id,
-            protagonist_id=args.protagonist,
-            target_scenes=target_scenes,
-        )
+        distill_fallback_used = False
+        try:
+            scenes = distiller.distill(
+                episode_id=episode_id,
+                protagonist_id=args.protagonist,
+                target_scenes=target_scenes,
+            )
+            if not scenes:
+                raise ValueError("scene distiller returned no scenes")
+        except Exception as exc:
+            logger.exception(
+                "Scene distillation failed for '%s'; falling back to deterministic chunking: %s",
+                episode_id,
+                exc,
+            )
+            pov = distiller._filter_perspective(interactions, args.protagonist)
+            beats = distiller._extract_beats()
+            scenes = distiller._fallback_chunk(pov, beats, target_scenes)
+            distill_fallback_used = True
+            if not scenes:
+                raise
         distill_elapsed = (datetime.utcnow() - distill_start).total_seconds()
 
         logger.info(
-            "Distilled %d turns into %d scenes (%.1fs)",
+            "Distilled %d turns into %d scenes (%.1fs%s)",
             len(interactions), len(scenes), distill_elapsed,
+            " | fallback chunking" if distill_fallback_used else "",
         )
     scenes = distiller.apply_scene_guards(scenes)
     for s in scenes:
