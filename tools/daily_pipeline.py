@@ -907,6 +907,92 @@ async def step_auto_improve_loop(
     return current_chapter
 
 
+# ── User choice helpers ───────────────────────────────────────────────────────
+
+def _parse_user_choice(text: str) -> str:
+    """'1/코드', '2/스토리', '3/다음' 중 하나를 반환."""
+    t = text.strip().lower()
+    if re.search(r"^1\b|코드|code|\.py|fixer", t):
+        return "code"
+    if re.search(r"^2\b|스토리|story|에피소드|config|yaml|야믈|캐릭터|플롯", t):
+        return "story"
+    if re.search(r"^3\b|다음|next|승인|좋아|ok|good|pass", t):
+        return "next"
+    return "other"
+
+
+def _build_story_fixer_prompt(episode_key: str, user_feedback: str) -> str:
+    ep_file = resolve_episode_file(episode_key)
+    return (
+        f"사용자 피드백을 바탕으로 에피소드 config를 수정하라.\n\n"
+        f"수정 대상 파일: {ep_file}\n\n"
+        f"사용자 피드백:\n{user_feedback}\n\n"
+        "규칙:\n"
+        "1. 해당 에피소드 YAML 파일만 수정하라\n"
+        "2. 다른 에피소드 파일과 .py 파일은 절대 건드리지 마라\n"
+        "3. scene_beats, characters, key_events, atmosphere 위주로 반영하라\n"
+        "4. 수정 내용을 한국어로 요약하라 (어떤 항목을 왜 바꿨는지)\n"
+        "5. 확인 질문 없이 바로 수정하라"
+    )
+
+
+async def _run_story_fixer(episode_key: str, user_feedback: str, run_dir: Path, fixer_cycle: int) -> tuple[bool, str]:
+    """Codex로 에피소드 YAML 수정. 성공 여부와 요약 반환."""
+    summary_path = run_dir / f"story_fixer_cycle{fixer_cycle}_summary.md"
+    prompt = _build_story_fixer_prompt(episode_key, user_feedback)
+    cmd = [
+        "codex", "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd", str(REPO_ROOT),
+        "-o", str(summary_path),
+        prompt,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, cwd=str(REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
+    except asyncio.TimeoutError:
+        proc.terminate()
+        return False, "Story fixer 타임아웃 (10분)"
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    if proc.returncode != 0:
+        return False, f"Codex 실패 (rc={proc.returncode})\n{output[-800:]}"
+    summary = summary_path.read_text(encoding="utf-8").strip() if summary_path.exists() else output[-1000:]
+    return True, summary
+
+
+async def _git_commit_story_fix(episode_key: str, summary: str) -> tuple[bool, str]:
+    """스토리 YAML 수정 후 git commit."""
+    ep_file = resolve_episode_file(episode_key)
+    proc_add = await asyncio.create_subprocess_exec(
+        "git", "add", str(ep_file), cwd=str(REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    await proc_add.wait()
+    proc_diff = await asyncio.create_subprocess_exec(
+        "git", "diff", "--cached", "--quiet", cwd=str(REPO_ROOT),
+    )
+    await proc_diff.wait()
+    if proc_diff.returncode == 0:
+        return False, "변경된 내용 없음"
+    commit_msg = (
+        f"auto: story config update — {episode_key}\n\n"
+        f"{summary[:200].replace(chr(10), ' ')}\n\n"
+        f"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+    )
+    proc_commit = await asyncio.create_subprocess_exec(
+        "git", "commit", "-m", commit_msg, cwd=str(REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc_commit.communicate()
+    out = stdout.decode("utf-8", errors="replace").strip() if stdout else ""
+    if proc_commit.returncode != 0:
+        return False, f"git commit 실패: {out}"
+    return True, out
+
+
 # ── Feedback wait ─────────────────────────────────────────────────────────────
 
 async def wait_for_feedback(
@@ -923,14 +1009,6 @@ async def wait_for_feedback(
     # 피드백 대기 시작 — 이제부터 채널 메시지를 피드백으로 받음
     if on_start_wait:
         on_start_wait()
-
-    if notify:
-        await notify(
-            f"{DAILY_TAG}[WAIT] ⏳ 피드백을 기다리고 있습니다. (최대 {timeout_hours:.0f}시간)\n"
-            "읽어보시고 자유롭게 피드백 남겨주세요.\n"
-            "'다음으로 가자' 또는 'next' → 다음 에피소드로 진행\n"
-            "`!stop` → 파이프라인 중단"
-        )
 
     timeout_sec = timeout_hours * 3600
 
@@ -1065,22 +1143,107 @@ async def run_daily_pipeline(
             )
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
-    # ── Step 5: Wait for feedback ──
+    # ── Step 5: 선택지 메뉴 ──
+    if notify:
+        await notify(
+            f"{DAILY_TAG}[CHOICE] 📋 **개선 방향을 선택해주세요.**\n\n"
+            "**1️⃣ 코드 수정** — Codex가 소설 생성 .py 파일을 자동 수정 후 챕터 재생성\n"
+            "**2️⃣ 스토리 수정** — 에피소드 config YAML을 Codex로 직접 수정\n"
+            "**3️⃣ 다음으로** — 이대로 승인하고 다음 화로\n\n"
+            "번호 + 구체적인 의견을 같이 적으면 더 잘 반영됩니다.\n"
+            "예: `1 대사가 너무 딱딱해` / `2 수민이 너무 수동적으로 나와`"
+        )
+    if set_status:
+        set_status("선택 대기 중 (1=코드 / 2=스토리 / 3=다음)")
+
+    if on_start_wait:
+        on_start_wait()
+
     raw_feedback = await wait_for_feedback(
         feedback_queue, feedback_timeout_hours, notify, stop_event,
-        on_start_wait=on_start_wait, on_end_wait=on_end_wait,
     )
+
+    if on_end_wait:
+        on_end_wait()
+
     if raw_feedback is None:
         if set_status:
-            set_status("완료 (피드백 없음)")
+            set_status("완료 (응답 없음)")
         if notify:
             await notify(
-                f"{DAILY_TAG}[DONE] ℹ️ 피드백이 없어 여기서 마무리했습니다.\n"
-                "원하면 나중에 다시 `!novel-daily <번호>`로 실행하거나, 새 피드백 기준으로 재시작하면 됩니다."
+                f"{DAILY_TAG}[DONE] ℹ️ 응답이 없어 여기서 마무리했습니다.\n"
+                "다시 실행하려면 `!novel-daily <번호>`"
             )
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
-    # ── Step 6: Parse feedback + update story_state ──
+    choice = _parse_user_choice(raw_feedback)
+
+    # ── Step 5a: 코드 수정 ──
+    if choice == "code":
+        if set_status:
+            set_status("코드 수정 중 (Codex)...")
+        if notify:
+            await notify(f"{DAILY_TAG}[CHOICE] 1️⃣ 코드 수정 선택 — Codex Fixer 실행 중...")
+
+        backup_dir = await asyncio.to_thread(_backup_target_files, run_dir, cycle)
+        if notify:
+            await notify(f"{DAILY_TAG}[CHOICE] 💾 이전 버전 백업 → `{backup_dir.name}/`")
+
+        # 사용자 피드백을 반영한 fixer prompt
+        user_issues = raw_feedback.strip()
+        fixer_prompt = (
+            f"사용자 피드백: {user_issues}\n\n" + _build_codex_fixer_prompt({
+                "what_felt_boring_or_hard": [user_issues],
+                "style_tips": [],
+                "reader_comment": user_issues,
+                "thrill_score_10": "?",
+                "style_score_10": "?",
+            })
+        )
+        ok, summary = await _run_codex_fixer(fixer_prompt, run_dir, cycle)
+        if ok:
+            if notify:
+                await notify(f"{DAILY_TAG}[CHOICE] ✅ 코드 수정 완료:\n{summary[:600]}")
+            committed, _ = await _git_commit_fixer_changes(cycle, episode_key, summary)
+            if committed and notify:
+                await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료")
+            # 챕터 재생성
+            if notify:
+                await notify(f"{DAILY_TAG}[CHOICE] 📖 수정된 코드로 챕터 재생성 중...")
+            new_chapter = await step_chapter_gen(
+                episode_key, run_dir, cycle, target_words, budget, protagonist,
+                notify=notify, upload=upload, set_status=set_status,
+                stop_event=stop_event, guardian_briefing_path=guardian_briefing_path,
+            )
+            if new_chapter:
+                chapter_path = new_chapter
+        else:
+            if notify:
+                await notify(f"{DAILY_TAG}[CHOICE] ❌ 코드 수정 실패: {summary}")
+
+    # ── Step 5b: 스토리 수정 ──
+    elif choice == "story":
+        if set_status:
+            set_status("스토리 수정 중 (Codex)...")
+        if notify:
+            await notify(f"{DAILY_TAG}[CHOICE] 2️⃣ 스토리 수정 선택 — 에피소드 YAML 수정 중...")
+
+        ok, summary = await _run_story_fixer(episode_key, raw_feedback, run_dir, cycle)
+        if ok:
+            if notify:
+                await notify(f"{DAILY_TAG}[CHOICE] ✅ 스토리 수정 완료:\n{summary[:600]}")
+            committed, _ = await _git_commit_story_fix(episode_key, summary)
+            if committed and notify:
+                await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료 — 다음 `!novel-daily`에 반영됩니다")
+        else:
+            if notify:
+                await notify(f"{DAILY_TAG}[CHOICE] ❌ 스토리 수정 실패: {summary}")
+
+    # ── Step 5c: 다음으로 / 기타 피드백 ──
+    else:
+        pass  # 아래 Step 6에서 처리
+
+    # ── Step 6: 피드백 파싱 + story_state 업데이트 ──
     if set_status:
         set_status("피드백 분석 중...")
     llm = LLMClient(
@@ -1091,27 +1254,30 @@ async def run_daily_pipeline(
         episode_data = (yaml.safe_load(f) or {}).get("episode", {})
 
     parsed = parse_feedback_with_llm(raw_feedback, episode_key, llm)
+    if choice == "next":
+        parsed["approved_next_episode"] = True
+    elif choice in ("code", "story"):
+        parsed["approved_next_episode"] = False
     update_story_state(STORY_STATE_PATH, episode_key, episode_data, parsed)
 
     approved = parsed.get("approved_next_episode", False)
     if set_status:
         set_status(f"완료 — {'승인됨' if approved else '재시도 예정'}")
     if notify:
+        choice_label = {"code": "코드 수정", "story": "스토리 수정", "next": "다음으로", "other": "피드백 저장"}.get(choice, "완료")
         if approved:
             await notify(
-                f"{DAILY_TAG}[DONE] ✅ 피드백 저장 완료. 다음 에피소드 승인됨.\n"
-                "이 에피소드는 여기서 마무리됐고, 다음엔 `!novel-daily <번호>`로 다음 화를 시작하면 됩니다."
+                f"{DAILY_TAG}[DONE] ✅ {choice_label} 완료. 다음 에피소드로 이동하려면: `!novel-daily <번호>`"
             )
         else:
             issues = parsed.get("specific_issues", [])
             issue_str = "\n".join(f"  - {i}" for i in issues) if issues else "  (코멘트 참조)"
             await notify(
-                f"{DAILY_TAG}[DONE] 📝 피드백 저장 완료. 다음 사이클에서 `{episode_key}` 재시도.\n"
-                f"개선 포인트:\n{issue_str}\n"
-                "지금은 여기서 멈추며, 같은 화를 다시 돌리려면 `!novel-daily <번호>`를 다시 실행하면 됩니다."
+                f"{DAILY_TAG}[DONE] 📝 {choice_label} 완료. 같은 화 재시도: `!novel-daily {episode_key}`\n"
+                f"개선 포인트:\n{issue_str}"
             )
 
-    return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": approved, "feedback": parsed}
+    return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": approved, "feedback": parsed, "choice": choice}
 
 
 def main() -> None:
