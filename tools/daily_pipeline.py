@@ -43,6 +43,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.novel_writer.env_loader import load_project_env
+from src.novel_writer import database as story_db
 from src.novel_writer.llm_client import LLMClient
 from tools.config_guardian import run_guardian
 from tools.quality_reviewer import (
@@ -55,6 +56,7 @@ from tools.quality_reviewer import (
 DATA_DIR = REPO_ROOT / "data"
 STORY_STATE_PATH = DATA_DIR / "story_state.json"
 PENDING_PATH = DATA_DIR / "pending_config_changes.json"
+EPISODE_ARCHIVE_DIR = DATA_DIR / "episode_archives"
 OUTPUT_DIR = REPO_ROOT / "output"
 
 DAILY_TAG = ""
@@ -415,6 +417,139 @@ def _allocate_daily_output_dir(episode_key: str) -> Path:
     run_dir = OUTPUT_DIR / "daily" / f"{now.strftime('%Y%m%d')}_{episode_key}" / now.strftime("%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
+
+
+def _episode_number_from_key(episode_key: str | None) -> int | None:
+    if not episode_key:
+        return None
+    match = re.match(r"^ep(\d+)(?:_|$)", str(episode_key).strip())
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _episode_sort_key(episode_key: str) -> tuple[int, str]:
+    episode_num = _episode_number_from_key(episode_key)
+    if episode_num is None:
+        return (10**9, str(episode_key))
+    return (episode_num, str(episode_key))
+
+
+def _story_state_keys_at_or_after(state: dict[str, Any], min_episode_number: int) -> list[str]:
+    episode_summaries = state.get("episode_summaries", {})
+    if not isinstance(episode_summaries, dict):
+        return []
+    found = [
+        str(key)
+        for key in episode_summaries.keys()
+        if (_episode_number_from_key(str(key)) or -1) >= min_episode_number
+    ]
+    return sorted(found, key=_episode_sort_key)
+
+
+def _reset_story_state_from_episode(
+    story_state_path: Path,
+    episode_key: str,
+    backup_dir: Path,
+) -> dict[str, Any]:
+    target_episode_number = _episode_number_from_key(episode_key)
+    state = _load_json(story_state_path)
+    if target_episode_number is None or not isinstance(state, dict):
+        return {
+            "changed": False,
+            "archive_path": None,
+            "removed_episode_keys": [],
+            "remaining_episode_keys": [],
+            "last_completed_episode": None,
+        }
+
+    episode_summaries = state.get("episode_summaries", {})
+    if not isinstance(episode_summaries, dict):
+        episode_summaries = {}
+
+    removed_episode_keys = _story_state_keys_at_or_after(state, target_episode_number)
+    removed_summaries = {
+        key: episode_summaries[key]
+        for key in removed_episode_keys
+        if key in episode_summaries
+    }
+    previous_last_completed = state.get("last_completed_episode")
+    previous_last_num = _episode_number_from_key(str(previous_last_completed or ""))
+
+    should_reset = bool(removed_episode_keys) or (
+        previous_last_num is not None and previous_last_num >= target_episode_number
+    )
+    if not should_reset:
+        return {
+            "changed": False,
+            "archive_path": None,
+            "removed_episode_keys": [],
+            "remaining_episode_keys": sorted(episode_summaries.keys(), key=_episode_sort_key),
+            "last_completed_episode": previous_last_completed,
+        }
+
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = backup_dir / "story_state_before_reset.json"
+    archive_path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    if removed_summaries:
+        (backup_dir / "story_state_removed_entries.json").write_text(
+            json.dumps(removed_summaries, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    remaining_summaries = {
+        key: value
+        for key, value in episode_summaries.items()
+        if key not in removed_summaries
+    }
+    remaining_episode_keys = sorted(remaining_summaries.keys(), key=_episode_sort_key)
+
+    state["episode_summaries"] = remaining_summaries
+    state["last_completed_episode"] = remaining_episode_keys[-1] if remaining_episode_keys else None
+    state["character_states"] = {}
+    state["active_clues"] = {}
+    state["arc_position"] = {}
+    _save_json(story_state_path, state)
+
+    return {
+        "changed": True,
+        "archive_path": str(archive_path),
+        "removed_episode_keys": removed_episode_keys,
+        "remaining_episode_keys": remaining_episode_keys,
+        "last_completed_episode": state["last_completed_episode"],
+    }
+
+
+def _prepare_episode_restart_state(
+    episode_key: str,
+    *,
+    story_state_path: Path = STORY_STATE_PATH,
+) -> dict[str, Any]:
+    backup_dir = EPISODE_ARCHIVE_DIR / (
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{episode_key}_reset"
+    )
+    db_result = story_db.archive_and_purge_episodes_from(episode_key, backup_dir)
+    state_result = _reset_story_state_from_episode(story_state_path, episode_key, backup_dir)
+
+    changed = bool(db_result.get("episode_ids")) or bool(state_result.get("changed"))
+    if not changed and backup_dir.exists():
+        try:
+            backup_dir.rmdir()
+        except OSError:
+            pass
+
+    return {
+        "changed": changed,
+        "backup_dir": str(backup_dir) if changed else None,
+        "db": db_result,
+        "story_state": state_result,
+    }
 
 
 def _get_cycle_number(episode_key: str) -> int:
@@ -2255,8 +2390,15 @@ async def step_auto_improve_loop(
                 if review_tier == "codex"
                 else _format_budget_line("AI 리뷰 비용", review_budget)
             )
+            _review_mood = (
+                "🏆" if avg >= score_threshold else
+                "🌟" if avg >= 7.5 else
+                "🎯" if avg >= 6.5 else
+                "🧪" if avg >= 5.5 else
+                "📉"
+            )
             await notify(
-                f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과 (사이클 {fixer_cycle})\n"
+                f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과 (사이클 {fixer_cycle}) {_review_mood}\n"
                 f"긴장감: {thrill}/10 | 문체: {style}/10 | 인과성: {causality}/10 | "
                 f"캐릭터: {character}/10 | 씬기능: {scene_fn}/10\n"
                 f"**평균: {avg:.1f}/10** | 목표: {score_threshold:.1f}/10"
@@ -2786,6 +2928,8 @@ async def run_daily_pipeline(
     ep_file = resolve_episode_file(episode_key)
     episode_key = ep_file.stem  # normalise to full key e.g. "ep01_academic_presentation"
 
+    reset_summary = _prepare_episode_restart_state(episode_key)
+
     cycle = _get_cycle_number(episode_key)
     run_dir = _allocate_daily_output_dir(episode_key)
     pipeline_start = time.monotonic()
@@ -2806,12 +2950,28 @@ async def run_daily_pipeline(
 
     if set_status:
         set_status(f"시작 — {episode_key} 사이클 {cycle}")
+    if reset_summary.get("changed"):
+        archived_episode_ids = reset_summary.get("db", {}).get("episode_ids", [])
+        removed_story_keys = reset_summary.get("story_state", {}).get("removed_episode_keys", [])
+        if notify:
+            await notify(f"{DAILY_TAG}[RESET] ♻️ `{episode_key}` 재생성을 위해 기존 데이터를 백업했습니다.")
+            thread_lines = [
+                f"백업 위치: `{Path(reset_summary['backup_dir']).relative_to(REPO_ROOT)}`",
+            ]
+            if archived_episode_ids:
+                thread_lines.append(
+                    "DB 아카이브: " + ", ".join(f"`{episode_id}`" for episode_id in archived_episode_ids)
+                )
+            if removed_story_keys:
+                thread_lines.append(
+                    "story_state 정리: " + ", ".join(f"`{key}`" for key in removed_story_keys)
+                )
+            await notify(f"{DAILY_TAG}[RESET] 🗂️ " + "\n".join(thread_lines))
     if notify:
         await notify(f"{DAILY_TAG}[START] 🎬 `{episode_key}` 파이프라인 시작 (사이클 {cycle})")
         await notify(
             f"{DAILY_TAG}[START] run: `{run_dir.relative_to(REPO_ROOT)}`\n"
-            f"리뷰 등급: `{review_tier}`\n"
-            "진행 상황: `!status` | 중단: `!stop`"
+            f"리뷰 등급: `{review_tier}`"
         )
 
     # ── Step 1: Config Guardian ──

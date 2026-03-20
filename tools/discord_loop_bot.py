@@ -49,6 +49,7 @@ CMD_REJECT = "!reject"
 CMD_STATUS = "!status"
 CMD_PIPELINE_STOP = "!stop"
 CMD_CHAPTER = "!chapter"
+CMD_BENCHMARK = "!benchmark"
 
 # Daily pipeline: per-channel state
 DAILY_FEEDBACK_QUEUES: dict[int, asyncio.Queue] = {}
@@ -447,14 +448,24 @@ async def _rest_send_text(channel_id: int, text: str, bot_token: str) -> None:
     async with aiohttp.ClientSession(connector=connector) as session:
         for i in range(0, len(content), limit):
             chunk = content[i:i + limit]
-            async with session.post(
-                f"https://discord.com/api/v10/channels/{channel_id}/messages",
-                headers=headers,
-                json={"content": chunk},
-            ) as resp:
-                if resp.status >= 300:
-                    body = await resp.text()
-                    raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
+            for attempt in range(3):
+                async with session.post(
+                    f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                    headers=headers,
+                    json={"content": chunk},
+                ) as resp:
+                    if resp.status == 429:
+                        try:
+                            data = await resp.json()
+                            retry_after = float(data.get("retry_after", 1.0))
+                        except Exception:
+                            retry_after = 1.0
+                        await asyncio.sleep(retry_after)
+                        continue
+                    if resp.status >= 300:
+                        body = await resp.text()
+                        raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
+                    break
 
 
 async def _rest_send_text_return_message_id(channel_id: int, text: str, bot_token: str) -> int | None:
@@ -465,20 +476,30 @@ async def _rest_send_text_return_message_id(channel_id: int, text: str, bot_toke
     ssl_context = ssl.create_default_context(cafile=certifi.where())
     connector = aiohttp.TCPConnector(ssl=ssl_context)
     async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.post(
-            f"https://discord.com/api/v10/channels/{channel_id}/messages",
-            headers=headers,
-            json={"content": content[:1900]},
-        ) as resp:
-            body = await resp.text()
-            if resp.status >= 300:
-                raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
-            try:
-                data = json.loads(body)
-                mid = data.get("id")
-                return int(mid) if mid else None
-            except Exception:
-                return None
+        for attempt in range(3):
+            async with session.post(
+                f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                headers=headers,
+                json={"content": content[:1900]},
+            ) as resp:
+                if resp.status == 429:
+                    try:
+                        data = await resp.json()
+                        retry_after = float(data.get("retry_after", 1.0))
+                    except Exception:
+                        retry_after = 1.0
+                    await asyncio.sleep(retry_after)
+                    continue
+                body = await resp.text()
+                if resp.status >= 300:
+                    raise RuntimeError(f"REST text send failed: {resp.status} {body[:240]}")
+                try:
+                    data = json.loads(body)
+                    mid = data.get("id")
+                    return int(mid) if mid else None
+                except Exception:
+                    return None
+    return None
 
 
 async def _rest_add_reaction(channel_id: int, message_id: int, emoji: str, bot_token: str) -> None:
@@ -583,6 +604,150 @@ async def _send_file_with_token(
         raise RuntimeError("required stage bot token is missing")
     await _send_file(channel, path, note)
 
+
+# ── Benchmark helpers ──────────────────────────────────────────────────────
+
+def _collect_benchmark_rows(ep_filter: str | None = None) -> list[dict]:
+    """Scan output/daily for all completed runs that have at least one review JSON."""
+    daily_dir = ROOT_OUTPUT_DIR / "daily"
+    rows: list[dict] = []
+    if not daily_dir.exists():
+        return rows
+
+    for ep_dir in sorted(daily_dir.iterdir(), key=lambda p: p.name):
+        if not ep_dir.is_dir():
+            continue
+        # ep_dir.name = "20260319_ep01_academic_presentation"
+        name_parts = ep_dir.name.split("_", 1)
+        if len(name_parts) < 2:
+            continue
+        date_str, ep_key = name_parts[0], name_parts[1]
+        if ep_filter and ep_filter.lower() not in ep_key.lower():
+            continue
+        try:
+            run_date = datetime.strptime(date_str, "%Y%m%d").strftime("%m-%d")
+        except Exception:
+            run_date = date_str
+
+        for run_dir in sorted(ep_dir.iterdir(), key=lambda p: p.name):
+            if not run_dir.is_dir():
+                continue
+            review_files = sorted(run_dir.glob("auto_review_cycle*.json"))
+            if not review_files:
+                continue
+            # Take last cycle's scores
+            try:
+                review_data = json.loads(review_files[-1].read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            thrill    = int(review_data.get("thrill_score_10", 0) or 0)
+            style     = int(review_data.get("style_score_10", 0) or 0)
+            causality = int(review_data.get("causality_score_10", 0) or 0)
+            character = int(review_data.get("character_score_10", 0) or 0)
+            scene_fn  = int(review_data.get("scene_function_score_10", 0) or 0)
+            avg = (thrill + style + causality + character + scene_fn) / 5.0
+
+            sim_files = list(run_dir.glob("*_simulation.json"))
+            total_turns: int | None = None
+            if sim_files:
+                try:
+                    sd = json.loads(sim_files[0].read_text(encoding="utf-8"))
+                    total_turns = sd.get("total_turns")
+                except Exception:
+                    pass
+
+            try:
+                ts = datetime.strptime(run_dir.name, "%H%M%S").strftime("%H:%M")
+            except Exception:
+                ts = run_dir.name
+
+            rows.append({
+                "ep_key":      ep_key,
+                "date":        run_date,
+                "time":        ts,
+                "thrill":      thrill,
+                "style":       style,
+                "causality":   causality,
+                "character":   character,
+                "scene_fn":    scene_fn,
+                "avg":         avg,
+                "cycles":      len(review_files),
+                "total_turns": total_turns,
+            })
+
+    return rows
+
+
+def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as mticker
+        import numpy as np
+    except ImportError:
+        return None
+
+    if not rows:
+        return None
+
+    xs = list(range(1, len(rows) + 1))
+    labels = [f"#{i}\n{r['date']}\n{r['time']}" for i, r in enumerate(rows, 1)]
+
+    thrill_v    = [r["thrill"]    for r in rows]
+    style_v     = [r["style"]     for r in rows]
+    causality_v = [r["causality"] for r in rows]
+    character_v = [r["character"] for r in rows]
+    scene_fn_v  = [r["scene_fn"]  for r in rows]
+    avg_v       = [r["avg"]       for r in rows]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"📊 Benchmark — {ep_key}  (총 {len(rows)}회)", fontsize=13, fontweight="bold")
+
+    # Left: score trend lines
+    ax = axes[0]
+    ax.set_title("점수 추이", fontsize=11)
+    score_series = [
+        (thrill_v,    "긴장감", "#e74c3c"),
+        (style_v,     "문체",   "#3498db"),
+        (causality_v, "인과성", "#2ecc71"),
+        (character_v, "캐릭터", "#f39c12"),
+        (scene_fn_v,  "씬기능", "#9b59b6"),
+    ]
+    for vals, label, color in score_series:
+        ax.plot(xs, vals, marker="o", linewidth=1.4, markersize=5, label=label, color=color, alpha=0.8)
+    ax.plot(xs, avg_v, marker="D", linewidth=2.5, markersize=6, label="평균", color="black")
+    ax.axhline(y=8.5, linestyle="--", linewidth=1, color="red", alpha=0.5, label="목표(8.5)")
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_ylim(0, 10.5)
+    ax.yaxis.set_major_locator(mticker.MultipleLocator(1))
+    ax.set_ylabel("점수 / 10")
+    ax.grid(axis="y", linestyle=":", alpha=0.5)
+    ax.legend(loc="lower right", fontsize=8, ncol=2)
+
+    # Right: avg bar chart colored by value
+    ax2 = axes[1]
+    ax2.set_title("평균 점수 (실행별)", fontsize=11)
+    bar_colors = ["#2ecc71" if v >= 8.5 else "#f39c12" if v >= 7.0 else "#e74c3c" for v in avg_v]
+    bars = ax2.bar(xs, avg_v, color=bar_colors, alpha=0.85, width=0.6)
+    ax2.axhline(y=8.5, linestyle="--", linewidth=1.2, color="red", alpha=0.6, label="목표(8.5)")
+    for bar, val in zip(bars, avg_v):
+        ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.15,
+                 f"{val:.1f}", ha="center", va="bottom", fontsize=8, fontweight="bold")
+    ax2.set_xticks(xs)
+    ax2.set_xticklabels(labels, fontsize=7)
+    ax2.set_ylim(0, 10.5)
+    ax2.yaxis.set_major_locator(mticker.MultipleLocator(1))
+    ax2.set_ylabel("평균 점수 / 10")
+    ax2.grid(axis="y", linestyle=":", alpha=0.5)
+    ax2.legend(fontsize=8)
+
+    plt.tight_layout()
+    out_path = ROOT_OUTPUT_DIR / "benchmark_chart.png"
+    fig.savefig(out_path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
 
 
 async def async_main() -> None:
@@ -778,6 +943,78 @@ async def async_main() -> None:
                 )
             return
 
+        # ── !benchmark ────────────────────────────────────────────────────────
+        if command == CMD_BENCHMARK:
+            ep_filter = arg_text.strip() or None
+            await _send_text_with_token(
+                message.channel, message.channel.id,
+                "🔍 벤치마크 데이터 수집 중...",
+                manager_bot_token,
+            )
+            rows = await asyncio.to_thread(_collect_benchmark_rows, ep_filter)
+            if not rows:
+                await _send_text_with_token(
+                    message.channel, message.channel.id,
+                    "⚠️ 완료된 파이프라인 실행 데이터가 없습니다 (auto_review_cycle*.json 파일 없음).",
+                    manager_bot_token,
+                )
+                return
+
+            # Group by episode key
+            from collections import defaultdict
+            grouped: dict[str, list[dict]] = defaultdict(list)
+            for r in rows:
+                grouped[r["ep_key"]].append(r)
+
+            for ep_key_name, ep_rows in grouped.items():
+                avgs = [r["avg"] for r in ep_rows]
+                best_i = avgs.index(max(avgs))
+                worst_i = avgs.index(min(avgs))
+                trend_arrow = "▲" if len(avgs) > 1 and avgs[-1] > avgs[0] else ("▼" if len(avgs) > 1 and avgs[-1] < avgs[0] else "─")
+
+                # Build text table
+                header = f"📊 **벤치마크 — {ep_key_name}**  ({len(ep_rows)}회 실행)\n"
+                sep = "─" * 64
+                col_hdr = f"{'#':>2}  {'날짜/시간':<12} {'긴장':>4} {'문체':>4} {'인과':>4} {'캐릭':>4} {'씬기':>4} {'평균':>5}  {'사이클':>4}"
+                lines = [header, f"```\n{sep}\n{col_hdr}\n{sep}"]
+                for i, r in enumerate(ep_rows, 1):
+                    marker = "★" if i - 1 == best_i else (" " if i - 1 != worst_i else "▽")
+                    lines.append(
+                        f"{i:>2}{marker} {r['date']}/{r['time']:<7} "
+                        f"{r['thrill']:>4} {r['style']:>4} {r['causality']:>4} "
+                        f"{r['character']:>4} {r['scene_fn']:>4} {r['avg']:>5.1f}  {r['cycles']:>4}"
+                    )
+                lines.append(sep)
+                lines.append(
+                    f"최고: {max(avgs):.1f}/10 (#{best_i+1})  "
+                    f"최저: {min(avgs):.1f}/10 (#{worst_i+1})  "
+                    f"추세: {avgs[0]:.1f}→{avgs[-1]:.1f} {trend_arrow}"
+                )
+                if len(avgs) > 1:
+                    delta = avgs[-1] - avgs[0]
+                    lines.append(f"총 변화: {delta:+.1f}점  평균 향상: {delta/(len(avgs)-1):+.2f}점/회")
+                lines.append("```")
+                table_text = "\n".join(lines)
+                await _send_text_with_token(
+                    message.channel, message.channel.id,
+                    table_text,
+                    manager_bot_token,
+                )
+
+                # Send chart
+                chart_path = await asyncio.to_thread(_build_benchmark_chart, ep_rows, ep_key_name)
+                if chart_path and chart_path.exists():
+                    try:
+                        await _send_file_with_token(
+                            message.channel, message.channel.id,
+                            chart_path, f"📈 점수 추이 차트 — {ep_key_name}",
+                            manager_bot_token,
+                        )
+                    except Exception:
+                        pass
+                    chart_path.unlink(missing_ok=True)
+            return
+
         # ── !novel-daily <episode_key> ─────────────────────────────────────────
         if command == CMD_DAILY:
             daily_args = arg_text.split()
@@ -892,6 +1129,7 @@ async def async_main() -> None:
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
                 "start": None,
+                "reset": None,
                 "guardian_rules": None,
                 "guardian_gpt": None,
                 "manager": None,
@@ -911,13 +1149,15 @@ async def async_main() -> None:
                     return manager_bot_token
                 if key in {"guardian_rules", "guardian_gpt", "review", "auto_review"}:
                     return reviewer_bot_token
-                if key in {"auto", "fixer", "yaml_fixer", "programmer"}:
+                if key in {"auto", "fixer", "yaml_fixer", "programmer", "reset"}:
                     return fixer_bot_token
                 return ""
 
             def _anchor_key_for_text(text: str) -> str | None:
                 if text.startswith(f"{DAILY_TAG}[START] 🎬 "):
                     return "start"
+                if text.startswith(f"{DAILY_TAG}[RESET] ♻️ "):
+                    return "reset"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중"):
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
@@ -949,10 +1189,10 @@ async def async_main() -> None:
                 return None
 
             def _thread_route_for_text(text: str) -> str | None:
-                if (
-                    text.startswith(f"{DAILY_TAG}[START] run:")
-                ):
+                if text.startswith(f"{DAILY_TAG}[START] run:"):
                     return "start"
+                if text.startswith(f"{DAILY_TAG}[RESET] 🗂️ "):
+                    return "reset"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] Config 규칙 검수 결과:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청"):
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
@@ -1010,12 +1250,15 @@ async def async_main() -> None:
                     keys.append("start")
                 if text.startswith(f"{DAILY_TAG}[DONE] "):
                     keys.append("choice")
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중") or text.startswith(f"{DAILY_TAG}[START] 🎬 "):
+                    keys.append("reset")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중"):
                     keys.append("start")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
                     keys.append("guardian_rules")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     keys.append("guardian_gpt")
+                    keys.append("guardian_rules")
                 if text.startswith(f"{DAILY_TAG}[MANAGER] 📋 매니저 지시사항:") or text.startswith(f"{DAILY_TAG}[MANAGER] ⚠️ 매니저 분석 실패"):
                     keys.append("manager")
                 if (
@@ -1141,7 +1384,7 @@ async def async_main() -> None:
                 ch_id,
                 f"▶️ `!novel-daily {episode_key}` 시작\n"
                 f"리뷰 등급: `{review_tier}`\n"
-                "진행 상황 확인: `!status` | 중단: `!stop`",
+                "확인: `!status` | 중단: `!stop` | 챕터: `!chapter` | 벤치마크: `!benchmark`",
                 manager_bot_token,
             )
 
