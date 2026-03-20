@@ -224,7 +224,7 @@ class SceneDistiller:
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
             f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise rewrite them as action or emotional consequence in the same sentence.\n"
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
-            f"17. If a technical term or acronym survives in the summary, pair it once with a short plain-language cue or an immediate human reaction.\n"
+            f"17. If a technical term or acronym survives in the summary, bracket it with easy Korean: add one short plain-language sentence right before or right after it, then show an immediate human reaction or consequence.\n"
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
@@ -405,6 +405,7 @@ class SceneDistiller:
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.narrative_summary = self._rebalance_narrative_summary(scene)
             scene.narrative_summary = self._soften_technical_summary(scene)
+            scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
                 canonical_speakers,
@@ -818,17 +819,20 @@ class SceneDistiller:
 
         rebuilt: list[str] = []
         added_reaction = False
+        buffer_added = False
         for sent in sentences:
             normalized = self._ensure_summary_sentence(sent)
             if not self._summary_is_jargon_heavy(sent) or self._summary_has_reaction_or_sensory(sent):
                 rebuilt.append(normalized)
                 continue
 
-            base = re.sub(r"[.!?…]+$", "", normalized).strip()
-            cue = self._plain_term_cue(sent)
-            if cue:
-                base = f"{base}, {cue}"
-            rebuilt.append(self._ensure_summary_sentence(base))
+            if self._summary_plain_buffer_enabled() and not buffer_added:
+                preface = self._summary_plain_preface(sent)
+                if preface:
+                    rebuilt.append(preface)
+                    buffer_added = True
+
+            rebuilt.append(normalized)
 
             if not added_reaction:
                 reaction = self._summary_reaction_tail(scene)
@@ -836,8 +840,40 @@ class SceneDistiller:
                     rebuilt.append(reaction)
                     added_reaction = True
 
-        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        max_sentences = 3 if buffer_added else (2 if self._reader_prefers_stronger_scene_compaction() else 3)
         return " ".join(rebuilt[:max_sentences]).strip()
+
+    def _summary_plain_buffer_enabled(self) -> bool:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return True
+        raw = constraints.get("jargon_buffer_sentences", 1)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            enabled = 1
+        return enabled >= 1
+
+    def _summary_plain_preface(self, sentence: str) -> str:
+        cue = self._plain_term_cue(sentence)
+        if cue:
+            plain = re.sub(r"^즉\s*", "쉽게 말해 ", cue).strip()
+            metaphor = self._plain_term_metaphor(sentence)
+            if metaphor and self._summary_easy_metaphor_enabled():
+                plain = f"{plain}, {metaphor}"
+            return self._ensure_summary_sentence(plain)
+        return self._ensure_summary_sentence("요지는 지금 바로 확인해야 할 문제가 드러났다는 뜻이었다")
+
+    def _summary_easy_metaphor_enabled(self) -> bool:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return True
+        raw = constraints.get("summary_easy_metaphor_once", 1)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            enabled = 1
+        return enabled >= 1
 
     @staticmethod
     def _summary_is_jargon_heavy(sentence: str) -> bool:
@@ -878,18 +914,80 @@ class SceneDistiller:
             return "숫자를 다시 맞춰야 한다는 뜻이었다"
         return ""
 
+    @staticmethod
+    def _plain_term_metaphor(sentence: str) -> str:
+        low = str(sentence or "").lower()
+        if "latency" in low or "지연" in low:
+            return "답이 반 박자 늦게 튀는 셈이었다"
+        if "coherence" in low or "결맞음" in low:
+            return "실 한 올이 풀리듯 계산의 결이 흐트러질 수 있었다"
+        if "drift" in low or "드리프트" in low or "편차" in low:
+            return "바늘이 조금씩 옆으로 밀리는 셈이었다"
+        if "qpu" in low or "양자 처리 칩" in low:
+            return "엔진칸이 흔들리면 장비 전체가 덜컹이는 것과 비슷했다"
+        if "protocol" in low or "프로토콜" in low:
+            return "정해 둔 비상 계단을 다시 밟는 셈이었다"
+        if "보정" in low or "오차" in low:
+            return "삐뚤어진 저울 눈금을 다시 맞추는 셈이었다"
+        return ""
+
     def _summary_reaction_tail(self, scene: DistilledScene) -> str:
         subject = scene.characters_present[0] if scene.characters_present else "인물들"
         emotional = str(scene.emotional_arc or "")
         if re.search(r"(불안|긴장|초조|압박)", emotional):
-            return self._ensure_summary_sentence(f"{subject}의 손끝이 먼저 굳었다")
+            return self._ensure_summary_sentence(f"{subject}의 말끝이 잠깐 무거워졌다")
         if re.search(r"(안도|진정|안정)", emotional):
             return self._ensure_summary_sentence(f"{subject}은 그제야 어깨 힘을 조금 풀었다")
         if re.search(r"(분노|짜증|격앙)", emotional):
             return self._ensure_summary_sentence(f"{subject}의 턱선이 눈에 띄게 굳었다")
         if re.search(r"(혼란|당황|망설임)", emotional):
             return self._ensure_summary_sentence(f"{subject}은 잠깐 답을 잇지 못했다")
-        return self._ensure_summary_sentence(f"{subject}은 반사적으로 시선을 들었다")
+        return self._ensure_summary_sentence(f"{subject}은 주변의 반응을 먼저 살폈다")
+
+    def _rebalance_summary_sentence_rhythm(self, summary: str) -> str:
+        sentences = [
+            self._ensure_summary_sentence(s)
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if len(sentences) < 3:
+            return summary
+
+        rebuilt = list(sentences)
+        idx = 1
+        while idx < len(rebuilt):
+            prev = rebuilt[idx - 1]
+            current = rebuilt[idx]
+            prev_words = self._summary_word_count(prev)
+            current_words = self._summary_word_count(current)
+            if abs(prev_words - current_words) <= 2:
+                merged = self._merge_summary_pair(prev, current)
+                if merged:
+                    rebuilt[idx - 1:idx + 1] = [merged]
+                    continue
+            idx += 1
+
+        max_sentences = 3 if len(rebuilt) >= 3 else len(rebuilt)
+        return " ".join(rebuilt[:max_sentences]).strip()
+
+    @staticmethod
+    def _summary_word_count(sentence: str) -> int:
+        return len(re.findall(r"[0-9A-Za-z가-힣]+", str(sentence or "")))
+
+    def _merge_summary_pair(self, left: str, right: str) -> str:
+        left_base = re.sub(r"[.!?…]+$", "", str(left or "").strip())
+        right_base = re.sub(r"[.!?…]+$", "", str(right or "").strip())
+        if not left_base or not right_base:
+            return ""
+        if self._dialogue_fingerprint(left_base) == self._dialogue_fingerprint(right_base):
+            return self._ensure_summary_sentence(left_base)
+        if self._summary_has_action_or_decision(left_base) and not self._summary_has_action_or_decision(right_base):
+            return self._ensure_summary_sentence(f"{left_base}, 그 여파로 {right_base}")
+        if not self._summary_has_action_or_decision(left_base) and self._summary_has_action_or_decision(right_base):
+            return self._ensure_summary_sentence(f"{left_base}, 그러자 {right_base}")
+        if self._summary_word_count(left_base) <= 8 and self._summary_word_count(right_base) <= 8:
+            return self._ensure_summary_sentence(f"{left_base}, 그러자 {right_base}")
+        return ""
 
     @staticmethod
     def _compress_beat_content(text: str, max_chars: int = 180) -> str:

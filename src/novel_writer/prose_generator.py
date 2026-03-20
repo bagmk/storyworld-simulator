@@ -159,6 +159,7 @@ class ProseGenerator:
         final = self._reduce_local_repetition(final)
         final = self._diversify_transition_openers(final)
         final = self._merge_clipped_sentence_runs(final)
+        final = self._stagger_sentence_rhythm(final)
         final = self._compress_redundant_jargon_sentences(final)
         final = self._enforce_sentence_word_caps(final, max_words=self._feedback_sentence_word_cap(default=25))
         final = self._insert_short_beats_after_long_streak(
@@ -1232,6 +1233,37 @@ class ProseGenerator:
         hi = max(lo, min(10, hi))
         return lo, hi
 
+    def _feedback_transition_opener_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_transition_openers_per_block", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(4, cap))
+
+    def _feedback_transition_avoid_terms(self) -> set[str]:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("avoid_transition_terms", [])
+        if isinstance(raw, str):
+            raw = [raw]
+        if not isinstance(raw, list):
+            return set()
+        return {
+            re.sub(r"\s+", " ", str(term or "")).strip().lower()
+            for term in raw
+            if str(term or "").strip()
+        }
+
+    def _feedback_sentence_variety_window(self, default: int = 4) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("sentence_variety_window", default)
+        try:
+            window = int(raw)
+        except (TypeError, ValueError):
+            window = default
+        return max(3, min(6, window))
+
     @staticmethod
     def _count_feedback_term_occurrences(text: str, term: str) -> int:
         return count_feedback_term_occurrences(text, term)
@@ -1372,32 +1404,34 @@ class ProseGenerator:
     @staticmethod
     def _sentence_leading_connector(sentence: str) -> str:
         cleaned = re.sub(r"^[\"“”'‘’\(\)\[\]\s]+", "", str(sentence or "").strip())
-        match = re.match(r"(그리고|그러자|다만|하지만|그러나|한편|곧이어|이어서)\b", cleaned)
+        match = re.match(r"(그리고|그러자|다만|하지만|그러나|한편|곧이어|이어서|그 순간)\b", cleaned)
         return match.group(1) if match else ""
 
     def _has_transition_opener_streak(self, text: str) -> bool:
+        cap = self._feedback_transition_opener_cap(default=2)
         connectors = [
             self._sentence_leading_connector(sent)
             for sent in self._split_korean_sentences(text)
         ]
-        connectors = [c for c in connectors if c in {"그리고", "그러자", "다만"}]
-        if len(connectors) < 3:
+        connectors = [c for c in connectors if c in {"그리고", "그러자", "다만", "이어서", "그 순간"}]
+        if len(connectors) < max(2, cap + 1):
             return False
         streak = 1
         for idx in range(1, len(connectors)):
             if connectors[idx] == connectors[idx - 1]:
                 streak += 1
-                if streak >= 2:
+                if streak >= cap + 1:
                     return True
             else:
                 streak = 1
-        return any(connectors.count(conn) >= 3 for conn in {"그리고", "그러자", "다만"})
+        return any(connectors.count(conn) >= cap + 1 for conn in {"그리고", "그러자", "다만", "이어서", "그 순간"})
 
     def detect_repetition_pattern_warnings(self, text: str) -> list[str]:
         if not text:
             return []
         warnings: list[str] = []
-        connector_counts: dict[str, int] = {"그리고": 0, "그러자": 0, "다만": 0}
+        cap = self._feedback_transition_opener_cap(default=2)
+        connector_counts: dict[str, int] = {"그리고": 0, "그러자": 0, "다만": 0, "이어서": 0, "그 순간": 0}
         for sent in self._split_korean_sentences(text):
             conn = self._sentence_leading_connector(sent)
             if conn in connector_counts:
@@ -1405,7 +1439,7 @@ class ProseGenerator:
         overused_connectors = [
             f"{conn} {count}회"
             for conn, count in connector_counts.items()
-            if count >= 3
+            if count >= cap + 1
         ]
         if overused_connectors:
             warnings.append("연결어 반복 감지: " + ", ".join(overused_connectors))
@@ -2016,13 +2050,9 @@ class ProseGenerator:
     def _diversify_transition_openers(self, text: str) -> str:
         if not text:
             return text
-        replacements = {
-            "그리고": ["이어서", "그 직후", "잠시 뒤", "한편"],
-            "그러자": ["그 순간", "곧이어", "그러는 사이", "그 말이 끝나자"],
-            "다만": ["대신", "문제는", "한편", "그래도"],
-        }
+        cap = self._feedback_transition_opener_cap(default=2)
+        avoid_terms = self._feedback_transition_avoid_terms()
         out_blocks: list[str] = []
-        swap_index = {key: 0 for key in replacements}
         for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
             sentences = self._split_korean_sentences(block)
             if not sentences:
@@ -2030,28 +2060,79 @@ class ProseGenerator:
                 continue
             rebuilt: list[str] = []
             recent_connectors: list[str] = []
+            connector_counts: dict[str, int] = {}
             for sent in sentences:
                 connector = self._sentence_leading_connector(sent)
-                needs_swap = connector in replacements and (
-                    recent_connectors.count(connector) >= 1
-                    or (recent_connectors and recent_connectors[-1] in replacements)
+                connector_key = connector.lower()
+                needs_swap = bool(connector) and (
+                    connector_key in avoid_terms
+                    or connector_counts.get(connector_key, 0) >= cap
+                    or (recent_connectors and recent_connectors[-1] == connector_key)
                 )
                 if needs_swap:
-                    options = replacements[connector]
-                    replacement = options[swap_index[connector] % len(options)]
-                    swap_index[connector] += 1
-                    sent = re.sub(
-                        rf"^([\"“”'‘’\(\)\[\]\s]*){connector}\s*,?\s*",
-                        rf"\1{replacement} ",
-                        sent.strip(),
-                        count=1,
-                    ).strip()
+                    replacement = self._pick_transition_replacement(
+                        connector,
+                        recent_connectors,
+                        connector_counts,
+                    )
+                    if replacement:
+                        pattern = re.escape(connector)
+                        sent = re.sub(
+                            rf"^([\"“”'‘’\(\)\[\]\s]*){pattern}\s*,?\s*",
+                            rf"\1{replacement} ",
+                            sent.strip(),
+                            count=1,
+                        ).strip()
+                        connector = replacement
+                        connector_key = connector.lower()
                 rebuilt.append(sent)
-                recent_connectors.append(self._sentence_leading_connector(sent))
-                if len(recent_connectors) > 2:
-                    recent_connectors.pop(0)
+                if connector_key:
+                    connector_counts[connector_key] = connector_counts.get(connector_key, 0) + 1
+                    recent_connectors.append(connector_key)
+                    if len(recent_connectors) > 2:
+                        recent_connectors.pop(0)
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(out_blocks)
+
+    @staticmethod
+    def _transition_replacement_catalog() -> dict[str, list[str]]:
+        return {
+            "그리고": ["그러자", "그 직후", "잠시 뒤", "한편"],
+            "그러자": ["그리고", "그러는 사이", "그 말이 끝나자", "곧바로"],
+            "다만": ["대신", "문제는", "그래도", "한편"],
+            "이어서": ["그리고", "그 직후", "그러는 사이", "곧바로"],
+            "그 순간": ["그러자", "바로 그때", "그 말이 끝나자", "순간적으로"],
+        }
+
+    def _pick_transition_replacement(
+        self,
+        connector: str,
+        recent_connectors: list[str],
+        connector_counts: dict[str, int],
+    ) -> str:
+        options = self._transition_replacement_catalog().get(str(connector or "").strip(), [])
+        if not options:
+            return ""
+        avoid_terms = self._feedback_transition_avoid_terms()
+        cap = self._feedback_transition_opener_cap(default=2)
+        recent_last = recent_connectors[-1] if recent_connectors else ""
+        for candidate in options:
+            key = candidate.lower()
+            if key in avoid_terms:
+                continue
+            if key == recent_last:
+                continue
+            if connector_counts.get(key, 0) >= cap:
+                continue
+            return candidate
+        for candidate in options:
+            key = candidate.lower()
+            if key in avoid_terms:
+                continue
+            if key == recent_last:
+                continue
+            return candidate
+        return ""
 
     def _merge_clipped_sentence_runs(self, text: str) -> str:
         """
@@ -2104,13 +2185,17 @@ class ProseGenerator:
             return False
         return True
 
-    @staticmethod
-    def _combine_clipped_sentence_run(sentences: list[str]) -> str:
+    def _combine_clipped_sentence_run(self, sentences: list[str]) -> str:
         if not sentences:
             return ""
         if len(sentences) == 1:
             return sentences[0]
-        connectors = ["이어서", "그 순간", "한 박자 늦게"]
+        connectors = [
+            conn for conn in ["그리고", "그러자", "그러는 사이", "그 직후"]
+            if conn.lower() not in self._feedback_transition_avoid_terms()
+        ]
+        if not connectors:
+            connectors = ["그리고", "그러자"]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
@@ -2119,6 +2204,59 @@ class ProseGenerator:
             connector = connectors[(idx - 1) % len(connectors)]
             combined = f"{combined}, {connector} {cleaned}"
         return combined.strip(" ,") + "."
+
+    @staticmethod
+    def _sentence_length_band(sentence: str) -> str:
+        wc = ProseGenerator._sentence_word_count(sentence)
+        if wc <= 6:
+            return "short"
+        if wc <= 16:
+            return "medium"
+        return "long"
+
+    def _stagger_sentence_rhythm(self, text: str) -> str:
+        """
+        Break up repeated short/long runs so scene cadence does not lock into
+        the same beat length for too many sentences in a row.
+        """
+        if not text:
+            return text
+
+        window = self._feedback_sentence_variety_window(default=4)
+        split_cap = max(14, self._feedback_sentence_word_cap(default=25) - 4)
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < window:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            for sent in sentences:
+                rebuilt.append(sent.strip())
+                if len(rebuilt) < window:
+                    continue
+                recent = rebuilt[-window:]
+                bands = [self._sentence_length_band(item) for item in recent]
+                if len(set(bands)) != 1:
+                    continue
+                band = bands[-1]
+                if band == "short":
+                    left = rebuilt[-2]
+                    right = rebuilt[-1]
+                    if self._is_mergeable_clipped_sentence(left) and self._is_mergeable_clipped_sentence(right):
+                        rebuilt = rebuilt[:-2] + [self._combine_clipped_sentence_run([left, right])]
+                elif band == "long":
+                    split = self._split_sentence_by_word_cap(rebuilt[-1], max_words=split_cap)
+                    if len(split) > 1:
+                        rebuilt = rebuilt[:-1] + split
+
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _compress_redundant_jargon_sentences(self, text: str) -> str:
         """

@@ -472,6 +472,19 @@ class DirectorAI:
         lowered = [str(k).lower() for k in keywords if k]
         return any(k in all_text for k in lowered)
 
+    def _feedback_style_constraints(self) -> dict:
+        raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        return raw if isinstance(raw, dict) else {}
+
+    def _feedback_tension_phrase_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("tension_phrase_cap", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(4, cap))
+
     # ------------------------------------------------------------------ #
     # 5. Resolution Validation
     # ------------------------------------------------------------------ #
@@ -634,7 +647,8 @@ class DirectorAI:
             return (
                 "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "
                 "brief human reaction, uneasy silence, dry aside, or small physical movement, "
-                "then sharpen the next question or choice."
+                "then sharpen the next question or choice. Reserve clipped hard-stop lines for "
+                "real reveals, choices, or scene exits."
             )
         if progress_signal["stalled"]:
             return (
@@ -974,7 +988,8 @@ class DirectorAI:
             f"when other active speakers are available.\n"
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
-            f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}\n"
+            f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
+            f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -987,6 +1002,10 @@ class DirectorAI:
             prompt += (
                 "\nReader priority: do not spend another turn unpacking terminology unless the plot truly requires it; "
                 "prefer visible reaction, choice, or interruption."
+            )
+        if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
+            prompt += (
+                "\nReader priority: if recent turns keep ending on similar sharp lines, end the scene or pivot to a calmer human reaction before escalating again."
             )
 
         result = self._safe_llm_call(
@@ -1038,6 +1057,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to stop repeated technical explanation without new emotional turn"
+        elif progress_signal["flat_tension"] and (progress_signal["closure_ready"] or len(recent) >= 6):
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to keep repeated tension beats from flattening out"
         elif (
             progress_signal["stalled"]
             and len(recent) >= 5
@@ -1178,7 +1201,7 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip() != "director"
         ][-5:]
         if len(recent) < 4:
-            return {"stalled": False, "closure_ready": False, "technical_stall": False}
+            return {"stalled": False, "closure_ready": False, "technical_stall": False, "flat_tension": False}
 
         recent_speakers = [
             str(i.get("speaker_id", "")).strip()
@@ -1238,6 +1261,7 @@ class DirectorAI:
         pressure_hits = 0
         relief_hits = 0
         decisive_hits = 0
+        tail_fingerprints: list[str] = []
         for row in recent:
             text = str(row.get("content", ""))
             if re.search(r"(긴장|압박|침묵|정적|날카|차갑|굳었|버텼|몰아붙|목소리를 낮추|숨을 죽였)", text):
@@ -1246,7 +1270,28 @@ class DirectorAI:
                 relief_hits += 1
             if re.search(r"(결정|선택|드러났|밝혀졌|확인됐|거절|수락|합의|결론)", text):
                 decisive_hits += 1
-        return pressure_hits >= 3 and relief_hits == 0 and decisive_hits == 0
+            fingerprint = self._content_tail_fingerprint(text)
+            if fingerprint:
+                tail_fingerprints.append(fingerprint)
+        tension_cap = self._feedback_tension_phrase_cap(default=2)
+        repeated_tail = bool(tail_fingerprints) and (
+            len(set(tail_fingerprints)) <= max(1, len(tail_fingerprints) - 2)
+        )
+        return (
+            pressure_hits >= max(2, tension_cap + 1)
+            and relief_hits == 0
+            and decisive_hits == 0
+            and repeated_tail
+        )
+
+    @staticmethod
+    def _content_tail_fingerprint(text: str) -> str:
+        cleaned = re.sub(r"[^0-9a-zA-Z가-힣\s]", " ", str(text or "").lower())
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        tokens = [tok for tok in cleaned.split() if len(tok) >= 2]
+        if not tokens:
+            return ""
+        return " ".join(tokens[-2:])
 
     @staticmethod
     def _technical_term_signature(text: str) -> set[str]:
