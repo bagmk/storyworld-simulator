@@ -44,6 +44,8 @@ if "SSL_CERT_FILE" not in os.environ:
 
 from src.novel_writer.env_loader import load_project_env
 from src.novel_writer.llm_client import LLMClient
+from tools.daily_pipeline import run_daily_pipeline
+from tools.config_guardian import _assert_not_locked
 
 
 ROOT_OUTPUT_DIR = REPO_ROOT / "output"
@@ -54,12 +56,19 @@ SIM_DONE_TAG = "[NOVEL_LOOP][SIM_DONE]"
 REVIEW_DONE_TAG = "[NOVEL_LOOP][REVIEW_DONE]"
 FIX_DONE_TAG = "[NOVEL_LOOP][FIX_DONE]"
 RUN_END_TAG = "[NOVEL_LOOP][RUN_END]"
+DAILY_TAG = "[DAILY]"
 
 CMD_START = "!novel-loop"
 CMD_RESET = "!novel-loop-reset"
 CMD_REVIEW = "!novel-review"
 CMD_FIX = "!novel-fix"
 CMD_STOP = "!novel-stop"
+CMD_MEITNER = "!meitner"
+CMD_DAILY = "!novel-daily"
+CMD_APPROVE = "!approve"
+CMD_REJECT = "!reject"
+CMD_STATUS = "!status"
+CMD_PIPELINE_STOP = "!stop"
 
 PROTECTED_FIXER_RULE_FILES: dict[str, list[str]] = {
     "src/novel_writer/prose_generator.py": [
@@ -72,6 +81,12 @@ PROTECTED_FIXER_RULE_FILES: dict[str, list[str]] = {
 STOP_REQUESTED_CHANNELS: set[int] = set()
 FIXER_APPLY_LOCK = asyncio.Lock()
 
+# Daily pipeline: per-channel state
+DAILY_FEEDBACK_QUEUES: dict[int, asyncio.Queue] = {}
+DAILY_STOP_EVENTS: dict[int, asyncio.Event] = {}
+DAILY_STATUS: dict[int, str] = {}           # channel_id → current status string
+DAILY_WAITING_FEEDBACK: set[int] = set()   # 스코어카드 이후 피드백 대기 중인 채널만 등록
+
 
 def _request_stop(channel_id: int) -> None:
     STOP_REQUESTED_CHANNELS.add(int(channel_id))
@@ -83,6 +98,133 @@ def _clear_stop(channel_id: int) -> None:
 
 def _is_stop_requested(channel_id: int) -> bool:
     return int(channel_id) in STOP_REQUESTED_CHANNELS
+
+
+def _top_level_repo_snapshot() -> str:
+    lines: list[str] = []
+    for path in sorted(REPO_ROOT.iterdir(), key=lambda p: p.name.lower()):
+        if path.name.startswith("."):
+            continue
+        kind = "dir" if path.is_dir() else "file"
+        lines.append(f"- {path.name} ({kind})")
+    return "\n".join(lines[:40])
+
+
+def _repo_file_inventory(limit: int = 220) -> str:
+    rc, out, _ = _run_cmd(
+        ["rg", "--files", "README.md", "src", "tools", "config", "tests"],
+        timeout_sec=20,
+    )
+    if rc != 0:
+        return ""
+    files = [line.strip() for line in out.splitlines() if line.strip()]
+    return "\n".join(files[:limit])
+
+
+def _extract_repo_search_terms(question: str, limit: int = 6) -> list[str]:
+    raw_terms = re.findall(r"[A-Za-z0-9_./-]{2,}|[가-힣]{2,}", question or "")
+    stopwords = {
+        "the", "and", "for", "with", "from", "that", "this", "what", "where", "when", "how",
+        "can", "does", "repo", "repository", "code", "file", "files", "function", "functions",
+        "please", "about", "into", "have", "show", "tell", "there", "them", "they",
+        "지금", "이거", "그거", "저거", "어디", "무엇", "뭐", "어떻게", "가능", "있니", "있어",
+        "파일", "코드", "저장소", "리포", "함수", "구조", "설명", "연결", "대화",
+    }
+    seen: set[str] = set()
+    terms: list[str] = []
+    for term in raw_terms:
+        normalized = term.strip().lower()
+        if len(normalized) < 2 or normalized in stopwords:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        terms.append(term.strip())
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _repo_search_excerpt(question: str, max_lines: int = 120) -> str:
+    terms = _extract_repo_search_terms(question)
+    if not terms:
+        return ""
+    cmd = ["rg", "-n", "-S"]
+    for term in terms:
+        cmd.extend(["-e", term])
+    cmd.extend(["README.md", "src", "tools", "config", "tests"])
+    rc, out, err = _run_cmd(cmd, timeout_sec=25)
+    if rc not in (0, 1):
+        return f"(search failed: {err[:240]})"
+    matches = [line for line in out.splitlines() if line.strip()]
+    return "\n".join(matches[:max_lines])
+
+
+def _read_repo_reference_snippets() -> str:
+    snippets: list[str] = []
+    references = [
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "tools" / "discord_loop_bot.py",
+        REPO_ROOT / "src" / "novel_writer" / "scene_distiller.py",
+    ]
+    for path in references:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")[:3000].strip()
+        if not text:
+            continue
+        rel = path.relative_to(REPO_ROOT)
+        snippets.append(f"## {rel}\n{text}")
+    return "\n\n".join(snippets)
+
+
+def _build_meitner_prompt(question: str) -> str:
+    repo_map = _top_level_repo_snapshot()
+    inventory = _repo_file_inventory()
+    search_excerpt = _repo_search_excerpt(question)
+    references = _read_repo_reference_snippets()
+    return (
+        "User question:\n"
+        f"{question.strip()}\n\n"
+        "Top-level repo snapshot:\n"
+        f"{repo_map or '(unavailable)'}\n\n"
+        "File inventory:\n"
+        f"{inventory or '(unavailable)'}\n\n"
+        "Search results:\n"
+        f"{search_excerpt or '(no targeted matches)'}\n\n"
+        "Reference snippets:\n"
+        f"{references or '(unavailable)'}\n"
+    )
+
+
+async def run_meitner_agent(
+    channel: discord.abc.Messageable,
+    question: str,
+    channel_id: int,
+    bot_token: str,
+) -> None:
+    prompt = _build_meitner_prompt(question)
+    llm = LLMClient(
+        model="gpt-4o-mini",
+        premium_model="gpt-5-mini",
+        budget_usd=2.0,
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
+    )
+    system = (
+        "You are Meitner, a repository explorer for this Novel Writer codebase. "
+        "Answer only from the provided repository context. If context is insufficient, say so clearly. "
+        "Keep answers concise, practical, and cite concrete repo paths in backticks."
+    )
+    answer = await asyncio.to_thread(
+        llm.chat,
+        [{"role": "user", "content": prompt}],
+        system,
+        True,
+        "discord_meitner",
+        None,
+        1000,
+    )
+    await _send_text_with_token(channel, channel_id, answer, bot_token, required=False)
 
 
 @dataclass
@@ -294,6 +436,14 @@ def _extract_episode_meta(episode_file: Path) -> tuple[str, str]:
 
 
 def _resolve_episode_file(episode_key: str) -> Path:
+    # Allow bare number: "1" → ep01_..., "15" → ep15_...
+    if episode_key.isdigit():
+        padded = f"ep{int(episode_key):02d}"
+        matches = sorted(CONFIG_EP_DIR.glob(f"{padded}_*.yaml"))
+        if matches:
+            return matches[0]
+        raise FileNotFoundError(f"에피소드 {episode_key}화에 해당하는 파일 없음 (찾은 패턴: {padded}_*.yaml)")
+
     candidate = Path(episode_key)
     if candidate.exists():
         return candidate.resolve()
@@ -716,6 +866,8 @@ def _build_fix_cmd_parser() -> argparse.ArgumentParser:
 
 def _infer_episode_id_from_chapter_name(chapter_name: str) -> str:
     name = chapter_name
+    if name.endswith("_chapter.txt"):
+        return name[:-len("_chapter.txt")]
     if name.endswith("_chapter.md"):
         return name[:-len("_chapter.md")]
     if name.endswith(".md"):
@@ -733,15 +885,17 @@ def _resolve_review_target(target: str, episode_id_override: str = "") -> tuple[
         run_dir = p.parent
     elif p.is_dir():
         if episode_id_override:
-            candidate = p / f"{episode_id_override}_chapter.md"
+            candidate = p / f"{episode_id_override}_chapter.txt"
+            if not candidate.exists():
+                candidate = p / f"{episode_id_override}_chapter.md"
             if candidate.exists():
                 chapter_path = candidate
             else:
-                chapter_path = _find_latest(p, "*_chapter.md")
+                chapter_path = _find_latest(p, "*_chapter.txt") or _find_latest(p, "*_chapter.md")
         else:
-            chapter_path = _find_latest(p, "*_chapter.md")
+            chapter_path = _find_latest(p, "*_chapter.txt") or _find_latest(p, "*_chapter.md")
         if chapter_path is None:
-            raise FileNotFoundError(f"No chapter md found in {p}")
+            raise FileNotFoundError(f"No chapter file found in {p}")
         run_dir = p
     else:
         raise FileNotFoundError(f"Target not found: {p}")
@@ -806,6 +960,54 @@ async def _send_text(channel: discord.abc.Messageable, text: str) -> None:
     limit = 1900
     for i in range(0, len(content), limit):
         await channel.send(content[i:i + limit])
+
+
+async def _send_text_reply(
+    channel: discord.abc.Messageable,
+    parent_message: discord.Message,
+    text: str,
+) -> None:
+    content = (text or "").strip()
+    if not content:
+        return
+    limit = 1900
+    ref = parent_message.to_reference(fail_if_not_exists=False)
+    for i in range(0, len(content), limit):
+        await channel.send(
+            content[i:i + limit],
+            reference=ref,
+            mention_author=False,
+        )
+
+
+async def _send_text_in_thread(
+    thread: discord.abc.Messageable,
+    text: str,
+) -> None:
+    content = (text or "").strip()
+    if not content:
+        return
+    limit = 1900
+    for i in range(0, len(content), limit):
+        await thread.send(content[i:i + limit])
+
+
+async def _add_reaction_safe(message: discord.Message | None, emoji: str) -> None:
+    if message is None:
+        return
+    try:
+        await message.add_reaction(emoji)
+    except Exception:
+        pass
+
+
+def _is_daily_report_text(text: str) -> bool:
+    markers = (
+        "[DAILY][GUARDIAN] Config 규칙 검수 결과:",
+        "[DAILY][GUARDIAN] 🧠 GPT 분석 리포트:",
+        "[DAILY][REVIEW] ✅ 자동 검수 완료",
+    )
+    return any(marker in (text or "") for marker in markers)
 
 
 async def _rest_send_text(channel_id: int, text: str, bot_token: str) -> None:
@@ -1069,15 +1271,16 @@ async def run_simulator_agent(channel: discord.abc.Messageable, job: JobConfig, 
         await _send_text(channel, f"{sim_tag} 챕터 생성 실패\n```{err2[-1500:]}```")
         return False, {}
 
-    chapter = run_dir / f"{episode_id}_chapter.md"
+    chapter = run_dir / f"{episode_id}_chapter.txt"
     if not chapter.exists():
-        chapter = _find_latest(run_dir, f"{episode_id}*chapter.md")
+        chapter = _find_latest(run_dir, f"{episode_id}*chapter.txt") \
+               or _find_latest(run_dir, f"{episode_id}*chapter.md")
     if chapter is None:
         await channel.send(f"{sim_tag} 챕터 파일을 찾지 못했습니다.")
         return False, {}
 
     # Keep a per-cycle chapter snapshot so chapters are not overwritten in-place.
-    cycle_chapter = run_dir / f"{episode_id}_cycle{cycle}_chapter.md"
+    cycle_chapter = run_dir / f"{episode_id}_cycle{cycle}_chapter.txt"
     try:
         shutil.copyfile(chapter, cycle_chapter)
     except Exception:
@@ -1544,6 +1747,9 @@ async def async_main() -> None:
         raise RuntimeError("Set DISCORD_BOT_TOKEN in .env")
     _resolve_openai_api_key()
     reviewer_bot_token, fixer_bot_token, manager_bot_token = _resolve_stage_bot_tokens()
+    reviewer_bot_token = reviewer_bot_token or token
+    fixer_bot_token = fixer_bot_token or token
+    manager_bot_token = manager_bot_token or token
 
     intents = discord.Intents.default()
     intents.message_content = True
@@ -1564,23 +1770,409 @@ async def async_main() -> None:
             return
 
         content = (message.content or "").strip()
+        if not content:
+            return
 
-        if content.startswith(CMD_RESET):
+        parts = content.split(None, 1)
+        command = parts[0].lower()
+        arg_text = parts[1].strip() if len(parts) > 1 else ""
+
+        if command == CMD_RESET:
             if STATE_FILE.exists():
                 STATE_FILE.unlink()
             await message.channel.send("상태 파일 삭제 완료: `data/discord_loop_state.json`")
             return
 
-        if content.startswith(CMD_STOP):
+        if command == CMD_STOP:
             _request_stop(message.channel.id)
-            await message.channel.send(
+            await _send_text_with_token(
+                message.channel,
+                message.channel.id,
                 f"중지 요청 수신: {CMD_STOP}\n"
-                "현재 실행 중인 단계가 정리되는 즉시 루프를 멈춥니다."
+                "현재 실행 중인 단계가 정리되는 즉시 루프를 멈춥니다.",
+                reviewer_bot_token,
             )
             return
 
-        if content.startswith(CMD_REVIEW):
-            argv = shlex.split(content[len(CMD_REVIEW):].strip())
+        if command == CMD_MEITNER:
+            question = arg_text
+            if not question:
+                await message.channel.send("사용법: !meitner <repo에 대해 물어볼 내용>")
+                return
+            await message.channel.send("Meitner가 저장소를 탐색하는 중입니다.")
+            try:
+                await run_meitner_agent(
+                    message.channel,
+                    question,
+                    message.channel.id,
+                    token,
+                )
+            except Exception as exc:
+                await message.channel.send(f"Meitner 실행 실패: {type(exc).__name__}: {exc}")
+            return
+
+        # ── !status ───────────────────────────────────────────────────────────
+        if command == CMD_STATUS and not arg_text:
+            ch_id = message.channel.id
+            status = DAILY_STATUS.get(ch_id)
+            if status:
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    f"📊 현재 파이프라인 상태: **{status}**",
+                    reviewer_bot_token,
+                )
+            else:
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    "📊 현재 실행 중인 파이프라인 없음.",
+                    reviewer_bot_token,
+                )
+            return
+
+        # ── !stop ─────────────────────────────────────────────────────────────
+        if command == CMD_PIPELINE_STOP and not arg_text:
+            ch_id = message.channel.id
+            ev = DAILY_STOP_EVENTS.get(ch_id)
+            if ev and not ev.is_set():
+                ev.set()
+                DAILY_STATUS[ch_id] = "🛑 중단 요청됨..."
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    "🛑 중단 요청 전송. 현재 단계가 끝나는 즉시 파이프라인을 멈춥니다.",
+                    reviewer_bot_token,
+                )
+            else:
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    "⚠️ 실행 중인 파이프라인이 없거나 이미 중단됐습니다.",
+                    reviewer_bot_token,
+                )
+            return
+
+        # ── !novel-daily <episode_key> ─────────────────────────────────────────
+        if command == CMD_DAILY:
+            daily_args = arg_text.split()
+            if not daily_args:
+                await message.channel.send(
+                    "사용법: `!novel-daily <번호 또는 episode_key>`\n"
+                    "예: `!novel-daily 1` / `!novel-daily 15`\n"
+                    "옵션: `--target-words 3500 --budget 4.0 --protagonist kim_sumin`"
+                )
+                return
+            episode_key = daily_args[0]
+            tw = 3500
+            budget_val = 4.0
+            protagonist = "kim_sumin"
+            remaining = daily_args[1:]
+            i = 0
+            while i < len(remaining):
+                if remaining[i] == "--target-words" and i + 1 < len(remaining):
+                    tw = int(remaining[i + 1]); i += 2
+                elif remaining[i] == "--budget" and i + 1 < len(remaining):
+                    budget_val = float(remaining[i + 1]); i += 2
+                elif remaining[i] == "--protagonist" and i + 1 < len(remaining):
+                    protagonist = remaining[i + 1]; i += 2
+                else:
+                    i += 1
+
+            ch_id = message.channel.id
+
+            # Cancel previous pipeline if still running
+            old_ev = DAILY_STOP_EVENTS.get(ch_id)
+            if old_ev and not old_ev.is_set():
+                old_ev.set()
+
+            feedback_q: asyncio.Queue = asyncio.Queue()
+            stop_ev: asyncio.Event = asyncio.Event()
+            DAILY_FEEDBACK_QUEUES[ch_id] = feedback_q
+            DAILY_STOP_EVENTS[ch_id] = stop_ev
+            DAILY_STATUS[ch_id] = f"시작 대기 — {episode_key}"
+
+            def _set_status(s: str) -> None:
+                DAILY_STATUS[ch_id] = s
+
+            def _on_start_wait() -> None:
+                """파이프라인이 피드백 대기 상태 진입 시 호출."""
+                DAILY_WAITING_FEEDBACK.add(ch_id)
+
+            def _on_end_wait() -> None:
+                """피드백 수신 또는 파이프라인 종료 시 호출."""
+                DAILY_WAITING_FEEDBACK.discard(ch_id)
+
+            anchor_messages: dict[str, discord.Message | None] = {
+                "guardian_rules": None,
+                "guardian_gpt": None,
+                "sim": None,
+                "chapter": None,
+                "review": None,
+            }
+            anchor_threads: dict[str, discord.abc.Messageable | None] = {
+                "guardian_rules": None,
+                "guardian_gpt": None,
+                "sim": None,
+            }
+
+            def _anchor_key_for_text(text: str) -> str | None:
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중"):
+                    return "guardian_rules"
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
+                    return "guardian_gpt"
+                if text.startswith(f"{DAILY_TAG}[SIM] ⚙️ 시뮬레이션 시작"):
+                    return "sim"
+                if text.startswith(f"{DAILY_TAG}[CHAPTER] 📖 챕터 생성 중"):
+                    return "chapter"
+                if text.startswith(f"{DAILY_TAG}[REVIEW] 🔍 품질 자동 검수 중"):
+                    return "review"
+                return None
+
+            def _thread_route_for_text(text: str) -> str | None:
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] Config 규칙 검수 결과:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청"):
+                    return "guardian_rules"
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
+                    return "guardian_gpt"
+                if (
+                    text.startswith(f"{DAILY_TAG}[SIM] ⚙️ ")
+                    or text.startswith(f"{DAILY_TAG}[SIM] ⏳ ")
+                    or text.startswith(f"{DAILY_TAG}[SIM] ✅ ")
+                    or text.startswith(f"{DAILY_TAG}[SIM] ❌ ")
+                    or text.startswith(f"{DAILY_TAG}[SIM] 🛑 ")
+                ):
+                    if "시뮬레이션 시작" not in text:
+                        return "sim"
+                return None
+
+            def _completion_keys_for_text(text: str) -> list[str]:
+                keys: list[str] = []
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
+                    keys.append("guardian_rules")
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
+                    keys.append("guardian_gpt")
+                if text.startswith(f"{DAILY_TAG}[SIM] ✅ 시뮬레이션 완료"):
+                    keys.append("sim")
+                if text.startswith(f"{DAILY_TAG}[CHAPTER] ✅ 챕터 완성"):
+                    keys.append("chapter")
+                if text.startswith(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료"):
+                    keys.append("review")
+                return keys
+
+            async def _ensure_anchor_thread(key: str, anchor_message: discord.Message) -> discord.abc.Messageable | None:
+                existing = anchor_threads.get(key)
+                if existing is not None:
+                    return existing
+                try:
+                    thread = await anchor_message.create_thread(
+                        name=f"daily-{key}-{episode_key}",
+                        auto_archive_duration=1440,
+                    )
+                    anchor_threads[key] = thread
+                    return thread
+                except Exception:
+                    return None
+
+            async def _notify(text: str) -> None:
+                anchor_key = _anchor_key_for_text(text)
+                if anchor_key is not None:
+                    sent = await message.channel.send(text)
+                    anchor_messages[anchor_key] = sent
+                    await _ensure_anchor_thread(anchor_key, sent)
+                    return
+
+                route_key = _thread_route_for_text(text)
+                if route_key is not None:
+                    thread_target = anchor_threads.get(route_key)
+                    anchor_message = anchor_messages.get(route_key)
+                    if thread_target is not None:
+                        await _send_text_in_thread(thread_target, text)
+                    elif anchor_message is not None:
+                        await _send_text_reply(message.channel, anchor_message, text)
+                    else:
+                        await _send_text(message.channel, text)
+                else:
+                    await _send_text(message.channel, text)
+
+                for key in _completion_keys_for_text(text):
+                    await _add_reaction_safe(anchor_messages.get(key), "✅")
+
+            async def _upload(path: Path, note: str) -> None:
+                try:
+                    await _send_file(message.channel, path, note)
+                except Exception:
+                    await _send_text(message.channel, f"{note} (파일 업로드 실패: `{path.name}`)")
+
+            await message.channel.send(
+                f"▶️ `!novel-daily {episode_key}` 시작\n"
+                "진행 상황 확인: `!status` | 중단: `!stop`"
+            )
+
+            async def _run_daily_task() -> None:
+                try:
+                    await run_daily_pipeline(
+                        episode_key=episode_key,
+                        target_words=tw,
+                        budget=budget_val,
+                        protagonist=protagonist,
+                        feedback_queue=feedback_q,
+                        feedback_timeout_hours=24.0,
+                        notify=_notify,
+                        upload=_upload,
+                        no_discord=False,
+                        stop_event=stop_ev,
+                        set_status=_set_status,
+                        on_start_wait=_on_start_wait,
+                        on_end_wait=_on_end_wait,
+                    )
+                except Exception as exc:
+                    DAILY_STATUS[ch_id] = f"실패 — {type(exc).__name__}"
+                    await _send_text(
+                        message.channel,
+                        f"[DAILY][ERROR] {type(exc).__name__}: {exc}",
+                    )
+                finally:
+                    DAILY_WAITING_FEEDBACK.discard(ch_id)
+                    if DAILY_FEEDBACK_QUEUES.get(ch_id) is feedback_q:
+                        DAILY_FEEDBACK_QUEUES.pop(ch_id, None)
+                    if DAILY_STOP_EVENTS.get(ch_id) is stop_ev:
+                        DAILY_STOP_EVENTS.pop(ch_id, None)
+
+            asyncio.create_task(_run_daily_task())
+            return
+
+        # ── !approve <req_id> ─────────────────────────────────────────────────
+        if command == CMD_APPROVE:
+            req_id = arg_text.split()[0] if arg_text else ""
+            if not req_id:
+                await message.channel.send("사용법: `!approve <req_id>`")
+                return
+
+            pending_path = REPO_ROOT / "data" / "pending_config_changes.json"
+            if not pending_path.exists():
+                await message.channel.send("⚠️ pending_config_changes.json 파일 없음")
+                return
+
+            with pending_path.open(encoding="utf-8") as f:
+                pending = json.load(f)
+
+            found = None
+            for req in pending.get("requests", []):
+                if req.get("id") == req_id:
+                    found = req
+                    break
+
+            if found is None:
+                await message.channel.send(f"⚠️ 요청 ID `{req_id}` 를 찾을 수 없음")
+                return
+
+            if found.get("status") != "pending":
+                await message.channel.send(f"⚠️ `{req_id}` 상태: `{found.get('status')}` — 이미 처리됨")
+                return
+
+            # Validate not locked
+            target_file = found.get("file", "")
+            try:
+                _assert_not_locked(target_file)
+            except PermissionError as e:
+                await message.channel.send(f"❌ 잠긴 파일입니다: {e}")
+                return
+
+            # Apply the proposed diff via patch
+            proposed_diff = found.get("proposed_diff", "")
+            apply_ok = True
+            apply_note = ""
+            if proposed_diff:
+                diff_tmp = REPO_ROOT / "data" / f"_tmp_{req_id}.patch"
+                diff_tmp.write_text(proposed_diff, encoding="utf-8")
+                rc, out, err = _run_cmd(["git", "apply", "--check", str(diff_tmp)], timeout_sec=15)
+                if rc == 0:
+                    rc2, _, err2 = _run_cmd(["git", "apply", str(diff_tmp)], timeout_sec=15)
+                    if rc2 != 0:
+                        apply_ok = False
+                        apply_note = f"git apply 실패: {err2[:300]}"
+                else:
+                    apply_ok = False
+                    apply_note = f"패치 검증 실패: {err[:300]}"
+                try:
+                    diff_tmp.unlink()
+                except OSError:
+                    pass
+
+            found["status"] = "approved" if apply_ok else "apply_failed"
+            found["applied_at"] = datetime.utcnow().isoformat() + "Z"
+            if not apply_ok:
+                found["apply_error"] = apply_note
+
+            with pending_path.open("w", encoding="utf-8") as f:
+                json.dump(pending, f, ensure_ascii=False, indent=2)
+
+            if apply_ok:
+                await message.channel.send(
+                    f"✅ `{req_id}` 승인 완료 — `{target_file}` 패치 적용됨\n"
+                    f"설명: {found.get('description','')}"
+                )
+            else:
+                await message.channel.send(
+                    f"⚠️ `{req_id}` 승인됐으나 패치 적용 실패:\n```\n{apply_note}\n```\n"
+                    "수동으로 변경 사항을 적용해 주세요."
+                )
+            return
+
+        # ── !reject <req_id> [reason] ─────────────────────────────────────────
+        if command == CMD_REJECT:
+            parts_reject = arg_text.split(None, 1)
+            if not parts_reject:
+                await message.channel.send("사용법: `!reject <req_id> [이유]`")
+                return
+            req_id = parts_reject[0]
+            reason = parts_reject[1] if len(parts_reject) > 1 else ""
+
+            pending_path = REPO_ROOT / "data" / "pending_config_changes.json"
+            if not pending_path.exists():
+                await message.channel.send("⚠️ pending_config_changes.json 파일 없음")
+                return
+
+            with pending_path.open(encoding="utf-8") as f:
+                pending = json.load(f)
+
+            found = None
+            for req in pending.get("requests", []):
+                if req.get("id") == req_id:
+                    found = req
+                    break
+
+            if found is None:
+                await message.channel.send(f"⚠️ 요청 ID `{req_id}` 를 찾을 수 없음")
+                return
+
+            found["status"] = "rejected"
+            found["rejected_at"] = datetime.utcnow().isoformat() + "Z"
+            if reason:
+                found["reject_reason"] = reason
+
+            with pending_path.open("w", encoding="utf-8") as f:
+                json.dump(pending, f, ensure_ascii=False, indent=2)
+
+            await message.channel.send(
+                f"❌ `{req_id}` 거절됨\n"
+                + (f"이유: {reason}" if reason else "")
+            )
+            return
+
+        # ── Daily pipeline feedback relay ─────────────────────────────────────
+        # 스코어카드가 올라온 이후(DAILY_WAITING_FEEDBACK) 에만 피드백으로 처리.
+        ch_id = message.channel.id
+        if ch_id in DAILY_WAITING_FEEDBACK and not content.startswith("!"):
+            q = DAILY_FEEDBACK_QUEUES.get(ch_id)
+            if q:
+                await q.put(content)
+                DAILY_WAITING_FEEDBACK.discard(ch_id)  # 한 번만 받음
+                await message.channel.send("📝 피드백 수신 완료. 분석 중...")
+            return
+
+        if command == CMD_REVIEW:
+            argv = shlex.split(arg_text)
             try:
                 args = review_cmd_parser.parse_args(argv)
             except SystemExit:
@@ -1623,8 +2215,8 @@ async def async_main() -> None:
                 await message.channel.send(f"{RUN_END_TAG} reviewer 단독 예외: {type(exc).__name__}: {exc}")
             return
 
-        if content.startswith(CMD_FIX):
-            argv = shlex.split(content[len(CMD_FIX):].strip())
+        if command == CMD_FIX:
+            argv = shlex.split(arg_text)
             try:
                 args = fix_cmd_parser.parse_args(argv)
             except SystemExit:
@@ -1669,10 +2261,10 @@ async def async_main() -> None:
                 await message.channel.send(f"{RUN_END_TAG} fixer 단독 예외: {type(exc).__name__}: {exc}")
             return
 
-        if not content.startswith(CMD_START):
+        if command != CMD_START:
             return
 
-        argv = shlex.split(content[len(CMD_START):].strip())
+        argv = shlex.split(arg_text)
         try:
             args = cmd_parser.parse_args(argv)
         except SystemExit:

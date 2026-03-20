@@ -89,6 +89,8 @@ def parse_args() -> argparse.Namespace:
                    help="Tracking phase label (overrides NOVEL_PHASE)")
     p.add_argument("--reader-review-md", default="",
                    help="Optional reader review markdown to steer style/readability")
+    p.add_argument("--guardian-briefing", default="",
+                   help="Optional guardian GPT analysis text file for story continuity steering")
     return p.parse_args()
 
 
@@ -180,6 +182,16 @@ def main() -> None:
         else:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
 
+    # Load guardian briefing for story continuity steering.
+    guardian_briefing = ""
+    if args.guardian_briefing:
+        briefing_path = Path(args.guardian_briefing)
+        if briefing_path.exists():
+            guardian_briefing = briefing_path.read_text(encoding="utf-8").strip()
+            logger.info("Loaded guardian briefing from %s (%d chars)", briefing_path, len(guardian_briefing))
+        else:
+            logger.warning("Guardian briefing file not found: %s", briefing_path)
+
     storyline: dict = {}
     if args.storyline:
         storyline_path = Path(args.storyline)
@@ -216,6 +228,7 @@ def main() -> None:
         storyline=storyline,
         llm=llm,
         reader_feedback=reader_feedback,
+        guardian_briefing=guardian_briefing,
     )
     storyline_ctx = director.storyline_context
     current_milestone = storyline_ctx.get("current", {})

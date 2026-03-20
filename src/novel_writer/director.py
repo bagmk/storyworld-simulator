@@ -53,12 +53,14 @@ class DirectorAI:
         llm: LLMClient,
         storyline: Optional[dict] = None,
         reader_feedback: Optional[dict] = None,
+        guardian_briefing: Optional[str] = None,
     ) -> None:
         self.episode_config = episode_config
         self.world_facts = world_facts
         self.clue_manager = clue_manager
         self.storyline = storyline or {}
         self.reader_feedback = reader_feedback or {}
+        self.guardian_briefing = (guardian_briefing or "").strip()
         self.llm = llm
         self.debug_log: list[dict] = []
 
@@ -600,6 +602,11 @@ class DirectorAI:
             "\n⚠️ Guardrail: Stay within current milestone's scope. "
             "Do not jump to future outcomes or reveal information meant for later arcs."
         )
+        if self.guardian_briefing:
+            lines.append(
+                "\n--- Guardian Story Briefing (이번 화 일관성 유의사항) ---\n"
+                + self.guardian_briefing
+            )
         return "\n".join(lines)
 
     # ------------------------------------------------------------------ #

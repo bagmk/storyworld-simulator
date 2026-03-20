@@ -64,6 +64,7 @@ class ProseGenerator:
         max_history_episodes: Optional[int] = None,
         runtime_policy: Optional[dict] = None,
         reader_feedback: Optional[dict] = None,
+        guardian_briefing: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config
@@ -75,6 +76,7 @@ class ProseGenerator:
         self.include_all_episode_context = include_all_episode_context
         self.runtime_policy = runtime_policy or {}
         self.reader_feedback = reader_feedback or {}
+        self.guardian_briefing = guardian_briefing or ""
         if max_history_episodes is None and self.runtime_policy.get("prose_history_max_episodes") is not None:
             self.max_history_episodes = int(self.runtime_policy.get("prose_history_max_episodes"))
         else:
@@ -183,7 +185,7 @@ class ProseGenerator:
         )
 
         # Write
-        out_path = self.output_dir / f"{episode_id}_chapter.md"
+        out_path = self.output_dir / f"{episode_id}_chapter.txt"
         self._write_chapter(out_path, title, final, episode_id, scenes)
 
         word_count = len(final.split())
@@ -610,6 +612,14 @@ class ProseGenerator:
             )
         if previous_episode_context:
             prompt += f"## Cross-Episode Continuity\n{previous_episode_context}\n\n"
+
+        if self.guardian_briefing:
+            prompt += (
+                f"## Guardian Story Briefing (일관성 유의사항)\n"
+                f"아래는 Config Guardian이 분석한 이번 화의 스토리 일관성 노트입니다.\n"
+                f"글을 쓸 때 이 항목들을 참고해 캐릭터 arc, 복선, 게이트 규칙을 지키세요.\n"
+                f"{self.guardian_briefing}\n\n"
+            )
 
         if beat_context:
             prompt += f"## Original Story Beats\n{beat_context}\n\n"

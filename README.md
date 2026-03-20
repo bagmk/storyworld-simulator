@@ -180,7 +180,8 @@ Discord에서 아래 3단계를 자동 반복하는 루프 봇입니다.
 pip install -r requirements.txt
 cp .env.example .env
 # .env에 DISCORD_BOT_TOKEN 설정
-# 선택: 에이전트별 LLM 키 분리 시 TOKEN / TOKEN2 / TOKEN3 설정
+# 선택: 단계별 디스코드 봇을 분리하려면 DISCORD_BOT_TOKEN2 / 3 / 4 또는 TOKEN2 / 3 / 4 설정
+# 미설정 시 reviewer / fixer / manager 단계는 메인 DISCORD_BOT_TOKEN을 재사용
 ```
 
 Discord Developer Portal에서 Bot을 생성하고 서버에 초대한 뒤,
@@ -189,6 +190,7 @@ Message Content Intent를 켜야 합니다.
 메시지 커맨드:
 - `!novel-loop`
 - `!novel-loop-reset`
+- `!meitner <질문>`: 저장소 구조/파일 위치/흐름을 질의응답
 
 ### 실행
 

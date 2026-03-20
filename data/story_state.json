@@ -1,0 +1,18 @@
+{
+  "last_completed_episode": null,
+  "arc_position": {
+    "act": 1,
+    "act_name": "setup",
+    "episode_num": 0
+  },
+  "character_states": {
+    "kim_sumin": {
+      "emotional_summary": "초기 상태 — 긴장감 없음, 중립",
+      "key_relationships": {},
+      "known_clues": [],
+      "arc_status": "초기"
+    }
+  },
+  "episode_summaries": {},
+  "active_clues": {}
+}
