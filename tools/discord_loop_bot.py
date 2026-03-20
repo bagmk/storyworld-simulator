@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import ssl
 import urllib.parse
 from datetime import datetime
@@ -39,7 +40,7 @@ from tools.config_guardian import _assert_not_locked
 
 ROOT_OUTPUT_DIR = REPO_ROOT / "output"
 
-DAILY_TAG = "[DAILY]"
+DAILY_TAG = ""
 
 CMD_MEITNER = "!meitner"
 CMD_DAILY = "!novel-daily"
@@ -58,6 +59,7 @@ DAILY_PROCESS_INFO: dict[int, dict[str, Any]] = {}
 DAILY_SESSION_METRICS: dict[int, dict[str, Any]] = {}
 DAILY_CHAPTER_PATHS: dict[int, Path] = {}  # channel_id → 최근 생성된 챕터 파일 경로
 DAILY_PENDING_REVIEW_TIER: dict[int, dict[str, Any]] = {}
+DAILY_START_TIMES: dict[int, float] = {}   # channel_id → pipeline start time (monotonic)
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -332,9 +334,9 @@ async def _add_reaction_safe(message: discord.Message | None, emoji: str) -> Non
 
 def _is_daily_report_text(text: str) -> bool:
     markers = (
-        "[DAILY][GUARDIAN] Config 규칙 검수 결과:",
-        "[DAILY][GUARDIAN] 🧠 GPT 분석 리포트:",
-        "[DAILY][REVIEW] ✅ 자동 검수 완료",
+        "[GUARDIAN] Config 규칙 검수 결과:",
+        "[GUARDIAN] 🧠 GPT 분석 리포트:",
+        "[REVIEW] ✅ 자동 검수 완료",
     )
     return any(marker in (text or "") for marker in markers)
 
@@ -594,12 +596,19 @@ async def async_main() -> None:
                     f" ({int(metrics.get('prompt_tokens', 0)):,} in + {int(metrics.get('completion_tokens', 0)):,} out)"
                 )
                 cost_line = (
-                    f"\n💸 세션 누적 비용(Codex CLI 제외): ${float(metrics.get('simulation', 0.0)) + float(metrics.get('chapter', 0.0)) + float(metrics.get('auto_review', 0.0)) + float(metrics.get('final_review', 0.0)) + float(metrics.get('feedback_parse', 0.0)):.4f}"
+                    f"\n💸 세션 누적 비용(Codex CLI 제외): ${float(metrics.get('simulation', 0.0)) + float(metrics.get('chapter', 0.0)) + float(metrics.get('auto_chapter', 0.0)) + float(metrics.get('auto_review', 0.0)) + float(metrics.get('final_review', 0.0)) + float(metrics.get('feedback_parse', 0.0)):.4f}"
                 )
+                start_t = DAILY_START_TIMES.get(ch_id)
+                if start_t is not None:
+                    _el = time.monotonic() - start_t
+                    _em, _es = int(_el // 60), int(_el % 60)
+                    elapsed_line = f"\n⏱️ 경과 시간: {_em}분 {_es:02d}초"
+                else:
+                    elapsed_line = ""
                 await _send_text_with_token(
                     message.channel,
                     ch_id,
-                    f"📊 현재 파이프라인 상태: **{status}**{proc_line}{token_line}{cost_line}",
+                    f"📊 현재 파이프라인 상태: **{status}**{elapsed_line}{proc_line}{token_line}{cost_line}",
                     manager_bot_token,
                 )
             else:
@@ -720,9 +729,11 @@ async def async_main() -> None:
             DAILY_FEEDBACK_QUEUES[ch_id] = feedback_q
             DAILY_STOP_EVENTS[ch_id] = stop_ev
             DAILY_STATUS[ch_id] = f"시작 대기 — {episode_key}"
+            DAILY_START_TIMES[ch_id] = time.monotonic()
             DAILY_SESSION_METRICS[ch_id] = {
                 "simulation": 0.0,
                 "chapter": 0.0,
+                "auto_chapter": 0.0,
                 "auto_review": 0.0,
                 "final_review": 0.0,
                 "feedback_parse": 0.0,
@@ -759,27 +770,37 @@ async def async_main() -> None:
                 "start": None,
                 "guardian_rules": None,
                 "guardian_gpt": None,
+                "manager": None,
+                "programmer": None,
                 "sim": None,
                 "chapter": None,
                 "review": None,
                 "auto": None,
+                "auto_review": None,
+                "fixer": None,
+                "choice": None,
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
                 "start": None,
                 "guardian_rules": None,
                 "guardian_gpt": None,
+                "manager": None,
+                "programmer": None,
                 "sim": None,
                 "chapter": None,
                 "review": None,
                 "auto": None,
+                "auto_review": None,
+                "fixer": None,
+                "choice": None,
             }
 
             def _token_for_key(key: str | None) -> str:
-                if key == "start":
+                if key in {"start", "manager", "choice"}:
                     return manager_bot_token
-                if key in {"guardian_rules", "guardian_gpt", "review"}:
+                if key in {"guardian_rules", "guardian_gpt", "review", "auto_review"}:
                     return reviewer_bot_token
-                if key == "auto":
+                if key in {"auto", "fixer", "programmer"}:
                     return fixer_bot_token
                 return ""
 
@@ -790,6 +811,10 @@ async def async_main() -> None:
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
                     return "guardian_gpt"
+                if text.startswith(f"{DAILY_TAG}[MANAGER] 🧠 "):
+                    return "manager"
+                if text.startswith(f"{DAILY_TAG}[PROGRAMMER] 🧪 코드 검수 시작"):
+                    return "programmer"
                 if text.startswith(f"{DAILY_TAG}[SIM] ⚙️ 시뮬레이션 시작"):
                     return "sim"
                 if text.startswith(f"{DAILY_TAG}[CHAPTER] 📖 챕터 생성 중"):
@@ -798,6 +823,10 @@ async def async_main() -> None:
                     return "review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
                     return "auto"
+                if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
+                    return "fixer"
+                if text.startswith(f"{DAILY_TAG}[CHOICE] 📋 "):
+                    return "choice"
                 return None
 
             def _thread_route_for_text(text: str) -> str | None:
@@ -809,6 +838,12 @@ async def async_main() -> None:
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     return "guardian_gpt"
+                if text.startswith(f"{DAILY_TAG}[MANAGER] "):
+                    if "🧠 매니저 분석" not in text:
+                        return "manager"
+                if text.startswith(f"{DAILY_TAG}[PROGRAMMER] "):
+                    if "🧪 코드 검수 시작" not in text:
+                        return "programmer"
                 if text.startswith(f"{DAILY_TAG}[SIM] "):
                     if "시뮬레이션 시작" not in text:
                         return "sim"
@@ -818,16 +853,23 @@ async def async_main() -> None:
                 if text.startswith(f"{DAILY_TAG}[REVIEW] "):
                     if "품질 자동 검수 중" not in text:
                         return "review"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
+                    return "auto_review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] "):
                     if "AI 자동 개선 루프 시작" not in text:
                         return "auto"
+                if text.startswith(f"{DAILY_TAG}[FIXER] "):
+                    if "Codex 수정 시작" not in text:
+                        return "fixer"
+                if text.startswith(f"{DAILY_TAG}[CHOICE] "):
+                    if "📋 " not in text[:20]:
+                        return "choice"
                 return None
 
             def _direct_token_for_text(text: str) -> str:
                 if (
                     text.startswith(f"{DAILY_TAG}[WAIT] ")
                     or text.startswith(f"{DAILY_TAG}[DONE] ")
-                    or text.startswith(f"{DAILY_TAG}[CHOICE] ")
                     or text.startswith(f"{DAILY_TAG}[ERROR] ")
                 ):
                     return manager_bot_token
@@ -842,10 +884,22 @@ async def async_main() -> None:
                     or text.startswith(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료")
                 ):
                     keys.append("start")
+                if text.startswith(f"{DAILY_TAG}[DONE] "):
+                    keys.append("choice")
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중"):
+                    keys.append("start")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
                     keys.append("guardian_rules")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     keys.append("guardian_gpt")
+                if text.startswith(f"{DAILY_TAG}[MANAGER] 📋 매니저 지시사항:") or text.startswith(f"{DAILY_TAG}[MANAGER] ⚠️ 매니저 분석 실패"):
+                    keys.append("manager")
+                if (
+                    text.startswith(f"{DAILY_TAG}[PROGRAMMER] ⏪ 로컬 검증 실패")
+                    or text.startswith(f"{DAILY_TAG}[PROGRAMMER] ✅ 코드리뷰 통과")
+                    or text.startswith(f"{DAILY_TAG}[PROGRAMMER] ⏪ 코드리뷰 reject")
+                ):
+                    keys.append("programmer")
                 if text.startswith(f"{DAILY_TAG}[SIM] ✅ 시뮬레이션 완료"):
                     keys.append("sim")
                 if text.startswith(f"{DAILY_TAG}[CHAPTER] ✅ 챕터 완성"):
@@ -859,15 +913,18 @@ async def async_main() -> None:
                     or text.startswith(f"{DAILY_TAG}[AUTO] ❌ Codex Fixer 실패")
                 ):
                     keys.append("auto")
+                if (
+                    text.startswith(f"{DAILY_TAG}[FIXER] ✅ Codex 수정 완료")
+                    or text.startswith(f"{DAILY_TAG}[FIXER] ❌ Codex 수정 실패")
+                ):
+                    keys.append("fixer")
                 return keys
 
             async def _ensure_anchor_thread(key: str, anchor_message: discord.Message) -> discord.abc.Messageable | None:
-                existing = anchor_threads.get(key)
-                if existing is not None:
-                    return existing
+                anchor_threads[key] = None
                 try:
                     thread = await anchor_message.create_thread(
-                        name=f"daily-{key}-{episode_key}",
+                        name=f"daily-{key}-{anchor_message.id}",
                         auto_archive_duration=1440,
                     )
                     anchor_threads[key] = thread
@@ -901,8 +958,6 @@ async def async_main() -> None:
                                 text,
                                 _token_for_key(route_key),
                             )
-                        elif anchor_message is not None:
-                            await _send_text_reply(message.channel, anchor_message, text)
                         else:
                             await _send_text_with_token(
                                 message.channel,
@@ -923,6 +978,7 @@ async def async_main() -> None:
                     if anchor_message is None:
                         continue
                     anchor_token = _token_for_key(key)
+                    reacted = False
                     if anchor_token:
                         try:
                             await _rest_add_reaction(
@@ -931,10 +987,19 @@ async def async_main() -> None:
                                 "✅",
                                 anchor_token,
                             )
-                            continue
+                            reacted = True
                         except Exception:
                             pass
-                    await _add_reaction_safe(anchor_message, "✅")
+                    if not reacted:
+                        await _add_reaction_safe(anchor_message, "✅")
+                    thread = anchor_threads.get(key)
+                    if thread is not None:
+                        try:
+                            await _send_text_with_token(
+                                thread, int(getattr(thread, "id")), "✅", anchor_token
+                            )
+                        except Exception:
+                            pass
 
             async def _upload(path: Path, note: str) -> None:
                 try:
@@ -952,40 +1017,84 @@ async def async_main() -> None:
             )
 
             async def _run_daily_task() -> None:
+                _ep_key = episode_key  # 재시작 루프에서 변경 가능
+                _stop_ev = stop_ev
+                _feedback_q = feedback_q
+                MAX_AUTO_RESTARTS = 5
+                auto_restarts = 0
                 try:
-                    result = await run_daily_pipeline(
-                        episode_key=episode_key,
-                        target_words=tw,
-                        budget=budget_val,
-                        protagonist=protagonist,
-                        feedback_queue=feedback_q,
-                        feedback_timeout_hours=24.0,
-                        notify=_notify,
-                        upload=_upload,
-                        no_discord=False,
-                        stop_event=stop_ev,
-                        review_tier=review_tier,
-                        set_status=_set_status,
-                        set_process=_set_process,
-                        set_metrics=_set_metrics,
-                        on_start_wait=_on_start_wait,
-                        on_end_wait=_on_end_wait,
-                    )
-                    if result and result.get("chapter_path"):
-                        DAILY_CHAPTER_PATHS[ch_id] = Path(result["chapter_path"])
+                    while True:
+                        result = await run_daily_pipeline(
+                            episode_key=_ep_key,
+                            target_words=tw,
+                            budget=budget_val,
+                            protagonist=protagonist,
+                            feedback_queue=_feedback_q,
+                            feedback_timeout_hours=24.0,
+                            notify=_notify,
+                            upload=_upload,
+                            no_discord=False,
+                            stop_event=_stop_ev,
+                            review_tier=review_tier,
+                            set_status=_set_status,
+                            set_process=_set_process,
+                            set_metrics=_set_metrics,
+                            on_start_wait=_on_start_wait,
+                            on_end_wait=_on_end_wait,
+                            reset_emotions=(auto_restarts > 0),
+                        )
+                        if result and result.get("chapter_path"):
+                            DAILY_CHAPTER_PATHS[ch_id] = Path(result["chapter_path"])
+
+                        # 코드/스토리 수정 후 자동 재시작
+                        choice = (result or {}).get("choice", "")
+                        approved = (result or {}).get("approved", True)
+                        user_stopped = _stop_ev.is_set()
+                        if (
+                            not user_stopped
+                            and not approved
+                            and choice in ("code", "story")
+                            and auto_restarts < MAX_AUTO_RESTARTS
+                        ):
+                            auto_restarts += 1
+                            # 새 stop event + feedback queue 준비
+                            _stop_ev = asyncio.Event()
+                            _feedback_q = asyncio.Queue()
+                            DAILY_STOP_EVENTS[ch_id] = _stop_ev
+                            DAILY_FEEDBACK_QUEUES[ch_id] = _feedback_q
+                            DAILY_START_TIMES[ch_id] = time.monotonic()
+                            await _notify(
+                                f"🔄 **자동 재시작** ({auto_restarts}/{MAX_AUTO_RESTARTS}) "
+                                f"— 수정된 코드로 `{_ep_key}` 파이프라인 재실행 중..."
+                            )
+                            continue
+
+                        # 최대 재시작 도달 or 다른 종료 조건
+                        if (
+                            not user_stopped
+                            and not approved
+                            and choice in ("code", "story")
+                            and auto_restarts >= MAX_AUTO_RESTARTS
+                        ):
+                            await _notify(
+                                f"🛑 자동 재시작 {MAX_AUTO_RESTARTS}회 도달 — 파이프라인을 멈춥니다.\n"
+                                f"수동으로 계속하려면: `!novel-daily {_ep_key}`"
+                            )
+                        break
                 except Exception as exc:
                     DAILY_STATUS[ch_id] = f"실패 — {type(exc).__name__}"
                     await _send_text(
                         message.channel,
-                        f"[DAILY][ERROR] {type(exc).__name__}: {exc}",
+                        f"[ERROR] {type(exc).__name__}: {exc}",
                     )
                 finally:
                     DAILY_PENDING_REVIEW_TIER.pop(ch_id, None)
                     DAILY_WAITING_FEEDBACK.discard(ch_id)
                     DAILY_PROCESS_INFO.pop(ch_id, None)
-                    if DAILY_FEEDBACK_QUEUES.get(ch_id) is feedback_q:
+                    DAILY_START_TIMES.pop(ch_id, None)
+                    if DAILY_FEEDBACK_QUEUES.get(ch_id) is _feedback_q:
                         DAILY_FEEDBACK_QUEUES.pop(ch_id, None)
-                    if DAILY_STOP_EVENTS.get(ch_id) is stop_ev:
+                    if DAILY_STOP_EVENTS.get(ch_id) is _stop_ev:
                         DAILY_STOP_EVENTS.pop(ch_id, None)
 
             asyncio.create_task(_run_daily_task())

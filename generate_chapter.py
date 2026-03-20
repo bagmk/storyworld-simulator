@@ -214,6 +214,24 @@ def adjust_scene_target_for_feedback(
         adjusted -= 1
     if (
         target_words <= 4500
+        and adjusted >= 4
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "시간축",
+            "시간 순서",
+            "순서가 섞",
+            "되감기",
+            "헷갈리",
+            "복도 대치",
+            "발표 종료 후",
+            "질의응답",
+            "슬라이드 발표",
+            "단선 구조",
+        )
+    ):
+        adjusted -= 1
+    if (
+        target_words <= 4500
         and adjusted >= 5
         and _reader_feedback_has_any(
             reader_feedback,
@@ -514,6 +532,36 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "인물 위치",
     ):
         constraints["clarify_event_transitions"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "시간축",
+        "시간 순서",
+        "순서가 섞",
+        "되감기",
+        "헷갈리",
+        "복도 대치",
+        "발표 종료 후",
+        "질의응답",
+        "슬라이드 발표",
+        "단선 구조",
+        "질문→응답→접근",
+        "질문->응답->접근",
+    ):
+        constraints["clarify_event_transitions"] = 1
+        constraints["prioritize_chronological_scene_order"] = 1
+        constraints["prefer_linear_scene_axis"] = 1
+        constraints["scene_compaction_ratio_target"] = 75
+        constraints["max_transition_openers_per_block"] = 1
+        constraints["avoid_transition_terms"] = [
+            "그리고",
+            "그러자",
+            "이어서",
+            "그 순간",
+            "그 직후",
+            "잠시 뒤",
+        ]
         changed = True
 
     if _reader_feedback_has_any(
@@ -848,7 +896,7 @@ def main() -> None:
             len(interactions), len(scenes), distill_elapsed,
             " | fallback chunking" if distill_fallback_used else "",
         )
-    scenes = distiller.apply_scene_guards(scenes)
+    scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
     for s in scenes:
         logger.info(
             "  Scene %d: '%s' [T%d-%d] %s — %s",

@@ -602,6 +602,7 @@ class DirectorAI:
                 "- Prioritize a concrete sensory/action cue over repeated metrics.\n"
                 "- Do not add parenthetical explanation unless the clue would otherwise be unclear.\n"
                 "- If a technical term or English keyword appears, follow it immediately with a visible human reaction or consequence.\n"
+                "- If the term was already introduced once in-scene, do not explain it again; shift to the protagonist's judgment, emotion, or next choice.\n"
                 "- Keep each sentence short and direct; split comma-heavy chains.\n"
             )
         if self._feedback_mentions("장면 전환", "전환", "메모 발견", "경고음", "밀러 등장", "공간 동선", "인물 위치"):
@@ -806,6 +807,7 @@ class DirectorAI:
         pacing_style = self.pacing.get("style", "normal")
         progress = turn / max(target_turns, 1)
         progress_signal = self._scene_progress_signal(recent_interactions)
+        jargon_onboarded = self._recent_jargon_already_onboarded(recent_interactions)
 
         if progress_signal["stalled"] and self._reader_reports_stalled_progression():
             return (
@@ -820,9 +822,10 @@ class DirectorAI:
             )
         if progress_signal["technical_stall"]:
             return (
-                "Technical back-and-forth is looping. Translate the next technical point into "
-                "a plain consequence or immediate physical reaction, then force a decision, "
-                "interruption, or movement."
+                "Technical back-and-forth is looping. Treat latency/real-time-style terms as already explained "
+                f"{'once ' if jargon_onboarded else ''}and move the next beat through Sumin's judgment, emotion, "
+                "or choice. If a technical point remains, translate it into one plain consequence and force "
+                "a decision, interruption, or movement."
             )
         if progress_signal["repeated_concern"]:
             return (
@@ -1158,20 +1161,30 @@ class DirectorAI:
         active_text = "\n".join(
             f"- {aid}: {agent_map[aid].name}" for aid in active_ids
         )
+        jargon_onboarded = self._recent_jargon_already_onboarded(recent)
+        protagonist_focus_rule = ""
+        if jargon_onboarded and protagonist_id in active_ids:
+            protagonist_name = agent_map[protagonist_id].name
+            protagonist_focus_rule = (
+                f"10) Technical keywords already had a first explanation in recent turns. "
+                f"Do not define them again. Route the next beat through {protagonist_name}'s "
+                "judgment, emotion, question, or choice.\n"
+            )
         jargon_reaction_rule = ""
         if progress_signal["technical_stall"] or self._feedback_mentions(
             "기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "영어", "영어 키워드", "설명문", "상황 해석"
         ):
             jargon_reaction_rule = (
-                "10) If the next turn keeps a technical or English term, it must be followed by "
-                "an immediate human reaction, emotion, or choice in the same turn.\n"
+                "11) If the next turn keeps a technical or English term, it must be followed by "
+                "an immediate human reaction, emotion, or choice in the same turn. "
+                "If the term already landed once, do not define it again.\n"
             )
         brevity_rule = ""
         if progress_signal["explanation_loop"] or self._feedback_mentions(
             "쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성", "설명문", "상황 해석"
         ):
             brevity_rule = (
-                "11) Favor short direct sentences for the next turn. Split comma-heavy clause chains "
+                "12) Favor short direct sentences for the next turn. Split comma-heavy clause chains "
                 "into 1-2 clear beats.\n"
             )
         show_dont_tell_rule = ""
@@ -1183,13 +1196,13 @@ class DirectorAI:
             "반응과 행동으로 보여",
         ):
             show_dont_tell_rule = (
-                "12) Do not spend the next turn defining or interpreting the situation again. "
+                "13) Do not spend the next turn defining or interpreting the situation again. "
                 "Show pressure through visible reaction, interruption, gesture, movement, or a blunt choice.\n"
             )
         repeated_concern_rule = ""
         if progress_signal["repeated_concern"]:
             repeated_concern_rule = (
-                "13) Recent turns are revisiting the same concern. Do not paraphrase it again; "
+                "14) Recent turns are revisiting the same concern. Do not paraphrase it again; "
                 "either end the scene or force a new consequence, choice, interruption, or movement.\n"
             )
 
@@ -1212,6 +1225,7 @@ class DirectorAI:
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
             f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
             f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
+            f"{protagonist_focus_rule}"
             f"{jargon_reaction_rule}"
             f"{brevity_rule}"
             f"{show_dont_tell_rule}"
@@ -1278,6 +1292,18 @@ class DirectorAI:
                     end_scene = False
                     reason = (reason + "; " if reason else "") + \
                         "anti-monologue rotation after consecutive same-speaker turns"
+
+        if (
+            not end_scene
+            and protagonist_id in active_ids
+            and speaker_id != protagonist_id
+            and (jargon_onboarded or progress_signal["technical_stall"])
+            and recent_speakers
+            and recent_speakers[-1] != protagonist_id
+        ):
+            speaker_id = protagonist_id
+            reason = (reason + "; " if reason else "") + \
+                "protagonist reaction turn after technical onboarding"
 
         if progress_signal["stalled"] and len(active_ids) > 1 and recent_speakers:
             if speaker_id == recent_speakers[-1]:
@@ -1529,6 +1555,19 @@ class DirectorAI:
             for i in recent_interactions[-3:]
         )
         return not emotion_or_action_shift
+
+    def _recent_jargon_already_onboarded(self, recent_interactions: list[dict]) -> bool:
+        recent = recent_interactions[-4:]
+        for row in recent:
+            text = str(row.get("content", ""))
+            if not self._technical_term_signature(text):
+                continue
+            if re.search(
+                r"(즉|쉽게 말해|쉽게 말하면|다시 말해|정리하면|핵심은|의미는|뜻이었다|말이었다|셈이었다)",
+                text,
+            ):
+                return True
+        return False
 
     def _has_repeated_core_concern_exchange(self, recent_interactions: list[dict]) -> bool:
         concern_signatures = [

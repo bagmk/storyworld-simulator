@@ -518,9 +518,13 @@ class ProseGenerator:
             f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
+            f"- If two nearby paragraphs perform the same job (restating a question, explaining the same fact, lingering on the same pressure), compress them into one sharper paragraph.\n"
+            f"- Keep local event axis linear: question -> response -> approach/offer should appear once in that order, not as repeated resets.\n"
+            f"- Avoid stock time bridges like '그 직후' or '잠시 뒤'; prefer gaze shift, footsteps, door movement, microphone lowering, or location cue.\n\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
             f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
+            f"- Terms like latency or real-time should get only one short onboarding explanation in the chapter; later mentions should shift quickly into {protagonist_short}의 판단, 감정, 또는 선택.\n"
             f"- If commas or connectives start chaining clauses, cut the sentence into shorter direct beats.\n\n"
             f"- Keep one dominant axis per sentence: action, perception, or emotion. If two axes matter, split them into explicit cause/effect.\n"
             f"- If you use one metaphor or comparison, do not spend the next sentence unpacking it again; move straight to reaction or the next action.\n"
@@ -618,6 +622,13 @@ class ProseGenerator:
                 "## Transition Clarity Priority\n"
                 "- When scene location or focus shifts, insert one short transition sentence.\n"
                 "- Keep transition lines concrete and action-based, not analytical.\n\n"
+            )
+        if self._feedback_flag_enabled("prefer_linear_scene_axis") or self._feedback_flag_enabled("prioritize_chronological_scene_order") or self._feedback_mentions("시간축", "시간 순서", "순서가 섞", "되감기", "헷갈리", "단선 구조"):
+            prompt += (
+                "## Linear Scene Axis Priority\n"
+                "- Keep event order strictly linear inside the scene.\n"
+                "- If a question becomes an answer and then an approach or offer, do not rewind to the earlier question stage.\n"
+                "- Once movement leaves the podium, stage, or room edge, make the next paragraph continue from that new position.\n\n"
             )
         if self._feedback_flag_enabled("clarify_event_transitions") or self._feedback_mentions("메모 발견", "경고음", "밀러 등장", "공간 동선", "인물 위치"):
             prompt += (
@@ -767,12 +778,14 @@ class ProseGenerator:
             f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
             f"After that explanation, move straight to reaction, emotion, or decision.\n"
+            f"If the scene already moved from question to response to approach, keep that order and do not restart the earlier stage.\n"
+            f"Once a room change or exit movement lands, continue from the new physical position instead of replaying the prior beat.\n"
             f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
             f"If the focal subject changed, establish who acts first at the paragraph opening.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
         prompt += (
-            "\nAvoid repeating sentence openings with '그리고', '그러자', '다만'."
+            "\nAvoid repeating sentence openings with '그리고', '그러자', '다만', '그 직후', '잠시 뒤'."
             "\nMix sharp emphasis lines with calmer connective lines so dialogue tension is not flat."
         )
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
@@ -1481,16 +1494,20 @@ class ProseGenerator:
             f"- 시점 유지: {pov}\n"
             f"- 분량: 약 {target_words}단어 근처 유지\n"
             "- 동일 정보/표현의 반복은 삭제 또는 통합\n"
+            "- 같은 기능의 문단이 이어지면 하나로 압축하고 사건 축을 더 곧게 세울 것\n"
+            "- 질문→응답→접근/제안 순으로 장면을 정렬하고, 이미 지나간 단계로 되감지 말 것\n"
             "- 긴 문단은 1-2문장 단위로 자연 분할\n"
             f"{paragraph_cap_line}"
             f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 길어지면 인과 단위로 분리\n"
             "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
-            "- '그리고', '그러자', '다만' 같은 연결어를 연속 문장 시작에 반복하지 말 것\n"
+            "- '그리고', '그러자', '다만', '그 직후', '잠시 뒤' 같은 연결어를 연속 문장 시작에 반복하지 말 것\n"
+            "- 장면 전환은 시선 이동, 걸음, 문, 마이크, 의자 같은 물리적 신호로 처리하고 시간 부사 남용은 줄일 것\n"
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
             "- 강한 문장과 담백한 문장을 섞어 압박의 고저를 만들 것\n"
             "- 같은 정보나 해석이 이미 한 번 전달됐다면 다음 문장에서는 되풀이하지 말고 반응, 행동, 결정으로 넘어갈 것\n"
             "- 기술 용어/약어는 꼭 필요할 때만 짧게 풀고 이후는 짧은 콜백으로 유지할 것\n"
+            "- latency, real-time 같은 기술어는 첫 1회만 짧게 풀고 이후에는 수민의 판단, 감정, 선택을 전면에 둘 것\n"
             "- 괄호 설명은 기본값으로 쓰지 말고, 필요하면 본문 안에 짧게 녹여 쓸 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비교를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
             f"- 문단당 기술 용어는 최대 {jargon_density_cap}개 내에서 유지(초과 개념은 통합/요약)\n"
@@ -1961,6 +1978,8 @@ class ProseGenerator:
             f"The transition should feel like a natural breath between moments: "
             f"one concrete movement + one short thought + one attention shift. "
             f"Make spatial continuity explicit in one sentence, and avoid abstract wording. "
+            f"Do not begin with stock time adverbs like '그 직후' or '잠시 뒤'; "
+            f"use movement, gaze, doorway, hallway, or object handling instead. "
             f"Write in Korean. Write ONLY the transition text."
         )
         return self.llm.chat(
@@ -2160,9 +2179,9 @@ class ProseGenerator:
             paragraphs = [p for p in out.split("\n\n") if p.strip()]
             if len(paragraphs) >= 4:
                 bridge_options = [
-                    "이윽고, 장면의 공기가 미세하게 바뀌었다.",
-                    "그사이, 시선은 다음 움직임으로 천천히 옮겨갔다.",
-                    "곧이어, 긴장선은 다른 지점으로 이어졌다.",
+                    "수민은 고개를 들었고, 장면의 공기는 다음 움직임으로 옮겨갔다.",
+                    "의자가 살짝 밀리자 시선도 자연스럽게 다음 자리로 모였다.",
+                    "문 쪽으로 고개가 돌아가면서 대화의 축도 다른 지점으로 옮겨갔다.",
                 ]
                 pick = sum(ord(ch) for ch in paragraphs[1]) % len(bridge_options)
                 paragraphs.insert(2, bridge_options[pick])
@@ -2514,8 +2533,8 @@ class ProseGenerator:
                         recent_connectors,
                         connector_counts,
                     )
+                    pattern = re.escape(connector)
                     if replacement:
-                        pattern = re.escape(connector)
                         sent = re.sub(
                             rf"^([\"“”'‘’\(\)\[\]\s]*){pattern}\s*,?\s*",
                             rf"\1{replacement} ",
@@ -2524,6 +2543,15 @@ class ProseGenerator:
                         ).strip()
                         connector = replacement
                         connector_key = connector.lower()
+                    else:
+                        sent = re.sub(
+                            rf"^([\"“”'‘’\(\)\[\]\s]*){pattern}\s*,?\s*",
+                            r"\1",
+                            sent.strip(),
+                            count=1,
+                        ).strip()
+                        connector = ""
+                        connector_key = ""
                 rebuilt.append(sent)
                 if connector_key:
                     connector_counts[connector_key] = connector_counts.get(connector_key, 0) + 1
@@ -2536,11 +2564,11 @@ class ProseGenerator:
     @staticmethod
     def _transition_replacement_catalog() -> dict[str, list[str]]:
         return {
-            "그리고": ["그러자", "그 직후", "잠시 뒤", "한편"],
-            "그러자": ["그리고", "그러는 사이", "그 말이 끝나자", "곧바로"],
+            "그리고": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"],
+            "그러자": ["그 말이 끝나자", "시선이 옮겨가자", "말끝이 떨어지자", "문 쪽에서 인기척이 일자"],
             "다만": ["대신", "문제는", "그래도", "한편"],
-            "이어서": ["그리고", "그 직후", "그러는 사이", "곧바로"],
-            "그 순간": ["그러자", "바로 그때", "그 말이 끝나자", "순간적으로"],
+            "이어서": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"],
+            "그 순간": ["말끝이 떨어지자", "시선이 정면으로 맞붙자", "문 쪽에서 인기척이 일자", "고개를 들자"],
         }
 
     def _pick_transition_replacement(
@@ -2630,11 +2658,11 @@ class ProseGenerator:
         if len(sentences) == 1:
             return sentences[0]
         connectors = [
-            conn for conn in ["그 직후", "잠시 뒤", "이내", "곧"]
+            conn for conn in ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
         if not connectors:
-            connectors = ["그 직후", "잠시 뒤"]
+            connectors = ["그 말이 끝나자", "시선이 옮겨가자"]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
@@ -2767,14 +2795,10 @@ class ProseGenerator:
 
     def _ensure_transition_marker(self, text: str) -> str:
         lo, hi = self._feedback_transition_char_window()
-        fallback = "곧이어 공기가 변했다."
+        fallback = "시선이 다음 움직임으로 옮겨갔다."
         if not text:
             return self._fit_char_window(fallback, lo, hi)
         out = text.strip()
-        if not re.search(r'잠시 후|그 후|이후|그사이|한편|이윽고|곧이어|다음 날|그날 밤|며칠 후', out):
-            variants = ("잠시 후,", "그사이,", "이윽고,", "곧이어,")
-            idx = sum(ord(ch) for ch in out) % len(variants)
-            out = f"{variants[idx]} {out}"
         return self._fit_char_window(out, lo, hi)
 
     @staticmethod
@@ -3029,7 +3053,60 @@ class ProseGenerator:
                 return token
 
             out = re.sub(pattern, _repl, out, flags=re.IGNORECASE)
-        return out
+        return self._trim_repeated_jargon_gloss_sentences(out)
+
+    def _trim_repeated_jargon_gloss_sentences(self, text: str) -> str:
+        if not text:
+            return text
+
+        out_blocks: list[str] = []
+        explained_terms: set[str] = set()
+        for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            kept: list[str] = []
+            for sent in sentences:
+                term_keys = self._jargon_sentence_keys(sent)
+                explanation_like = self._sentence_is_jargon_explanation(sent)
+                if (
+                    explanation_like
+                    and term_keys
+                    and term_keys.issubset(explained_terms)
+                    and not self._sentence_has_action_or_decision(sent)
+                ):
+                    continue
+                kept.append(sent.strip())
+                if explanation_like and term_keys:
+                    explained_terms.update(term_keys)
+            out_blocks.append(" ".join(s for s in kept if s.strip()).strip() or block)
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _jargon_sentence_keys(self, sentence: str) -> set[str]:
+        low = str(sentence or "").lower()
+        keys: set[str] = set()
+        for entry in self._term_variation_catalog():
+            variants = [
+                str(variant or "").strip().lower()
+                for variant in entry.get("variants", [])
+                if str(variant or "").strip()
+            ]
+            if any(variant in low for variant in variants):
+                keys.add(variants[0] if variants else str(entry.get("pattern", "")).lower())
+        for term in self._feedback_jargon_terms():
+            low_term = str(term or "").strip().lower()
+            if low_term and low_term in low:
+                keys.add(low_term)
+        return keys
+
+    @staticmethod
+    def _sentence_is_jargon_explanation(sentence: str) -> bool:
+        return bool(re.search(
+            r"(즉|쉽게 말하면|쉽게 말해|다시 말해|뜻이었다|말이었다|셈이었다|의미는|라는 뜻|풀어 말하면)",
+            str(sentence or ""),
+        ))
 
     def _is_jargon_heavy_sentence(self, sentence: str) -> bool:
         return len(self._technical_term_set(sentence)) >= 2

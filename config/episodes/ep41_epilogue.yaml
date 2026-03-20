@@ -338,7 +338,7 @@ episode:
       inject_method: "environmental_cue"
 
     - id: "clue_ep41_epilogue_c10"
-      content: "독자도 과학 기술 윤리에 대해 생각해보는 계기가 될 수 있게 독백 "기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다. 나는 손을 씻을 수 없게 됐다.""
+      content: "독자도 과학 기술 윤리에 대해 생각해보는 계기가 될 수 있게 독백 '기술은 칼이 아니다. 손이다. 손이 어디로 뻗느냐에 따라 수술이 되거나 살인이 된다. 나는 손을 씻을 수 없게 됐다.'"
       trigger: "a small environmental detail catches the protagonist's attention"
       inject_threshold: 0.85
       inject_method: "environmental_cue"

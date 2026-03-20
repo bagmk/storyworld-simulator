@@ -235,6 +235,10 @@ class SceneDistiller:
             f"24. If external support, real-time control, resources, authority, or responsibility repeat across late turns, keep the clearest first mention and compress later restatements into changed consequence only.\n"
             f"25. Treat transition-making beats one at a time: memo discovery, warning sound, and named arrival should each land in their own clear sentence with who noticed it and where they were.\n"
             f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between '정장 남자' and a proper name without clarification.\n\n"
+            f"27. Keep scene order strictly chronological by raw turn number; once a beat exits the stage/Q&A/hallway axis, do not rewind unless later turns clearly return there.\n"
+            f"28. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
+            f"29. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
+            f"30. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -496,7 +500,7 @@ class SceneDistiller:
                     list(best.beat_references) + [beat_id]
                 )
 
-        return self.apply_scene_guards(scenes)
+        return self.normalize_scene_timeline(self.apply_scene_guards(scenes))
 
     def apply_scene_guards(
         self,
@@ -509,6 +513,28 @@ class SceneDistiller:
             self._apply_scene_readability_guards(scene, canonical)
         self._clarify_adjacent_character_entries(guarded)
         return guarded
+
+    def normalize_scene_timeline(self, scenes: list[DistilledScene]) -> list[DistilledScene]:
+        ordered = [scene for scene in (scenes or []) if isinstance(scene, DistilledScene)]
+        if not ordered:
+            return []
+
+        ordered.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
+        normalized: list[DistilledScene] = []
+        for scene in ordered:
+            self._strip_stock_transition_cues(scene)
+            if normalized and self._scenes_need_timeline_merge(normalized[-1], scene):
+                merged = self._merge_scene_pair(normalized[-1], scene)
+                self._apply_scene_readability_guards(merged, {})
+                self._strip_stock_transition_cues(merged)
+                normalized[-1] = merged
+                continue
+            normalized.append(scene)
+
+        self._clarify_adjacent_character_entries(normalized)
+        for idx, scene in enumerate(normalized, start=1):
+            scene.scene_number = idx
+        return normalized
 
     def _apply_scene_readability_guards(
         self,
@@ -525,8 +551,10 @@ class SceneDistiller:
         scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
         scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
         scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
         scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
         scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
         scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
         scene.characters_present = self._canonicalize_name_list(
             scene.characters_present,
@@ -541,6 +569,8 @@ class SceneDistiller:
             )
         scene.key_actions = self._compress_core_concern_lines(scene.key_actions, limit=8)
         scene.discoveries = self._compress_core_concern_lines(scene.discoveries, limit=6)
+        scene.key_actions = [self._strip_stock_timeline_cues_from_text(line) for line in scene.key_actions]
+        scene.discoveries = [self._strip_stock_timeline_cues_from_text(line) for line in scene.discoveries]
         scene.characters_present = self._normalize_scene_character_labels(scene.characters_present)
         scene.narrative_summary = self._normalize_character_mentions(
             scene.narrative_summary,
@@ -606,6 +636,23 @@ class SceneDistiller:
             )
         )
 
+    def _reader_reports_timeline_confusion(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            token in corpus for token in (
+                "시간축",
+                "시간 순서",
+                "순서가 섞",
+                "되감기",
+                "헷갈리",
+                "복도 대치",
+                "발표 종료 후",
+                "질의응답",
+                "슬라이드 발표",
+                "단선 구조",
+            )
+        )
+
     def _reader_needs_contextual_summaries(self) -> bool:
         corpus = self._reader_feedback_corpus()
         return any(
@@ -654,6 +701,8 @@ class SceneDistiller:
             budget += 1
         if self._reader_prefers_stronger_scene_compaction():
             budget += 1
+        if self._reader_reports_timeline_confusion():
+            budget += 1
         return max(0, min(budget, max(0, target_scenes - 3)))
 
     def _merge_low_signal_adjacent_scenes(
@@ -701,6 +750,11 @@ class SceneDistiller:
             return 0
         else:
             score += 1
+        turn_gap = right.turn_range[0] - left.turn_range[1]
+        if turn_gap <= 0:
+            score += 3
+        elif turn_gap <= 2:
+            score += 1
         if shared_chars:
             score += 1
         if left.raw_turn_count <= 4 or right.raw_turn_count <= 4:
@@ -729,7 +783,29 @@ class SceneDistiller:
             score -= 1
         elif self._scene_tension_score(left) + self._scene_tension_score(right) <= 2:
             score += 1
+        if self._reader_reports_timeline_confusion() and turn_gap <= 1:
+            score += 1
         return score
+
+    def _scenes_need_timeline_merge(self, left: DistilledScene, right: DistilledScene) -> bool:
+        turn_gap = right.turn_range[0] - left.turn_range[1]
+        overlap = turn_gap <= 0
+        same_location = (
+            self._norm_name_key(left.location)
+            and self._norm_name_key(left.location) == self._norm_name_key(right.location)
+        )
+        shared_chars = set(self._canonicalize_name_list(left.characters_present, {})) & set(
+            self._canonicalize_name_list(right.characters_present, {})
+        )
+        same_concern = bool(self._scene_core_concern_signature(left)) and (
+            self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
+        )
+        score = self._adjacent_scene_merge_score(left, right)
+        if overlap:
+            return score >= 1 or same_location or bool(shared_chars) or same_concern
+        if self._reader_reports_timeline_confusion() and turn_gap <= 1:
+            return score >= 2 and (same_location or bool(shared_chars) or same_concern)
+        return False
 
     def _summary_is_mood_heavy(self, summary: str) -> bool:
         sentences = [
@@ -777,7 +853,7 @@ class SceneDistiller:
         seen_fp: set[str] = set()
         for sent in sentences:
             cleaned = re.sub(
-                r"^(그리고|그러자|다만|또한|한편|이어서|그 순간)\s+",
+                r"^(그리고|그러자|다만|또한|한편|이어서|그 순간|그 직후|잠시 뒤|잠시 후|곧이어|이윽고)\s+",
                 "",
                 sent,
             ).strip()
@@ -791,6 +867,27 @@ class SceneDistiller:
             rebuilt.append(normalized)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(rebuilt[:max_sentences]).strip()
+
+    @staticmethod
+    def _strip_stock_timeline_cues_from_text(text: str) -> str:
+        cleaned = re.sub(
+            r"(^|(?<=[.!?…]\s))(그 직후|잠시 뒤|잠시 후|곧이어|이윽고|이어서|그러는 사이|바로 뒤이어)\s*,?\s*",
+            r"\1",
+            str(text or "").strip(),
+        )
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+        return cleaned
+
+    def _strip_stock_transition_cues(self, scene: DistilledScene) -> None:
+        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
+        scene.key_actions = [
+            self._strip_stock_timeline_cues_from_text(line)
+            for line in scene.key_actions
+        ]
+        scene.discoveries = [
+            self._strip_stock_timeline_cues_from_text(line)
+            for line in scene.discoveries
+        ]
 
     def _merge_scene_pair(self, left: DistilledScene, right: DistilledScene) -> DistilledScene:
         pacing = right.pacing if right.pacing in {"climax", "resolution"} else left.pacing
