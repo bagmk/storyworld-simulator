@@ -638,6 +638,8 @@ class DirectorAI:
             "멈춤",
             "정체",
             "제자리",
+            "맴도는",
+            "전진감이 약",
             "안 나가",
             "진행이 안",
             "흐름이 끊",
@@ -647,6 +649,15 @@ class DirectorAI:
         raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
         return raw if isinstance(raw, dict) else {}
 
+    def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get(key, 1 if default else 0)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return enabled >= 1
+
     def _feedback_tension_phrase_cap(self, default: int = 2) -> int:
         constraints = self._feedback_style_constraints()
         raw = constraints.get("tension_phrase_cap", default)
@@ -655,6 +666,15 @@ class DirectorAI:
         except (TypeError, ValueError):
             cap = default
         return max(1, min(4, cap))
+
+    def _feedback_static_threat_signal_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_static_threat_signals_per_scene", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(3, cap))
 
     # ------------------------------------------------------------------ #
     # 5. Resolution Validation
@@ -826,6 +846,11 @@ class DirectorAI:
                 f"{'once ' if jargon_onboarded else ''}and move the next beat through Sumin's judgment, emotion, "
                 "or choice. If a technical point remains, translate it into one plain consequence and force "
                 "a decision, interruption, or movement."
+            )
+        if progress_signal["signal_stack"]:
+            return (
+                "The scene is stacking warning cues without cashing them out. Do not add another omen. "
+                "Turn the sharpest existing cue into reaction, confrontation, movement, or a scene exit."
             )
         if progress_signal["repeated_concern"]:
             return (
@@ -1224,7 +1249,8 @@ class DirectorAI:
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
             f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
-            f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
+            f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}"
+            f"{'10) The scene is stacking warning cues; do not add another memo/alert/watcher beat. Cash out the sharpest cue through reaction, confrontation, movement, or a scene close.\\n' if progress_signal['signal_stack'] else ''}\n"
             f"{protagonist_focus_rule}"
             f"{jargon_reaction_rule}"
             f"{brevity_rule}"
@@ -1251,6 +1277,10 @@ class DirectorAI:
         if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
             prompt += (
                 "\nReader priority: if recent turns keep ending on similar sharp lines, end the scene or pivot to a calmer human reaction before escalating again."
+            )
+        if progress_signal["signal_stack"]:
+            prompt += (
+                "\nReader priority: do not add another warning-style cue. Turn the existing cue into an answer, confrontation, movement, or scene exit."
             )
         if self._feedback_mentions("쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성"):
             prompt += (
@@ -1305,6 +1335,18 @@ class DirectorAI:
             reason = (reason + "; " if reason else "") + \
                 "protagonist reaction turn after technical onboarding"
 
+        if (
+            not end_scene
+            and progress_signal["signal_stack"]
+            and protagonist_id in active_ids
+            and speaker_id != protagonist_id
+            and recent_speakers
+            and recent_speakers[-1] != protagonist_id
+        ):
+            speaker_id = protagonist_id
+            reason = (reason + "; " if reason else "") + \
+                "protagonist reaction turn to cash out stacked warning cues"
+
         if progress_signal["stalled"] and len(active_ids) > 1 and recent_speakers:
             if speaker_id == recent_speakers[-1]:
                 alternates = [aid for aid in active_ids if aid != speaker_id]
@@ -1330,6 +1372,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to stop revisiting the same concern without new consequence"
+        elif progress_signal["signal_stack"] and (progress_signal["closure_ready"] or len(recent) >= 5):
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to avoid piling more warning cues without payoff"
         elif progress_signal["flat_tension"] and (progress_signal["closure_ready"] or len(recent) >= 6):
             end_scene = True
             reason = (reason + "; " if reason else "") + \
@@ -1485,6 +1531,7 @@ class DirectorAI:
                 "flat_tension": False,
                 "explanation_loop": False,
                 "repeated_concern": False,
+                "signal_stack": False,
             }
 
         recent_speakers = [
@@ -1503,10 +1550,11 @@ class DirectorAI:
         flat_tension = self._has_flat_tension_plateau(recent)
         explanation_loop = self._has_explanatory_loop(recent)
         repeated_concern = self._has_repeated_core_concern_exchange(recent)
+        signal_stack = self._has_overloaded_threat_signal_stack(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
-        ) or technical_stall or flat_tension or explanation_loop or repeated_concern
+        ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
@@ -1514,6 +1562,7 @@ class DirectorAI:
             "flat_tension": flat_tension,
             "explanation_loop": explanation_loop,
             "repeated_concern": repeated_concern,
+            "signal_stack": signal_stack,
         }
 
     def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:
@@ -1587,6 +1636,35 @@ class DirectorAI:
         return not any(
             self._has_emotional_or_decisive_shift(str(i.get("content", "")))
             for i in recent_interactions[-2:]
+        )
+
+    def _has_overloaded_threat_signal_stack(self, recent_interactions: list[dict]) -> bool:
+        if not self._feedback_flag_enabled("compress_threat_signal_stack") and not self._feedback_mentions(
+            "위협 신호",
+            "과밀",
+            "인위적",
+            "모니터 경보",
+            "보안요원 시선",
+        ):
+            return False
+        recent = recent_interactions[-4:]
+        if len(recent) < 3:
+            return False
+        signal_rows = 0
+        distinct_signals: set[str] = set()
+        consequence_hits = 0
+        for row in recent:
+            signals = self._threat_signal_signature(str(row.get("content", "")))
+            if signals:
+                signal_rows += 1
+                distinct_signals.update(signals)
+            if self._has_consequence_shift(str(row.get("content", ""))):
+                consequence_hits += 1
+        cap = self._feedback_static_threat_signal_cap(default=1)
+        return (
+            signal_rows >= max(2, cap + 1)
+            and len(distinct_signals) >= 2
+            and consequence_hits == 0
         )
 
     def _has_flat_tension_plateau(self, recent_interactions: list[dict]) -> bool:
@@ -1681,6 +1759,27 @@ class DirectorAI:
         if re.search(r"(위험|리스크|불안|압박|긴장|대가|후폭풍|부담)", low):
             tokens.add("stakes")
         return tokens
+
+    @staticmethod
+    def _threat_signal_signature(text: str) -> set[str]:
+        low = str(text or "").lower()
+        if not low.strip():
+            return set()
+        signals: set[str] = set()
+        if re.search(r"(메모|메모장|문서|서류|봉투|memo|document)", low):
+            signals.add("document")
+        if re.search(r"(경고음|경보|알람|비프|모니터|alert|alarm|warning|monitor)", low):
+            signals.add("alert")
+        if re.search(r"(보안요원|경호원|감시|watch|stare|gaze|시선)", low):
+            signals.add("watcher")
+        return signals
+
+    @staticmethod
+    def _has_consequence_shift(text: str) -> bool:
+        return bool(re.search(
+            r"(결정|선택|다가섰|다가갔|걸음을 옮|문으로 향|자료를 건넸|질문|반박|거절|수락|말을 걸|자리를 정리|고개를 끄덕)",
+            str(text or ""),
+        ))
 
     @staticmethod
     def _has_emotional_or_decisive_shift(text: str) -> bool:

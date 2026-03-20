@@ -510,6 +510,7 @@ class ProseGenerator:
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
             f"- If explanation runs long, pivot with one concrete action or reaction sentence instead of another detached fragment.\n"
             f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
+            f"- Let only one strong interior realization carry a local beat; after that, pivot into action, reaction, or verbal collision.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
             f"- Once a fact, threat, or decision lands, the next sentence should show consequence, reaction, or movement instead of paraphrasing it.\n"
@@ -521,6 +522,7 @@ class ProseGenerator:
             f"- If two nearby paragraphs perform the same job (restating a question, explaining the same fact, lingering on the same pressure), compress them into one sharper paragraph.\n"
             f"- Keep local event axis linear: question -> response -> approach/offer should appear once in that order, not as repeated resets.\n"
             f"- Avoid stock time bridges like '그 직후' or '잠시 뒤'; prefer gaze shift, footsteps, door movement, microphone lowering, or location cue.\n\n"
+            f"- Do not stack multiple warning-style signals in one short span unless one directly triggers the next; keep the sharpest cue and cash it out through reaction.\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
             f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
@@ -531,6 +533,7 @@ class ProseGenerator:
             f"- When a memo, warning sound, or named arrival shifts the scene, give it one dedicated sentence with subject and location.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
+            f"- Let character agendas and speech habits differentiate dialogue; theme should emerge from friction, not repeated explanation.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
             f"## Essential Content (from simulation)\n"
             f"Key dialogue:\n{dialogue_text}\n"
@@ -553,6 +556,13 @@ class ProseGenerator:
                 "- Different characters should not sound identical in sentence ending and lexical rhythm.\n"
                 "- Add subtle per-character speech habits without caricature.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
+            )
+        if self._feedback_flag_enabled("dialogue_agenda_contrast") or self._feedback_mentions("이해관계", "말버릇", "모레노", "밀러"):
+            prompt += (
+                "## Dialogue Agenda Contrast Priority\n"
+                "- Let each major speaker push a concrete immediate agenda rather than restating theme.\n"
+                "- Differentiate voices through directness, evasiveness, brevity, and favored wording.\n"
+                "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
@@ -623,6 +633,12 @@ class ProseGenerator:
                 "- When scene location or focus shifts, insert one short transition sentence.\n"
                 "- Keep transition lines concrete and action-based, not analytical.\n\n"
             )
+        if self._feedback_flag_enabled("compress_threat_signal_stack"):
+            prompt += (
+                "## Threat Signal Density Priority\n"
+                "- Memo discovery, monitor alert, and watchful-observer cues should not pile up in one paragraph unless one clearly triggers the next.\n"
+                "- Keep the sharpest warning cue on the page, then turn the rest into reaction, movement, or confrontation.\n\n"
+            )
         if self._feedback_flag_enabled("prefer_linear_scene_axis") or self._feedback_flag_enabled("prioritize_chronological_scene_order") or self._feedback_mentions("시간축", "시간 순서", "순서가 섞", "되감기", "헷갈리", "단선 구조"):
             prompt += (
                 "## Linear Scene Axis Priority\n"
@@ -651,11 +667,23 @@ class ProseGenerator:
                 "- If a sentence starts carrying both action and analysis, split the analysis into the next cause/effect sentence.\n"
                 "- Trim stock openers like '그리고', '그러자' unless the scene genuinely pivots there.\n\n"
             )
+        if self._feedback_flag_enabled("single_strong_interior_beat") or self._feedback_mentions("내면 독백", "한 번만 강하게", "재진술"):
+            prompt += (
+                "## Interior Beat Priority\n"
+                "- Keep one strong inner line for a local pressure beat, then move straight to action, dialogue, or consequence.\n"
+                "- Do not paraphrase the same fear or calculation in the next sentence.\n\n"
+            )
         if self._feedback_flag_enabled("avoid_metaphor_explanation") or self._feedback_mentions("비유", "은유", "의미를 다시 설명", "문단 밀도", "호흡이 무거워"):
             prompt += (
                 "## Metaphor Density Priority\n"
                 "- One comparison is enough. Do not follow it with a second sentence that explains the same meaning again.\n"
                 "- After an image lands, return immediately to the body's reaction, dialogue, or movement.\n\n"
+            )
+        if self._feedback_flag_enabled("prefer_pivot_paragraph_breath") or self._feedback_mentions("길게 호흡", "핵심 문단"):
+            prompt += (
+                "## Paragraph Breath Priority\n"
+                "- At one or two pivotal beats, let a fuller sentence carry the key information before the follow-up reaction.\n"
+                "- Do not break every tense beat into tiny fragments when one longer cause/effect sentence reads cleaner.\n\n"
             )
         if self._feedback_mentions("처음 등장", "첫 등장", "첫 언급", "괄호", "정의", "풀어쓰기", "비유", "약어", "약자"):
             prompt += (
@@ -2299,12 +2327,16 @@ class ProseGenerator:
             idx = 0
             while idx < len(sentences):
                 current = sentences[idx].strip()
-                if idx + 1 < len(sentences):
-                    nxt = sentences[idx + 1].strip()
-                    if self._is_post_metaphor_explanation_pair(current, nxt):
-                        kept.append(current)
-                        idx += 2
-                        continue
+                if idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
+                    kept.append(current)
+                    idx += 1
+                    while idx < len(sentences):
+                        nxt = sentences[idx].strip()
+                        if self._is_explanation_like_sentence(nxt) and not self._sentence_has_action_or_decision(nxt):
+                            idx += 1
+                            continue
+                        break
+                    continue
                 kept.append(current)
                 idx += 1
             out_blocks.append(" ".join(s for s in kept if s).strip())
@@ -2324,17 +2356,25 @@ class ProseGenerator:
             return False
         if re.search(r"[\"“”'‘’]", first_clean + second_clean):
             return False
-        metaphor_like = bool(re.search(r"(마치|흡사|처럼|같았다|같은|듯했다|듯한)", first_clean))
-        explanation_like = bool(re.search(
-            r"^(즉|다시 말해|쉽게 말하면|그 말은|그 뜻은)|"
-            r"(라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다)",
-            second_clean,
-        ))
+        metaphor_like = self._is_metaphor_like_sentence(first_clean)
+        explanation_like = self._is_explanation_like_sentence(second_clean)
         if not metaphor_like or not explanation_like:
             return False
         if self._sentence_has_action_or_decision(second_clean):
             return False
         return True
+
+    @staticmethod
+    def _is_metaphor_like_sentence(sentence: str) -> bool:
+        return bool(re.search(r"(마치|흡사|처럼|같았다|같은|듯했다|듯한)", str(sentence or "").strip()))
+
+    @staticmethod
+    def _is_explanation_like_sentence(sentence: str) -> bool:
+        return bool(re.search(
+            r"^(즉|다시 말해|쉽게 말하면|그 말은|그 뜻은|결국|한마디로)|"
+            r"(라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다|뜻에 가까웠다)",
+            str(sentence or "").strip(),
+        ))
 
     def _is_redundant_tension_restatement(self, left: str, right: str) -> bool:
         left_clean = str(left or "").strip()
@@ -2564,11 +2604,11 @@ class ProseGenerator:
     @staticmethod
     def _transition_replacement_catalog() -> dict[str, list[str]]:
         return {
-            "그리고": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"],
-            "그러자": ["그 말이 끝나자", "시선이 옮겨가자", "말끝이 떨어지자", "문 쪽에서 인기척이 일자"],
+            "그리고": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자", "말끝이 가라앉자", "짧은 숨이 스친 뒤"],
+            "그러자": ["그 말이 끝나자", "시선이 옮겨가자", "말끝이 떨어지자", "문 쪽에서 인기척이 일자", "답이 바로 나오지 않는 사이", "의자 다리가 짧게 끌리자"],
             "다만": ["대신", "문제는", "그래도", "한편"],
-            "이어서": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"],
-            "그 순간": ["말끝이 떨어지자", "시선이 정면으로 맞붙자", "문 쪽에서 인기척이 일자", "고개를 들자"],
+            "이어서": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자", "말끝이 가라앉자", "정면을 버틴 채"],
+            "그 순간": ["말끝이 떨어지자", "시선이 정면으로 맞붙자", "문 쪽에서 인기척이 일자", "고개를 들자", "누군가 펜을 내려놓자", "짧은 정적 끝에"],
         }
 
     def _pick_transition_replacement(
@@ -2604,7 +2644,8 @@ class ProseGenerator:
     def _merge_clipped_sentence_runs(self, text: str) -> str:
         """
         Merge repeated short narrative fragments into one flowing sentence.
-        This directly targets the clipped, mechanical cadence flagged in reviews.
+        This also collapses duplicate inner-pressure beats so one strong line carries
+        the feeling before the prose pivots into action or consequence.
         """
         if not text:
             return text
@@ -2626,16 +2667,18 @@ class ProseGenerator:
                 if self._is_mergeable_clipped_sentence(sent):
                     run.append(sent.strip())
                     continue
-                if len(run) >= 2:
-                    rebuilt.append(self._combine_clipped_sentence_run(run))
+                pruned_run = self._prune_clipped_sentence_run(run)
+                if len(pruned_run) >= 2:
+                    rebuilt.append(self._combine_clipped_sentence_run(pruned_run))
                 else:
-                    rebuilt.extend(run)
+                    rebuilt.extend(pruned_run)
                 run = []
                 rebuilt.append(sent.strip())
-            if len(run) >= 2:
-                rebuilt.append(self._combine_clipped_sentence_run(run))
+            pruned_run = self._prune_clipped_sentence_run(run)
+            if len(pruned_run) >= 2:
+                rebuilt.append(self._combine_clipped_sentence_run(pruned_run))
             else:
-                rebuilt.extend(run)
+                rebuilt.extend(pruned_run)
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
 
         return "\n\n".join(b for b in out_blocks if b.strip())
@@ -2652,17 +2695,71 @@ class ProseGenerator:
             return False
         return True
 
+    def _prune_clipped_sentence_run(self, sentences: list[str]) -> list[str]:
+        kept: list[str] = []
+        seen_fp: set[str] = set()
+        inner_idx: Optional[int] = None
+        keep_single_inner = self._feedback_flag_enabled("single_strong_interior_beat") or self._feedback_mentions(
+            "내면 독백",
+            "한 번만 강하게",
+            "재진술",
+            "같은 정보와 감정",
+        )
+        for raw in sentences:
+            current = str(raw or "").strip()
+            if not current:
+                continue
+            fp = self._sentence_fingerprint(current)
+            if fp and fp in seen_fp:
+                continue
+            if kept and self._is_redundant_tension_restatement(kept[-1], current):
+                kept[-1] = self._prefer_stronger_tension_sentence(kept[-1], current)
+                continue
+            is_inner = self._is_static_inner_monologue_sentence(current)
+            if keep_single_inner and is_inner and inner_idx is not None:
+                kept[inner_idx] = self._prefer_stronger_tension_sentence(kept[inner_idx], current)
+                continue
+            kept.append(current)
+            if fp:
+                seen_fp.add(fp)
+            if is_inner and inner_idx is None:
+                inner_idx = len(kept) - 1
+        return kept
+
+    def _is_static_inner_monologue_sentence(self, sentence: str) -> bool:
+        sent = str(sentence or "").strip()
+        if not sent or re.search(r"[\"“”'‘’]", sent):
+            return False
+        if self._sentence_has_action_or_decision(sent):
+            return False
+        if self._emotion_signature(sent):
+            return True
+        return bool(re.search(
+            r"(느낌|생각|계산|판단|확신|의심|두려|불안|초조|경계|망설|끌렸|끌리면서도|선별당)",
+            sent,
+        ))
+
     def _combine_clipped_sentence_run(self, sentences: list[str]) -> str:
         if not sentences:
             return ""
         if len(sentences) == 1:
             return sentences[0]
         connectors = [
-            conn for conn in ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자"]
+            conn
+            for conn in [
+                "그 말이 끝나자",
+                "시선이 옮겨가자",
+                "고개를 들자",
+                "의자가 밀리자",
+                "말끝이 가라앉자",
+                "짧은 숨이 스친 뒤",
+                "답이 바로 나오지 않는 사이",
+                "정면을 버틴 채",
+            ]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
         if not connectors:
-            connectors = ["그 말이 끝나자", "시선이 옮겨가자"]
+            connectors = ["말끝이 가라앉자", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이"]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
@@ -3241,36 +3338,36 @@ class ProseGenerator:
         min_chars = max(min_chars, 14)
         max_chars = max(max_chars, 28)
         strong_samples = [
-            "질문의 방향이 바뀌자 테이블 반대편의 시선도 함께 움직였다.",
-            "의자가 살짝 밀리는 소리 뒤로 회의장의 호흡이 한 박자 늦어졌다.",
-            "누군가 메모를 멈추고 고개를 들면서 방 안의 집중이 한곳으로 쏠렸다.",
-            "목 안쪽이 마르게 조여 오자 수민은 다음 말을 더 천천히 골랐다.",
-            "말끝이 한쪽으로 기울자 상대의 반응도 노골적으로 달라졌다.",
-            "공조기 소리만 남은 틈에서 누구도 먼저 시선을 거두지 않았다.",
-            "테이블 위 그림자가 흔들리자 분위기 역시 미세하게 균형을 잃었다.",
-            "한 사람이 먼저 숨을 고르자 다른 이들도 그 변화를 놓치지 못했다.",
-            "이번에는 시선이 정면으로 맞붙었고, 피할 구실은 더 이상 남지 않았다.",
-            "종이 모서리가 천천히 접히는 동안 아무도 성급하게 답을 내놓지 않았다.",
-            "답이 늦어지는 사이 방 안에는 계산보다 긴장이 먼저 차올랐다.",
-            "손끝에 들어간 힘이 굳어지자 질문의 무게도 분명하게 드러났다.",
-            "누군가 미소를 접는 순간, 감춰 두던 의도 역시 절반쯤 모습을 드러냈다.",
-            "질서 있던 호흡이 한 박자 어긋나면서 대화의 결도 서서히 거칠어졌다.",
-            "단어 하나가 분위기를 바꾸자 모두가 그 다음 문장을 기다렸다.",
-            "정적이 오래 끌리진 않았지만, 그 짧은 틈은 이미 충분한 의미를 남겼다.",
-            "기계음이 박자를 끊는 사이 사람들의 판단도 잠깐씩 서로를 엇갈렸다.",
-            "고개를 든 사람은 한 명뿐이었고, 그 사실이 방 안의 균형을 바꿨다.",
-            "실내의 온도가 내려간 듯한 착각과 함께 반응의 방향도 선명해졌다.",
-            "그제야 모두가, 지금부터는 말보다 선택이 더 중요해졌다는 걸 알아차렸다.",
+            "질문의 결이 달라지자 대답도 더는 피해 갈 수 없었다.",
+            "의자 다리가 짧게 끌리며 방 안의 계산이 다른 쪽으로 기울었다.",
+            "수민은 바로 받아치지 않고 상대가 숨을 고르는 틈을 먼저 봤다.",
+            "말끝이 무뎌진 순간, 방 안의 우선순위가 누가 쥐고 있는지 드러났다.",
+            "한쪽이 조건을 꺼내자 다른 쪽은 침묵으로 값을 올렸다.",
+            "답이 늦어지는 사이 공조기 소리만 더 또렷해졌다.",
+            "누군가 펜을 내려놓자 더 미룰 여지도 함께 사라졌다.",
+            "이번에는 시선보다 의도가 먼저 정면으로 부딪쳤다.",
+            "종이 한 장이 밀려 나오자 협상의 무게도 갑자기 현실이 됐다.",
+            "한 사람의 망설임이 길어질수록 다른 쪽의 요구는 더 선명해졌다.",
+            "짧은 정적 뒤에 남은 건 설명이 아니라 선택뿐이었다.",
+            "손끝에 힘이 들어가자 질문의 값도 눈앞에서 달라졌다.",
+            "누군가 미소를 접는 순간 감춰 두던 계산도 절반쯤 모습을 드러냈다.",
+            "질서 있던 호흡이 한 박자 어긋나면서 대화의 결도 거칠어졌다.",
+            "단어 하나가 힘의 방향을 바꾸자 모두가 다음 문장을 기다렸다.",
+            "정적은 길지 않았지만 이미 돌아갈 자리도 함께 지워 놓았다.",
+            "한쪽의 양보가 늦어질수록 다른 쪽의 태도는 더 노골적으로 굳었다.",
+            "고개를 든 사람은 한 명뿐이었고 그 사실이 방의 균형을 바꿨다.",
+            "실내의 공기가 식는 동안 반응의 방향도 선명하게 갈라졌다.",
+            "그제야 모두가 지금부터는 말보다 선택이 더 중요하다는 걸 알았다.",
         ]
         plain_samples = [
-            "수민은 바로 대답하지 않았다.",
-            "누군가 메모를 한 줄 더 적었다.",
+            "수민은 대답을 한 박자 늦췄다.",
+            "누군가 펜 끝만 가볍게 굴렸다.",
             "컵 바닥이 조용히 테이블에 닿았다.",
-            "그는 숨을 한 번 고르고 말을 골랐다.",
+            "그는 숨을 한번 고르고 의자를 바로잡았다.",
             "짧은 정리 뒤에 다음 질문이 이어졌다.",
-            "말의 끝이 가라앉자 방 안도 잠깐 조용해졌다.",
+            "말의 결이 가라앉자 방 안도 잠깐 조용해졌다.",
             "시선 몇 개가 같은 지점에 모였다가 다시 흩어졌다.",
-            "누군가는 고개만 아주 작게 끄덕였다.",
+            "그녀는 상대가 먼저 입을 열기를 기다렸다.",
         ]
         samples = plain_samples if tone == "plain" else strong_samples
         sample = samples[idx % len(samples)]

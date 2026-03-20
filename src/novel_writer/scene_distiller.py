@@ -330,6 +330,11 @@ class SceneDistiller:
             prompt += (
                 "If two nearby moments express the same tension with similar wording, keep only the sharper phrasing once and turn the rest into consequence.\n\n"
             )
+        if self._feedback_flag_enabled("compress_threat_signal_stack"):
+            prompt += (
+                "Do not stack memo, monitor alert, and watchful-observer cues into one frozen scene summary unless one clearly triggers the next.\n"
+                "Keep the sharpest warning cue, then convert the rest into reaction, movement, or confrontation.\n\n"
+            )
         if any(k in feedback_corpus for k in ("문장이 너무 길", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
             prompt += (
                 "Keep summaries syntactically simple: one action or discovery per sentence, with explicit subject early in the line.\n\n"
@@ -549,6 +554,7 @@ class SceneDistiller:
         scene.narrative_summary = self._soften_technical_summary(scene)
         scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
         scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
+        scene.narrative_summary = self._compress_overloaded_threat_signals(scene.narrative_summary)
         scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
         scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
         scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
@@ -569,6 +575,8 @@ class SceneDistiller:
             )
         scene.key_actions = self._compress_core_concern_lines(scene.key_actions, limit=8)
         scene.discoveries = self._compress_core_concern_lines(scene.discoveries, limit=6)
+        scene.key_actions = self._compress_threat_signal_lines(scene.key_actions, limit=8)
+        scene.discoveries = self._compress_threat_signal_lines(scene.discoveries, limit=6)
         scene.key_actions = [self._strip_stock_timeline_cues_from_text(line) for line in scene.key_actions]
         scene.discoveries = [self._strip_stock_timeline_cues_from_text(line) for line in scene.discoveries]
         scene.characters_present = self._normalize_scene_character_labels(scene.characters_present)
@@ -617,6 +625,8 @@ class SceneDistiller:
                 "멈춤",
                 "정체",
                 "제자리",
+                "맴도는",
+                "전진감이 약",
                 "안 나가",
                 "진행이 안",
                 "흐름이 끊",
@@ -631,6 +641,10 @@ class SceneDistiller:
                 "느려서 집중",
                 "집중력을 잃",
                 "늘어지",
+                "같은 장면을 다시 보는",
+                "다른 문장으로 다시 보는",
+                "제자리에서 맴도",
+                "서사적 전진감",
                 "템포가 느려",
                 "속도감이 떨어",
             )
@@ -673,12 +687,38 @@ class SceneDistiller:
                 "비슷한 상황",
                 "비슷한 상황과 묘사",
                 "묘사가 반복",
+                "같은 정보와 감정",
+                "재진술",
+                "다른 문장으로 다시 보는",
+                "제자리에서 맴도",
                 "문장이 너무 길",
                 "길고 복잡",
                 "이해하기 어려",
                 "지루",
             )
         )
+
+    def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return default
+        raw = constraints.get(key, 1 if default else 0)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return enabled >= 1
+
+    def _feedback_static_threat_signal_cap(self, default: int = 2) -> int:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return default
+        raw = constraints.get("max_static_threat_signals_per_scene", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(3, cap))
 
     def _feedback_scene_compaction_target(self, default: int = 100) -> int:
         constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
@@ -737,6 +777,9 @@ class SceneDistiller:
     def _adjacent_scene_merge_score(self, left: DistilledScene, right: DistilledScene) -> int:
         score = 0
         tension_peak = max(self._scene_tension_score(left), self._scene_tension_score(right))
+        same_concern = bool(self._scene_core_concern_signature(left)) and (
+            self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
+        )
         same_location = (
             self._norm_name_key(left.location)
             and self._norm_name_key(left.location) == self._norm_name_key(right.location)
@@ -767,12 +810,20 @@ class SceneDistiller:
             score += 1
         if len((left.narrative_summary or "").strip()) <= 90 or len((right.narrative_summary or "").strip()) <= 90:
             score += 1
-        if self._scene_core_concern_signature(left) and (
-            self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
-        ):
+        if same_concern:
             score += 2
+            if self._scene_is_low_motion(left) or self._scene_is_low_motion(right):
+                score += 1
+            if self._scene_is_low_motion(left) and self._scene_is_low_motion(right):
+                score += 1
         if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
             score += 2
+        if (
+            self._threat_signal_signature(left.narrative_summary)
+            and self._threat_signal_signature(right.narrative_summary)
+            and turn_gap <= 1
+        ):
+            score += 1
         if self._summary_is_mood_heavy(left.narrative_summary) or self._summary_is_mood_heavy(right.narrative_summary):
             score += 1
         if left.pacing == right.pacing:
@@ -1246,6 +1297,88 @@ class SceneDistiller:
         if re.search(r"(혼란|당황|망설임)", emotional):
             return self._ensure_summary_sentence(f"{subject}은 잠깐 답을 잇지 못했다")
         return self._ensure_summary_sentence(f"{subject}은 주변의 반응을 먼저 살폈다")
+
+    @staticmethod
+    def _threat_signal_signature(text: str) -> set[str]:
+        low = str(text or "").lower()
+        if not low.strip():
+            return set()
+        signals: set[str] = set()
+        if re.search(r"(메모|메모장|쪽지|문서|서류|봉투|note|memo|document)", low):
+            signals.add("document")
+        if re.search(r"(경고음|경보|알람|비프|모니터|화면 경고|warning|alert|alarm|monitor)", low):
+            signals.add("alert")
+        if re.search(r"(보안요원|경호원|감시|수트 차림|수트 남자|watch|stare|gaze|시선)", low):
+            signals.add("watcher")
+        return signals
+
+    def _compress_overloaded_threat_signals(self, summary: str) -> str:
+        if not self._feedback_flag_enabled("compress_threat_signal_stack"):
+            return summary
+        sentences = [
+            self._ensure_summary_sentence(s)
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if len(sentences) < 2:
+            return summary
+
+        kept: list[str] = []
+        seen_signals: set[str] = set()
+        static_signal_sentences = 0
+        cap = self._feedback_static_threat_signal_cap(default=1)
+        for sentence in sentences:
+            signals = self._threat_signal_signature(sentence)
+            if not signals:
+                kept.append(sentence)
+                continue
+            has_shift = self._summary_has_action_or_decision(sentence) or self._summary_has_reaction_or_sensory(sentence)
+            if not has_shift and not (signals - seen_signals):
+                continue
+            if not has_shift and static_signal_sentences >= cap:
+                continue
+            kept.append(sentence)
+            seen_signals.update(signals)
+            if not has_shift:
+                static_signal_sentences += 1
+        return " ".join(kept).strip() or summary
+
+    def _compress_threat_signal_lines(self, values: list[str], limit: int) -> list[str]:
+        if not self._feedback_flag_enabled("compress_threat_signal_stack"):
+            return values[:max(1, limit)]
+        kept: list[str] = []
+        seen_signals: set[str] = set()
+        static_signal_lines = 0
+        cap = self._feedback_static_threat_signal_cap(default=1)
+        for line in values:
+            signals = self._threat_signal_signature(line)
+            has_shift = self._summary_has_action_or_decision(line) or self._summary_has_reaction_or_sensory(line)
+            if signals:
+                if not has_shift and not (signals - seen_signals):
+                    continue
+                if not has_shift and static_signal_lines >= cap:
+                    continue
+                seen_signals.update(signals)
+                if not has_shift:
+                    static_signal_lines += 1
+            kept.append(line)
+            if len(kept) >= max(1, limit):
+                break
+        return kept
+
+    def _scene_is_low_motion(self, scene: DistilledScene) -> bool:
+        summary_sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip())
+            if s.strip()
+        ]
+        action_sentences = sum(1 for sent in summary_sentences if self._summary_has_action_or_decision(sent))
+        return (
+            action_sentences <= 1
+            and len(scene.discoveries or []) <= 1
+            and len(scene.key_actions or []) <= 2
+            and self._scene_tension_score(scene) <= 4
+        )
 
     def _rebalance_summary_sentence_rhythm(self, summary: str) -> str:
         sentences = [

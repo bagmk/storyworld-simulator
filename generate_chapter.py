@@ -139,6 +139,8 @@ def _reader_feedback_mentions_stalled_progression(reader_feedback: dict) -> bool
         "멈춤",
         "정체",
         "제자리",
+        "맴도는",
+        "전진감이 약",
         "안 나가",
         "진행이 안",
         "흐름이 끊",
@@ -181,8 +183,12 @@ def adjust_scene_target_for_feedback(
             "반복되는 표현",
             "비슷한 상황",
             "비슷한 상황과 묘사",
+            "같은 정보와 감정이 재진술",
+            "재진술",
             "같은 장면을 다시 도는",
             "같은 장면을 맴도",
+            "제자리에서 맴도",
+            "다른 문장으로 다시 보는",
             "묘사가 반복",
             "문장이 너무 길",
             "길고 복잡",
@@ -200,6 +206,9 @@ def adjust_scene_target_for_feedback(
             "비슷한 리듬",
             "같은 리듬",
             "단조로운 리듬",
+            "그 말이 끝나자",
+            "시선이 옮겨가자",
+            "연결어 반복",
             "기술 용어가 자주",
             "기술 용어가 겹칠 때",
         )
@@ -256,6 +265,19 @@ def adjust_scene_target_for_feedback(
         )
     ):
         adjusted -= 1
+    if (
+        target_words <= 4500
+        and adjusted >= 5
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "위협 신호",
+            "모니터 경보",
+            "보안요원 시선",
+            "과밀",
+            "인위적으로",
+        )
+    ):
+        adjusted -= 1
     # Dynamic floor: never allow so few scenes that any one exceeds _MAX_WORDS_PER_SCENE.
     scene_floor = math.ceil(target_words / _MAX_WORDS_PER_SCENE)
     return max(scene_floor, adjusted)
@@ -269,6 +291,23 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     constraints = dict(tuned.get("style_constraints", {}) or {})
     changed = False
 
+    def _merge_transition_avoid_terms(*terms: str) -> None:
+        existing = constraints.get("avoid_transition_terms", [])
+        if isinstance(existing, str):
+            existing_list = [existing]
+        elif isinstance(existing, list):
+            existing_list = [str(term) for term in existing if str(term).strip()]
+        else:
+            existing_list = []
+        seen = {term.strip().lower() for term in existing_list if term.strip()}
+        for term in terms:
+            cleaned = str(term or "").strip()
+            if not cleaned or cleaned.lower() in seen:
+                continue
+            existing_list.append(cleaned)
+            seen.add(cleaned.lower())
+        constraints["avoid_transition_terms"] = existing_list
+
     if _reader_feedback_has_any(
         tuned,
         "짧게 끊기는 문장",
@@ -277,6 +316,8 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "비슷한 리듬",
         "같은 리듬",
         "단조로운 리듬",
+        "그 말이 끝나자",
+        "시선이 옮겨가자",
     ):
         constraints["short_beats_per_scene_min"] = 0
         try:
@@ -484,9 +525,12 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "연결어 사용 빈도",
         "더 자연스럽",
         "덜 작위적",
+        "그 말이 끝나자",
+        "시선이 옮겨가자",
+        "연결어 반복",
     ):
         constraints["max_transition_openers_per_block"] = 1
-        constraints["avoid_transition_terms"] = ["그리고", "그러자", "이어서", "그 순간"]
+        _merge_transition_avoid_terms("그리고", "그러자", "이어서", "그 순간")
         changed = True
 
     if _reader_feedback_has_any(
@@ -501,7 +545,27 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     ):
         constraints["single_axis_sentences"] = 1
         constraints["max_transition_openers_per_block"] = 1
-        constraints["avoid_transition_terms"] = ["그리고", "그러자", "이어서", "그 순간"]
+        _merge_transition_avoid_terms("그리고", "그러자", "이어서", "그 순간")
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "그 말이 끝나자",
+        "시선이 옮겨가자",
+        "연결어 반복",
+        "상투적 연결어",
+    ):
+        constraints["max_transition_openers_per_block"] = 1
+        _merge_transition_avoid_terms(
+            "그리고",
+            "그러자",
+            "이어서",
+            "그 순간",
+            "그 말이 끝나자",
+            "시선이 옮겨가자",
+            "고개를 들자",
+            "의자가 밀리자",
+        )
         changed = True
 
     if _reader_feedback_has_any(
@@ -535,6 +599,21 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "같은 정보와 감정이 재진술",
+        "재진술",
+        "제자리에서 맴도",
+        "다른 문장으로 다시 보는",
+        "서사적 전진감",
+        "후반 반복",
+    ):
+        constraints["scene_compaction_ratio_target"] = 75
+        constraints["max_term_repeats_per_scene"] = 1
+        constraints["max_emotion_repeats_per_scene"] = 1
+        constraints["single_strong_interior_beat"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
         "메모 발견",
         "경고음",
         "밀러 등장",
@@ -543,6 +622,19 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "인물 위치",
     ):
         constraints["clarify_event_transitions"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "위협 신호",
+        "모니터 경보",
+        "보안요원 시선",
+        "과밀",
+        "인위적으로",
+    ):
+        constraints["clarify_event_transitions"] = 1
+        constraints["compress_threat_signal_stack"] = 1
+        constraints["max_static_threat_signals_per_scene"] = 1
         changed = True
 
     if _reader_feedback_has_any(
@@ -565,14 +657,14 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["prefer_linear_scene_axis"] = 1
         constraints["scene_compaction_ratio_target"] = 75
         constraints["max_transition_openers_per_block"] = 1
-        constraints["avoid_transition_terms"] = [
+        _merge_transition_avoid_terms(
             "그리고",
             "그러자",
             "이어서",
             "그 순간",
             "그 직후",
             "잠시 뒤",
-        ]
+        )
         changed = True
 
     if _reader_feedback_has_any(
@@ -584,6 +676,30 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "헷갈린다",
     ):
         constraints["clarify_similar_character_entries"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "길게 호흡",
+        "핵심 문단",
+        "문단 몇 개는 길게",
+    ):
+        constraints["prefer_pivot_paragraph_breath"] = 1
+        constraints["sentence_variety_window"] = max(
+            5,
+            int(constraints.get("sentence_variety_window", 5) or 5),
+        )
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "모레노",
+        "밀러",
+        "이해관계",
+        "말버릇",
+        "대사는 테마 설명보다",
+    ):
+        constraints["dialogue_agenda_contrast"] = 1
         changed = True
 
     if changed:
