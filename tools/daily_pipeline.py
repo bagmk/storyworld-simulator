@@ -358,6 +358,84 @@ def _increment_cycle(episode_key: str) -> None:
     _save_json(STORY_STATE_PATH, state)
 
 
+# ── subprocess 출력 → Discord 필터 유틸리티 ──────────────────────────────────
+# Python logging 형식: "HH:MM:SS [LEVEL] module.name: message"
+_PY_LOG_RE = re.compile(
+    r'^\d{2}:\d{2}:\d{2} \[(?:INFO|DEBUG|WARNING|ERROR|CRITICAL)\] \S+:\s*'
+)
+
+
+def _strip_python_log(line: str) -> tuple[str, str]:
+    """(level, clean_message) — Python logging prefix를 제거한다."""
+    m = re.search(r'\[(INFO|DEBUG|WARNING|ERROR|CRITICAL)\]', line)
+    level = m.group(1) if m else "INFO"
+    msg = _PY_LOG_RE.sub('', line).strip()
+    return level, msg
+
+
+def _friendly_sim_line(line: str) -> str | None:
+    """시뮬레이터 로그 → 사람이 읽을 수 있는 한국어. None 이면 출력 생략."""
+    level, msg = _strip_python_log(line)
+    if not msg:
+        return None
+    if level in ("ERROR", "CRITICAL"):
+        return f"❌ {msg}"
+    if level == "WARNING":
+        return f"⚠️ {msg}"
+    m = re.search(r'Loaded episode:\s*(\S+).*?max_turns=(\d+).*?clues=(\d+)', msg)
+    if m:
+        return f"에피소드 **{m.group(1)}** ({m.group(2)}턴 / 단서 {m.group(3)}개)"
+    return None  # 나머지는 모두 생략
+
+
+def _friendly_chapter_line(line: str) -> str | None:
+    """챕터 생성 로그 → 사람이 읽을 수 있는 한국어. None 이면 출력 생략."""
+    level, msg = _strip_python_log(line)
+    if not msg:
+        return None
+    if level in ("ERROR", "CRITICAL"):
+        return f"❌ {msg}"
+    if level == "WARNING":
+        return f"⚠️ {msg}"
+    m = re.search(r'Target words:\s*(\d+).*?Target scenes:\s*(\d+).*?(\d+)\s*words/scene', msg)
+    if m:
+        return f"목표: {int(m.group(1)):,}단어 / {m.group(2)}장면 (장면당 ~{m.group(3)}단어)"
+    m = re.search(r'adjusted target scenes:\s*(\d+)\s*->\s*(\d+)', msg, re.IGNORECASE)
+    if m:
+        return f"리더 피드백 반영: {m.group(1)}장면 → {m.group(2)}장면"
+    if re.search(r'Scene data\s*[→>]', msg):
+        return "씬 분석 완료"
+    return None  # 나머지는 모두 생략
+
+
+_FIXER_SHELL_RE = re.compile(r'^(/bin/|/usr/|rg |sed |grep |cat |python)', re.IGNORECASE)
+_FIXER_CODE_RE = re.compile(r'^\s*(def |class |import |from |if |for |return |#|async )')
+_FIXER_FILELINE_RE = re.compile(r'^\S+\.py:\d+:')
+_FIXER_PYFILE_RE = re.compile(r'\b[\w/.-]+\.py\b')
+
+
+def _friendly_fixer_line(line: str) -> str | None:
+    """Codex Fixer 출력 → 사람이 읽을 수 있는 한국어. None 이면 출력 생략."""
+    s = line.strip()
+    if not s:
+        return None
+    if _FIXER_SHELL_RE.match(s):
+        return None
+    if _FIXER_CODE_RE.match(s):
+        return None
+    if _FIXER_FILELINE_RE.match(s):
+        return None
+    # 파일 수정 언급 (영어)
+    if re.search(r'(edit|write|modif|updat|creat|patch)', s, re.IGNORECASE):
+        fm = _FIXER_PYFILE_RE.search(s)
+        if fm:
+            return f"수정 중: `{fm.group()}`"
+    # 한국어 텍스트 (Codex 분석/설명)
+    if re.search(r'[\uAC00-\uD7A3]', s):
+        return s[:100] + ('…' if len(s) > 100 else '')
+    return None
+
+
 async def _stream_subprocess(
     cmd: list[str],
     on_line: Callable[[str], Awaitable[None]] | None = None,
@@ -680,8 +758,9 @@ async def step_simulator(
             if notify:
                 await notify(f"{DAILY_TAG}[SIM] ⚙️ {current_turn_label}")
             return
-        if notify:
-            await notify(f"{DAILY_TAG}[SIM] ⚙️ {current_turn_label} | {line}")
+        friendly = _friendly_sim_line(line)
+        if friendly and notify:
+            await notify(f"{DAILY_TAG}[SIM] ⚙️ {friendly}")
 
     async def on_heartbeat_sim(elapsed: int) -> None:
         mins = elapsed // 60
@@ -822,10 +901,11 @@ async def step_chapter_gen(
             if notify:
                 await notify(f"{DAILY_TAG}[CHAPTER] 📝 {current_scene_label}")
             return
-        if notify:
+        friendly = _friendly_chapter_line(line)
+        if friendly and notify:
             prefix = current_scene_label or current_stage_label
             emoji = "📝" if current_scene_label else "🧩"
-            await notify(f"{DAILY_TAG}[CHAPTER] {emoji} {prefix} | {line}")
+            await notify(f"{DAILY_TAG}[CHAPTER] {emoji} {prefix} | {friendly}")
 
     async def on_heartbeat_chapter(elapsed: int) -> None:
         mins = elapsed // 60
@@ -1822,23 +1902,17 @@ async def _run_codex_fixer(
         prompt,
     ]
 
-    # 의미 있는 줄만 Discord로 전송 (파일 수정/읽기 관련)
-    _file_re = re.compile(
-        r"(edit|write|read|open|modif|updat|creat|delet|patch|apply|tool|calling|수정|변경|파일)",
-        re.IGNORECASE,
-    )
     _buffer: list[str] = []
 
     async def _on_fixer_line(line: str) -> None:
-        if not line.strip():
+        friendly = _friendly_fixer_line(line)
+        if not friendly:
             return
-        if _file_re.search(line):
-            _buffer.append(line)
-            if len(_buffer) >= 5:
-                if notify:
-                    chunk = "\n".join(_buffer)
-                    await notify(f"{DAILY_TAG}[FIXER] ⚙️\n```\n{chunk}\n```")
-                _buffer.clear()
+        _buffer.append(friendly)
+        if len(_buffer) >= 4:
+            if notify:
+                await notify(f"{DAILY_TAG}[FIXER] ⚙️\n" + "\n".join(_buffer))
+            _buffer.clear()
 
     async def _on_fixer_heartbeat(elapsed: int) -> None:
         mins = elapsed // 60
@@ -1989,21 +2063,25 @@ async def step_auto_improve_loop(
         _accumulate_usage_totals(metrics, review_budget)
 
         if notify:
+            summary_budget_line = (
+                "AI 리뷰 비용: $0.00 (Codex CLI — OpenAI 비용 없음)"
+                if review_tier == "codex"
+                else _format_budget_line("AI 리뷰 비용", review_budget)
+            )
             await notify(
                 f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과 (사이클 {fixer_cycle})\n"
                 f"긴장감: {thrill}/10 | 문체: {style}/10 | 인과성: {causality}/10 | "
                 f"캐릭터: {character}/10 | 씬기능: {scene_fn}/10\n"
-                f"**평균: {avg:.1f}/10** | 목표: {score_threshold:.1f}/10\n"
+                f"**평균: {avg:.1f}/10** | 목표: {score_threshold:.1f}/10"
+            )
+            await notify(
+                f"{DAILY_TAG}[AUTO] 🧾 AI 리뷰 상세 (사이클 {fixer_cycle})\n"
                 f"한줄평: {verdict}\n"
                 f"좋았던 점:\n- " + "\n- ".join(review_json.get("what_felt_good", [])) + "\n"
                 f"지루하거나 어려웠던 점:\n- " + "\n- ".join(review_json.get("what_felt_boring_or_hard", [])) + "\n"
                 f"개선 팁:\n- " + "\n- ".join(review_json.get("style_tips", [])) + "\n"
                 f"독자 코멘트: {review_json.get('reader_comment', '')}\n"
-                + (
-                    "AI 리뷰 비용: $0.00 (Codex CLI — OpenAI 비용 없음)"
-                    if review_tier == "codex"
-                    else _format_budget_line("AI 리뷰 비용", review_budget)
-                )
+                f"{summary_budget_line}"
             )
 
         # ── 점수 통과 확인 ──
