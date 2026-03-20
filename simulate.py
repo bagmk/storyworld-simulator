@@ -91,6 +91,8 @@ def parse_args() -> argparse.Namespace:
                    help="Optional reader review markdown to steer style/readability")
     p.add_argument("--guardian-briefing", default="",
                    help="Optional guardian GPT analysis text file for story continuity steering")
+    p.add_argument("--reset-emotions", action="store_true",
+                   help="Skip loading prior episode emotion states (use for auto-restart cycles)")
     return p.parse_args()
 
 
@@ -138,18 +140,21 @@ def main() -> None:
 
     # Emotion continuity: seed each agent with the latest prior episode state.
     loaded_count = 0
-    for agent in agents:
-        prev_emotions = db.load_previous_episode_final_emotions(
-            agent_id=agent.id,
-            current_episode_id=episode_id,
-        )
-        if prev_emotions:
-            agent.memory.emotional_state = prev_emotions
-            loaded_count += 1
-    if loaded_count:
-        logger.info("Loaded previous emotion states for %d agents", loaded_count)
+    if not args.reset_emotions:
+        for agent in agents:
+            prev_emotions = db.load_previous_episode_final_emotions(
+                agent_id=agent.id,
+                current_episode_id=episode_id,
+            )
+            if prev_emotions:
+                agent.memory.emotional_state = prev_emotions
+                loaded_count += 1
+        if loaded_count:
+            logger.info("Loaded previous emotion states for %d agents", loaded_count)
+        else:
+            logger.info("No prior emotion states found to preload")
     else:
-        logger.info("No prior emotion states found to preload")
+        logger.info("--reset-emotions set: skipping prior emotion state loading")
 
     logger.info("Loading world facts: %s", args.world)
     world_facts = load_world_facts(args.world)

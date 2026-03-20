@@ -231,7 +231,10 @@ class SceneDistiller:
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
             f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
             f"22. If two candidate lines restate the same pressure or explanation, keep the line with clearer action/reaction and drop the other.\n"
-            f"23. When scene count is limited, preserve higher-tension beats first: reveal, interruption, exposed contradiction, forced decision, or visible stress reaction.\n\n"
+            f"23. When scene count is limited, preserve higher-tension beats first: reveal, interruption, exposed contradiction, forced decision, or visible stress reaction.\n"
+            f"24. If external support, real-time control, resources, authority, or responsibility repeat across late turns, keep the clearest first mention and compress later restatements into changed consequence only.\n"
+            f"25. Treat transition-making beats one at a time: memo discovery, warning sound, and named arrival should each land in their own clear sentence with who noticed it and where they were.\n"
+            f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between '정장 남자' and a proper name without clarification.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -415,30 +418,7 @@ class SceneDistiller:
                 pacing=sd.get("pacing", "building"),
                 raw_turn_count=max(1, turn_end - turn_start + 1),
             )
-            self._sanitize_scene_dialogue(scene)
-            self._compress_expository_dialogue(scene)
-            scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
-            scene.narrative_summary = self._rebalance_narrative_summary(scene)
-            scene.narrative_summary = self._soften_technical_summary(scene)
-            scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
-            scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
-            scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
-            scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
-            scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
-            scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
-            scene.characters_present = self._canonicalize_name_list(
-                scene.characters_present,
-                canonical_speakers,
-            )
-            for row in scene.key_dialogue:
-                if not isinstance(row, dict):
-                    continue
-                row["speaker"] = self._canonicalize_name(
-                    str(row.get("speaker", "")).strip(),
-                    canonical_speakers,
-                )
-            scene.key_actions = self._dedupe_semantic_lines(scene.key_actions, limit=8)
-            scene.discoveries = self._dedupe_semantic_lines(scene.discoveries, limit=6)
+            self._apply_scene_readability_guards(scene, canonical_speakers)
             scenes.append(scene)
 
         # Keep scene order stable by timeline and re-number deterministically.
@@ -507,7 +487,64 @@ class SceneDistiller:
                     list(best.beat_references) + [beat_id]
                 )
 
-        return scenes
+        return self.apply_scene_guards(scenes)
+
+    def apply_scene_guards(
+        self,
+        scenes: list[DistilledScene],
+        canonical_speakers: Optional[dict[str, str]] = None,
+    ) -> list[DistilledScene]:
+        guarded = list(scenes or [])
+        canonical = canonical_speakers or {}
+        for scene in guarded:
+            self._apply_scene_readability_guards(scene, canonical)
+        self._clarify_adjacent_character_entries(guarded)
+        return guarded
+
+    def _apply_scene_readability_guards(
+        self,
+        scene: DistilledScene,
+        canonical_speakers: Optional[dict[str, str]] = None,
+    ) -> None:
+        canonical = canonical_speakers or {}
+        self._sanitize_scene_dialogue(scene)
+        self._compress_expository_dialogue(scene)
+        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+        scene.narrative_summary = self._rebalance_narrative_summary(scene)
+        scene.narrative_summary = self._soften_technical_summary(scene)
+        scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
+        scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
+        scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
+        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
+        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+        scene.characters_present = self._canonicalize_name_list(
+            scene.characters_present,
+            canonical,
+        )
+        for row in scene.key_dialogue:
+            if not isinstance(row, dict):
+                continue
+            row["speaker"] = self._canonicalize_name(
+                str(row.get("speaker", "")).strip(),
+                canonical,
+            )
+        scene.key_actions = self._compress_core_concern_lines(scene.key_actions, limit=8)
+        scene.discoveries = self._compress_core_concern_lines(scene.discoveries, limit=6)
+        scene.characters_present = self._normalize_scene_character_labels(scene.characters_present)
+        scene.narrative_summary = self._normalize_character_mentions(
+            scene.narrative_summary,
+            scene.characters_present,
+        )
+        scene.key_actions = [
+            self._normalize_character_mentions(line, scene.characters_present)
+            for line in scene.key_actions
+        ]
+        scene.discoveries = [
+            self._normalize_character_mentions(line, scene.characters_present)
+            for line in scene.discoveries
+        ]
 
     def _reader_prefers_compact_beats(self) -> bool:
         corpus = self._reader_feedback_corpus()
@@ -574,7 +611,7 @@ class SceneDistiller:
 
     def _reader_prefers_stronger_scene_compaction(self) -> bool:
         corpus = self._reader_feedback_corpus()
-        return self._reader_reports_stalled_progression() or any(
+        return self._reader_reports_stalled_progression() or self._feedback_scene_compaction_target() <= 85 or any(
             token in corpus for token in (
                 "반복되는 표현",
                 "비슷한 상황",
@@ -586,6 +623,17 @@ class SceneDistiller:
                 "지루",
             )
         )
+
+    def _feedback_scene_compaction_target(self, default: int = 100) -> int:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return default
+        raw = constraints.get("scene_compaction_ratio_target", default)
+        try:
+            ratio = int(raw)
+        except (TypeError, ValueError):
+            ratio = default
+        return max(60, min(100, ratio))
 
     def _scene_merge_budget(self, target_scenes: int) -> int:
         budget = 0
@@ -770,7 +818,7 @@ class SceneDistiller:
                 seen_fp.add(fp)
                 parts.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return " ".join(parts[:max_sentences]).strip()
+        return self._compress_repeated_core_concerns(" ".join(parts[:max_sentences]).strip())
 
     def _tighten_narrative_summary(self, summary: str) -> str:
         sentences: list[str] = []
@@ -785,7 +833,7 @@ class SceneDistiller:
             seen_fp.add(fp)
             sentences.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return " ".join(sentences[:max_sentences]).strip()
+        return self._compress_repeated_core_concerns(" ".join(sentences[:max_sentences]).strip())
 
     def _rebalance_narrative_summary(self, scene: DistilledScene) -> str:
         """
@@ -829,7 +877,7 @@ class SceneDistiller:
                 keep[0] = replacement
 
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return " ".join(keep[:max_sentences]).strip()
+        return self._compress_repeated_core_concerns(" ".join(keep[:max_sentences]).strip())
 
     def _blend_mood_fragment_with_consequence(self, sentence: str, scene: DistilledScene) -> str:
         fragment = re.sub(r"\s+", " ", str(sentence or "")).strip()
@@ -1129,7 +1177,8 @@ class SceneDistiller:
         for sent in sentences:
             rebuilt.extend(self._split_summary_sentence_by_word_cap(sent, max_words=cap))
         max_sentences = 3 if self._reader_prefers_stronger_scene_compaction() else 4
-        return " ".join(self._ensure_summary_sentence(s) for s in rebuilt[:max_sentences] if s.strip()).strip()
+        capped = " ".join(self._ensure_summary_sentence(s) for s in rebuilt[:max_sentences] if s.strip()).strip()
+        return self._compress_repeated_core_concerns(capped)
 
     @staticmethod
     def _split_summary_sentence_by_word_cap(sentence: str, max_words: int = 15) -> list[str]:
@@ -1275,6 +1324,189 @@ class SceneDistiller:
         scene.key_dialogue = compact[:4]
         if extra_actions:
             scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
+
+    def _compress_repeated_core_concerns(self, summary: str) -> str:
+        sentences = [
+            self._ensure_summary_sentence(s)
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if len(sentences) < 2:
+            return summary
+
+        kept: list[str] = []
+        concern_index: dict[str, int] = {}
+        for sentence in sentences:
+            sig = self._core_concern_signature(sentence)
+            if sig:
+                prev_idx = concern_index.get(sig)
+                if prev_idx is not None and self._is_redundant_core_concern(kept[prev_idx], sentence):
+                    kept[prev_idx] = self._prefer_more_concrete_line(kept[prev_idx], sentence)
+                    continue
+            kept.append(sentence)
+            if sig:
+                concern_index[sig] = len(kept) - 1
+        return " ".join(kept).strip()
+
+    def _compress_core_concern_lines(self, values: list[str], limit: int) -> list[str]:
+        compact = self._dedupe_semantic_lines(values, limit=max(1, limit * 2))
+        kept: list[str] = []
+        concern_index: dict[str, int] = {}
+        for line in compact:
+            sig = self._core_concern_signature(line)
+            if sig:
+                prev_idx = concern_index.get(sig)
+                if prev_idx is not None and self._is_redundant_core_concern(kept[prev_idx], line):
+                    kept[prev_idx] = self._prefer_more_concrete_line(kept[prev_idx], line)
+                    continue
+            kept.append(line)
+            if sig:
+                concern_index[sig] = len(kept) - 1
+            if len(kept) >= max(1, limit):
+                break
+        return kept
+
+    def _core_concern_signature(self, text: str) -> str:
+        low = str(text or "").lower()
+        parts: list[str] = []
+        if re.search(r"(외부 지원|지원 구조|지원|후원|자원|장비|인력|예산|환경|resource|support|funding)", low):
+            parts.append("support")
+        if re.search(r"(실시간|real-time|latency|지연|보정|control loop|제어 루프|compensation)", low):
+            parts.append("realtime")
+        if re.search(r"(통제|통제권|누가 쥐|누가 결정|주도권|권한|authority|control)", low):
+            parts.append("control")
+        if re.search(r"(책임|책임질|법적|감시 한도|oversight|accountability|liability)", low):
+            parts.append("responsibility")
+        return "|".join(parts[:3])
+
+    def _is_redundant_core_concern(self, left: str, right: str) -> bool:
+        left_sig = self._core_concern_signature(left)
+        right_sig = self._core_concern_signature(right)
+        if not left_sig or left_sig != right_sig:
+            return False
+        left_tokens = self._line_fingerprint_set(left)
+        right_tokens = self._line_fingerprint_set(right)
+        if not left_tokens or not right_tokens:
+            return False
+        overlap = len(left_tokens & right_tokens) / max(1, min(len(left_tokens), len(right_tokens)))
+        both_static = (
+            not self._summary_has_action_or_decision(left)
+            and not self._summary_has_action_or_decision(right)
+        )
+        return overlap >= 0.25 or both_static
+
+    def _prefer_more_concrete_line(self, left: str, right: str) -> str:
+        def score(line: str) -> tuple[int, int]:
+            concrete = 0
+            if self._summary_has_action_or_decision(line):
+                concrete += 3
+            if re.search(r"[0-9]", str(line or "")):
+                concrete += 1
+            if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):
+                concrete += 1
+            return concrete, -self._summary_word_count(line)
+
+        return right if score(right) > score(left) else left
+
+    def _normalize_scene_character_labels(self, names: list[str]) -> list[str]:
+        named_identity = self._preferred_named_identity(names)
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in names or []:
+            fixed = str(raw or "").strip()
+            if not fixed:
+                continue
+            if self._looks_like_generic_suit_label(fixed):
+                fixed = named_identity if named_identity and self._is_miller_identity(named_identity) else "이름 모를 수트 차림의 남자"
+            fp = self._norm_name_key(fixed)
+            if fp in seen:
+                continue
+            seen.add(fp)
+            out.append(fixed)
+        return out
+
+    def _normalize_character_mentions(self, text: str, character_names: list[str]) -> str:
+        raw = str(text or "")
+        if not raw.strip():
+            return raw
+        named_identity = self._preferred_named_identity(character_names)
+        replacement = named_identity if named_identity and self._is_miller_identity(named_identity) else "이름 모를 수트 차림의 남자"
+        pattern = re.compile(
+            r"(?:다크|짙은|남색|검은|회색)\s*수트(?:\s*차림)?(?:의)?\s*(?:남자|사내)"
+            r"|수트(?:\s*차림)?(?:의)?\s*(?:남자|사내)"
+            r"|dark[- ]suit(?:ed)?\s+(?:man|figure)"
+            r"|man in (?:a )?dark suit",
+            re.IGNORECASE,
+        )
+        return pattern.sub(replacement, raw)
+
+    def _clarify_adjacent_character_entries(self, scenes: list[DistilledScene]) -> None:
+        for idx, scene in enumerate(scenes):
+            scene.characters_present = self._normalize_scene_character_labels(scene.characters_present)
+            scene.narrative_summary = self._normalize_character_mentions(
+                scene.narrative_summary,
+                scene.characters_present,
+            )
+            scene.key_actions = [
+                self._normalize_character_mentions(line, scene.characters_present)
+                for line in scene.key_actions
+            ]
+            scene.discoveries = [
+                self._normalize_character_mentions(line, scene.characters_present)
+                for line in scene.discoveries
+            ]
+            if idx == 0:
+                continue
+            prev = scenes[idx - 1]
+            if (
+                self._scene_has_unnamed_suit_observer(prev)
+                and self._scene_has_named_miller(scene)
+            ):
+                scene.narrative_summary = self._normalize_character_mentions(
+                    scene.narrative_summary,
+                    scene.characters_present,
+                )
+
+    def _preferred_named_identity(self, names: list[str]) -> str:
+        for name in names or []:
+            raw = str(name or "").strip()
+            if raw and self._is_miller_identity(raw):
+                return raw
+        for name in names or []:
+            raw = str(name or "").strip()
+            if raw and not self._looks_like_generic_suit_label(raw):
+                return raw
+        return ""
+
+    @staticmethod
+    def _looks_like_generic_suit_label(text: str) -> bool:
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        return bool(re.search(
+            r"(?:다크|짙은|남색|검은|회색)\s*수트|수트\s*차림|dark[- ]suit|suited",
+            raw,
+            re.IGNORECASE,
+        )) and bool(re.search(r"(남자|사내|man|figure)", raw, re.IGNORECASE))
+
+    @staticmethod
+    def _is_miller_identity(text: str) -> bool:
+        low = str(text or "").lower()
+        return "miller" in low or "밀러" in low
+
+    def _scene_has_named_miller(self, scene: DistilledScene) -> bool:
+        return any(self._is_miller_identity(name) for name in (scene.characters_present or []))
+
+    def _scene_has_unnamed_suit_observer(self, scene: DistilledScene) -> bool:
+        text = " ".join(
+            [
+                scene.narrative_summary or "",
+                " ".join(scene.key_actions or []),
+                " ".join(scene.discoveries or []),
+                " ".join(scene.characters_present or []),
+            ]
+        )
+        return "이름 모를 수트 차림의 남자" in text or self._looks_like_generic_suit_label(text)
 
     @staticmethod
     def _dialogue_fingerprint(text: str) -> str:

@@ -158,6 +158,7 @@ class ProseGenerator:
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
         final = self._compress_repeated_tension_beats(final)
+        final = self._trim_post_metaphor_explanations(final)
         final = self._trim_redundant_sensory_sentences(final)
         final = self._trim_redundant_emotion_sentences(final)
         final = self._diversify_transition_openers(final)
@@ -519,6 +520,9 @@ class ProseGenerator:
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
             f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
             f"- If commas or connectives start chaining clauses, cut the sentence into shorter direct beats.\n\n"
+            f"- Keep one dominant axis per sentence: action, perception, or emotion. If two axes matter, split them into explicit cause/effect.\n"
+            f"- If you use one metaphor or comparison, do not spend the next sentence unpacking it again; move straight to reaction or the next action.\n"
+            f"- When a memo, warning sound, or named arrival shifts the scene, give it one dedicated sentence with subject and location.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
@@ -612,6 +616,33 @@ class ProseGenerator:
                 "## Transition Clarity Priority\n"
                 "- When scene location or focus shifts, insert one short transition sentence.\n"
                 "- Keep transition lines concrete and action-based, not analytical.\n\n"
+            )
+        if self._feedback_flag_enabled("clarify_event_transitions") or self._feedback_mentions("메모 발견", "경고음", "밀러 등장", "공간 동선", "인물 위치"):
+            prompt += (
+                "## Event Turn Priority\n"
+                "- Memo discovery, warning sound, and named arrival should land as separate beats, not blended summary.\n"
+                "- Each beat must state who noticed it, where they were, and what changed next.\n"
+                "- Keep event order linear so room movement is easy to picture.\n\n"
+            )
+        if self._feedback_flag_enabled("clarify_similar_character_entries") or self._feedback_mentions("다크 수트 남자", "크리스찬 밀러", "같은 인물인지", "다른 인물인지", "헷갈"):
+            prompt += (
+                "## Character Entry Clarity Priority\n"
+                "- If an unnamed observer later appears by name, bridge that identity once in plain prose.\n"
+                "- If they are not the same person, keep appearance, role, and position cues clearly different.\n"
+                "- Do not alternate between a vague label and a proper name without explaining the connection.\n\n"
+            )
+        if self._feedback_flag_enabled("single_axis_sentences"):
+            prompt += (
+                "## Single-Axis Sentence Priority\n"
+                "- Keep one main beat per sentence: either movement, feeling, or judgment.\n"
+                "- If a sentence starts carrying both action and analysis, split the analysis into the next cause/effect sentence.\n"
+                "- Trim stock openers like '그리고', '그러자' unless the scene genuinely pivots there.\n\n"
+            )
+        if self._feedback_flag_enabled("avoid_metaphor_explanation") or self._feedback_mentions("비유", "은유", "의미를 다시 설명", "문단 밀도", "호흡이 무거워"):
+            prompt += (
+                "## Metaphor Density Priority\n"
+                "- One comparison is enough. Do not follow it with a second sentence that explains the same meaning again.\n"
+                "- After an image lands, return immediately to the body's reaction, dialogue, or movement.\n\n"
             )
         if self._feedback_mentions("처음 등장", "첫 등장", "첫 언급", "괄호", "정의", "풀어쓰기", "비유", "약어", "약자"):
             prompt += (
@@ -747,6 +778,22 @@ class ProseGenerator:
         if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
             prompt += (
                 "\nAt each location/focus change, include a short transition sentence to keep flow explicit."
+            )
+        if self._feedback_flag_enabled("clarify_event_transitions"):
+            prompt += (
+                "\nWhen a memo, alert, or named arrival shifts the scene, give it one clean sentence with location before interpretation."
+            )
+        if self._feedback_flag_enabled("clarify_similar_character_entries"):
+            prompt += (
+                "\nIf an unnamed observer becomes a named character, bridge that identity explicitly once."
+            )
+        if self._feedback_flag_enabled("single_axis_sentences"):
+            prompt += (
+                "\nKeep one dominant beat per sentence and cut stock connective openers unless the turn truly changes there."
+            )
+        if self._feedback_flag_enabled("avoid_metaphor_explanation"):
+            prompt += (
+                "\nDo not explain a metaphor in the sentence right after it; go back to concrete action or reaction."
             )
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
@@ -905,6 +952,9 @@ class ProseGenerator:
                 reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
             if self._has_transition_opener_streak(text):
                 reasons.append("'그리고/그러자/다만' 계열 연결어 시작이 반복되어 흐름이 뻣뻣함")
+        if self._feedback_flag_enabled("avoid_metaphor_explanation") or self._feedback_mentions("비유", "은유", "의미를 다시 설명", "문단 밀도", "호흡이 무거워"):
+            if self._has_post_metaphor_explanation_pairs(text):
+                reasons.append("비유 직후 의미를 다시 풀어 문단 밀도가 높아짐")
         if self._feedback_mentions("쉼표", "연결어", "쉼표와 접속", "문장이 너무 길", "길고 복잡", "호흡", "걸리는"):
             comma_heavy = 0
             for sent in self._split_korean_sentences(text):
@@ -1013,6 +1063,8 @@ class ProseGenerator:
             "- 강하게 압박하는 문장과 담백하게 상황을 잇는 문장을 섞어 리듬 고저를 만들 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
+            "- 한 문장에는 동작, 감정, 판단 가운데 한 축만 남기고 둘 이상이면 인과관계가 보이게 분리할 것\n"
+            "- 비유나 비교를 쓴 직후 그 의미를 다음 문장으로 다시 해설하지 말 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
             "- 영어 키워드나 기술 용어 뒤에는 다음 문장으로 쉬운 풀어쓰기를 한 번 붙인 뒤, 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
@@ -1207,6 +1259,15 @@ class ProseGenerator:
     def _feedback_style_constraints(self) -> dict:
         raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
         return raw if isinstance(raw, dict) else {}
+
+    def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get(key, 1 if default else 0)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return enabled >= 1
 
     def _feedback_term_repeat_cap(self, default: int = 2) -> int:
         constraints = self._feedback_style_constraints()
@@ -1437,6 +1498,8 @@ class ProseGenerator:
             "- 긴 회의/대화 구간은 연속 설명 대사를 줄이고 행동/환경 반응 비트를 교차 배치할 것\n"
             "- 설명적 심리문이 길면 행동/표정/반응 단서로 치환해 감정을 보여줄 것\n"
             "- 비슷한 감각 묘사와 심리 표현은 같은 문단/인접 문단에서 반복하지 말 것\n"
+            "- 한 문장에는 동작, 감정, 판단 중 한 축만 남기고 필요하면 원인과 결과를 나눌 것\n"
+            "- 비유를 쓴 직후 그 의미를 다시 설명하는 문장은 삭제하거나 행동/반응으로 치환할 것\n"
             "- 감정 강도는 단조롭게 유지하지 말고 짧은 완화 비트 후 다시 긴장을 세울 것\n"
             "- 각 문단은 상황 변화, 압박 상승, 발견 중 하나를 분명히 남겨 전개를 전진시킬 것\n"
             "- 장소/장면 전환 지점은 한 줄 전환 문장으로 연결해 흐름을 명확히 할 것\n"
@@ -2189,6 +2252,62 @@ class ProseGenerator:
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
 
+    def _trim_post_metaphor_explanations(self, text: str) -> str:
+        if not text:
+            return text
+        if not (
+            self._feedback_flag_enabled("avoid_metaphor_explanation")
+            or self._feedback_mentions("비유", "은유", "의미를 다시 설명", "문단 밀도", "호흡이 무거워")
+        ):
+            return text
+
+        out_blocks: list[str] = []
+        for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+            kept: list[str] = []
+            idx = 0
+            while idx < len(sentences):
+                current = sentences[idx].strip()
+                if idx + 1 < len(sentences):
+                    nxt = sentences[idx + 1].strip()
+                    if self._is_post_metaphor_explanation_pair(current, nxt):
+                        kept.append(current)
+                        idx += 2
+                        continue
+                kept.append(current)
+                idx += 1
+            out_blocks.append(" ".join(s for s in kept if s).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _has_post_metaphor_explanation_pairs(self, text: str) -> bool:
+        sentences = self._split_korean_sentences(text)
+        return any(
+            self._is_post_metaphor_explanation_pair(sentences[idx], sentences[idx + 1])
+            for idx in range(len(sentences) - 1)
+        )
+
+    def _is_post_metaphor_explanation_pair(self, first: str, second: str) -> bool:
+        first_clean = str(first or "").strip()
+        second_clean = str(second or "").strip()
+        if not first_clean or not second_clean:
+            return False
+        if re.search(r"[\"“”'‘’]", first_clean + second_clean):
+            return False
+        metaphor_like = bool(re.search(r"(마치|흡사|처럼|같았다|같은|듯했다|듯한)", first_clean))
+        explanation_like = bool(re.search(
+            r"^(즉|다시 말해|쉽게 말하면|그 말은|그 뜻은)|"
+            r"(라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다)",
+            second_clean,
+        ))
+        if not metaphor_like or not explanation_like:
+            return False
+        if self._sentence_has_action_or_decision(second_clean):
+            return False
+        return True
+
     def _is_redundant_tension_restatement(self, left: str, right: str) -> bool:
         left_clean = str(left or "").strip()
         right_clean = str(right or "").strip()
@@ -2502,11 +2621,11 @@ class ProseGenerator:
         if len(sentences) == 1:
             return sentences[0]
         connectors = [
-            conn for conn in ["그리고", "그러자", "그러는 사이", "그 직후"]
+            conn for conn in ["그 직후", "잠시 뒤", "이내", "곧"]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
         if not connectors:
-            connectors = ["그리고", "그러자"]
+            connectors = ["그 직후", "잠시 뒤"]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())

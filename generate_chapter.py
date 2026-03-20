@@ -211,6 +211,23 @@ def adjust_scene_target_for_feedback(
         )
     ):
         adjusted -= 1
+    if (
+        target_words <= 4500
+        and adjusted >= 5
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "외부 지원",
+            "실시간성",
+            "자원과 통제",
+            "통제권",
+            "책임 문제",
+            "후반 반복",
+            "20퍼센트",
+            "20%",
+            "압축",
+        )
+    ):
+        adjusted -= 1
     return max(3, adjusted)
 
 
@@ -442,6 +459,73 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["avoid_transition_terms"] = ["그리고", "그러자", "이어서", "그 순간"]
         changed = True
 
+    if _reader_feedback_has_any(
+        tuned,
+        "한 문장에는 동작이나 감정 한 축",
+        "한 문장에는",
+        "문장 연결 방식을 수정",
+        "그리고, 그러자",
+        "그리고 그러자",
+        "리듬을 날카롭게",
+        "호흡이 무거",
+    ):
+        constraints["single_axis_sentences"] = 1
+        constraints["max_transition_openers_per_block"] = 1
+        constraints["avoid_transition_terms"] = ["그리고", "그러자", "이어서", "그 순간"]
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "비유로 분위기를 만든 직후 의미를 다시 설명",
+        "의미를 다시 설명",
+        "비유",
+        "문단 밀도",
+        "호흡이 가벼워",
+    ):
+        constraints["avoid_metaphor_explanation"] = 1
+        constraints["summary_easy_metaphor_once"] = 0
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "외부 지원",
+        "실시간성",
+        "자원과 통제",
+        "통제권",
+        "책임 문제",
+        "후반 반복",
+        "20퍼센트",
+        "20%",
+        "압축",
+    ):
+        constraints["scene_compaction_ratio_target"] = 80
+        constraints["max_term_repeats_per_scene"] = 1
+        constraints["max_emotion_repeats_per_scene"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "메모 발견",
+        "경고음",
+        "밀러 등장",
+        "장면 전환",
+        "공간 동선",
+        "인물 위치",
+    ):
+        constraints["clarify_event_transitions"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "다크 수트 남자",
+        "크리스찬 밀러",
+        "같은 인물인지",
+        "다른 인물인지",
+        "헷갈린다",
+    ):
+        constraints["clarify_similar_character_entries"] = 1
+        changed = True
+
     if changed:
         tuned["style_constraints"] = constraints
     return tuned
@@ -643,6 +727,12 @@ def main() -> None:
 
     # === Stage 1: Scene Distillation ===
     logger.info("─── Stage 1: Scene Distillation ───")
+    distiller = SceneDistiller(
+        llm=llm,
+        episode_config=episode_config,
+        runtime_policy=rl_policy,
+        reader_feedback=reader_feedback,
+    )
     if args.precomputed_scenes:
         scenes = _load_precomputed_scenes(args.precomputed_scenes)
         distill_elapsed = 0.0
@@ -652,13 +742,6 @@ def main() -> None:
             args.precomputed_scenes,
         )
     else:
-        distiller = SceneDistiller(
-            llm=llm,
-            episode_config=episode_config,
-            runtime_policy=rl_policy,
-            reader_feedback=reader_feedback,
-        )
-
         distill_start = datetime.utcnow()
         scenes = distiller.distill(
             episode_id=episode_id,
@@ -671,6 +754,7 @@ def main() -> None:
             "Distilled %d turns into %d scenes (%.1fs)",
             len(interactions), len(scenes), distill_elapsed,
         )
+    scenes = distiller.apply_scene_guards(scenes)
     for s in scenes:
         logger.info(
             "  Scene %d: '%s' [T%d-%d] %s — %s",

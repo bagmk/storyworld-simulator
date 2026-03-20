@@ -439,10 +439,164 @@ class DirectorAI:
         method: str, world: WorldState
     ) -> str:
         """Generate a natural in-world event that surfaces a clue."""
-        guidance = ""
+        builders = {
+            "document_artifact": self._generate_document_artifact_event,
+            "system_alert": self._generate_system_alert_event,
+            "npc_offer": self._generate_npc_offer_event,
+            "npc_question": self._generate_npc_question_event,
+            "environmental_cue": self._generate_environmental_cue_event,
+        }
+        builder = builders.get(str(method or "").strip(), self._generate_generic_injection_event)
+        return builder(clue_content, trigger, world)
+
+    def _generate_document_artifact_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        prompt = (
+            "You are staging a clue as a document, memo, notebook, badge, or handwritten artifact.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write 1-3 Korean sentences of scene narration.\n"
+            "Rules:\n"
+            "- Sentence 1 must pin down where the protagonist is and exactly where the artifact appears.\n"
+            "- Sentence 2 should show the word, symbol, or memo fragment that catches attention.\n"
+            "- Keep movement linear: notice -> approach/take -> immediate consequence.\n"
+            "- Do not turn it into a general explanation paragraph.\n"
+            "- If this reads like a transition beat, make the spatial handoff explicit.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_document_artifact")
+
+    def _generate_system_alert_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        prompt = (
+            "You are staging a clue as a warning sound, alert tone, device message, or access denial.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write 1-3 Korean sentences of scene narration.\n"
+            "Rules:\n"
+            "- State where the sound or alert comes from and who is closest to it.\n"
+            "- Keep the order concrete: source -> reaction -> next pressure.\n"
+            "- If there is a beep or warning text, tie it to a door, screen, badge reader, or phone.\n"
+            "- Avoid vague mood language without location.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_system_alert")
+
+    def _generate_npc_offer_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        miller_rule = ""
+        if "miller" in str(clue_content or "").lower() or "밀러" in str(clue_content or ""):
+            miller_rule = (
+                "- If the entrant is Miller, name him clearly on first appearance; do not leave him as only '정장 남자'.\n"
+            )
+        prompt = (
+            "You are staging a named entrance or offer beat by a new actor.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write 1-3 Korean sentences of scene narration.\n"
+            "Rules:\n"
+            "- Sentence 1 must say from which doorway, corridor, row, or edge of the room the person appears.\n"
+            "- Sentence 2 must say where the protagonist is when the newcomer stops or speaks.\n"
+            "- Keep the entrance, stop, and pressure shift in a clear sequence.\n"
+            f"{miller_rule}"
+            "- If this entrance resolves an earlier unnamed observer, make that link explicit once.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_npc_offer")
+
+    def _generate_npc_question_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        prompt = (
+            "You are staging a clue through a pointed NPC question or short exchange.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write 1-3 Korean sentences of scene narration.\n"
+            "Rules:\n"
+            "- Identify who steps closer, turns, or interrupts, and where both sides are standing.\n"
+            "- Make the question feel like a pressure turn, not an essay.\n"
+            "- Keep one concrete motion cue before or after the question.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_npc_question")
+
+    def _generate_environmental_cue_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        prompt = (
+            "You are staging a clue as an environmental cue the protagonist notices.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write 1-3 Korean sentences of scene narration.\n"
+            "Rules:\n"
+            "- Anchor the cue to one visible place in the room or corridor.\n"
+            "- Name who notices it and from what position.\n"
+            "- Let the cue change attention or movement immediately.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_environmental_cue")
+
+    def _generate_generic_injection_event(
+        self,
+        clue_content: str,
+        trigger: str,
+        world: WorldState,
+    ) -> str:
+        prompt = (
+            "You are a story director. A required story clue hasn't surfaced naturally.\n\n"
+            f"{self._scene_event_context(world)}"
+            f"Clue to surface: {clue_content}\n"
+            f"Suggested trigger: {trigger}\n\n"
+            f"{self._common_injection_guidance()}"
+            "Write a brief (1-3 sentence) Korean in-world event or observation that naturally introduces this clue.\n"
+            "Write it as scene narration, not as dialogue.\n"
+        )
+        return self._render_injection_event(prompt, purpose="director_clue_injection")
+
+    def _scene_event_context(self, world: WorldState) -> str:
+        scene_text = self._truncate(str(world.current_scene or ""), 700)
+        location = str(world.location or self.episode_config.get("location", "")).strip()
+        last_event = ""
+        if isinstance(world.visible_context, dict):
+            last_event = self._truncate(str(world.visible_context.get("last_event", "") or ""), 220)
+        return (
+            f"Current scene: {scene_text}\n"
+            f"Location: {location}\n"
+            f"Most recent visible event: {last_event or '(none)'}\n\n"
+        )
+
+    def _common_injection_guidance(self) -> str:
+        guidance = (
+            "Shared rules:\n"
+            "- Keep the prose concrete and brief.\n"
+            "- Make spatial continuity explicit: where the protagonist is, where the cue starts, and how attention moves.\n"
+            "- Prefer one clear event over layered explanation.\n"
+        )
         if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
-            guidance = (
-                "\nReader guidance:\n"
+            guidance += (
                 "- Avoid checklist-like technical listing.\n"
                 "- Keep at most one technical term in this event unless absolutely necessary.\n"
                 "- Prioritize a concrete sensory/action cue over repeated metrics.\n"
@@ -450,21 +604,17 @@ class DirectorAI:
                 "- If a technical term or English keyword appears, follow it immediately with a visible human reaction or consequence.\n"
                 "- Keep each sentence short and direct; split comma-heavy chains.\n"
             )
-        prompt = (
-            f"You are a story director. A required story clue hasn't surfaced naturally.\n\n"
-            f"Current scene: {world.current_scene}\n"
-            f"Location: {world.location}\n"
-            f"Clue to surface: {clue_content}\n"
-            f"Suggested trigger: {trigger}\n"
-            f"Method: {method}\n\n"
-            f"{guidance}"
-            f"Write a brief (1-3 sentence) in-world event or observation that naturally "
-            f"introduces this clue without being too on-the-nose. "
-            f"Write it as a scene narration, not as dialogue."
-        )
+        if self._feedback_mentions("장면 전환", "전환", "메모 발견", "경고음", "밀러 등장", "공간 동선", "인물 위치"):
+            guidance += (
+                "- Treat memo discovery, warning sound, and named arrival as separate beats; do not blur them together.\n"
+                "- Name who moved and where they stopped before you describe what it meant.\n"
+            )
+        return guidance + "\n"
+
+    def _render_injection_event(self, prompt: str, purpose: str) -> str:
         return self._safe_llm_call(
             [{"role": "user", "content": prompt}],
-            purpose="director_clue_injection",
+            purpose=purpose,
             use_premium=True,
         )
 
