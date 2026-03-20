@@ -5,7 +5,7 @@
 이 저장소에서 가장 중요한 진입점은 `!novel-daily`입니다.  
 처음 쓰는 사람은 다른 스크립트보다 이 명령부터 이해하면 됩니다.
 
-![Sample pipeline report](docs/assets/readme-pipeline-report.png)
+![Discord sample](Discord_sample.png)
 
 ## 먼저 보여드릴게요
 
@@ -700,6 +700,8 @@ output/daily/20260320_ep01_academic_presentation/013820/
 
 그래서 README에도 실제 예시 이미지를 넣었습니다.  
 초심자가 "아, 이 봇이 단순 채팅이 아니라 실행 결과를 시각적으로도 보여주는구나"를 바로 이해할 수 있게 하려는 목적입니다.
+
+![Sample pipeline report](docs/assets/readme-pipeline-report.png)
 
 ## 12. Discord 없이 직접 실행하고 싶다면
 
