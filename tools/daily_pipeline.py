@@ -128,8 +128,8 @@ def _llm_review_model_for_tier(review_tier: str) -> str:
     return "gpt-5-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
 
 def _codex_model_for_tier(review_tier: str) -> str | None:
-    """mini 티어이면 gpt-5.1-codex, 그 외엔 None (config.toml 기본값 사용)."""
-    return "gpt-5.1-codex-mini" if _use_mini_review_tier(review_tier) else None
+    """mini 티어이면 gpt-5.4-mini, 그 외엔 None (config.toml 기본값 사용)."""
+    return "gpt-5.4-mini" if _use_mini_review_tier(review_tier) else None
 
 
 def _format_auto_progress_label(auto_cycle_index: int | None, auto_max_cycles: int | None) -> str:
@@ -1220,6 +1220,7 @@ async def step_chapter_gen(
     upload_version_label: str | None = None,
     precomputed_scenes_path: Path | None = None,
     guardian_briefing_path: Path | None = None,
+    review_tier: str = "premium",
 ) -> Path | None:
     if stop_event and stop_event.is_set():
         return None
@@ -2763,6 +2764,7 @@ async def step_auto_improve_loop(
             upload_version_label=f"auto_cycle{fixer_cycle}",
             precomputed_scenes_path=cached_scenes_path,
             guardian_briefing_path=guardian_briefing_path,
+            review_tier=review_tier,
         )
         if cost_tracker is not None:
             cost_tracker["auto_chapter"] = (
@@ -3070,6 +3072,9 @@ async def run_daily_pipeline(
     on_end_wait: Callable[[], None] | None = None,
     reset_emotions: bool = False,
 ) -> dict[str, Any]:
+    review_tier = str(review_tier or "premium").strip()
+    if not review_tier:
+        review_tier = "premium"
     load_project_env(REPO_ROOT)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -3192,6 +3197,7 @@ async def run_daily_pipeline(
         auto_cycle_index=0,
         auto_max_cycles=AUTO_IMPROVE_MAX_CYCLES,
         guardian_briefing_path=guardian_briefing_path,
+        review_tier=review_tier,
     )
     if set_metrics:
         set_metrics(dict(cost_tracker))
@@ -3212,6 +3218,7 @@ async def run_daily_pipeline(
                 auto_cycle_index=0,
                 auto_max_cycles=AUTO_IMPROVE_MAX_CYCLES,
                 guardian_briefing_path=guardian_briefing_path,
+                review_tier=review_tier,
             )
             if set_metrics:
                 set_metrics(dict(cost_tracker))
@@ -3383,6 +3390,7 @@ async def run_daily_pipeline(
                 stop_event=stop_event, set_process=set_process, cost_tracker=cost_tracker,
                 upload_version_label=f"choice_code_cycle{cycle}",
                 guardian_briefing_path=guardian_briefing_path,
+                review_tier=review_tier,
             )
             if new_chapter:
                 chapter_path = new_chapter

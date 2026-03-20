@@ -533,7 +533,7 @@ Discord 채널에서 아래처럼 입력합니다.
 | Guardian 분석 | gpt-4o-mini | gpt-4o |
 | Quality Reviewer | gpt-4o-mini | gpt-4o |
 | AI 루프 리뷰 | gpt-5-mini | gpt-4o |
-| Codex 코드 수정 | Codex CLI (`gpt-5.1-codex-mini`) | Codex CLI (config 기본값) ² |
+| Codex 코드 수정 | Codex CLI (`gpt-5.4-mini`) | Codex CLI (config 기본값) ² |
 | Regen 판단 LLM | gpt-4o-mini | gpt-4o |
 | Feedback 파싱 LLM | gpt-4o-mini | gpt-4o |
 
