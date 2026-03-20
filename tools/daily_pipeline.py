@@ -125,7 +125,7 @@ def _llm_premium_model_for_tier(review_tier: str) -> str:
 
 def _codex_model_for_tier(review_tier: str) -> str | None:
     """mini 티어이면 gpt-5.1-codex, 그 외엔 None (config.toml 기본값 사용)."""
-    return "gpt-5.1-codex" if _use_mini_review_tier(review_tier) else None
+    return "gpt-5.1-codex-mini" if _use_mini_review_tier(review_tier) else None
 
 
 def _format_auto_progress_label(auto_cycle_index: int | None, auto_max_cycles: int | None) -> str:
