@@ -830,6 +830,24 @@ async def step_simulator(
             if notify:
                 await notify(f"{DAILY_TAG}[SIM] ⚙️ {current_turn_label}")
             return
+        # ── 디렉터 이벤트 감지 ──────────────────────────────────────────────
+        _, msg = _strip_python_log(line)
+        if "[Director]" in msg:
+            if "clue_injection" in msg:
+                clue_m = re.search(r'Injecting clue:\s*(\S+)', msg)
+                clue_id = clue_m.group(1).rstrip("}\"'") if clue_m else "?"
+                if notify:
+                    await notify(f"{DAILY_TAG}[SIM] 🔍 {current_turn_label} — 디렉터: 단서 주입 `{clue_id}`")
+            elif "invariant_violation" in msg:
+                char_m = re.search(r'for ([^:]+):', msg)
+                char_name = char_m.group(1).strip() if char_m else "?"
+                if notify:
+                    await notify(f"{DAILY_TAG}[SIM] ⚠️ {current_turn_label} — 디렉터: 캐릭터 일관성 수정 ({char_name})")
+            elif "knowledge_leak" in msg:
+                if notify:
+                    await notify(f"{DAILY_TAG}[SIM] ⚠️ {current_turn_label} — 디렉터: 정보 누설 차단")
+            return
+        # ── 기타 친화적 메시지 ──────────────────────────────────────────────
         friendly = _friendly_sim_line(line)
         if friendly and notify:
             await notify(f"{DAILY_TAG}[SIM] ⚙️ {friendly}")
