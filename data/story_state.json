@@ -1,5 +1,5 @@
 {
-  "last_completed_episode": null,
+  "last_completed_episode": "ep01_academic_presentation",
   "arc_position": {
     "act": 1,
     "act_name": "setup",
@@ -13,6 +13,24 @@
       "arc_status": "초기"
     }
   },
-  "episode_summaries": {},
+  "episode_summaries": {
+    "ep01_academic_presentation": {
+      "one_line": "제네바 컨퍼런스 센터에서 모레노 교수의 초전도 큐비트 발표가 열린다. 수민은 발표를 들으며 단순한 성능 향상을 넘어, 자신의 보상 회로 아이디어가 실제 시스템 수준에서 통할 수 있",
+      "key_events": [],
+      "user_scores": {
+        "긴장감": 3,
+        "캐릭터": 3,
+        "흐름": 4,
+        "재미": 4
+      },
+      "feedback": {
+        "approved_next_episode": true,
+        "specific_issues": [],
+        "positive_notes": [],
+        "raw_feedback": "다음으로 가자"
+      },
+      "completed_at": "2026-03-20"
+    }
+  },
   "active_clues": {}
 }

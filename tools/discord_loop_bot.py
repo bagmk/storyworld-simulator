@@ -1904,6 +1904,7 @@ async def async_main() -> None:
                 DAILY_WAITING_FEEDBACK.discard(ch_id)
 
             anchor_messages: dict[str, discord.Message | None] = {
+                "start": None,
                 "guardian_rules": None,
                 "guardian_gpt": None,
                 "sim": None,
@@ -1911,12 +1912,17 @@ async def async_main() -> None:
                 "review": None,
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
+                "start": None,
                 "guardian_rules": None,
                 "guardian_gpt": None,
                 "sim": None,
+                "chapter": None,
+                "review": None,
             }
 
             def _anchor_key_for_text(text: str) -> str | None:
+                if text.startswith(f"{DAILY_TAG}[START] 🎬 "):
+                    return "start"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🔍 Config 검수 중"):
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
@@ -1930,23 +1936,36 @@ async def async_main() -> None:
                 return None
 
             def _thread_route_for_text(text: str) -> str | None:
+                if (
+                    text.startswith(f"{DAILY_TAG}[START] run:")
+                    or text.startswith(f"{DAILY_TAG}[WAIT] ")
+                    or text.startswith(f"{DAILY_TAG}[DONE] ")
+                ):
+                    return "start"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] Config 규칙 검수 결과:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청"):
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     return "guardian_gpt"
-                if (
-                    text.startswith(f"{DAILY_TAG}[SIM] ⚙️ ")
-                    or text.startswith(f"{DAILY_TAG}[SIM] ⏳ ")
-                    or text.startswith(f"{DAILY_TAG}[SIM] ✅ ")
-                    or text.startswith(f"{DAILY_TAG}[SIM] ❌ ")
-                    or text.startswith(f"{DAILY_TAG}[SIM] 🛑 ")
-                ):
+                if text.startswith(f"{DAILY_TAG}[SIM] "):
                     if "시뮬레이션 시작" not in text:
                         return "sim"
+                if text.startswith(f"{DAILY_TAG}[CHAPTER] "):
+                    if "챕터 생성 중" not in text:
+                        return "chapter"
+                if text.startswith(f"{DAILY_TAG}[REVIEW] "):
+                    if "품질 자동 검수 중" not in text:
+                        return "review"
                 return None
 
             def _completion_keys_for_text(text: str) -> list[str]:
                 keys: list[str] = []
+                if (
+                    text.startswith(f"{DAILY_TAG}[WAIT] ")
+                    or text.startswith(f"{DAILY_TAG}[DONE] ")
+                    or text.startswith(f"{DAILY_TAG}[ERROR] ")
+                    or text.startswith(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료")
+                ):
+                    keys.append("start")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
                     keys.append("guardian_rules")
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
@@ -1974,25 +1993,26 @@ async def async_main() -> None:
                     return None
 
             async def _notify(text: str) -> None:
+                sent_anchor: discord.Message | None = None
                 anchor_key = _anchor_key_for_text(text)
                 if anchor_key is not None:
-                    sent = await message.channel.send(text)
-                    anchor_messages[anchor_key] = sent
-                    await _ensure_anchor_thread(anchor_key, sent)
-                    return
+                    sent_anchor = await message.channel.send(text)
+                    anchor_messages[anchor_key] = sent_anchor
+                    await _ensure_anchor_thread(anchor_key, sent_anchor)
 
-                route_key = _thread_route_for_text(text)
-                if route_key is not None:
-                    thread_target = anchor_threads.get(route_key)
-                    anchor_message = anchor_messages.get(route_key)
-                    if thread_target is not None:
-                        await _send_text_in_thread(thread_target, text)
-                    elif anchor_message is not None:
-                        await _send_text_reply(message.channel, anchor_message, text)
+                if sent_anchor is None:
+                    route_key = _thread_route_for_text(text)
+                    if route_key is not None:
+                        thread_target = anchor_threads.get(route_key)
+                        anchor_message = anchor_messages.get(route_key)
+                        if thread_target is not None:
+                            await _send_text_in_thread(thread_target, text)
+                        elif anchor_message is not None:
+                            await _send_text_reply(message.channel, anchor_message, text)
+                        else:
+                            await _send_text(message.channel, text)
                     else:
                         await _send_text(message.channel, text)
-                else:
-                    await _send_text(message.channel, text)
 
                 for key in _completion_keys_for_text(text):
                     await _add_reaction_safe(anchor_messages.get(key), "✅")

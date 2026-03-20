@@ -2,7 +2,7 @@
 """
 Agent 4: Quality Reviewer
 
-Objective checks + user scorecard generation for a generated chapter.
+LLM-based review + supporting checks for a generated chapter.
 
 Auto-checks (pass/fail):
   - Beat coverage: every beat in episode YAML appears in the chapter
@@ -11,9 +11,10 @@ Auto-checks (pass/fail):
   - Timeline contradictions
   - Word/phrase over-repetition
 
-Scorecard (human judgement):
-  - Prompts user to rate 긴장감 / 캐릭터 / 흐름 / 재미 (1-5)
-  - Receives free-text feedback, parses with LLM
+Scorecard:
+  - LLM reviews 긴장감 / 캐릭터 / 흐름 / 재미
+  - Supporting rule-based checks are passed in as review context
+  - Receives free-text feedback later, parses with LLM
   - Updates story_state.json with scores + episode summary
 
 Usage:
@@ -228,6 +229,100 @@ def build_scorecard(
     return "\n".join(lines)
 
 
+def _format_auto_results_for_prompt(
+    auto_results: dict[str, tuple[bool, list[str]]],
+) -> str:
+    lines: list[str] = []
+    for check_name, (ok, details) in auto_results.items():
+        icon = "PASS" if ok else "WARN"
+        lines.append(f"- {check_name}: {icon}")
+        for detail in details[:5]:
+            lines.append(f"  - {detail}")
+    return "\n".join(lines) if lines else "- 없음"
+
+
+def _extract_episode_review_context(episode_data: dict) -> str:
+    lines: list[str] = []
+    summary = str(episode_data.get("summary", "") or "").strip()
+    if summary:
+        lines.append(f"[episode summary]\n{summary}")
+
+    beats = episode_data.get("beats", []) or []
+    beat_lines = [str(b).strip() for b in beats if str(b).strip()]
+    if beat_lines:
+        lines.append("[expected beats]\n" + "\n".join(f"- {b}" for b in beat_lines[:12]))
+
+    clues = episode_data.get("introduced_clues", []) or []
+    clue_lines = []
+    for clue in clues[:8]:
+        if isinstance(clue, dict):
+            content = str(clue.get("content", "")).strip()
+            if content:
+                clue_lines.append(f"- {content[:200]}")
+    if clue_lines:
+        lines.append("[important clues]\n" + "\n".join(clue_lines))
+
+    return "\n\n".join(lines)
+
+
+def build_llm_scorecard(
+    episode_key: str,
+    episode_data: dict,
+    chapter_text: str,
+    auto_results: dict[str, tuple[bool, list[str]]],
+    llm: LLMClient,
+) -> str:
+    review_context = _extract_episode_review_context(episode_data)
+    auto_context = _format_auto_results_for_prompt(auto_results)
+    chapter_excerpt = chapter_text.strip()
+
+    system = (
+        "You are a sharp but fair Korean novel reviewer for an internal writing pipeline. "
+        "Read the chapter carefully and produce a concise Korean scorecard. "
+        "Use the rule-based auto-check results only as supporting evidence, not as the entire review. "
+        "Judge the actual prose, pacing, scene control, character portrayal, and reader engagement.\n\n"
+        "Return plain markdown text with this exact structure:\n"
+        "📋 **<episode_key> 품질 스코어카드**\n"
+        "─────────────────────────────\n"
+        "**LLM 리뷰 점수:**\n"
+        "- 긴장감: X/5 — 한 줄 코멘트\n"
+        "- 캐릭터: X/5 — 한 줄 코멘트\n"
+        "- 흐름: X/5 — 한 줄 코멘트\n"
+        "- 재미: X/5 — 한 줄 코멘트\n"
+        "\n"
+        "**잘된 점:**\n"
+        "- 2~4개\n"
+        "\n"
+        "**아쉬운 점:**\n"
+        "- 2~4개\n"
+        "\n"
+        "**다음 사이클 우선 개선 3개:**\n"
+        "- 3개\n"
+        "\n"
+        "**참고 자동체크:**\n"
+        "- 핵심 경고만 0~4개\n"
+        "\n"
+        "**피드백 남기기:**\n"
+        "예시: \"긴장감은 좋았는데 중반이 조금 늘어져. 그래도 다음으로 가자\"\n"
+        "_(\"다음으로 가자\", \"next\", \"ok\" 등의 신호가 있으면 다음 에피소드로 진행합니다)_\n"
+        "Do not wrap in code fences."
+    )
+    prompt = (
+        f"Episode key: {episode_key}\n\n"
+        f"{review_context or '[episode context]\n(없음)'}\n\n"
+        f"[auto-check summary]\n{auto_context}\n\n"
+        f"[chapter]\n{chapter_excerpt}"
+    )
+    return llm.chat(
+        [{"role": "user", "content": prompt}],
+        system=system,
+        use_premium=True,
+        purpose="quality_reviewer_llm_review",
+        temperature=0.4,
+        max_tokens=1400,
+    ).strip()
+
+
 # ── Feedback parser ───────────────────────────────────────────────────────────
 
 def parse_feedback_with_llm(
@@ -362,7 +457,23 @@ def run_quality_review(
     ok_tl, tl_issues = check_timeline_consistency(episode_data, chapter_text)
     auto_results["타임라인 일관성"] = (ok_tl, tl_issues)
 
-    scorecard = build_scorecard(episode_key, auto_results)
+    llm = LLMClient(
+        model="gpt-4o-mini",
+        premium_model="gpt-4o",
+        budget_usd=2.0,
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
+    )
+
+    try:
+        scorecard = build_llm_scorecard(
+            episode_key=episode_key,
+            episode_data=episode_data,
+            chapter_text=chapter_text,
+            auto_results=auto_results,
+            llm=llm,
+        )
+    except Exception:
+        scorecard = build_scorecard(episode_key, auto_results)
     return scorecard, auto_results
 
 

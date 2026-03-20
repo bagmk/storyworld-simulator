@@ -52,6 +52,20 @@ OUTPUT_DIR = REPO_ROOT / "output"
 
 DAILY_TAG = "[DAILY]"
 
+# Auto-improve loop settings
+AUTO_IMPROVE_MAX_CYCLES = 3       # Codex fixer 최대 반복 횟수
+AUTO_IMPROVE_SCORE_THRESHOLD = 7  # thrill+style 평균 이 점수 이상이면 통과 (10점 만점)
+
+# Fixer: config/episodes는 건드리지 않음. 이 파일들만 수정 대상.
+FIXER_TARGET_FILES = [
+    "src/novel_writer/prose_generator.py",
+    "src/novel_writer/scene_distiller.py",
+    "src/novel_writer/director.py",
+    "src/novel_writer/orchestrator.py",
+    "generate_chapter.py",
+    "simulate.py",
+]
+
 NotifyFn = Callable[[str], Awaitable[None]] | None
 UploadFn = Callable[[Path, str], Awaitable[None]] | None
 StatusFn = Callable[[str], None] | None      # sync callback to update shared status string
@@ -268,7 +282,7 @@ async def step_guardian(
 ) -> tuple[bool, Path | None]:
     """Returns (success, guardian_briefing_path). briefing_path is None if GPT analysis failed."""
     if stop_event and stop_event.is_set():
-        return False
+        return False, None
 
     if set_status:
         set_status("1/4 Config Guardian 검수 중...")
@@ -381,25 +395,22 @@ async def step_simulator(
         cmd += ["--guardian-briefing", str(guardian_briefing_path)]
 
     turn_re = re.compile(r"Turn\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
-    last_notified_checkpoint = -1
 
     async def on_line(line: str) -> None:
-        nonlocal last_notified_checkpoint
-        m = turn_re.search(line)
-        if not m:
+        if not line:
             return
-        turn = int(m.group(1))
-        total = max(int(m.group(2)), 1)
-        pct = int(turn / total * 100)
-
-        for checkpoint in (25, 50, 75, 100):
-            if pct >= checkpoint and last_notified_checkpoint < checkpoint:
-                last_notified_checkpoint = checkpoint
-                status_str = f"2/4 시뮬레이션 {checkpoint}% (Turn {turn}/{total})"
-                if set_status:
-                    set_status(status_str)
-                if notify:
-                    await notify(f"{DAILY_TAG}[SIM] ⚙️ {checkpoint}% (Turn {turn}/{total})")
+        m = turn_re.search(line)
+        if m:
+            turn = int(m.group(1))
+            total = max(int(m.group(2)), 1)
+            status_str = f"2/4 시뮬레이션 Turn {turn}/{total}"
+            if set_status:
+                set_status(status_str)
+            if notify:
+                await notify(f"{DAILY_TAG}[SIM] ⚙️ Turn {turn}/{total}")
+            return
+        if notify:
+            await notify(f"{DAILY_TAG}[SIM] {line}")
 
     async def on_heartbeat_sim(elapsed: int) -> None:
         mins = elapsed // 60
@@ -488,23 +499,21 @@ async def step_chapter_gen(
         cmd += ["--guardian-briefing", str(guardian_briefing_path)]
 
     scene_re = re.compile(r"scene\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
-    last_scene_checkpoint = -1
 
     async def on_line(line: str) -> None:
-        nonlocal last_scene_checkpoint
-        m = scene_re.search(line)
-        if not m:
+        if not line:
             return
-        scene = int(m.group(1))
-        total = max(int(m.group(2)), 1)
-        pct = int(scene / total * 100)
-        for checkpoint in (50, 100):
-            if pct >= checkpoint and last_scene_checkpoint < checkpoint:
-                last_scene_checkpoint = checkpoint
-                if set_status:
-                    set_status(f"3/4 챕터 생성 {checkpoint}% (Scene {scene}/{total})")
-                if notify:
-                    await notify(f"{DAILY_TAG}[CHAPTER] 📝 {checkpoint}% (Scene {scene}/{total})")
+        m = scene_re.search(line)
+        if m:
+            scene = int(m.group(1))
+            total = max(int(m.group(2)), 1)
+            if set_status:
+                set_status(f"3/4 챕터 생성 Scene {scene}/{total}")
+            if notify:
+                await notify(f"{DAILY_TAG}[CHAPTER] 📝 Scene {scene}/{total}")
+            return
+        if notify:
+            await notify(f"{DAILY_TAG}[CHAPTER] {line}")
 
     async def on_heartbeat_chapter(elapsed: int) -> None:
         mins = elapsed // 60
@@ -594,6 +603,277 @@ async def step_quality_review(
         await notify(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료\n\n{scorecard}")
 
     return scorecard
+
+
+# ── Auto-improve loop (AI Reviewer → Codex Fixer → Chapter regen) ─────────────
+
+def _build_ai_reviewer_prompt(chapter_text: str) -> str:
+    return (
+        "You are a high-school student reader reviewing a Korean techno-thriller novel chapter.\n"
+        "Focus only on readability, sentence flow, immersion, and whether it feels fun to read.\n"
+        "Do NOT evaluate plot logic or story structure.\n"
+        "Return strict JSON only:\n"
+        "{\n"
+        '  "thrill_score_10": int,\n'
+        '  "style_score_10": int,\n'
+        '  "one_line_verdict": string,\n'
+        '  "what_felt_good": [string, ...],\n'
+        '  "what_felt_boring_or_hard": [string, ...],\n'
+        '  "style_tips": [string, ...],\n'
+        '  "reader_comment": string\n'
+        "}\n"
+        "Rules: Be honest and concrete. Each list ≥ 3 items. reader_comment 4~6 sentences. Korean only.\n\n"
+        f"Chapter text:\n{chapter_text[:16000]}"
+    )
+
+
+def _build_codex_fixer_prompt(review_json: dict, review_md_path: Path) -> str:
+    issues = review_json.get("what_felt_boring_or_hard", [])
+    tips = review_json.get("style_tips", [])
+    comment = review_json.get("reader_comment", "")
+    thrill = review_json.get("thrill_score_10", "?")
+    style = review_json.get("style_score_10", "?")
+    return (
+        f"독자 AI 리뷰 결과: 긴장감={thrill}/10, 문체={style}/10\n\n"
+        f"문제점:\n" + "\n".join(f"- {i}" for i in issues) + "\n\n"
+        f"개선 팁:\n" + "\n".join(f"- {t}" for t in tips) + "\n\n"
+        f"리뷰 전문: {comment}\n\n"
+        "위 독자 리뷰를 바탕으로, 소설 생성 코드의 품질을 개선하라.\n"
+        "수정 대상 파일:\n"
+        "- src/novel_writer/prose_generator.py (씬 프롬프트, 가독성 규칙)\n"
+        "- src/novel_writer/scene_distiller.py (씬 압축 로직)\n"
+        "- src/novel_writer/director.py (씬 진행 판단)\n"
+        "- generate_chapter.py (챕터 생성 파이프라인)\n\n"
+        "규칙:\n"
+        "1. config/episodes/ 파일은 절대 수정 금지\n"
+        "2. prose_generator.py의 콜론 대사 금지 규칙(COLON_DIALOGUE_LABEL_BAN)은 수정/삭제 금지\n"
+        "3. 독자가 지적한 문제를 실제 코드 수정으로 해결하라\n"
+        "4. 수정 후 변경된 파일 목록을 한국어로 요약하라\n"
+        "5. 기존 변경사항을 보존한 채 최소 diff로 수정하라\n"
+        "6. 확인 질문 없이 바로 수정하라"
+    )
+
+
+def _backup_target_files(run_dir: Path, fixer_cycle: int) -> Path:
+    """Codex 실행 전 수정 대상 파일을 백업. 백업 디렉토리 경로 반환."""
+    backup_dir = run_dir / f"backup_before_fixer_cycle{fixer_cycle}"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    for rel_path in FIXER_TARGET_FILES:
+        src = REPO_ROOT / rel_path
+        if src.exists():
+            dst = backup_dir / src.name
+            dst.write_bytes(src.read_bytes())
+    return backup_dir
+
+
+async def _git_commit_fixer_changes(fixer_cycle: int, episode_key: str, summary: str) -> tuple[bool, str]:
+    """Codex가 수정한 파일을 git add + commit. 성공 여부와 메시지 반환."""
+    # Stage only fixer target files that actually changed
+    add_cmd = ["git", "add"] + [f for f in FIXER_TARGET_FILES if (REPO_ROOT / f).exists()]
+    proc_add = await asyncio.create_subprocess_exec(
+        *add_cmd, cwd=str(REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    await proc_add.wait()
+
+    # Check if there's anything to commit
+    proc_diff = await asyncio.create_subprocess_exec(
+        "git", "diff", "--cached", "--quiet",
+        cwd=str(REPO_ROOT),
+    )
+    await proc_diff.wait()
+    if proc_diff.returncode == 0:
+        return False, "변경된 파일 없음 (이미 최신 상태)"
+
+    short_summary = summary[:200].replace("\n", " ")
+    commit_msg = (
+        f"auto: codex fixer improvements — {episode_key} cycle {fixer_cycle}\n\n"
+        f"{short_summary}\n\n"
+        f"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+    )
+    proc_commit = await asyncio.create_subprocess_exec(
+        "git", "commit", "-m", commit_msg,
+        cwd=str(REPO_ROOT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc_commit.communicate()
+    out = stdout.decode("utf-8", errors="replace").strip() if stdout else ""
+    if proc_commit.returncode != 0:
+        return False, f"git commit 실패: {out}"
+    return True, out
+
+
+async def _run_codex_fixer(prompt: str, run_dir: Path, fixer_cycle: int) -> tuple[bool, str]:
+    """Codex CLI로 코드를 직접 수정. 성공 여부와 요약 반환."""
+    summary_path = run_dir / f"fixer_cycle{fixer_cycle}_summary.md"
+    cmd = [
+        "codex",
+        "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd", str(REPO_ROOT),
+        "-o", str(summary_path),
+        prompt,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(REPO_ROOT),
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+    except asyncio.TimeoutError:
+        proc.terminate()
+        return False, "Codex fixer 타임아웃 (15분)"
+
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    if proc.returncode != 0:
+        return False, f"Codex 실패 (rc={proc.returncode})\n{output[-800:]}"
+
+    summary = summary_path.read_text(encoding="utf-8").strip() if summary_path.exists() else output[-1000:]
+    return True, summary
+
+
+async def step_auto_improve_loop(
+    episode_key: str,
+    run_dir: Path,
+    chapter_path: Path,
+    target_words: int,
+    budget: float,
+    protagonist: str,
+    guardian_briefing_path: Path | None,
+    notify: NotifyFn,
+    set_status: StatusFn,
+    stop_event: asyncio.Event | None,
+    max_cycles: int = AUTO_IMPROVE_MAX_CYCLES,
+    score_threshold: int = AUTO_IMPROVE_SCORE_THRESHOLD,
+) -> Path:
+    """
+    AI 리뷰 → Codex Fixer → 챕터 재생성 루프.
+    점수 통과 또는 max_cycles 도달 시 최종 chapter_path 반환.
+    """
+    current_chapter = chapter_path
+
+    for fixer_cycle in range(1, max_cycles + 1):
+        if stop_event and stop_event.is_set():
+            break
+
+        if set_status:
+            set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — 리뷰 중...")
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프 {fixer_cycle}/{max_cycles} 시작")
+
+        # ── AI 리뷰 ──
+        chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
+        try:
+            llm = LLMClient(
+                model="gpt-4o-mini",
+                premium_model="gpt-4o",
+                budget_usd=2.0,
+                api_key=os.environ.get("OPENAI_API_KEY", ""),
+            )
+            review_raw = await asyncio.to_thread(
+                llm.chat,
+                [{"role": "user", "content": _build_ai_reviewer_prompt(chapter_text)}],
+                use_premium=True,
+                purpose="auto_improve_reviewer",
+                max_tokens=1200,
+            )
+            cleaned = re.sub(r"```(?:json)?\n?", "", review_raw).strip().rstrip("`")
+            review_json = json.loads(cleaned)
+        except Exception as exc:
+            if notify:
+                await notify(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패 ({exc}), 루프 종료")
+            break
+
+        thrill = int(review_json.get("thrill_score_10", 0))
+        style = int(review_json.get("style_score_10", 0))
+        avg = (thrill + style) / 2
+        verdict = review_json.get("one_line_verdict", "")
+
+        # 리뷰 저장
+        review_path = run_dir / f"auto_review_cycle{fixer_cycle}.json"
+        review_path.write_text(json.dumps(review_json, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if notify:
+            await notify(
+                f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과 (사이클 {fixer_cycle})\n"
+                f"긴장감: {thrill}/10 | 문체: {style}/10 | 평균: {avg:.1f}/10\n"
+                f"한줄평: {verdict}"
+            )
+
+        # ── 점수 통과 확인 ──
+        if avg >= score_threshold:
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[AUTO] ✅ 품질 통과 (평균 {avg:.1f} ≥ {score_threshold}) "
+                    f"— 사이클 {fixer_cycle}에서 완료"
+                )
+            break
+
+        if fixer_cycle == max_cycles:
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[AUTO] ⚠️ 최대 사이클({max_cycles}) 도달 (평균 {avg:.1f}) "
+                    "— 현재 버전으로 진행"
+                )
+            break
+
+        # ── Codex Fixer ──
+        if set_status:
+            set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — Codex 코드 수정 중...")
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] 🔧 Codex Fixer 실행 중... (코드 자동 수정)")
+
+        # 수정 전 백업
+        backup_dir = await asyncio.to_thread(_backup_target_files, run_dir, fixer_cycle)
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] 💾 이전 버전 백업 완료 → `{backup_dir.name}/`")
+
+        fixer_prompt = _build_codex_fixer_prompt(review_json, run_dir)
+        ok, summary = await _run_codex_fixer(fixer_prompt, run_dir, fixer_cycle)
+
+        if not ok:
+            if notify:
+                await notify(f"{DAILY_TAG}[AUTO] ❌ Codex Fixer 실패: {summary}")
+            break
+
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] ✅ 코드 수정 완료:\n{summary[:800]}")
+
+        # 수정 후 자동 git commit
+        committed, commit_msg = await _git_commit_fixer_changes(fixer_cycle, episode_key, summary)
+        if notify:
+            if committed:
+                await notify(f"{DAILY_TAG}[AUTO] 📦 git commit 완료 (사이클 {fixer_cycle}): `{commit_msg[:120]}`")
+            else:
+                await notify(f"{DAILY_TAG}[AUTO] ℹ️ git commit 스킵: {commit_msg}")
+
+        # ── 챕터 재생성 ──
+        if set_status:
+            set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — 챕터 재생성 중...")
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] 📖 수정된 코드로 챕터 재생성 중...")
+
+        new_chapter = await step_chapter_gen(
+            episode_key, run_dir, fixer_cycle, target_words, budget, protagonist,
+            notify=None,  # 재생성은 조용히
+            upload=None,
+            set_status=None,
+            stop_event=stop_event,
+            guardian_briefing_path=guardian_briefing_path,
+        )
+        if new_chapter:
+            current_chapter = new_chapter
+            if notify:
+                wc = len(current_chapter.read_text(encoding="utf-8").split())
+                await notify(f"{DAILY_TAG}[AUTO] 📝 재생성 완료 ({wc}단어)")
+        else:
+            if notify:
+                await notify(f"{DAILY_TAG}[AUTO] ⚠️ 챕터 재생성 실패 — 이전 버전 유지")
+            break
+
+    return current_chapter
 
 
 # ── Feedback wait ─────────────────────────────────────────────────────────────
@@ -688,10 +968,10 @@ async def run_daily_pipeline(
     if set_status:
         set_status(f"시작 — {episode_key} 사이클 {cycle}")
     if notify:
+        await notify(f"{DAILY_TAG}[START] 🎬 `{episode_key}` 파이프라인 시작 (사이클 {cycle})")
         await notify(
-            f"{DAILY_TAG}[START] 🎬 `{episode_key}` 파이프라인 시작 (사이클 {cycle})\n"
-            f"- run: `{run_dir.relative_to(REPO_ROOT)}`\n"
-            f"- 진행 상황: `!status` | 중단: `!stop`"
+            f"{DAILY_TAG}[START] run: `{run_dir.relative_to(REPO_ROOT)}`\n"
+            "진행 상황: `!status` | 중단: `!stop`"
         )
 
     # ── Step 1: Config Guardian ──
@@ -720,7 +1000,21 @@ async def run_daily_pipeline(
             set_status("중단됨 (Chapter Gen 단계)")
         return {"success": False, "step": "chapter_gen", "cycle": cycle}
 
-    # ── Step 4: Quality review ──
+    # ── Step 3.5: AI 자동 개선 루프 (AI 리뷰 → Codex Fixer → 챕터 재생성) ──
+    if notify:
+        await notify(
+            f"{DAILY_TAG}[AUTO] 🚀 AI 자동 개선 루프 시작 "
+            f"(최대 {AUTO_IMPROVE_MAX_CYCLES}사이클, 목표 평균 {AUTO_IMPROVE_SCORE_THRESHOLD}/10)"
+        )
+    chapter_path = await step_auto_improve_loop(
+        episode_key, run_dir, chapter_path, target_words, budget, protagonist,
+        guardian_briefing_path=guardian_briefing_path,
+        notify=notify,
+        set_status=set_status,
+        stop_event=stop_event,
+    )
+
+    # ── Step 4: Final quality review → user ──
     scorecard = await step_quality_review(
         episode_key, chapter_path, run_dir, cycle, notify, upload, set_status, stop_event,
     )
