@@ -225,9 +225,10 @@ class SceneDistiller:
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
             f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise rewrite them as action or emotional consequence in the same sentence.\n"
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
-            f"17. If a technical term or acronym survives in the summary, bracket it with easy Korean: add one short plain-language sentence right before or right after it, then show an immediate human reaction or consequence.\n"
-            f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n\n"
-            f"19. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n\n"
+            f"17. If a technical term or acronym survives in the summary, add one short plain-language Korean sentence immediately after it, then show an immediate human reaction or consequence.\n"
+            f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
+            f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
+            f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -410,6 +411,7 @@ class SceneDistiller:
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.narrative_summary = self._rebalance_narrative_summary(scene)
             scene.narrative_summary = self._soften_technical_summary(scene)
+            scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
             scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
             scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
@@ -757,7 +759,7 @@ class SceneDistiller:
             return self._ensure_summary_sentence(fragment or replacement)
         if self._dialogue_fingerprint(base) == self._dialogue_fingerprint(follow):
             return self._ensure_summary_sentence(base)
-        return self._ensure_summary_sentence(f"{base}, 그 여파로 {follow}")
+        return self._ensure_summary_sentence(f"{base}, 그래서 {follow}")
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
         if scene.pacing in {"opening", "climax"}:
@@ -849,20 +851,20 @@ class SceneDistiller:
 
         rebuilt: list[str] = []
         added_reaction = False
-        buffer_added = False
+        explanation_added = False
         for sent in sentences:
             normalized = self._ensure_summary_sentence(sent)
             if not self._summary_is_jargon_heavy(sent) or self._summary_has_reaction_or_sensory(sent):
                 rebuilt.append(normalized)
                 continue
 
-            if self._summary_plain_buffer_enabled() and not buffer_added:
+            rebuilt.append(normalized)
+
+            if self._summary_plain_buffer_enabled() and not explanation_added:
                 preface = self._summary_plain_preface(sent)
                 if preface:
                     rebuilt.append(preface)
-                    buffer_added = True
-
-            rebuilt.append(normalized)
+                    explanation_added = True
 
             if self._force_reaction_after_jargon() or not added_reaction:
                 reaction = self._summary_reaction_tail(scene)
@@ -870,7 +872,7 @@ class SceneDistiller:
                     rebuilt.append(reaction)
                     added_reaction = True
 
-        max_sentences = 3 if buffer_added else (2 if self._reader_prefers_stronger_scene_compaction() else 3)
+        max_sentences = 3 if explanation_added else (2 if self._reader_prefers_stronger_scene_compaction() else 3)
         return " ".join(rebuilt[:max_sentences]).strip()
 
     def _summary_plain_buffer_enabled(self) -> bool:
@@ -884,15 +886,33 @@ class SceneDistiller:
             enabled = 1
         return enabled >= 1
 
+    @staticmethod
+    def _simplify_summary_wording(summary: str) -> str:
+        text = re.sub(r"\s+", " ", str(summary or "")).strip()
+        if not text:
+            return ""
+        replacements = (
+            ("요지는", "핵심은"),
+            ("여파로", "그래서"),
+            ("기울었다", "움직였다"),
+            ("감정선은", "마음은"),
+            ("드러났다는 뜻이었다", "드러난 셈이었다"),
+            ("계산의 결이 흐트러질 수 있다는 뜻이었다", "계산이 흔들릴 수 있다는 말이었다"),
+            ("수치가 조금씩 밀리고 있다는 뜻이었다", "수치가 조금씩 어긋난다는 말이었다"),
+        )
+        for old, new in replacements:
+            text = text.replace(old, new)
+        return text
+
     def _summary_plain_preface(self, sentence: str) -> str:
         cue = self._plain_term_cue(sentence)
         if cue:
-            plain = re.sub(r"^즉\s*", "쉽게 말해 ", cue).strip()
+            plain = re.sub(r"^즉\s*", "쉽게 말하면 ", cue).strip()
             metaphor = self._plain_term_metaphor(sentence)
             if metaphor and self._summary_easy_metaphor_enabled():
                 plain = f"{plain}, {metaphor}"
             return self._ensure_summary_sentence(plain)
-        return self._ensure_summary_sentence("요지는 지금 바로 확인해야 할 문제가 드러났다는 뜻이었다")
+        return self._ensure_summary_sentence("쉽게 말하면 지금 바로 확인해야 할 문제가 드러난 셈이었다")
 
     def _summary_easy_metaphor_enabled(self) -> bool:
         constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
@@ -1028,7 +1048,9 @@ class SceneDistiller:
         sent = re.sub(r"\s+", " ", str(sentence or "")).strip()
         if not sent:
             return []
-        if len(re.findall(r"[0-9A-Za-z가-힣]+", sent)) <= max_words:
+        comma_heavy = (sent.count(",") + sent.count("，") + sent.count(";")) >= 2
+        connective_heavy = len(re.findall(r"(그리고|그러나|하지만|다만|그래서|그러자|한편|또한)", sent)) >= 2
+        if len(re.findall(r"[0-9A-Za-z가-힣]+", sent)) <= max_words and not comma_heavy and not connective_heavy:
             return [re.sub(r"[.!?…]+$", "", sent).strip()]
 
         clauses = re.split(
@@ -1072,11 +1094,11 @@ class SceneDistiller:
         if self._dialogue_fingerprint(left_base) == self._dialogue_fingerprint(right_base):
             return self._ensure_summary_sentence(left_base)
         if self._summary_has_action_or_decision(left_base) and not self._summary_has_action_or_decision(right_base):
-            return self._ensure_summary_sentence(f"{left_base}, 그 여파로 {right_base}")
+            return self._ensure_summary_sentence(f"{left_base}, 그래서 {right_base}")
         if not self._summary_has_action_or_decision(left_base) and self._summary_has_action_or_decision(right_base):
-            return self._ensure_summary_sentence(f"{left_base}, 그러자 {right_base}")
+            return self._ensure_summary_sentence(f"{left_base}, 그래서 {right_base}")
         if self._summary_word_count(left_base) <= 8 and self._summary_word_count(right_base) <= 8:
-            return self._ensure_summary_sentence(f"{left_base}, 그러자 {right_base}")
+            return self._ensure_summary_sentence(f"{left_base}, 그래서 {right_base}")
         return ""
 
     @staticmethod

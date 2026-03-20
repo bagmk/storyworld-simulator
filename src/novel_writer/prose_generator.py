@@ -508,11 +508,14 @@ class ProseGenerator:
             f"- If explanation runs long, pivot with one concrete action or reaction sentence instead of another detached fragment.\n"
             f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
+            f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
+            f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
-            f"- If an English keyword or technical term appears, attach an immediate human reaction or feeling within the next sentence.\n\n"
+            f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
+            f"- If commas or connectives start chaining clauses, cut the sentence into shorter direct beats.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
@@ -716,8 +719,11 @@ class ProseGenerator:
             f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
+            f"Each paragraph should add one fresh observation, decision, or emotional turn instead of circling the same tension.\n"
+            f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
-            f"When a technical or English term appears, make the next line an immediate reaction, emotion, or decision.\n"
+            f"After that explanation, move straight to reaction, emotion, or decision.\n"
+            f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
         prompt += (
@@ -871,6 +877,16 @@ class ProseGenerator:
                 reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
             if self._has_transition_opener_streak(text):
                 reasons.append("'그리고/그러자/다만' 계열 연결어 시작이 반복되어 흐름이 뻣뻣함")
+        if self._feedback_mentions("쉼표", "연결어", "쉼표와 접속", "문장이 너무 길", "길고 복잡", "호흡", "걸리는"):
+            comma_heavy = 0
+            for sent in self._split_korean_sentences(text):
+                if (sent.count(",") + sent.count("，") + sent.count(";")) >= 2:
+                    comma_heavy += 1
+                    continue
+                if len(re.findall(r"(그리고|그러나|하지만|다만|또한|한편|그래서|그러자)", sent)) >= 2:
+                    comma_heavy += 1
+            if comma_heavy >= 2:
+                reasons.append("쉼표/접속으로 이어지는 문장이 많아 호흡이 걸림")
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선"):
             synonym_groups = [
                 ("보정", "실시간", "드리프트"),
@@ -971,7 +987,8 @@ class ProseGenerator:
             "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
-            "- 영어 키워드나 기술 용어 뒤에는 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
+            "- 영어 키워드나 기술 용어 뒤에는 다음 문장으로 쉬운 풀어쓰기를 한 번 붙인 뒤, 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
+            "- 쉼표와 접속으로 절이 길게 이어지면 짧고 분명한 두 문장으로 나눌 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             "- 출력은 소설 본문만\n\n"
             f"원문:\n{text}"
@@ -2605,8 +2622,13 @@ class ProseGenerator:
         if not s:
             return []
         words = re.findall(r"[0-9A-Za-z가-힣]+", s)
-        if len(words) <= max_words:
+        if len(words) <= max_words and any(ch in s for ch in ('"', "“", "”")):
             return [s]
+        if len(words) <= max_words:
+            comma_heavy = (s.count(",") + s.count("，") + s.count(";")) >= 2
+            connective_heavy = len(re.findall(r"(그리고|그러나|하지만|다만|한편|또한|그래서|그러자)", s)) >= 2
+            if not comma_heavy and not connective_heavy:
+                return [s]
 
         # Prefer semantic boundaries first, then fallback to token slicing.
         clauses = re.split(

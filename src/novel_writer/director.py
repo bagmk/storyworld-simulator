@@ -639,6 +639,11 @@ class DirectorAI:
         progress = turn / max(target_turns, 1)
         progress_signal = self._scene_progress_signal(recent_interactions)
 
+        if progress_signal["explanation_loop"]:
+            return (
+                "The scene is explaining instead of moving. Cut the next turn into short direct sentences, "
+                "translate the point into plain consequence, and force a reaction, choice, or interruption."
+            )
         if progress_signal["technical_stall"]:
             return (
                 "Technical back-and-forth is looping. Translate the next technical point into "
@@ -980,6 +985,14 @@ class DirectorAI:
                 "10) If the next turn keeps a technical or English term, it must be followed by "
                 "an immediate human reaction, emotion, or choice in the same turn.\n"
             )
+        brevity_rule = ""
+        if progress_signal["explanation_loop"] or self._feedback_mentions(
+            "쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성"
+        ):
+            brevity_rule = (
+                "11) Favor short direct sentences for the next turn. Split comma-heavy clause chains "
+                "into 1-2 clear beats.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1001,6 +1014,7 @@ class DirectorAI:
             f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
             f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
             f"{jargon_reaction_rule}"
+            f"{brevity_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1018,6 +1032,10 @@ class DirectorAI:
         if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
             prompt += (
                 "\nReader priority: if recent turns keep ending on similar sharp lines, end the scene or pivot to a calmer human reaction before escalating again."
+            )
+        if self._feedback_mentions("쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성"):
+            prompt += (
+                "\nReader priority: prefer turns that say one point at a time in short direct sentences."
             )
 
         result = self._safe_llm_call(
@@ -1065,6 +1083,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to avoid drag after recent beat landed"
+        elif progress_signal["explanation_loop"] and len(recent) >= 4:
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to stop repeated explanation before it drags"
         elif progress_signal["technical_stall"] and len(recent) >= 4:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
@@ -1213,7 +1235,13 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip() != "director"
         ][-5:]
         if len(recent) < 4:
-            return {"stalled": False, "closure_ready": False, "technical_stall": False, "flat_tension": False}
+            return {
+                "stalled": False,
+                "closure_ready": False,
+                "technical_stall": False,
+                "flat_tension": False,
+                "explanation_loop": False,
+            }
 
         recent_speakers = [
             str(i.get("speaker_id", "")).strip()
@@ -1229,16 +1257,38 @@ class DirectorAI:
         low_novelty = len({fp for fp in fingerprints if fp}) <= 2
         technical_stall = self._has_repetitive_technical_exchange(recent)
         flat_tension = self._has_flat_tension_plateau(recent)
+        explanation_loop = self._has_explanatory_loop(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
-        ) or technical_stall or flat_tension
+        ) or technical_stall or flat_tension or explanation_loop
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
             "technical_stall": technical_stall,
             "flat_tension": flat_tension,
+            "explanation_loop": explanation_loop,
         }
+
+    def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:
+        recent = recent_interactions[-4:]
+        explain_hits = 0
+        technical_hits = 0
+        for row in recent:
+            text = str(row.get("content", ""))
+            if re.search(r"(즉|다시 말해|정리하면|요약하면|핵심은|설명하자면|왜냐하면)", text):
+                explain_hits += 1
+            if (text.count(",") + text.count(";")) >= 2:
+                explain_hits += 1
+            if len(re.findall(r"(그리고|그러나|하지만|다만|또한|한편|그래서)", text)) >= 2:
+                explain_hits += 1
+            if self._technical_term_signature(text):
+                technical_hits += 1
+        shift_hits = sum(
+            1 for row in recent
+            if self._has_emotional_or_decisive_shift(str(row.get("content", "")))
+        )
+        return explain_hits >= 3 and shift_hits == 0 and (technical_hits >= 1 or explain_hits >= 4)
 
     def _has_repetitive_technical_exchange(self, recent_interactions: list[dict]) -> bool:
         signatures = [
