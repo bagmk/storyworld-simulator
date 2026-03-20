@@ -24,6 +24,7 @@ from typing import Optional
 
 from .llm_client import LLMClient
 from . import database as db
+from .reader_profile import ReaderProfile, build_reader_profile
 from .review_feedback import build_feedback_prompt_block
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,40 @@ class DistilledScene:
         }
 
 
+@dataclass(frozen=True)
+class DistillationRequest:
+    interactions: list[dict]
+    beats: list[dict]
+    protagonist_id: str
+    target_scenes: int
+    turns_text: str
+    available_turns: list[int]
+    canonical_speakers: dict[str, str]
+    default_location: str
+    prompt_char_limit: int
+
+
+@dataclass(frozen=True)
+class SignatureCompressionRule:
+    signature_attr: str
+    replace_decision_attr: str
+    prefer_attr: str
+
+
+SIGNATURE_COMPRESSION_RULES: dict[str, SignatureCompressionRule] = {
+    "core_concern": SignatureCompressionRule(
+        signature_attr="_core_concern_signature",
+        replace_decision_attr="_should_replace_core_concern_entry",
+        prefer_attr="_prefer_more_concrete_line",
+    ),
+    "confrontation": SignatureCompressionRule(
+        signature_attr="_summary_confrontation_signature",
+        replace_decision_attr="_should_replace_confrontation_entry",
+        prefer_attr="_prefer_more_concrete_line",
+    ),
+}
+
+
 class SceneDistiller:
     """
     Distills raw simulation interactions into essential narrative scenes.
@@ -86,7 +121,8 @@ class SceneDistiller:
         self.llm = llm
         self.episode_config = episode_config or {}
         self.runtime_policy = runtime_policy or {}
-        self.reader_feedback = reader_feedback or {}
+        self.reader_profile: ReaderProfile = build_reader_profile(reader_feedback)
+        self.reader_feedback = self.reader_profile.as_dict()
 
     # ------------------------------------------------------------------ #
     # Public: Distill Episode
@@ -182,44 +218,77 @@ class SceneDistiller:
         target_scenes: int,
     ) -> list[DistilledScene]:
         """Use LLM to segment interactions into distilled scenes."""
-        canonical_speakers = self._build_canonical_speaker_map(interactions)
-        # Format interactions compactly
-        turns_text = self._format_turns_compact(interactions)
-        prompt_char_limit = self._distill_prompt_char_limit(default=80000)
-        if len(turns_text) > prompt_char_limit:
+        request = self._prepare_distillation_request(
+            interactions,
+            beats,
+            protagonist_id,
+            target_scenes,
+        )
+        if len(request.turns_text) > request.prompt_char_limit:
             logger.warning(
                 "Skipping LLM scene distillation because compact log is too large "
                 "(%d chars > %d); falling back to deterministic chunking",
-                len(turns_text),
-                prompt_char_limit,
+                len(request.turns_text),
+                request.prompt_char_limit,
             )
             return self._fallback_chunk(interactions, beats, target_scenes)
 
-        # Format beats for reference
+        prompt = self._build_distill_prompt(request)
+        result = self._call_distill_model(prompt)
+        scenes_data = self._parse_distill_response(result)
+        if not scenes_data:
+            logger.warning("LLM distillation returned no scenes; falling back to chunking")
+            return self._fallback_chunk(interactions, beats, target_scenes)
+
+        scenes = self._map_distilled_scenes(scenes_data, request)
+        return self._finalize_distilled_scenes(scenes, request)
+
+    def _prepare_distillation_request(
+        self,
+        interactions: list[dict],
+        beats: list[dict],
+        protagonist_id: str,
+        target_scenes: int,
+    ) -> DistillationRequest:
+        available_turns = sorted(
+            turn
+            for turn in (
+                self._coerce_turn_number(ix.get("turn"), default=0)
+                for ix in interactions
+            )
+            if turn > 0
+        )
+        return DistillationRequest(
+            interactions=list(interactions),
+            beats=list(beats),
+            protagonist_id=protagonist_id,
+            target_scenes=target_scenes,
+            turns_text=self._format_turns_compact(interactions),
+            available_turns=available_turns,
+            canonical_speakers=self._build_canonical_speaker_map(interactions),
+            default_location=str(self.episode_config.get("location", "") or ""),
+            prompt_char_limit=self._distill_prompt_char_limit(default=80000),
+        )
+
+    def _build_distill_prompt(self, request: DistillationRequest) -> str:
         beats_text = "\n".join(
-            f"- [{b['id']}]: {b['content']}" for b in beats
+            f"- [{beat['id']}]: {beat['content']}" for beat in request.beats
         ) or "(no beats defined)"
-
-        ep_summary = self.episode_config.get("summary", "")
-        ep_location = self.episode_config.get("location", "")
-        ep_pacing = self.episode_config.get("pacing", "normal")
         summary_word_cap = self._summary_sentence_word_cap(default=18)
-
         prompt = (
             f"You are a narrative editor distilling a raw simulation log into "
             f"essential story scenes.\n\n"
             f"## Episode Info\n"
-            f"Location: {ep_location}\n"
-            f"Pacing: {ep_pacing}\n"
-            f"Summary: {ep_summary}\n\n"
+            f"Location: {request.default_location}\n"
+            f"Pacing: {self.episode_config.get('pacing', 'normal')}\n"
+            f"Summary: {self.episode_config.get('summary', '')}\n\n"
             f"## Required Story Beats (clues that should appear)\n{beats_text}\n\n"
-            f"## Raw Simulation Log ({len(interactions)} turns)\n{turns_text}\n\n"
+            f"## Raw Simulation Log ({len(request.interactions)} turns)\n{request.turns_text}\n\n"
             f"## Task\n"
-            f"Distill these {len(interactions)} turns into exactly {target_scenes} "
+            f"Distill these {len(request.interactions)} turns into exactly {request.target_scenes} "
             f"narrative scenes. For each scene:\n\n"
             f"1. **Merge** consecutive turns that describe the same dramatic moment\n"
-            f"2. **Eliminate** repetitive content (if projector refocuses 5 times, "
-            f"keep it once)\n"
+            f"2. **Eliminate** repetitive content (if projector refocuses 5 times, keep it once)\n"
             f"3. **Keep** only the most impactful dialogue lines (2-4 per scene)\n"
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
@@ -251,142 +320,9 @@ class SceneDistiller:
             f"31. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
             f"32. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
         )
-        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
-        if review_guidance:
-            prompt += (
-                "## Reader Feedback Priorities\n"
-                "Favor readability when selecting what survives compression.\n"
-                "If technical explanations repeat, keep only the clearest first mention.\n"
-                "Prefer concise summaries over long duplicate emotional narration.\n"
-                "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
-                "from the same speaker.\n"
-                f"{review_guidance}\n\n"
-            )
-        if self._reader_wants_repeated_confrontation_merge():
-            prompt += (
-                "33. If presentation, Moreno contact, and Miller intervention all appear, keep that chain once in chronological order.\n"
-                "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation.\n\n"
-            )
-        repeat_terms = self.reader_feedback.get("repetition_watch_terms", []) or []
-        cleaned_repeat_terms = []
-        generic_repeat_terms = {"묘사", "표현", "설명", "감정", "분위기", "정보"}
-        for raw in repeat_terms:
-            term = re.sub(
-                r"\s+(반복|중복|과다|과잉|묘사|표현)$",
-                "",
-                str(raw or "").strip(),
-                flags=re.IGNORECASE,
-            ).strip()
-            if term and term not in generic_repeat_terms:
-                cleaned_repeat_terms.append(term)
-        if cleaned_repeat_terms:
-            prompt += (
-                "## Repetition Watch Terms\n"
-                "- Reader flagged these motif words as repetitive in recent drafts.\n"
-                f"- Terms: {', '.join(cleaned_repeat_terms[:6])}\n"
-                "- Preserve each term at most once unless a beat explicitly requires it.\n\n"
-            )
-        jargon_terms = self.reader_feedback.get("jargon_watch_terms", []) or []
-        cleaned_jargon_terms = []
-        for raw in jargon_terms:
-            term = str(raw or "").strip()
-            term = term.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789"))
-            term = re.sub(r"\s+", " ", term).strip()
-            if term:
-                cleaned_jargon_terms.append(term)
-        if cleaned_jargon_terms:
-            prompt += (
-                "## Jargon Watch Terms\n"
-                "- Reader reported these terms as hard to follow when repeated without context.\n"
-                f"- Terms: {', '.join(cleaned_jargon_terms[:6])}\n"
-                "- If needed, preserve only one clear first mention and summarize later references.\n\n"
-            )
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if isinstance(constraints, dict) and constraints:
-            lines: list[str] = []
-            para_sent_cap = constraints.get("max_sentences_per_paragraph")
-            jargon_cap = constraints.get("max_jargon_terms_per_paragraph")
-            dense_cap = constraints.get("max_sentences_in_dense_info")
-            summary_word_cap_cfg = constraints.get("scene_summary_sentence_words_max")
-            if isinstance(para_sent_cap, int):
-                lines.append(f"- Keep scene summary paragraphs under about {para_sent_cap} sentence(s).")
-            if isinstance(jargon_cap, int):
-                lines.append(f"- Keep technical/jargon concepts to about {jargon_cap} per paragraph.")
-            if isinstance(dense_cap, int):
-                lines.append(f"- Compress dense explanatory runs into <= {dense_cap} sentence chunks.")
-            if isinstance(summary_word_cap_cfg, int):
-                lines.append(f"- Keep each scene-summary sentence to about {summary_word_cap_cfg} words or less.")
-            if lines:
-                prompt += "## Numeric Style Constraints\n" + "\n".join(lines) + "\n\n"
-        feedback_corpus = " ".join(
-            str(x)
-            for key in ("what_felt_boring_or_hard", "style_tips", "reader_comment")
-            for x in (
-                self.reader_feedback.get(key, [])
-                if isinstance(self.reader_feedback.get(key, []), list)
-                else [self.reader_feedback.get(key, "")]
-            )
-            if str(x).strip()
-        ).lower()
-        if any(k in feedback_corpus for k in ("장면 전환", "전환", "복도", "발표장", "흐름")):
-            prompt += (
-                "When location/time shifts, keep one short transition cue sentence in scene summary "
-                "(example shape: '수민은 복도로 나섰다.').\n\n"
-            )
-        if any(k in feedback_corpus for k in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "단조", "건조")):
-            prompt += (
-                "If source turns include checklist/list-like technical explanation strings, "
-                "compress them into one concise action consequence sentence instead of preserving list form.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "속도감이 단조")):
-            prompt += (
-                "Vary sentence length inside summaries, but keep the default as full natural sentences rather than repeated clipped beats.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루")):
-            prompt += (
-                "If two nearby moments express the same tension with similar wording, keep only the sharper phrasing once and turn the rest into consequence.\n\n"
-            )
-        if self._feedback_flag_enabled("compress_threat_signal_stack"):
-            prompt += (
-                "Do not stack memo, monitor alert, and watchful-observer cues into one frozen scene summary unless one clearly triggers the next.\n"
-                "Keep the sharpest warning cue, then convert the rest into reaction, movement, or confrontation.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("문장이 너무 길", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
-            prompt += (
-                "Keep summaries syntactically simple: one action or discovery per sentence, with explicit subject early in the line.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려")):
-            prompt += (
-                "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction.\n"
-                "This prevents mid-scene pacing drops.\n\n"
-            )
-        if self._reader_reports_stalled_progression():
-            prompt += (
-                "Reader flagged that the chapter feels stalled.\n"
-                "Merge pauses, repeated analysis, and lingering mood beats into the nearest scene unless they create a real decision, discovery, or pressure change.\n"
-                "End each retained scene summary on what changed next, not on atmosphere alone.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("심리", "내면", "설명적", "감정선", "표정", "행동", "보여")):
-            prompt += (
-                "Prefer observable emotion evidence (micro-action, gaze, posture) over abstract "
-                "psychological explanation in summaries.\n\n"
-            )
-        if any(k in feedback_corpus for k in ("감정의 파고", "감정 파고", "감정의 고저", "감정 고저", "긴장 완화", "작은 유머", "유머", "친근한 묘사")):
-            prompt += (
-                "Across consecutive scenes, keep emotional wave contrast visible "
-                "(e.g., one brief easing beat before renewed tension).\n\n"
-            )
-        if any(k in feedback_corpus for k in ("인물", "이름", "직책", "역할", "구분", "헷갈")):
-            prompt += (
-                "When many characters appear, add one short role/title cue on first mention in each scene "
-                "(example shape: '모레노 CTO', '밀러 투자 파트너').\n\n"
-            )
-        if any(k in feedback_corpus for k in ("초반", "따라가기 힘들", "맥락", "인물 설명 없이", "누군지")):
-            prompt += (
-                "For opening scenes, add one brief orientation line clarifying who is present and why this exchange matters.\n\n"
-            )
+        prompt += self._build_distill_feedback_guidance()
         prompt += (
-            f"Reply with a JSON array of {target_scenes} scene objects:\n"
+            f"Reply with a JSON array of {request.target_scenes} scene objects:\n"
             f"```json\n"
             f"[\n"
             f"  {{\n"
@@ -407,8 +343,118 @@ class SceneDistiller:
             f"```\n"
             f"Return ONLY the JSON array, no other text."
         )
+        return prompt
 
-        result = self.llm.chat(
+    def _build_distill_feedback_guidance(self) -> str:
+        sections: list[str] = []
+        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
+        if review_guidance:
+            sections.append(
+                "## Reader Feedback Priorities\n"
+                "Favor readability when selecting what survives compression.\n"
+                "If technical explanations repeat, keep only the clearest first mention.\n"
+                "Prefer concise summaries over long duplicate emotional narration.\n"
+                "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
+                "from the same speaker.\n"
+                f"{review_guidance}\n"
+            )
+
+        if self._reader_wants_repeated_confrontation_merge():
+            sections.append(
+                "33. If presentation, Moreno contact, and Miller intervention all appear, keep that chain once in chronological order.\n"
+                "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation.\n"
+            )
+
+        repeat_terms = list(self.reader_profile.term_preferences.repetition_watch_terms[:6])
+        if repeat_terms:
+            sections.append(
+                "## Repetition Watch Terms\n"
+                "- Reader flagged these motif words as repetitive in recent drafts.\n"
+                f"- Terms: {', '.join(repeat_terms)}\n"
+                "- Preserve each term at most once unless a beat explicitly requires it.\n"
+            )
+
+        jargon_terms = list(self.reader_profile.term_preferences.jargon_watch_terms[:6])
+        if jargon_terms:
+            sections.append(
+                "## Jargon Watch Terms\n"
+                "- Reader reported these terms as hard to follow when repeated without context.\n"
+                f"- Terms: {', '.join(jargon_terms)}\n"
+                "- If needed, preserve only one clear first mention and summarize later references.\n"
+            )
+
+        numeric_lines: list[str] = []
+        if self.reader_profile.caps.paragraph_sentence_cap is not None:
+            numeric_lines.append(
+                f"- Keep scene summary paragraphs under about {self.reader_profile.caps.paragraph_sentence_cap} sentence(s)."
+            )
+        numeric_lines.append(
+            f"- Keep technical/jargon concepts to about {self.reader_profile.caps.jargon_term_cap} per paragraph."
+        )
+        numeric_lines.append(
+            f"- Compress dense explanatory runs into <= {self.reader_profile.caps.dense_sentence_cap} sentence chunks."
+        )
+        numeric_lines.append(
+            f"- Keep each scene-summary sentence to about {self.reader_profile.caps.summary_sentence_word_cap} words or less."
+        )
+        sections.append("## Numeric Style Constraints\n" + "\n".join(numeric_lines) + "\n")
+
+        adaptive_lines: list[str] = []
+        if self._reader_prefers_explicit_transition_cues():
+            adaptive_lines.append(
+                "When location/time shifts, keep one short transition cue sentence in scene summary (example shape: '수민은 복도로 나섰다.')."
+            )
+        if self._reader_prefers_compact_beats():
+            adaptive_lines.append(
+                "If source turns include checklist/list-like technical explanation strings, compress them into one concise action consequence sentence instead of preserving list form."
+            )
+        if self._reader_flags_stock_bridge_phrases():
+            adaptive_lines.append(
+                "Vary sentence length inside summaries, but keep the default as full natural sentences rather than repeated clipped beats."
+            )
+        if self._reader_prefers_stronger_scene_compaction():
+            adaptive_lines.append(
+                "If two nearby moments express the same tension with similar wording, keep only the sharper phrasing once and turn the rest into consequence."
+            )
+        if self._feedback_flag_enabled("compress_threat_signal_stack"):
+            adaptive_lines.append(
+                "Do not stack memo, monitor alert, and watchful-observer cues into one frozen scene summary unless one clearly triggers the next. Keep the sharpest warning cue, then convert the rest into reaction, movement, or confrontation."
+            )
+        if self._reader_prefers_sentence_simplification():
+            adaptive_lines.append(
+                "Keep summaries syntactically simple: one action or discovery per sentence, with explicit subject early in the line."
+            )
+        if self._reader_prefers_dialogue_compaction():
+            adaptive_lines.append(
+                "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction. This prevents mid-scene pacing drops."
+            )
+        if self._reader_reports_stalled_progression():
+            adaptive_lines.append(
+                "Reader flagged that the chapter feels stalled. Merge pauses, repeated analysis, and lingering mood beats into the nearest scene unless they create a real decision, discovery, or pressure change. End each retained scene summary on what changed next, not on atmosphere alone."
+            )
+        if self._reader_prefers_observable_emotion_evidence():
+            adaptive_lines.append(
+                "Prefer observable emotion evidence (micro-action, gaze, posture) over abstract psychological explanation in summaries."
+            )
+        if self._reader_wants_emotional_wave_contrast():
+            adaptive_lines.append(
+                "Across consecutive scenes, keep emotional wave contrast visible (e.g., one brief easing beat before renewed tension)."
+            )
+        if self._reader_needs_role_cues():
+            adaptive_lines.append(
+                "When many characters appear, add one short role/title cue on first mention in each scene (example shape: '모레노 CTO', '밀러 투자 파트너')."
+            )
+        if self._reader_needs_opening_orientation():
+            adaptive_lines.append(
+                "For opening scenes, add one brief orientation line clarifying who is present and why this exchange matters."
+            )
+        if adaptive_lines:
+            sections.append("## Adaptive Distillation Guidance\n" + "\n".join(adaptive_lines) + "\n")
+
+        return "\n".join(section.strip() for section in sections if section).strip() + "\n\n"
+
+    def _call_distill_model(self, prompt: str) -> str:
+        return self.llm.chat(
             [{"role": "user", "content": prompt}],
             purpose="scene_distillation",
             use_premium=True,
@@ -416,112 +462,124 @@ class SceneDistiller:
             max_tokens=int(self.runtime_policy.get("distiller_max_tokens", 4000) or 4000),
         )
 
-        scenes_data = self._parse_json_array(result)
+    def _parse_distill_response(self, result: str) -> list[dict]:
+        return self._parse_json_array(result)
 
-        if not scenes_data:
-            logger.warning("LLM distillation returned no scenes; falling back to chunking")
-            return self._fallback_chunk(interactions, beats, target_scenes)
-
-        # Convert to DistilledScene objects
+    def _map_distilled_scenes(
+        self,
+        scenes_data: list[dict],
+        request: DistillationRequest,
+    ) -> list[DistilledScene]:
         scenes: list[DistilledScene] = []
-        available_turns = [
-            self._coerce_turn_number(ix.get("turn"), default=0)
-            for ix in interactions
-        ]
-        available_turns = sorted(turn for turn in available_turns if turn > 0)
-        for i, sd in enumerate(scenes_data):
-            payload = self._normalize_scene_payload(sd)
+        for idx, raw_scene in enumerate(scenes_data):
+            payload = self._normalize_scene_payload(raw_scene)
             turn_start, turn_end = self._coerce_scene_turn_range(
                 payload,
-                available_turns=available_turns,
-                scene_index=i,
+                available_turns=request.available_turns,
+                scene_index=idx,
                 total_scenes=len(scenes_data),
             )
-            scene = DistilledScene(
-                scene_number=i + 1,
-                title=payload.get("title") or f"Scene {i + 1}",
-                turn_range=(turn_start, turn_end),
-                location=payload.get("location") or ep_location,
-                characters_present=payload.get("characters", []),
-                key_dialogue=payload.get("key_dialogue", []),
-                key_actions=payload.get("key_actions", []),
-                discoveries=payload.get("discoveries", []),
-                emotional_arc=payload.get("emotional_arc", ""),
-                beat_references=payload.get("beat_refs", []),
-                narrative_summary=payload.get("summary", ""),
-                pacing=payload.get("pacing", "building"),
-                raw_turn_count=max(1, turn_end - turn_start + 1),
+            scenes.append(
+                DistilledScene(
+                    scene_number=idx + 1,
+                    title=payload.get("title") or f"Scene {idx + 1}",
+                    turn_range=(turn_start, turn_end),
+                    location=payload.get("location") or request.default_location,
+                    characters_present=payload.get("characters", []),
+                    key_dialogue=payload.get("key_dialogue", []),
+                    key_actions=payload.get("key_actions", []),
+                    discoveries=payload.get("discoveries", []),
+                    emotional_arc=payload.get("emotional_arc", ""),
+                    beat_references=payload.get("beat_refs", []),
+                    narrative_summary=payload.get("summary", ""),
+                    pacing=payload.get("pacing", "building"),
+                    raw_turn_count=max(1, turn_end - turn_start + 1),
+                )
             )
-            self._apply_scene_readability_guards(scene, canonical_speakers)
-            scenes.append(scene)
+        return scenes
 
-        # Keep scene order stable by timeline and re-number deterministically.
-        scenes.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
+    def _finalize_distilled_scenes(
+        self,
+        scenes: list[DistilledScene],
+        request: DistillationRequest,
+    ) -> list[DistilledScene]:
+        guarded = self.apply_scene_guards(scenes, request.canonical_speakers)
+        guarded.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
 
-        merge_budget = self._scene_merge_budget(target_scenes)
+        merge_budget = self._scene_merge_budget(request.target_scenes)
         if merge_budget > 0:
-            scenes = self._merge_low_signal_adjacent_scenes(scenes, merge_budget)
+            guarded = self._merge_low_signal_adjacent_scenes(guarded, merge_budget)
 
-        for idx, sc in enumerate(scenes, start=1):
-            sc.scene_number = idx
+        for idx, scene in enumerate(guarded, start=1):
+            scene.scene_number = idx
 
-        # Deterministic beat-reference reinforcement from actual director clue events.
-        # This prevents LLM scene summaries from "forgetting" clue IDs present in log.
+        self._reinforce_scene_beats_from_log(guarded, request.interactions)
+        self._backfill_missing_beat_references(guarded, request.beats)
+        return self.normalize_scene_timeline(self.apply_scene_guards(guarded, request.canonical_speakers))
+
+    def _reinforce_scene_beats_from_log(
+        self,
+        scenes: list[DistilledScene],
+        interactions: list[dict],
+    ) -> None:
         turn_to_clues: dict[int, list[str]] = {}
-        for ix in interactions:
-            if ix.get("action_type") != "director_event":
+        for interaction in interactions:
+            if interaction.get("action_type") != "director_event":
                 continue
-            md = ix.get("metadata", {}) or {}
-            clue_id = str(md.get("clue_id", "")).strip()
+            metadata = interaction.get("metadata", {}) or {}
+            clue_id = str(metadata.get("clue_id", "")).strip()
             if not clue_id:
                 continue
-            turn = self._coerce_turn_number(ix.get("turn", 0), default=0)
+            turn = self._coerce_turn_number(interaction.get("turn", 0), default=0)
             if turn <= 0:
                 continue
             turn_to_clues.setdefault(turn, []).append(clue_id)
 
-        for s in scenes:
-            start, end = s.turn_range
+        for scene in scenes:
+            start, end = scene.turn_range
             forced: list[str] = []
-            for t in range(start, end + 1):
-                forced.extend(turn_to_clues.get(t, []))
+            for turn in range(start, end + 1):
+                forced.extend(turn_to_clues.get(turn, []))
             if forced:
-                s.beat_references = self._dedupe_preserve_order(
-                    list(s.beat_references) + forced
+                scene.beat_references = self._dedupe_preserve_order(
+                    list(scene.beat_references) + forced
                 )
 
-        # Validate beat coverage
+    def _backfill_missing_beat_references(
+        self,
+        scenes: list[DistilledScene],
+        beats: list[dict],
+    ) -> None:
         covered_beats = set()
-        for s in scenes:
-            covered_beats.update(s.beat_references)
-        required = {b["id"] for b in beats}
+        for scene in scenes:
+            covered_beats.update(scene.beat_references)
+        required = {beat["id"] for beat in beats}
         missing = required - covered_beats
-        if missing:
-            logger.warning("Beats not covered in distilled scenes: %s", missing)
-            # Assign missing beats to most semantically relevant scene.
-            for beat_id in sorted(missing):
-                beat_text = next(
-                    (b.get("content", "") for b in beats if b.get("id") == beat_id),
-                    "",
-                )
-                best = max(
-                    scenes,
-                    key=lambda s: self._token_overlap_score(
-                        beat_text,
-                        " ".join(s.discoveries)
-                        + " "
-                        + s.narrative_summary
-                        + " "
-                        + " ".join(a.get("line", "") for a in s.key_dialogue if isinstance(a, dict))
-                        + " "
-                        + " ".join(s.key_actions),
-                    ),
-                )
-                best.beat_references = self._dedupe_preserve_order(
-                    list(best.beat_references) + [beat_id]
-                )
+        if not missing:
+            return
 
-        return self.normalize_scene_timeline(self.apply_scene_guards(scenes))
+        logger.warning("Beats not covered in distilled scenes: %s", missing)
+        for beat_id in sorted(missing):
+            beat_text = next(
+                (beat.get("content", "") for beat in beats if beat.get("id") == beat_id),
+                "",
+            )
+            best = max(
+                scenes,
+                key=lambda scene: self._token_overlap_score(
+                    beat_text,
+                    " ".join(scene.discoveries)
+                    + " "
+                    + scene.narrative_summary
+                    + " "
+                    + " ".join(row.get("line", "") for row in scene.key_dialogue if isinstance(row, dict))
+                    + " "
+                    + " ".join(scene.key_actions),
+                ),
+            )
+            best.beat_references = self._dedupe_preserve_order(
+                list(best.beat_references) + [beat_id]
+            )
 
     def apply_scene_guards(
         self,
@@ -663,185 +721,64 @@ class SceneDistiller:
         return scene.narrative_summary
 
     def _reader_prefers_compact_beats(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            k in corpus for k in (
-                "기술", "용어", "약어", "약자", "전문", "jargon", "acronym",
-                "반복", "중복", "리스트", "목록", "나열", "정보 전달",
-            )
-        )
+        return self.reader_profile.semantic_flags.prefers_compact_beats
 
     def _reader_feedback_corpus(self) -> str:
-        if not self.reader_feedback:
-            return ""
-        return " ".join(
-            str(x)
-            for key in ("what_felt_boring_or_hard", "style_tips", "reader_comment")
-            for x in (
-                self.reader_feedback.get(key, [])
-                if isinstance(self.reader_feedback.get(key, []), list)
-                else [self.reader_feedback.get(key, "")]
-            )
-            if str(x).strip()
-        ).lower()
+        return self.reader_profile.corpus
 
     def _reader_reports_stalled_progression(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            token in corpus for token in (
-                "멈춘 이유",
-                "멈춘",
-                "멈춤",
-                "정체",
-                "제자리",
-                "맴도는",
-                "전진감이 약",
-                "안 나가",
-                "진행이 안",
-                "흐름이 끊",
-            )
-        )
+        return self.reader_profile.semantic_flags.stalled_progression
 
     def _reader_prefers_faster_progression(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return self._reader_reports_stalled_progression() or self._reader_wants_repeated_confrontation_merge() or any(
-            token in corpus for token in (
-                "전개가 느려",
-                "느려서 집중",
-                "집중력을 잃",
-                "늘어지",
-                "같은 장면을 다시 보는",
-                "다른 문장으로 다시 보는",
-                "제자리에서 맴도",
-                "서사적 전진감",
-                "템포가 느려",
-                "속도감이 떨어",
-            )
-        )
+        return self.reader_profile.semantic_flags.prefers_faster_progression
 
     def _reader_wants_repeated_confrontation_merge(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return self._feedback_flag_enabled("merge_repeated_confrontation_beats") or any(
-            token in corpus for token in (
-                "복도 대면",
-                "밀러와의 복도 대면",
-                "밀러 접촉",
-                "하나의 대화로 압축",
-                "질문의 강도",
-                "제자리에서 다시 시작",
-                "사실상 두 번 반복",
-            )
-        )
+        return self.reader_profile.semantic_flags.wants_repeated_confrontation_merge
 
     def _reader_reports_timeline_confusion(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            token in corpus for token in (
-                "시간축",
-                "시간 순서",
-                "순서가 섞",
-                "되감기",
-                "헷갈리",
-                "복도 대치",
-                "발표 종료 후",
-                "질의응답",
-                "슬라이드 발표",
-                "단선 구조",
-            )
-        )
+        return self.reader_profile.semantic_flags.reports_timeline_confusion
 
     def _reader_needs_contextual_summaries(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            token in corpus for token in (
-                "간결한 문장",
-                "문맥 파악",
-                "맥락 파악",
-                "따라가기 힘들",
-                "문맥이 어려",
-            )
-        )
+        return self.reader_profile.semantic_flags.needs_contextual_summaries
 
     def _reader_prefers_stronger_scene_compaction(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return self._reader_reports_stalled_progression() or self._reader_wants_repeated_confrontation_merge() or self._feedback_scene_compaction_target() <= 85 or any(
-            token in corpus for token in (
-                "반복되는 표현",
-                "비슷한 상황",
-                "비슷한 상황과 묘사",
-                "묘사가 반복",
-                "같은 정보와 감정",
-                "재진술",
-                "다른 문장으로 다시 보는",
-                "제자리에서 맴도",
-                "문장이 너무 길",
-                "길고 복잡",
-                "이해하기 어려",
-                "지루",
-            )
-        )
+        return self.reader_profile.semantic_flags.prefers_stronger_scene_compaction
 
     def _reader_flags_recycled_negotiation_points(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            token in corpus for token in (
-                "밀러와의 대화",
-                "협상 논점",
-                "핵심 조건",
-                "외부 지원",
-                "실시간성",
-                "통제권",
-                "책임 문제",
-                "여러 차례 되풀이",
-            )
-        )
+        return self.reader_profile.semantic_flags.flags_recycled_negotiation_points
 
     def _reader_flags_stock_bridge_phrases(self) -> bool:
-        corpus = self._reader_feedback_corpus()
-        return any(
-            token in corpus for token in (
-                "짧은 숨이 스친 뒤",
-                "반복 접속구",
-                "호흡 문구",
-                "문장 리듬이 기계적",
-                "그 말이 끝나자",
-                "시선이 옮겨가자",
-                "비슷한 리듬",
-            )
-        )
+        return self.reader_profile.semantic_flags.flags_stock_bridge_phrases
+
+    def _reader_prefers_explicit_transition_cues(self) -> bool:
+        return self.reader_profile.prefers_explicit_transition_cues()
+
+    def _reader_prefers_sentence_simplification(self) -> bool:
+        return self.reader_profile.prefers_sentence_simplification()
+
+    def _reader_prefers_dialogue_compaction(self) -> bool:
+        return self.reader_profile.prefers_dialogue_compaction()
+
+    def _reader_prefers_observable_emotion_evidence(self) -> bool:
+        return self.reader_profile.prefers_observable_emotion_evidence()
+
+    def _reader_wants_emotional_wave_contrast(self) -> bool:
+        return self.reader_profile.wants_emotional_wave_contrast()
+
+    def _reader_needs_role_cues(self) -> bool:
+        return self.reader_profile.needs_role_cues()
+
+    def _reader_needs_opening_orientation(self) -> bool:
+        return self.reader_profile.needs_opening_orientation()
 
     def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return default
-        raw = constraints.get(key, 1 if default else 0)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            return default
-        return enabled >= 1
+        return self.reader_profile.flag_enabled(key, default=default)
 
     def _feedback_static_threat_signal_cap(self, default: int = 2) -> int:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return default
-        raw = constraints.get("max_static_threat_signals_per_scene", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(3, cap))
+        return self.reader_profile.static_threat_signal_cap(default=default)
 
     def _feedback_scene_compaction_target(self, default: int = 100) -> int:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return default
-        raw = constraints.get("scene_compaction_ratio_target", default)
-        try:
-            ratio = int(raw)
-        except (TypeError, ValueError):
-            ratio = default
-        return max(60, min(100, ratio))
+        return self.reader_profile.scene_compaction_target(default=default)
 
     def _scene_merge_budget(self, target_scenes: int) -> int:
         budget = 0
@@ -1270,15 +1207,7 @@ class SceneDistiller:
         return self._ensure_summary_sentence(scene.narrative_summary)
 
     def _summary_sentence_word_cap(self, default: int = 18) -> int:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return default
-        raw = constraints.get("scene_summary_sentence_words_max", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(10, min(20, cap))
+        return self.reader_profile.summary_sentence_word_cap(default=default)
 
     def _distill_prompt_char_limit(self, default: int = 80000) -> int:
         raw = self.runtime_policy.get("distiller_prompt_chars_max", default)
@@ -1289,15 +1218,7 @@ class SceneDistiller:
         return max(12000, cap)
 
     def _force_reaction_after_jargon(self) -> bool:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return False
-        raw = constraints.get("force_reaction_after_jargon", 0)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            enabled = 0
-        return enabled >= 1
+        return self.reader_profile.force_reaction_after_jargon()
 
     def _soften_technical_summary(self, scene: DistilledScene) -> str:
         sentences = [
@@ -1335,15 +1256,7 @@ class SceneDistiller:
         return " ".join(rebuilt[:max_sentences]).strip()
 
     def _summary_plain_buffer_enabled(self) -> bool:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return True
-        raw = constraints.get("jargon_buffer_sentences", 1)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            enabled = 1
-        return enabled >= 1
+        return self.reader_profile.summary_plain_buffer_enabled()
 
     @staticmethod
     def _simplify_summary_wording(summary: str) -> str:
@@ -1374,15 +1287,7 @@ class SceneDistiller:
         return self._ensure_summary_sentence("쉽게 말하면 지금 바로 확인해야 할 문제가 드러난 셈이었다")
 
     def _summary_easy_metaphor_enabled(self) -> bool:
-        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        if not isinstance(constraints, dict):
-            return True
-        raw = constraints.get("summary_easy_metaphor_once", 1)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            enabled = 1
-        return enabled >= 1
+        return self.reader_profile.summary_easy_metaphor_enabled()
 
     @staticmethod
     def _summary_is_jargon_heavy(sentence: str) -> bool:
@@ -1730,6 +1635,54 @@ class SceneDistiller:
         if extra_actions:
             scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
 
+    def _compress_signature_entries(
+        self,
+        values: list[str],
+        *,
+        rule_key: str,
+        limit: Optional[int] = None,
+    ) -> list[str]:
+        rule = SIGNATURE_COMPRESSION_RULES[rule_key]
+        signature_fn = getattr(self, rule.signature_attr)
+        replace_decision = getattr(self, rule.replace_decision_attr)
+        prefer_fn = getattr(self, rule.prefer_attr)
+
+        kept: list[str] = []
+        signature_index: dict[str, int] = {}
+        for value in values:
+            signature = signature_fn(value)
+            if signature:
+                previous_index = signature_index.get(signature)
+                if previous_index is not None and replace_decision(kept[previous_index], value):
+                    kept[previous_index] = prefer_fn(kept[previous_index], value)
+                    continue
+            kept.append(value)
+            if signature:
+                signature_index[signature] = len(kept) - 1
+            if limit is not None and len(kept) >= max(1, limit):
+                break
+        return kept
+
+    def _should_replace_core_concern_entry(self, previous: str, current: str) -> bool:
+        return self._is_redundant_core_concern(previous, current)
+
+    def _should_replace_confrontation_entry(self, previous: str, current: str) -> bool:
+        previous_stage = self._summary_confrontation_stage(previous)
+        current_stage = self._summary_confrontation_stage(current)
+        stage_regressed = (
+            previous_stage
+            and current_stage
+            and self._summary_stage_rank(current_stage) <= self._summary_stage_rank(previous_stage)
+        )
+        overlap = self._token_overlap_score(previous, current)
+        return (
+            stage_regressed
+            and not self._summary_has_consequence_shift(current)
+        ) or (
+            overlap >= 0.28
+            and not self._summary_has_consequence_shift(current)
+        ) or self._is_redundant_core_concern(previous, current)
+
     def _compress_repeated_core_concerns(self, summary: str) -> str:
         sentences = [
             self._ensure_summary_sentence(s)
@@ -1739,19 +1692,9 @@ class SceneDistiller:
         if len(sentences) < 2:
             return summary
 
-        kept: list[str] = []
-        concern_index: dict[str, int] = {}
-        for sentence in sentences:
-            sig = self._core_concern_signature(sentence)
-            if sig:
-                prev_idx = concern_index.get(sig)
-                if prev_idx is not None and self._is_redundant_core_concern(kept[prev_idx], sentence):
-                    kept[prev_idx] = self._prefer_more_concrete_line(kept[prev_idx], sentence)
-                    continue
-            kept.append(sentence)
-            if sig:
-                concern_index[sig] = len(kept) - 1
-        return " ".join(kept).strip()
+        return " ".join(
+            self._compress_signature_entries(sentences, rule_key="core_concern")
+        ).strip()
 
     @staticmethod
     def _summary_has_consequence_shift(sentence: str) -> bool:
@@ -1776,56 +1719,17 @@ class SceneDistiller:
         if len(sentences) < 2:
             return summary
 
-        kept: list[str] = []
-        signature_index: dict[str, int] = {}
-        for sentence in sentences:
-            sig = self._summary_confrontation_signature(sentence)
-            if sig:
-                prev_idx = signature_index.get(sig)
-                if prev_idx is not None:
-                    previous = kept[prev_idx]
-                    previous_stage = self._summary_confrontation_stage(previous)
-                    current_stage = self._summary_confrontation_stage(sentence)
-                    stage_regressed = (
-                        previous_stage
-                        and current_stage
-                        and self._summary_stage_rank(current_stage) <= self._summary_stage_rank(previous_stage)
-                    )
-                    overlap = self._token_overlap_score(previous, sentence)
-                    if (
-                        stage_regressed
-                        and not self._summary_has_consequence_shift(sentence)
-                    ) or (
-                        overlap >= 0.28
-                        and not self._summary_has_consequence_shift(sentence)
-                    ) or self._is_redundant_core_concern(previous, sentence):
-                        kept[prev_idx] = self._prefer_more_concrete_line(previous, sentence)
-                        continue
-
-            kept.append(sentence)
-            if sig:
-                signature_index[sig] = len(kept) - 1
-
+        kept = self._compress_signature_entries(sentences, rule_key="confrontation")
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(kept[:max_sentences]).strip()
 
     def _compress_core_concern_lines(self, values: list[str], limit: int) -> list[str]:
         compact = self._dedupe_semantic_lines(values, limit=max(1, limit * 2))
-        kept: list[str] = []
-        concern_index: dict[str, int] = {}
-        for line in compact:
-            sig = self._core_concern_signature(line)
-            if sig:
-                prev_idx = concern_index.get(sig)
-                if prev_idx is not None and self._is_redundant_core_concern(kept[prev_idx], line):
-                    kept[prev_idx] = self._prefer_more_concrete_line(kept[prev_idx], line)
-                    continue
-            kept.append(line)
-            if sig:
-                concern_index[sig] = len(kept) - 1
-            if len(kept) >= max(1, limit):
-                break
-        return kept
+        return self._compress_signature_entries(
+            compact,
+            rule_key="core_concern",
+            limit=max(1, limit),
+        )
 
     def _core_concern_signature(self, text: str) -> str:
         low = str(text or "").lower()

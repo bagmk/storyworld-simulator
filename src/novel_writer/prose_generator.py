@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Optional
 
 from .llm_client import LLMClient
+from .polisher import ChapterPolisher
+from .reader_profile import ReaderProfile, build_reader_profile
 from .scene_distiller import DistilledScene
 from . import database as db
 from .review_feedback import build_feedback_prompt_block, count_feedback_term_occurrences
@@ -75,8 +77,15 @@ class ProseGenerator:
         self.previous_episode_context = previous_episode_context
         self.include_all_episode_context = include_all_episode_context
         self.runtime_policy = runtime_policy or {}
-        self.reader_feedback = reader_feedback or {}
+        self.reader_profile: ReaderProfile = build_reader_profile(reader_feedback)
+        self.reader_feedback = self.reader_profile.as_dict()
         self.guardian_briefing = guardian_briefing or ""
+        self.chapter_polisher = ChapterPolisher(
+            llm=llm,
+            episode_config=self.episode_config,
+            runtime_policy=self.runtime_policy,
+            reader_feedback=self.reader_feedback,
+        )
         if max_history_episodes is None and self.runtime_policy.get("prose_history_max_episodes") is not None:
             self.max_history_episodes = int(self.runtime_policy.get("prose_history_max_episodes"))
         else:
@@ -150,41 +159,14 @@ class ProseGenerator:
             prose_sections, scenes, episode_context, style
         )
 
-        # Polish and guardrails
-        final = self._polish(combined, target_words, style, coverage_anchors)
-        final = self._ensure_anchor_coverage(final, coverage_anchors, target_words, style)
-        final = self._reader_feedback_final_pass(final, target_words, style, coverage_anchors)
-        final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
-        final = self._cleanup_pov_reference_artifacts(final, style, protagonist_name)
-        final = self._enforce_jargon_onboarding_and_variation(final)
-        final = self._reduce_local_repetition(final)
-        final = self._compress_repeated_tension_beats(final)
-        final = self._trim_post_metaphor_explanations(final)
-        final = self._trim_redundant_sensory_sentences(final)
-        final = self._trim_redundant_emotion_sentences(final)
-        final = self._diversify_transition_openers(final)
-        final = self._merge_clipped_sentence_runs(final)
-        final = self._stagger_sentence_rhythm(final)
-        final = self._diversify_transition_openers(final)
-        final = self._compress_redundant_jargon_sentences(final)
-        final = self._enforce_sentence_word_caps(final, max_words=self._feedback_sentence_word_cap(default=25))
-        final = self._insert_short_beats_after_long_streak(
-            final,
-            long_threshold=22,
-            streak_limit=2,
+        final = self.chapter_polisher.polish_chapter(
+            combined,
+            target_words=target_words,
+            style=style,
+            protagonist_name=protagonist_name,
+            chapter_anchors=coverage_anchors,
+            prose_adapter=self,
         )
-        final = self._strengthen_dialogue_action_beats(final)
-        final = self._split_dense_information_paragraphs(final)
-        final = self._cap_paragraph_term_repetition(
-            final,
-            max_per_paragraph=self._feedback_term_repeat_cap(default=2),
-        )
-        final = self._apply_sensory_diversity_guard(final, recent_window=3)
-        if style == "third_person_close":
-            final = self._reinforce_name_refresh(final, protagonist_name)
-        self._warn_sensory_streak(final, streak_limit=3)
-        self._log_paragraph_split_recommendations(final)
-        final = self._normalize_paragraphs(final)
         diagnostics = self._collect_style_diagnostics(final)
         logger.info(
             "Style diagnostics | avg_par_sent=%.2f long_sent_ratio=%.2f jargon_repeats=%d sensory_streak=%d",
@@ -950,16 +932,7 @@ class ProseGenerator:
         return text[: max(0, limit - 3)].rstrip() + "..."
 
     def _feedback_reports_stalled_progression(self) -> bool:
-        return self._feedback_mentions(
-            "멈춘 이유",
-            "멈춘",
-            "멈춤",
-            "정체",
-            "제자리",
-            "안 나가",
-            "진행이 안",
-            "흐름이 끊",
-        )
+        return self.reader_profile.semantic_flags.stalled_progression
 
     def _readability_controls(self) -> dict[str, int]:
         """Readability defaults, overridable via runtime policy."""
@@ -1261,296 +1234,67 @@ class ProseGenerator:
         return unique <= 2
 
     def _feedback_mentions(self, *keywords: str) -> bool:
-        if not self.reader_feedback:
-            return False
-        corpus = []
-        for key in ("what_felt_boring_or_hard", "style_tips"):
-            vals = self.reader_feedback.get(key, []) or []
-            corpus.extend(str(v) for v in vals if isinstance(v, str))
-        corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
-        all_text = " ".join(corpus).lower()
-        lowered = [str(k).lower() for k in keywords if k]
-        if any(k in all_text for k in lowered):
-            return True
-
-        # Rhythm monotony complaints are often phrased without explicit "긴 문장" wording.
-        if any(k in lowered for k in ("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
-            if any(token in all_text for token in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "단조롭게", "리듬이 반복", "속도감이 단조", "속도감이 떨어", "템포가 느려", "템포가 떨어", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
-                return True
-
-        # Reader may phrase jargon-density complaints as checklist/list-style repetition.
-        if any(k in lowered for k in ("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym")):
-            if any(token in all_text for token in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "건조", "단조롭")):
-                return True
-
-        if any(k in lowered for k in ("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복")):
-            if any(token in all_text for token in ("반복적인 문장 구조", "문장 구조가 반복", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복")):
-                return True
-
-        if any(k in lowered for k in ("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
-            if any(token in all_text for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "맥락이 약", "문맥이 약", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
-                return True
-
-        if any(k in lowered for k in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
-            if any(token in all_text for token in ("전개가 느려", "느려서 집중", "집중력을 잃", "집중력", "늘어지", "템포가 느려", "속도감이 떨어")):
-                return True
-
-        # Speaker/context confusion can appear as "초반에 따라가기 힘들다" style comments.
-        if any(k in lowered for k in ("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "인물", "역할", "구분", "호칭", "이름", "speaker")):
-            if any(token in all_text for token in ("초반", "따라가기 힘들", "맥락", "인물 설명 없이", "누군지")):
-                return True
-
-        # Expository dialogue pain can appear as "정보 전달 위주/감정의 고저 부족".
-        if any(k in lowered for k in ("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트")):
-            if any(token in all_text for token in ("정보 전달 위주", "설명 위주", "감정의 고저", "감정 고저", "대화가 대부분", "건조", "긴 회의", "회의·대화", "대화 장면", "대사가 계속")):
-                return True
-
-        # Emotional-wave requests often appear as "긴장 완화/유머/친근한 묘사/감정의 파고".
-        if any(k in lowered for k in ("감정선", "감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사")):
-            if any(token in all_text for token in ("감정의 파고", "감정 파고", "감정의 고저", "감정 고저", "긴장 완화", "작은 유머", "유머", "친근한 묘사")):
-                return True
-        return False
+        return self.reader_profile.mentions(*keywords)
 
     def _feedback_repeat_terms(self) -> list[str]:
-        terms = self.reader_feedback.get("repetition_watch_terms", []) or []
-        generic_terms = {
-            "중요한", "간단한", "자연스러운", "효과적인", "신선한", "분명한",
-            "설명", "감정", "정보", "표현", "분위기", "임팩트", "감각", "비유", "감각비유", "감각 비유",
-        }
-        out: list[str] = []
-        seen: set[str] = set()
-        for raw in terms:
-            term = str(raw or "").strip()
-            term = re.sub(r"^[^0-9a-zA-Z가-힣]+|[^0-9a-zA-Z가-힣]+$", "", term)
-            term = re.sub(r"[^0-9a-zA-Z가-힣\s]+", " ", term)
-            term = re.sub(r"\s+", " ", term).strip()
-            term = re.sub(r"\s+(반복|중복|과다|과잉|묘사|표현)$", "", term, flags=re.IGNORECASE).strip()
-            if len(term) > 24:
-                continue
-            if len(term) < 2 and not re.fullmatch(r"[가-힣]", term):
-                continue
-            if len(term.split()) > 2:
-                continue
-            if re.search(r"[가-힣A-Za-z0-9]+(?:이나|거나)\s+[가-힣A-Za-z0-9]+", term):
-                continue
-            if re.search(r"\s(?:또는|및|와|과)\s", f" {term} "):
-                continue
-            if not re.search(r"[0-9a-zA-Z가-힣]", term):
-                continue
-            compact = re.sub(r"\s+", "", term)
-            variants = [term]
-            if compact != term and len(compact) >= 2:
-                variants.append(compact)
-            for variant in variants:
-                key = variant.lower()
-                if len(key) < 2 and not re.fullmatch(r"[가-힣]", key):
-                    continue
-                if key in seen or key in generic_terms:
-                    continue
-                seen.add(key)
-                out.append(variant)
-        return out[:10]
+        return self.reader_profile.repeat_terms(max_terms=10)
 
     def _feedback_jargon_terms(self) -> list[str]:
-        terms = self.reader_feedback.get("jargon_watch_terms", []) or []
-        generic_terms = {"기술", "기술 용어", "전문 용어", "용어", "약어", "약자", "설명", "표현"}
-        out: list[str] = []
-        seen: set[str] = set()
-        for raw in terms:
-            term = str(raw or "").strip()
-            term = term.translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789"))
-            term = re.sub(r"[^0-9a-zA-Z가-힣\s_\-\.]+", " ", term)
-            term = re.sub(r"\s+", " ", term).strip()
-            if len(term) < 2 or len(term) > 32:
-                continue
-            key = term.lower()
-            if key in seen or key in generic_terms:
-                continue
-            if not re.search(r"[A-Za-z가-힣]", term):
-                continue
-            seen.add(key)
-            out.append(term)
-            if len(out) >= 10:
-                break
-        return out
+        return self.reader_profile.jargon_terms(max_terms=10)
 
     def _feedback_style_constraints(self) -> dict:
-        raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        return raw if isinstance(raw, dict) else {}
+        return self.reader_profile.style_constraints()
 
     def _effective_style(self, style: str) -> str:
         requested = str(style or "third_person_close").strip() or "third_person_close"
-        if requested != "first_person" and self._feedback_flag_enabled("force_first_person_pov"):
+        if requested != "first_person" and self.reader_profile.flag_enabled("force_first_person_pov"):
             return "first_person"
         return requested
 
     def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get(key, 1 if default else 0)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            return default
-        return enabled >= 1
+        return self.reader_profile.flag_enabled(key, default=default)
 
     def _feedback_term_repeat_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_term_repeats_per_scene")
-        if raw is None:
-            raw = constraints.get("max_term_repeats_per_paragraph", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(5, cap))
+        return self.reader_profile.term_repeat_cap(default=default)
 
     def _feedback_sentence_word_cap(self, default: int = 25) -> int:
-        constraints = self._feedback_style_constraints()
-        raw_hi = constraints.get("sentence_chars_max")
-        try:
-            hi = int(raw_hi)
-        except (TypeError, ValueError):
-            return default
-        # Rough conversion for Korean prose pacing (about 3.2 chars per token).
-        inferred = max(10, min(default, int(round(hi / 3.2))))
-        return inferred
+        return self.reader_profile.sentence_word_cap(default=default)
 
     def _feedback_paragraph_sentence_cap(self) -> Optional[int]:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_sentences_per_paragraph")
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            return None
-        return max(1, min(8, cap))
+        return self.reader_profile.paragraph_sentence_cap()
 
     def _feedback_dense_sentence_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_sentences_in_dense_info", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(4, cap))
+        return self.reader_profile.dense_sentence_cap(default=default)
 
     def _feedback_jargon_term_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_jargon_terms_per_paragraph", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(8, cap))
+        return self.reader_profile.jargon_term_cap(default=default)
 
     def _feedback_sensory_channel_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_sensory_channels_per_paragraph", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(3, cap))
+        return self.reader_profile.sensory_channel_cap(default=default)
 
     def _feedback_emotion_repeat_cap(self, default: int = 1) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_emotion_repeats_per_scene", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(3, cap))
+        return self.reader_profile.emotion_repeat_cap(default=default)
 
     def _feedback_transition_char_window(self) -> tuple[int, int]:
-        constraints = self._feedback_style_constraints()
-        try:
-            lo = int(constraints.get("transition_chars_min", 10))
-        except (TypeError, ValueError):
-            lo = 10
-        try:
-            hi = int(constraints.get("transition_chars_max", 15))
-        except (TypeError, ValueError):
-            hi = 15
-        if lo > hi:
-            lo, hi = hi, lo
-        lo = max(5, min(40, lo))
-        hi = max(lo, min(40, hi))
-        return lo, hi
+        return self.reader_profile.transition_char_window()
 
     def _feedback_short_beat_char_window(self) -> tuple[int, int]:
-        constraints = self._feedback_style_constraints()
-        try:
-            lo = int(constraints.get("short_beat_chars_min", 14))
-        except (TypeError, ValueError):
-            lo = 14
-        try:
-            hi = int(constraints.get("short_beat_chars_max", 28))
-        except (TypeError, ValueError):
-            hi = 28
-        if lo > hi:
-            lo, hi = hi, lo
-        lo = max(8, min(32, lo))
-        hi = max(lo, min(48, hi))
-        return lo, hi
+        return self.reader_profile.short_beat_char_window()
 
     def _feedback_short_beats_per_scene(self) -> tuple[int, int]:
-        constraints = self._feedback_style_constraints()
-        try:
-            lo = int(constraints.get("short_beats_per_scene_min", 0))
-        except (TypeError, ValueError):
-            lo = 0
-        try:
-            hi = int(constraints.get("short_beats_per_scene_max", 1))
-        except (TypeError, ValueError):
-            hi = 1
-        if lo > hi:
-            lo, hi = hi, lo
-        lo = max(0, min(8, lo))
-        hi = max(lo, min(10, hi))
-        return lo, hi
+        return self.reader_profile.short_beats_per_scene()
 
     def _feedback_transition_opener_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_transition_openers_per_block", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(4, cap))
+        return self.reader_profile.transition_opener_cap(default=default)
 
     def _feedback_transition_avoid_terms(self) -> set[str]:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("avoid_transition_terms", [])
-        if isinstance(raw, str):
-            raw = [raw]
-        if not isinstance(raw, list):
-            return set()
-        return {
-            re.sub(r"\s+", " ", str(term or "")).strip().lower()
-            for term in raw
-            if str(term or "").strip()
-        }
+        return self.reader_profile.transition_avoid_terms()
 
     def _feedback_sentence_variety_window(self, default: int = 4) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("sentence_variety_window", default)
-        try:
-            window = int(raw)
-        except (TypeError, ValueError):
-            window = default
-        return max(3, min(6, window))
+        return self.reader_profile.sentence_variety_window(default=default)
 
     def _feedback_needs_draft_cleanup(self) -> bool:
-        return self._feedback_mentions(
-            "영어 혼입",
-            "영어 표현",
-            "오탈자",
-            "퇴고 전 초안",
-            "퇴고 전 원고",
-            "미완 문장",
-            "대명사 오류",
-            "호칭 혼선",
-            "지시어 혼선",
-        ) or self._feedback_flag_enabled("force_complete_sentences") or self._feedback_flag_enabled("stabilize_reference_labels")
+        return self.reader_profile.needs_draft_cleanup()
 
     @staticmethod
     def _count_feedback_term_occurrences(text: str, term: str) -> int:
@@ -1563,117 +1307,14 @@ class ProseGenerator:
         style: str,
         chapter_anchors: Optional[list[str]] = None,
     ) -> str:
-        """
-        Final low-temperature pass that explicitly applies reader feedback.
-        This catches residual repetition/speaker-clarity issues after normal polish.
-        """
-        if not text or not self.reader_feedback:
-            return text
-
-        needs_pass = self._feedback_mentions(
-            "반복", "중복", "늘어지", "긴 문장", "문장이 길", "긴 문단", "문단이 길",
-            "문장 구조", "반복적인 문장 구조", "간결한 문장", "문맥 파악", "맥락 파악",
-            "전개가 느려", "느려서 집중", "집중력을 잃",
-            "기술", "기술 설명", "용어", "약어", "약자", "누가 누구", "화자", "대사 구분", "헷갈",
-            "인물", "역할", "구분", "호칭", "이름",
-            "심리", "심리 표현", "내면", "설명적", "감정선", "감정 표현", "표정", "행동", "보여", "장면 전환", "전환", "흐름",
-            "체크리스트", "나열", "초반", "따라가기 힘들",
-            "긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려",
-            "감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사",
-            "비슷한 감각 묘사", "감각 묘사", "영어 키워드", "영어 표현", "해석 부담",
-            "1인칭", "시점", "미완 문장", "대명사 오류", "지시어 혼선", "퇴고 전 초안", "퇴고 전 원고",
+        # Compatibility shim: chapter cleanup lives in ChapterPolisher now.
+        return self.chapter_polisher.apply_reader_feedback_pass(
+            text,
+            target_words,
+            style,
+            chapter_anchors,
+            prose_adapter=self,
         )
-        if not needs_pass:
-            return text
-
-        style = self._effective_style(style)
-        pov = "first person" if style == "first_person" else "third person close"
-        anchors = chapter_anchors or []
-        anchors_text = ", ".join(anchors[:20]) if anchors else "(none)"
-        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=6)
-        repeat_terms = self._feedback_repeat_terms()
-        jargon_terms = self._feedback_jargon_terms()
-        repeat_term_line = (
-            f"- 독자 반복 지적 단어({', '.join(repeat_terms[:6])})는 문단당 과다 반복 금지\n"
-            if repeat_terms else ""
-        )
-        jargon_term_line = (
-            f"- 독자 난해 지적 기술어({', '.join(jargon_terms[:6])})는 첫 언급에만 짧게 풀고 재등장은 축약\n"
-            if jargon_terms else ""
-        )
-        jargon_density_cap = self._feedback_jargon_term_cap(default=2)
-        dense_sentence_cap = self._feedback_dense_sentence_cap(default=2)
-        paragraph_sentence_cap = self._feedback_paragraph_sentence_cap()
-        sentence_cap = self._feedback_sentence_word_cap(default=25)
-        paragraph_cap_line = (
-            f"- 문단은 최대 {paragraph_sentence_cap}문장까지 유지하고 초과 시 분할\n"
-            if paragraph_sentence_cap is not None else ""
-        )
-        first_person_cleanup_line = (
-            "- 수민 서술은 1인칭으로 고정하고 내레이션에서 '수민은/그는' 식 자기지칭을 제거할 것\n"
-            if style == "first_person" else ""
-        )
-        draft_cleanup_line = (
-            "- 미완 문장, 대명사 오류, 호칭·지시어 혼선을 먼저 정리해 초안 흔적을 지울 것\n"
-            if self._feedback_needs_draft_cleanup() else ""
-        )
-        prompt = (
-            "다음 한국어 소설 본문을 사건/정보/감정선 순서를 유지한 채 1회 리라이트하라.\n"
-            "핵심 목적: 독자 리뷰 반영(반복 축소, 문단 호흡 개선, 기술 용어 과밀 완화, 화자 명확성 강화).\n\n"
-            "제약:\n"
-            f"- 시점 유지: {pov}\n"
-            f"- 분량: 약 {target_words}단어 근처 유지\n"
-            "- 동일 정보/표현의 반복은 삭제 또는 통합\n"
-            "- 같은 기능의 문단이 이어지면 하나로 압축하고 사건 축을 더 곧게 세울 것\n"
-            "- 질문→응답→접근/제안 순으로 장면을 정렬하고, 이미 지나간 단계로 되감지 말 것\n"
-            "- 긴 문단은 1-2문장 단위로 자연 분할\n"
-            f"{paragraph_cap_line}"
-            f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 길어지면 인과 단위로 분리\n"
-            "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
-            "- '그리고', '그러자', '다만', '그 직후', '잠시 뒤' 같은 연결어를 연속 문장 시작에 반복하지 말 것\n"
-            "- 장면 전환은 시선 이동, 걸음, 문, 마이크, 의자 같은 물리적 신호로 처리하고 시간 부사 남용은 줄일 것\n"
-            "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
-            "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
-            "- 강한 문장과 담백한 문장을 섞어 압박의 고저를 만들 것\n"
-            "- 같은 정보나 해석이 이미 한 번 전달됐다면 다음 문장에서는 되풀이하지 말고 반응, 행동, 결정으로 넘어갈 것\n"
-            "- 기술 용어/약어는 꼭 필요할 때만 짧게 풀고 이후는 짧은 콜백으로 유지할 것\n"
-            "- latency, real-time 같은 기술어는 첫 1회만 짧게 풀고 이후에는 수민의 판단, 감정, 선택을 전면에 둘 것\n"
-            "- 괄호 설명은 기본값으로 쓰지 말고, 필요하면 본문 안에 짧게 녹여 쓸 것\n"
-            "- 어려운 기술 개념은 필요할 때만 짧은 일상 비교를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
-            f"- 문단당 기술 용어는 최대 {jargon_density_cap}개 내에서 유지(초과 개념은 통합/요약)\n"
-            f"- 정보량이 많은 설명 문장은 최대 {dense_sentence_cap}문장으로 압축\n"
-            f"{repeat_term_line}"
-            f"{jargon_term_line}"
-            "- 대화 구간은 1-2회 발화마다 누가 말하는지 드러나게 정리\n"
-            "- 정보 전달형 대사는 짧게 압축하고, 바로 행동/표정/침묵 반응을 붙여 임팩트를 살릴 것\n"
-            "- 긴 회의/대화 구간은 연속 설명 대사를 줄이고 행동/환경 반응 비트를 교차 배치할 것\n"
-            "- 설명적 심리문이 길면 행동/표정/반응 단서로 치환해 감정을 보여줄 것\n"
-            "- 비슷한 감각 묘사와 심리 표현은 같은 문단/인접 문단에서 반복하지 말 것\n"
-            "- 한 문장에는 동작, 감정, 판단 중 한 축만 남기고 필요하면 원인과 결과를 나눌 것\n"
-            "- 비유를 쓴 직후 그 의미를 다시 설명하는 문장은 삭제하거나 행동/반응으로 치환할 것\n"
-            "- 감정 강도는 단조롭게 유지하지 말고 짧은 완화 비트 후 다시 긴장을 세울 것\n"
-            "- 각 문단은 상황 변화, 압박 상승, 발견 중 하나를 분명히 남겨 전개를 전진시킬 것\n"
-            "- 장소/장면 전환 지점은 한 줄 전환 문장으로 연결해 흐름을 명확히 할 것\n"
-            "- 가능성/계산/추론 같은 분석 어휘는 반복하지 말고 한 번만 압축적으로 사용\n"
-            "- 이미 알려진 인물을 매번 새 호칭으로 재소개하지 말 것\n"
-            "- 인물의 역할/의도는 장면상 필요할 때만 짧게 제시하고 중복 설명은 삭제\n"
-            "- 영어 키워드/기술 용어 뒤에는 바로 인물의 이해, 당혹, 긴장, 행동 반응을 붙일 것\n"
-            f"{first_person_cleanup_line}"
-            f"{draft_cleanup_line}"
-            f"- 가능한 맥락에서 다음 앵커를 보존: {anchors_text}\n"
-            "- 출력은 소설 본문만\n\n"
-            "독자 피드백:\n"
-            f"{review_guidance}\n\n"
-            f"원문:\n{text}"
-        )
-        revised = self.llm.chat(
-            [{"role": "user", "content": prompt}],
-            purpose="prose_reader_feedback_pass",
-            use_premium=True,
-            temperature=float(self.runtime_policy.get("prose_reader_feedback_temperature", 0.25) or 0.25),
-            max_tokens=min(16000, max(6000, target_words * 5)),
-        )
-        return revised or text
 
     @staticmethod
     def _has_repetitive_cognitive_terms(text: str) -> bool:
@@ -2022,9 +1663,7 @@ class ProseGenerator:
         """
         if not anchors:
             return []
-        strict_jargon_control = self._feedback_mentions(
-            "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
-        )
+        strict_jargon_control = self.reader_profile.prefers_technical_term_restraint()
         max_terms = 8 if strict_jargon_control else 12
         tuned: list[str] = []
         for term in anchors:
@@ -2134,91 +1773,14 @@ class ProseGenerator:
         style: str,
         chapter_anchors: Optional[list[str]] = None,
     ) -> str:
-        """Final consistency and word count pass."""
-        current = len(text.split())
-        style = self._effective_style(style)
-        pov = "first person" if style == "first_person" else "third person close"
-        anchors = chapter_anchors or []
-        anchors_text = ", ".join(anchors[:30]) if anchors else "(none)"
-
-        if current < target_words * 0.7:
-            instruction = (
-                f"The chapter is {current} words but should be ~{target_words}. "
-                f"Expand with additional sensory detail, deeper internal reflection, "
-                f"and richer scene-setting. Do NOT add new plot events."
-            )
-        elif current > target_words * 1.4:
-            instruction = (
-                f"The chapter is {current} words but should be ~{target_words}. "
-                f"Tighten the prose: remove repetition, merge redundant descriptions, "
-                f"cut filler phrases. Preserve all key events and dialogue."
-            )
-        else:
-            instruction = (
-                f"The chapter is {current} words (target: ~{target_words}). "
-                f"Do a final review for: consistent {pov} voice, smooth flow, "
-                f"no abrupt tonal shifts. Make only minor improvements."
-            )
-
-        prompt = (
-            f"{instruction}\n\n"
-            f"Also ensure:\n"
-            f"- Consistent {pov} voice throughout (Korean)\n"
-            f"- No simulation artifacts (turn numbers, metadata, labels)\n"
-            f"- Paragraphs should usually contain {self._readability_controls()['paragraph_min']}-{self._readability_controls()['paragraph_max']} sentences\n"
-            f"- Most sentences should stay under about {self._feedback_sentence_word_cap(default=25)} words; split explanatory chains early\n"
-            f"- Sentence rhythm should vary naturally (avoid repetitive cadence)\n"
-            f"- Natural paragraph breaks at emotional beats\n"
-            f"- If technical terms appear, keep first mention briefly readable with plain-language context\n"
-            f"- No identical phrases or descriptions repeated\n\n"
-            f"- Do not repeat the same numeric literal in adjacent paragraphs unless strictly necessary\n"
-            f"- If a key metric was already explained once, later mentions should be very brief callbacks\n"
-            f"- Avoid repeating acronym expansions; use concise references after first explanation\n"
-            f"- On first mention of a technical term/acronym, use one short inline cue only if clarity truly needs it\n"
-            f"- If dense technical info appears, split into short sentences or short beat-style line breaks\n"
-            f"- Improve speaker clarity in dialogue passages using short action/name cues\n"
-            f"- If a concept recurs (coherence/drift/latency classes), vary surface wording while keeping meaning stable\n"
-            f"- If 3+ consecutive sentences use same sensory channel, switch channel (sound/touch/temperature)\n"
-            f"- If explanatory rhythm grows monotonous, use one grounded action/reaction sentence instead of a detached fragment\n"
-            f"- Preserve these anchor terms exactly when context allows: {anchors_text}\n"
-            f"- If any anchor is missing, add it naturally without changing core events\n\n"
+        # Compatibility shim: prose generation delegates late-stage polish ownership.
+        return self.chapter_polisher.run_llm_polish(
+            text,
+            target_words,
+            style,
+            chapter_anchors,
+            prose_adapter=self,
         )
-        if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선"):
-            prompt += (
-                "- Keep one stable term per concept; avoid synonym swapping for the same idea\n"
-            )
-        if self._feedback_mentions("정보가 많은 단락", "정보 밀집", "요약 문장", "핵심을 정리", "핵심 정리"):
-            prompt += (
-                "- End dense information paragraphs with one short takeaway summary sentence\n"
-            )
-        if self._feedback_mentions("감각 묘사", "감각", "선명도", "1~2"):
-            prompt += (
-                "- Keep sensory detail focused to 1-2 sensory channels per paragraph\n"
-            )
-        if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "인물", "역할", "구분", "호칭", "이름", "speaker"):
-            prompt += (
-                "- In dialogue runs, explicitly tag speaker/addressee cues frequently enough "
-                "to avoid ambiguity\n"
-                "- Keep character naming stable and remove repetitive re-introduction phrases\n"
-            )
-        review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
-        if review_guidance:
-            prompt += (
-                "Additional reader feedback to honor during polish:\n"
-                f"{review_guidance}\n\n"
-            )
-        prompt += (
-            f"Full chapter text:\n\n{text}"
-        )
-
-        polished = self.llm.chat(
-            [{"role": "user", "content": prompt}],
-            purpose="prose_polish",
-            use_premium=True,
-            temperature=float(self.runtime_policy.get("prose_polish_temperature", 0.4) or 0.4),
-            max_tokens=min(16000, max(6000, target_words * 5)),
-        )
-        return self._normalize_paragraphs(polished)
 
     def _ensure_anchor_coverage(
         self,
@@ -2227,57 +1789,13 @@ class ProseGenerator:
         target_words: int,
         style: str,
     ) -> str:
-        """
-        Final guardrail: if anchor coverage is weak, revise once to include
-        missing evidence terms naturally without changing plot events.
-        """
-        if not text or not chapter_anchors:
-            return text
-
-        def has_anchor(src: str, anchor: str) -> bool:
-            return anchor.lower() in src.lower()
-
-        anchors = [a.strip() for a in chapter_anchors if isinstance(a, str) and len(a.strip()) >= 3][:30]
-        if not anchors:
-            return text
-
-        present = [a for a in anchors if has_anchor(text, a)]
-        # Reasonable floor across episodes; only trigger when clearly under-covered.
-        required_present = min(5, max(2, len(anchors) // 5))
-        if self._feedback_mentions("기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
-            # Prioritize readability when reviews repeatedly complain about jargon/repetition.
-            required_present = min(required_present, max(1, len(anchors) // 6))
-        if target_words < 2200:
-            required_present = min(required_present, 2)
-        if len(present) >= required_present:
-            return text
-
-        missing_cap = 3 if self._feedback_mentions(
-            "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
-        ) else 6
-        missing = [a for a in anchors if a not in present][:missing_cap]
-        style = self._effective_style(style)
-        pov = "first person" if style == "first_person" else "third person close"
-        prompt = (
-            f"Revise this Korean chapter to preserve story flow while increasing evidence fidelity.\n\n"
-            f"Hard constraints:\n"
-            f"- Keep the same events and scene order.\n"
-            f"- Keep {pov} voice.\n"
-            f"- Keep total length near {target_words} words.\n"
-            f"- Integrate these missing anchor terms verbatim and naturally:\n"
-            f"  {', '.join(missing)}\n\n"
-            f"- Do not repeat full technical explanations; use short callbacks if already introduced.\n"
-            f"Return only revised chapter text.\n\n"
-            f"Chapter:\n{text}"
+        return self.chapter_polisher.ensure_anchor_coverage(
+            text,
+            chapter_anchors,
+            target_words,
+            style,
+            prose_adapter=self,
         )
-        revised = self.llm.chat(
-            [{"role": "user", "content": prompt}],
-            purpose="prose_anchor_fix",
-            use_premium=True,
-            temperature=float(self.runtime_policy.get("prose_anchor_fix_temperature", 0.35) or 0.35),
-            max_tokens=min(16000, max(6000, target_words * 5)),
-        )
-        return self._normalize_paragraphs(revised)
 
     def _enforce_pov_timeline_guards(
         self,

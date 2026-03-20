@@ -20,6 +20,7 @@ from typing import Optional
 
 from .models import Agent, WorldState, ClueManager
 from .llm_client import LLMClient
+from .reader_profile import build_reader_profile
 from . import database as db
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,8 @@ class DirectorAI:
         self.world_facts = world_facts
         self.clue_manager = clue_manager
         self.storyline = storyline or {}
-        self.reader_feedback = reader_feedback or {}
+        self.reader_profile = build_reader_profile(reader_feedback)
+        self.reader_feedback = self.reader_profile.as_dict()
         self.guardian_briefing = (guardian_briefing or "").strip()
         self.llm = llm
         self.debug_log: list[dict] = []
@@ -595,7 +597,7 @@ class DirectorAI:
             "- Make spatial continuity explicit: where the protagonist is, where the cue starts, and how attention moves.\n"
             "- Prefer one clear event over layered explanation.\n"
         )
-        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"):
+        if self.reader_profile.prefers_technical_term_restraint():
             guidance += (
                 "- Avoid checklist-like technical listing.\n"
                 "- Keep at most one technical term in this event unless absolutely necessary.\n"
@@ -605,7 +607,7 @@ class DirectorAI:
                 "- If the term was already introduced once in-scene, do not explain it again; shift to the protagonist's judgment, emotion, or next choice.\n"
                 "- Keep each sentence short and direct; split comma-heavy chains.\n"
             )
-        if self._feedback_mentions("장면 전환", "전환", "메모 발견", "경고음", "밀러 등장", "공간 동선", "인물 위치"):
+        if self.reader_profile.prefers_explicit_transition_cues():
             guidance += (
                 "- Treat memo discovery, warning sound, and named arrival as separate beats; do not blur them together.\n"
                 "- Name who moved and where they stopped before you describe what it meant.\n"
@@ -620,72 +622,25 @@ class DirectorAI:
         )
 
     def _feedback_mentions(self, *keywords: str) -> bool:
-        if not self.reader_feedback:
-            return False
-        corpus = []
-        for key in ("what_felt_boring_or_hard", "style_tips"):
-            vals = self.reader_feedback.get(key, []) or []
-            corpus.extend(str(v) for v in vals if isinstance(v, str))
-        corpus.append(str(self.reader_feedback.get("reader_comment", "") or ""))
-        all_text = " ".join(corpus).lower()
-        lowered = [str(k).lower() for k in keywords if k]
-        return any(k in all_text for k in lowered)
+        return self.reader_profile.mentions(*keywords)
 
     def _reader_reports_stalled_progression(self) -> bool:
-        return self._feedback_mentions(
-            "멈춘 이유",
-            "멈춘",
-            "멈춤",
-            "정체",
-            "제자리",
-            "맴도는",
-            "전진감이 약",
-            "안 나가",
-            "진행이 안",
-            "흐름이 끊",
-        )
+        return self.reader_profile.reports_stalled_progression()
 
     def _reader_wants_repeated_confrontation_merge(self) -> bool:
-        return self._feedback_flag_enabled("merge_repeated_confrontation_beats") or self._feedback_mentions(
-            "복도 대면",
-            "밀러와의 복도 대면",
-            "밀러 접촉",
-            "하나의 대화로 압축",
-            "질문의 강도",
-            "제자리에서 다시 시작",
-            "사실상 두 번 반복",
-        )
+        return self.reader_profile.wants_repeated_confrontation_merge()
 
     def _feedback_style_constraints(self) -> dict:
-        raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
-        return raw if isinstance(raw, dict) else {}
+        return self.reader_profile.style_constraints()
 
     def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get(key, 1 if default else 0)
-        try:
-            enabled = int(raw)
-        except (TypeError, ValueError):
-            return default
-        return enabled >= 1
+        return self.reader_profile.flag_enabled(key, default=default)
 
     def _feedback_tension_phrase_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("tension_phrase_cap", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(4, cap))
+        return self.reader_profile.tension_phrase_cap(default=default)
 
     def _feedback_static_threat_signal_cap(self, default: int = 2) -> int:
-        constraints = self._feedback_style_constraints()
-        raw = constraints.get("max_static_threat_signals_per_scene", default)
-        try:
-            cap = int(raw)
-        except (TypeError, ValueError):
-            cap = default
-        return max(1, min(3, cap))
+        return self.reader_profile.static_threat_signal_cap(default=default)
 
     # ------------------------------------------------------------------ #
     # 5. Resolution Validation
@@ -1205,6 +1160,10 @@ class DirectorAI:
             f"- {aid}: {agent_map[aid].name}" for aid in active_ids
         )
         jargon_onboarded = self._recent_jargon_already_onboarded(recent)
+        prefers_technical_restraint = self.reader_profile.prefers_technical_term_restraint()
+        prefers_sentence_simplification = self.reader_profile.prefers_sentence_simplification()
+        prefers_observable_emotion = self.reader_profile.prefers_observable_emotion_evidence()
+        prefers_scene_compaction = self.reader_profile.prefers_stronger_scene_compaction()
         protagonist_focus_rule = ""
         if jargon_onboarded and protagonist_id in active_ids:
             protagonist_name = agent_map[protagonist_id].name
@@ -1214,30 +1173,20 @@ class DirectorAI:
                 "judgment, emotion, question, or choice.\n"
             )
         jargon_reaction_rule = ""
-        if progress_signal["technical_stall"] or self._feedback_mentions(
-            "기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "영어", "영어 키워드", "설명문", "상황 해석"
-        ):
+        if progress_signal["technical_stall"] or prefers_technical_restraint:
             jargon_reaction_rule = (
                 "11) If the next turn keeps a technical or English term, it must be followed by "
                 "an immediate human reaction, emotion, or choice in the same turn. "
                 "If the term already landed once, do not define it again.\n"
             )
         brevity_rule = ""
-        if progress_signal["explanation_loop"] or self._feedback_mentions(
-            "쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성", "설명문", "상황 해석"
-        ):
+        if progress_signal["explanation_loop"] or prefers_sentence_simplification:
             brevity_rule = (
                 "12) Favor short direct sentences for the next turn. Split comma-heavy clause chains "
                 "into 1-2 clear beats.\n"
             )
         show_dont_tell_rule = ""
-        if progress_signal["explanation_loop"] or self._feedback_mentions(
-            "설명문",
-            "장면을 따라가기보다 설명문",
-            "용어 설명",
-            "상황 해석",
-            "반응과 행동으로 보여",
-        ):
+        if progress_signal["explanation_loop"] or prefers_observable_emotion:
             show_dont_tell_rule = (
                 "13) Do not spend the next turn defining or interpreting the situation again. "
                 "Show pressure through visible reaction, interruption, gesture, movement, or a blunt choice.\n"
@@ -1285,22 +1234,22 @@ class DirectorAI:
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
-        if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루", "문장이 너무 길", "길고 복잡"):
+        if prefers_scene_compaction:
             prompt += (
                 "\nReader priority: if recent turns are paraphrasing the same point or mood without new information, "
                 "prefer ending the scene over extending the exchange."
             )
-        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "괄호", "정의", "풀어쓰기"):
+        if prefers_technical_restraint:
             prompt += (
                 "\nReader priority: do not spend another turn unpacking terminology unless the plot truly requires it; "
                 "prefer visible reaction, choice, or interruption."
                 "\nIf terminology still appears, the turn should translate it into plain consequence and immediate human response."
             )
-        if self._feedback_mentions("설명문", "장면을 따라가기보다 설명문", "용어 설명", "상황 해석", "반응과 행동으로 보여"):
+        if prefers_observable_emotion:
             prompt += (
                 "\nReader priority: cut low-value explanation first. If a point is already clear, use the next turn for action, reaction, silence, or a forced decision instead of restating it."
             )
-        if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
+        if prefers_scene_compaction:
             prompt += (
                 "\nReader priority: if recent turns keep ending on similar sharp lines, end the scene or pivot to a calmer human reaction before escalating again."
             )
@@ -1308,7 +1257,7 @@ class DirectorAI:
             prompt += (
                 "\nReader priority: do not add another warning-style cue. Turn the existing cue into an answer, confrontation, movement, or scene exit."
             )
-        if self._feedback_mentions("쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성"):
+        if prefers_sentence_simplification:
             prompt += (
                 "\nReader priority: prefer turns that say one point at a time in short direct sentences."
             )
@@ -1415,15 +1364,7 @@ class DirectorAI:
         elif (
             progress_signal["stalled"]
             and len(recent) >= 5
-            and self._feedback_mentions(
-                "반복되는 표현",
-                "비슷한 상황",
-                "비슷한 상황과 묘사",
-                "묘사가 반복",
-                "지루",
-                "문장이 너무 길",
-                "길고 복잡",
-            )
+            and prefers_scene_compaction
         ):
             end_scene = True
             reason = (reason + "; " if reason else "") + \
@@ -1747,13 +1688,7 @@ class DirectorAI:
         )
 
     def _has_overloaded_threat_signal_stack(self, recent_interactions: list[dict]) -> bool:
-        if not self._feedback_flag_enabled("compress_threat_signal_stack") and not self._feedback_mentions(
-            "위협 신호",
-            "과밀",
-            "인위적",
-            "모니터 경보",
-            "보안요원 시선",
-        ):
+        if not self.reader_profile.prefers_threat_signal_stack_compression():
             return False
         recent = recent_interactions[-4:]
         if len(recent) < 3:

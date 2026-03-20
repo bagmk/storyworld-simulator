@@ -30,7 +30,6 @@ The old generate_chapter.py (using novel_generator.py) still works for compariso
 import argparse
 import json
 import logging
-import math
 import re
 import sys
 from pathlib import Path
@@ -44,6 +43,10 @@ from src.novel_writer.prose_generator import ProseGenerator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
 from src.novel_writer.env_loader import load_project_env
+from src.novel_writer.reader_profile import (
+    MAX_WORDS_PER_SCENE as PROFILE_MAX_WORDS_PER_SCENE,
+    build_reader_profile,
+)
 from src.novel_writer.review_feedback import (
     ensure_jargon_watch_terms,
     ensure_repetition_watch_terms,
@@ -115,79 +118,27 @@ def parse_args() -> argparse.Namespace:
 
 
 def _reader_feedback_corpus(reader_feedback: dict) -> str:
-    if not isinstance(reader_feedback, dict) or not reader_feedback:
-        return ""
-    parts: list[str] = []
-    for key in ("what_felt_boring_or_hard", "style_tips"):
-        vals = reader_feedback.get(key, []) or []
-        if isinstance(vals, list):
-            parts.extend(str(v) for v in vals if str(v).strip())
-    parts.append(str(reader_feedback.get("reader_comment", "") or ""))
-    return " ".join(parts).lower()
+    return build_reader_profile(reader_feedback).corpus
 
 
 def _reader_feedback_has_any(reader_feedback: dict, *tokens: str) -> bool:
-    corpus = _reader_feedback_corpus(reader_feedback)
-    return bool(corpus) and any(str(token).lower() in corpus for token in tokens if token)
+    return build_reader_profile(reader_feedback).has_any(*tokens)
 
 
 def _reader_feedback_mentions_stalled_progression(reader_feedback: dict) -> bool:
-    return _reader_feedback_has_any(
-        reader_feedback,
-        "멈춘 이유",
-        "멈춘",
-        "멈춤",
-        "정체",
-        "제자리",
-        "맴도는",
-        "전진감이 약",
-        "안 나가",
-        "진행이 안",
-        "흐름이 끊",
-    )
+    return build_reader_profile(reader_feedback).reports_stalled_progression()
 
 
 def _reader_feedback_needs_draft_cleanup(reader_feedback: dict) -> bool:
-    return _reader_feedback_has_any(
-        reader_feedback,
-        "영어 혼입",
-        "영어 표현",
-        "오탈자",
-        "퇴고 전 원고",
-        "원고처럼 보이게",
-        "real-time",
-        "real-time viable if externally supported",
-        "수민는",
-        "단어은",
-    )
+    return build_reader_profile(reader_feedback).needs_draft_cleanup()
 
 
 def _reader_feedback_prefers_sumin_first_person(reader_feedback: dict) -> bool:
-    return _reader_feedback_has_any(
-        reader_feedback,
-        "수민 1인칭",
-        "수민 1인칭 시점",
-        "1인칭 시점",
-        "1인칭으로",
-        "1인칭 고정",
-        "시점으로 고정",
-    )
+    return build_reader_profile(reader_feedback).prefers_sumin_first_person()
 
 
 def _sanitize_chapter_draft_artifacts(chapter_text: str, reader_feedback: dict) -> str:
-    if not chapter_text or not _reader_feedback_needs_draft_cleanup(reader_feedback):
-        return chapter_text
-
-    cleaned = str(chapter_text)
-    replacements = {
-        "real-time viable if externally supported": "외부 지원이 붙을 때만 실시간 대응이 가능했다",
-        "수민는": "수민은",
-        "단어은": "단어는",
-    }
-    for bad, good in replacements.items():
-        cleaned = re.sub(re.escape(bad), good, cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\breal[- ]time\b", "실시간", cleaned, flags=re.IGNORECASE)
-    return cleaned
+    return build_reader_profile(reader_feedback).sanitize_chapter_draft_artifacts(chapter_text)
 
 
 # ── 씬 floor 계산 상수 ──────────────────────────────────────────────────────
@@ -195,7 +146,7 @@ def _sanitize_chapter_draft_artifacts(chapter_text: str, reader_feedback: dict) 
 # floor = ceil(target_words / _MAX_WORDS_PER_SCENE) 으로 동적 계산됩니다.
 # ⚠️ AI 코드 수정 도구(Fixer): 이 상수와 아래 floor 계산식을 수정하지 마세요.
 # AI codefixer: DO NOT modify _MAX_WORDS_PER_SCENE or the floor formula in adjust_scene_target_for_feedback.
-_MAX_WORDS_PER_SCENE = 1000  # words — latency-tested upper bound per LLM call
+_MAX_WORDS_PER_SCENE = PROFILE_MAX_WORDS_PER_SCENE  # words — latency-tested upper bound per LLM call
 
 
 def adjust_scene_target_for_feedback(
@@ -203,660 +154,19 @@ def adjust_scene_target_for_feedback(
     target_words: int,
     reader_feedback: dict,
 ) -> int:
-    corpus = _reader_feedback_corpus(reader_feedback)
-    if not corpus:
-        return target_scenes
-
-    adjusted = target_scenes
-    if any(token in corpus for token in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
-        adjusted -= 1
-    if target_words <= 4500 and adjusted >= 5 and _reader_feedback_mentions_stalled_progression(reader_feedback):
-        adjusted -= 1
-    if (
-        target_words <= 4000
-        and adjusted >= 5
-        and any(token in corpus for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "문맥이 약"))
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 6
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "반복되는 표현",
-            "비슷한 상황",
-            "비슷한 상황과 묘사",
-            "같은 정보와 감정이 재진술",
-            "재진술",
-            "같은 장면을 다시 도는",
-            "같은 장면을 맴도",
-            "제자리에서 맴도",
-            "복도 대면",
-            "밀러와의 복도 대면",
-            "사실상 두 번 반복",
-            "하나의 대화로 압축",
-            "다른 문장으로 다시 보는",
-            "묘사가 반복",
-            "문장이 너무 길",
-            "길고 복잡",
-            "이해하기 어려",
-        )
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 5
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "짧게 끊기는 문장",
-            "문장이 너무 자주 끊기",
-            "비슷한 리듬",
-            "같은 리듬",
-            "단조로운 리듬",
-            "그 말이 끝나자",
-            "시선이 옮겨가자",
-            "연결어 반복",
-            "기술 용어가 자주",
-            "기술 용어가 겹칠 때",
-        )
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 5
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "같은 긴장을 여러 번",
-            "같은 긴장",
-            "비슷한 뜻의 문장",
-            "비슷한 문장으로 여러 번",
-            "설명문을 읽는",
-            "장면을 따라가기보다 설명문",
-            "용어 설명",
-            "상황 해석이 잦",
-        )
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 4
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "시간축",
-            "시간 순서",
-            "순서가 섞",
-            "되감기",
-            "헷갈리",
-            "복도 대치",
-            "발표 종료 후",
-            "질의응답",
-            "슬라이드 발표",
-            "단선 구조",
-        )
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 5
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "외부 지원",
-            "실시간성",
-            "자원과 통제",
-            "통제권",
-            "책임 문제",
-            "후반 반복",
-            "20퍼센트",
-            "20%",
-            "압축",
-        )
-    ):
-        adjusted -= 1
-    if (
-        target_words <= 4500
-        and adjusted >= 5
-        and _reader_feedback_has_any(
-            reader_feedback,
-            "위협 신호",
-            "모니터 경보",
-            "보안요원 시선",
-            "과밀",
-            "인위적으로",
-        )
-    ):
-        adjusted -= 1
-    # Dynamic floor: never allow so few scenes that any one exceeds _MAX_WORDS_PER_SCENE.
-    scene_floor = math.ceil(target_words / _MAX_WORDS_PER_SCENE)
-    return max(scene_floor, adjusted)
+    return build_reader_profile(reader_feedback).adjusted_scene_target(
+        target_scenes,
+        target_words,
+        max_words_per_scene=_MAX_WORDS_PER_SCENE,
+    )
 
 
 def _resolve_generation_style(cli_style: str, reader_feedback: dict) -> str:
-    style = str(cli_style or "third_person_close").strip() or "third_person_close"
-    if style != "first_person" and _reader_feedback_prefers_sumin_first_person(reader_feedback):
-        return "first_person"
-    return style
+    return build_reader_profile(reader_feedback).resolve_generation_style(cli_style)
 
 
 def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
-    if not isinstance(reader_feedback, dict) or not reader_feedback:
-        return reader_feedback
-
-    tuned = dict(reader_feedback)
-    constraints = dict(tuned.get("style_constraints", {}) or {})
-    changed = False
-
-    def _merge_transition_avoid_terms(*terms: str) -> None:
-        existing = constraints.get("avoid_transition_terms", [])
-        if isinstance(existing, str):
-            existing_list = [existing]
-        elif isinstance(existing, list):
-            existing_list = [str(term) for term in existing if str(term).strip()]
-        else:
-            existing_list = []
-        seen = {term.strip().lower() for term in existing_list if term.strip()}
-        for term in terms:
-            cleaned = str(term or "").strip()
-            if not cleaned or cleaned.lower() in seen:
-                continue
-            existing_list.append(cleaned)
-            seen.add(cleaned.lower())
-        constraints["avoid_transition_terms"] = existing_list
-
-    if _reader_feedback_has_any(
-        tuned,
-        "짧게 끊기는 문장",
-        "문장이 너무 자주 끊기",
-        "짧은 반복 문장",
-        "비슷한 리듬",
-        "같은 리듬",
-        "단조로운 리듬",
-        "그 말이 끝나자",
-        "시선이 옮겨가자",
-    ):
-        constraints["short_beats_per_scene_min"] = 0
-        try:
-            existing_max = int(constraints.get("short_beats_per_scene_max", 1))
-        except (TypeError, ValueError):
-            existing_max = 1
-        constraints["short_beats_per_scene_max"] = max(0, min(1, existing_max))
-        try:
-            short_min = int(constraints.get("short_beat_chars_min", 0))
-        except (TypeError, ValueError):
-            short_min = 0
-        try:
-            short_max = int(constraints.get("short_beat_chars_max", 0))
-        except (TypeError, ValueError):
-            short_max = 0
-        constraints["short_beat_chars_min"] = max(14, short_min)
-        constraints["short_beat_chars_max"] = max(28, short_max, constraints["short_beat_chars_min"])
-        constraints["sentence_variety_window"] = max(
-            4,
-            int(constraints.get("sentence_variety_window", 4) or 4),
-        )
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "기술 용어",
-        "기술 용어가 자주",
-        "기술 용어가 겹칠 때",
-        "기술 용어가 연달아",
-        "영어 표현",
-        "영어 키워드",
-        "추상 표현",
-        "고등학생",
-        "한 번에 이해",
-        "괄호 설명",
-        "설명문",
-        "브리핑 문서",
-        "약어",
-        "약자",
-    ):
-        try:
-            jargon_cap = int(constraints.get("max_jargon_terms_per_paragraph", 2))
-        except (TypeError, ValueError):
-            jargon_cap = 2
-        constraints["max_jargon_terms_per_paragraph"] = 1 if _reader_feedback_has_any(
-            tuned, "고등학생", "한 번에 이해", "추상 표현"
-        ) else max(1, min(2, jargon_cap))
-        try:
-            dense_cap = int(constraints.get("max_sentences_in_dense_info", 2))
-        except (TypeError, ValueError):
-            dense_cap = 2
-        constraints["max_sentences_in_dense_info"] = max(1, min(2, dense_cap))
-        constraints["jargon_buffer_sentences"] = max(
-            1,
-            int(constraints.get("jargon_buffer_sentences", 1) or 1),
-        )
-        constraints["force_reaction_after_jargon"] = 1
-        constraints["summary_easy_metaphor_once"] = 0
-        try:
-            summary_words_cap = int(constraints.get("scene_summary_sentence_words_max", 15) or 15)
-        except (TypeError, ValueError):
-            summary_words_cap = 15
-        constraints["scene_summary_sentence_words_max"] = min(
-            15,
-            summary_words_cap,
-        )
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "설명문",
-        "장면을 따라가기보다 설명문",
-        "용어 설명",
-        "상황 해석",
-        "상황 해석이 잦",
-        "설명과 해석",
-        "반응과 행동으로 보여",
-        "이미 한 번 이해된 개념",
-        "반복 해설하지 말고",
-        "감각 변화",
-        "선택 압박",
-    ):
-        constraints["max_jargon_terms_per_paragraph"] = 1
-        constraints["max_sentences_in_dense_info"] = 1
-        constraints["force_reaction_after_jargon"] = 1
-        constraints["summary_easy_metaphor_once"] = 0
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "비슷한 감각 묘사",
-        "감각 묘사",
-        "심리 표현",
-        "비슷한 정보",
-        "비슷한 감정",
-        "같은 장면을 맴도",
-        "같은 장면을 다시 도는",
-        "긴장 묘사",
-        "긴장감",
-        "압박",
-        "반복되는 표현",
-        "묘사가 반복",
-    ):
-        constraints["max_term_repeats_per_scene"] = 1
-        constraints["tension_phrase_cap"] = 1
-        constraints["max_sensory_channels_per_paragraph"] = 2
-        constraints["max_emotion_repeats_per_scene"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "같은 긴장을 여러 번",
-        "같은 긴장",
-        "비슷한 뜻의 문장",
-        "비슷한 문장으로 여러 번",
-        "같은 정보를 여러 번",
-    ):
-        constraints["max_term_repeats_per_scene"] = 1
-        constraints["tension_phrase_cap"] = 1
-        constraints["max_emotion_repeats_per_scene"] = 1
-        changed = True
-
-    if _reader_feedback_mentions_stalled_progression(tuned):
-        try:
-            paragraph_cap = int(constraints.get("max_sentences_per_paragraph", 2) or 2)
-        except (TypeError, ValueError):
-            paragraph_cap = 2
-        constraints["max_sentences_per_paragraph"] = min(2, paragraph_cap)
-        try:
-            dense_cap = int(constraints.get("max_sentences_in_dense_info", 2) or 2)
-        except (TypeError, ValueError):
-            dense_cap = 2
-        constraints["max_sentences_in_dense_info"] = min(2, dense_cap)
-        try:
-            summary_words_cap = int(constraints.get("scene_summary_sentence_words_max", 15) or 15)
-        except (TypeError, ValueError):
-            summary_words_cap = 15
-        constraints["scene_summary_sentence_words_max"] = min(14, summary_words_cap)
-        constraints["tension_phrase_cap"] = 1
-        constraints["max_emotion_repeats_per_scene"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "쉼표",
-        "연결어",
-        "쉼표와 접속",
-        "문장이 너무 길",
-        "길고 복잡",
-        "읽는 속도",
-        "가독성",
-        "호흡",
-        "걸리는",
-    ):
-        try:
-            sentence_chars_max = int(constraints.get("sentence_chars_max", 60))
-        except (TypeError, ValueError):
-            sentence_chars_max = 60
-        constraints["sentence_chars_max"] = max(48, min(56, sentence_chars_max))
-        constraints["scene_summary_sentence_words_max"] = 14
-        try:
-            paragraph_cap = int(constraints.get("max_sentences_per_paragraph", 2) or 2)
-        except (TypeError, ValueError):
-            paragraph_cap = 2
-        constraints["max_sentences_per_paragraph"] = min(
-            2,
-            paragraph_cap,
-        )
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "짧은 문장과 긴 문장을 섞",
-        "속도감과 긴장감",
-        "대화 장면의 속도감",
-        "문장 길이를 다양",
-    ):
-        constraints["sentence_variety_window"] = max(
-            5,
-            int(constraints.get("sentence_variety_window", 5) or 5),
-        )
-        try:
-            short_max = int(constraints.get("short_beats_per_scene_max", 1) or 1)
-        except (TypeError, ValueError):
-            short_max = 1
-        constraints["short_beats_per_scene_max"] = max(1, min(2, short_max))
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "손가락",
-        "숨",
-        "노트북",
-        "반응 묘사",
-        "인위적으로",
-    ):
-        constraints["reaction_motif_repeat_cap"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "그리고",
-        "그러자",
-        "이어서",
-        "그 순간",
-        "접속 습관",
-        "문장 연결",
-        "연결이 너무 자주",
-        "연결어 사용 빈도",
-        "더 자연스럽",
-        "덜 작위적",
-        "그 말이 끝나자",
-        "시선이 옮겨가자",
-        "연결어 반복",
-    ):
-        constraints["max_transition_openers_per_block"] = 1
-        _merge_transition_avoid_terms("그리고", "그러자", "이어서", "그 순간")
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "한 문장에는 동작이나 감정 한 축",
-        "한 문장에는",
-        "문장 연결 방식을 수정",
-        "그리고, 그러자",
-        "그리고 그러자",
-        "리듬을 날카롭게",
-        "호흡이 무거",
-    ):
-        constraints["single_axis_sentences"] = 1
-        constraints["max_transition_openers_per_block"] = 1
-        _merge_transition_avoid_terms("그리고", "그러자", "이어서", "그 순간")
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "그 말이 끝나자",
-        "시선이 옮겨가자",
-        "연결어 반복",
-        "상투적 연결어",
-    ):
-        constraints["max_transition_openers_per_block"] = 1
-        _merge_transition_avoid_terms(
-            "그리고",
-            "그러자",
-            "이어서",
-            "그 순간",
-            "그 말이 끝나자",
-            "시선이 옮겨가자",
-            "고개를 들자",
-            "의자가 밀리자",
-        )
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "짧은 숨이 스친 뒤",
-        "반복 접속구",
-        "호흡 문구",
-        "문장 리듬이 기계적",
-    ):
-        constraints["max_transition_openers_per_block"] = 1
-        constraints["sentence_variety_window"] = max(
-            5,
-            int(constraints.get("sentence_variety_window", 5) or 5),
-        )
-        _merge_transition_avoid_terms("짧은 숨이 스친 뒤")
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "비유로 분위기를 만든 직후 의미를 다시 설명",
-        "의미를 다시 설명",
-        "비유",
-        "문단 밀도",
-        "호흡이 가벼워",
-    ):
-        constraints["avoid_metaphor_explanation"] = 1
-        constraints["summary_easy_metaphor_once"] = 0
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "메타 표식",
-        "작업 메모",
-        "ep01의 온도계",
-        "ep01—scene21",
-        "완성 원고가 아니라 작업 메모",
-    ):
-        constraints["strip_meta_markers"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "외부 지원",
-        "실시간성",
-        "자원과 통제",
-        "통제권",
-        "책임 문제",
-        "후반 반복",
-        "20퍼센트",
-        "20%",
-        "압축",
-    ):
-        constraints["scene_compaction_ratio_target"] = 80
-        constraints["max_term_repeats_per_scene"] = 1
-        constraints["max_emotion_repeats_per_scene"] = 1
-        constraints["dialogue_agenda_contrast"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "밀러와의 대화",
-        "협상 논점",
-        "핵심 조건",
-        "여러 차례 되풀이",
-    ):
-        try:
-            compaction_target = int(constraints.get("scene_compaction_ratio_target", 80) or 80)
-        except (TypeError, ValueError):
-            compaction_target = 80
-        constraints["scene_compaction_ratio_target"] = min(80, compaction_target)
-        constraints["dialogue_agenda_contrast"] = 1
-        constraints["merge_repeated_confrontation_beats"] = 1
-        constraints["prefer_linear_scene_axis"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "같은 정보와 감정이 재진술",
-        "재진술",
-        "제자리에서 맴도",
-        "다른 문장으로 다시 보는",
-        "서사적 전진감",
-        "후반 반복",
-    ):
-        constraints["scene_compaction_ratio_target"] = 75
-        constraints["max_term_repeats_per_scene"] = 1
-        constraints["max_emotion_repeats_per_scene"] = 1
-        constraints["single_strong_interior_beat"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "복도 대면",
-        "밀러와의 복도 대면",
-        "밀러 접촉",
-        "사실상 두 번 반복",
-        "하나의 대화로 압축",
-        "질문의 강도",
-        "제자리에서 다시 시작",
-    ):
-        try:
-            compaction_target = int(constraints.get("scene_compaction_ratio_target", 75) or 75)
-        except (TypeError, ValueError):
-            compaction_target = 75
-        constraints["scene_compaction_ratio_target"] = min(75, compaction_target)
-        constraints["merge_repeated_confrontation_beats"] = 1
-        constraints["prefer_linear_scene_axis"] = 1
-        constraints["clarify_event_transitions"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "메모 발견",
-        "경고음",
-        "밀러 등장",
-        "장면 전환",
-        "공간 동선",
-        "인물 위치",
-    ):
-        constraints["clarify_event_transitions"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "위협 신호",
-        "모니터 경보",
-        "보안요원 시선",
-        "과밀",
-        "인위적으로",
-    ):
-        constraints["clarify_event_transitions"] = 1
-        constraints["compress_threat_signal_stack"] = 1
-        constraints["max_static_threat_signals_per_scene"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "시간축",
-        "시간 순서",
-        "순서가 섞",
-        "되감기",
-        "헷갈리",
-        "복도 대치",
-        "발표 종료 후",
-        "질의응답",
-        "슬라이드 발표",
-        "단선 구조",
-        "질문→응답→접근",
-        "질문->응답->접근",
-    ):
-        constraints["clarify_event_transitions"] = 1
-        constraints["prioritize_chronological_scene_order"] = 1
-        constraints["prefer_linear_scene_axis"] = 1
-        constraints["scene_compaction_ratio_target"] = 75
-        constraints["max_transition_openers_per_block"] = 1
-        _merge_transition_avoid_terms(
-            "그리고",
-            "그러자",
-            "이어서",
-            "그 순간",
-            "그 직후",
-            "잠시 뒤",
-        )
-        changed = True
-
-    if _reader_feedback_prefers_sumin_first_person(tuned):
-        try:
-            refresh_streak = int(constraints.get("speaker_refresh_streak", 2) or 2)
-        except (TypeError, ValueError):
-            refresh_streak = 2
-        constraints["force_first_person_pov"] = 1
-        constraints["speaker_refresh_streak"] = max(2, refresh_streak)
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "미완 문장",
-        "대명사 오류",
-        "호칭 혼선",
-        "지시어 혼선",
-        "퇴고 전 초안",
-        "퇴고 전 원고",
-        "신뢰도를 떨어",
-    ):
-        constraints["force_complete_sentences"] = 1
-        constraints["stabilize_reference_labels"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "다크 수트 남자",
-        "크리스찬 밀러",
-        "같은 인물인지",
-        "다른 인물인지",
-        "헷갈린다",
-    ):
-        constraints["clarify_similar_character_entries"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "길게 호흡",
-        "핵심 문단",
-        "문단 몇 개는 길게",
-    ):
-        constraints["prefer_pivot_paragraph_breath"] = 1
-        constraints["sentence_variety_window"] = max(
-            5,
-            int(constraints.get("sentence_variety_window", 5) or 5),
-        )
-        changed = True
-
-    if _reader_feedback_needs_draft_cleanup(tuned):
-        constraints["max_jargon_terms_per_paragraph"] = 1
-        constraints["force_reaction_after_jargon"] = 1
-        constraints["force_complete_sentences"] = 1
-        constraints["stabilize_reference_labels"] = 1
-        changed = True
-
-    if _reader_feedback_has_any(
-        tuned,
-        "모레노",
-        "밀러",
-        "이해관계",
-        "말버릇",
-        "대사는 테마 설명보다",
-    ):
-        constraints["dialogue_agenda_contrast"] = 1
-        changed = True
-
-    if changed:
-        tuned["style_constraints"] = constraints
-    return tuned
+    return build_reader_profile(reader_feedback).as_dict()
 
 
 def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
@@ -1235,6 +545,23 @@ def main() -> None:
     total_elapsed = distill_elapsed + prose_elapsed
 
     budget = llm.budget_summary()
+    meta_path = Path(chapter_path).with_name(f"{Path(chapter_path).stem}_meta.json")
+    meta_payload = {
+        "episode_id": episode_id,
+        "chapter_path": str(chapter_path),
+        "word_count": word_count,
+        "target_words": target_words,
+        "scene_count": len(scenes),
+        "interaction_count": len(interactions),
+        "elapsed_seconds": {
+            "total": total_elapsed,
+            "distill": distill_elapsed,
+            "prose": prose_elapsed,
+        },
+        "budget": budget,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+    meta_path.write_text(json.dumps(meta_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     logger.info("=" * 60)
     logger.info("  Chapter: %s", chapter_path)

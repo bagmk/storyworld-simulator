@@ -72,7 +72,8 @@ class DatabaseEpisodeRunSelectionTest(unittest.TestCase):
     def test_archive_and_purge_episodes_from_removes_target_and_later(self) -> None:
         old_db_path = database.DB_PATH
         with tempfile.TemporaryDirectory() as tmpdir:
-            database.DB_PATH = str(Path(tmpdir) / "simulation.db")
+            db_path = Path(tmpdir) / "simulation.db"
+            database.DB_PATH = str(db_path)
             try:
                 database.set_tracking_context(reset=True)
                 database.init_db()
@@ -94,6 +95,12 @@ class DatabaseEpisodeRunSelectionTest(unittest.TestCase):
                             metadata={},
                         )
                     )
+                    if episode_id != "ep01_alpha":
+                        database.save_world_state(
+                            episode_id,
+                            1,
+                            {"blob": f"{episode_id}-" + ("x" * 160_000)},
+                        )
                     database.save_emotion(
                         "kim_sumin",
                         episode_id,
@@ -108,6 +115,14 @@ class DatabaseEpisodeRunSelectionTest(unittest.TestCase):
 
                 self.assertEqual(result["episode_number"], 2)
                 self.assertEqual(result["episode_ids"], ["ep02_beta", "ep03_gamma"])
+                self.assertTrue(result["compaction"]["attempted"])
+                self.assertTrue(result["compaction"]["succeeded"])
+                self.assertGreater(result["compaction"]["reclaimed_bytes"], 0)
+                self.assertEqual(result["compaction"]["freelist_count_after"], 0)
+                self.assertLess(
+                    result["compaction"]["file_size_after_bytes"],
+                    result["compaction"]["file_size_before_bytes"],
+                )
 
                 archive_path = backup_dir / "database_episode_archive.json"
                 self.assertTrue(archive_path.exists())
@@ -130,6 +145,7 @@ class DatabaseEpisodeRunSelectionTest(unittest.TestCase):
 
                 self.assertEqual([row["episode_id"] for row in live_interactions], ["ep01_alpha"])
                 self.assertEqual([row["id"] for row in live_episodes], ["ep01_alpha"])
+                self.assertEqual(db_path.stat().st_size, result["compaction"]["file_size_after_bytes"])
             finally:
                 database.set_tracking_context(reset=True)
                 database.DB_PATH = old_db_path

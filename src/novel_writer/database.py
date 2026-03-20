@@ -620,6 +620,95 @@ def _episode_ids_at_or_after(conn: sqlite3.Connection, min_episode_number: int) 
     return sorted(found, key=lambda eid: (found[eid], eid))
 
 
+def _compaction_skipped(reason: str) -> dict[str, Any]:
+    return {
+        "attempted": False,
+        "succeeded": False,
+        "reason": reason,
+        "error": None,
+        "page_size": None,
+        "page_count_before": None,
+        "page_count_after": None,
+        "freelist_count_before": None,
+        "freelist_count_after": None,
+        "file_size_before_bytes": None,
+        "file_size_after_bytes": None,
+        "reclaimed_bytes": 0,
+    }
+
+
+def _database_size_bytes() -> int:
+    db_path = Path(DB_PATH)
+    if not db_path.exists():
+        return 0
+    return db_path.stat().st_size
+
+
+def _compact_sqlite_database() -> dict[str, Any]:
+    """
+    Best-effort compaction pass after bulk deletes.
+
+    This keeps the reset/archive flow resilient: purge succeeds even if a later
+    VACUUM is blocked by another SQLite client.
+    """
+    compaction = {
+        "attempted": True,
+        "succeeded": False,
+        "reason": None,
+        "error": None,
+        "page_size": None,
+        "page_count_before": None,
+        "page_count_after": None,
+        "freelist_count_before": None,
+        "freelist_count_after": None,
+        "file_size_before_bytes": None,
+        "file_size_after_bytes": None,
+        "reclaimed_bytes": 0,
+    }
+    conn = _connect()
+    try:
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.commit()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+        page_size = int(conn.execute("PRAGMA page_size").fetchone()[0])
+        page_count_before = int(conn.execute("PRAGMA page_count").fetchone()[0])
+        freelist_count_before = int(conn.execute("PRAGMA freelist_count").fetchone()[0])
+        file_size_before = _database_size_bytes()
+
+        compaction.update({
+            "page_size": page_size,
+            "page_count_before": page_count_before,
+            "freelist_count_before": freelist_count_before,
+            "file_size_before_bytes": file_size_before,
+        })
+
+        conn.execute("VACUUM")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+        page_count_after = int(conn.execute("PRAGMA page_count").fetchone()[0])
+        freelist_count_after = int(conn.execute("PRAGMA freelist_count").fetchone()[0])
+
+        compaction.update({
+            "succeeded": True,
+            "page_count_after": page_count_after,
+            "freelist_count_after": freelist_count_after,
+        })
+    except sqlite3.Error as exc:
+        compaction["error"] = str(exc)
+    finally:
+        conn.close()
+
+    if compaction["succeeded"]:
+        file_size_after = _database_size_bytes()
+        file_size_before = int(compaction["file_size_before_bytes"] or 0)
+        compaction.update({
+            "file_size_after_bytes": file_size_after,
+            "reclaimed_bytes": max(0, file_size_before - file_size_after),
+        })
+    return compaction
+
+
 def archive_and_purge_episodes_from(
     episode_key_or_id: str,
     backup_dir: Path,
@@ -635,75 +724,94 @@ def archive_and_purge_episodes_from(
             "episode_ids": [],
             "archive_path": None,
             "table_counts": {},
+            "compaction": _compaction_skipped("invalid_episode_id"),
         }
 
     conn = _connect()
+    result: dict[str, Any] | None = None
     try:
         episode_ids = _episode_ids_at_or_after(conn, episode_num)
         if not episode_ids:
-            return {
+            result = {
                 "episode_number": episode_num,
                 "episode_ids": [],
                 "archive_path": None,
                 "table_counts": {},
+                "compaction": _compaction_skipped("no_matching_episodes"),
             }
+        else:
+            placeholders = ", ".join("?" for _ in episode_ids)
+            archive: dict[str, Any] = {
+                "created_at": datetime.utcnow().isoformat(),
+                "target_episode": str(episode_key_or_id),
+                "target_episode_number": episode_num,
+                "episode_ids": episode_ids,
+                "tables": {},
+            }
+            table_counts: dict[str, int] = {}
 
-        placeholders = ", ".join("?" for _ in episode_ids)
-        archive: dict[str, Any] = {
-            "created_at": datetime.utcnow().isoformat(),
-            "target_episode": str(episode_key_or_id),
-            "target_episode_number": episode_num,
-            "episode_ids": episode_ids,
-            "tables": {},
-        }
-        table_counts: dict[str, int] = {}
+            for table in _episode_scoped_tables(conn):
+                rows = conn.execute(
+                    f'SELECT * FROM "{table}" WHERE episode_id IN ({placeholders})',
+                    episode_ids,
+                ).fetchall()
+                if not rows:
+                    continue
+                serialized = [dict(row) for row in rows]
+                archive["tables"][table] = serialized
+                table_counts[table] = len(serialized)
 
-        for table in _episode_scoped_tables(conn):
-            rows = conn.execute(
-                f'SELECT * FROM "{table}" WHERE episode_id IN ({placeholders})',
+            ep_rows = conn.execute(
+                f'SELECT * FROM episodes WHERE id IN ({placeholders})',
                 episode_ids,
             ).fetchall()
-            if not rows:
-                continue
-            serialized = [dict(row) for row in rows]
-            archive["tables"][table] = serialized
-            table_counts[table] = len(serialized)
+            if ep_rows:
+                serialized_eps = [dict(row) for row in ep_rows]
+                archive["tables"]["episodes"] = serialized_eps
+                table_counts["episodes"] = len(serialized_eps)
 
-        ep_rows = conn.execute(
-            f'SELECT * FROM episodes WHERE id IN ({placeholders})',
-            episode_ids,
-        ).fetchall()
-        if ep_rows:
-            serialized_eps = [dict(row) for row in ep_rows]
-            archive["tables"]["episodes"] = serialized_eps
-            table_counts["episodes"] = len(serialized_eps)
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = backup_dir / "database_episode_archive.json"
+            archive_path.write_text(
+                json.dumps(archive, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        archive_path = backup_dir / "database_episode_archive.json"
-        archive_path.write_text(
-            json.dumps(archive, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-        for table in _episode_scoped_tables(conn):
+            for table in _episode_scoped_tables(conn):
+                conn.execute(
+                    f'DELETE FROM "{table}" WHERE episode_id IN ({placeholders})',
+                    episode_ids,
+                )
             conn.execute(
-                f'DELETE FROM "{table}" WHERE episode_id IN ({placeholders})',
+                f'DELETE FROM episodes WHERE id IN ({placeholders})',
                 episode_ids,
             )
-        conn.execute(
-            f'DELETE FROM episodes WHERE id IN ({placeholders})',
-            episode_ids,
-        )
-        conn.commit()
+            conn.commit()
 
-        return {
-            "episode_number": episode_num,
-            "episode_ids": episode_ids,
-            "archive_path": str(archive_path),
-            "table_counts": table_counts,
-        }
+            result = {
+                "episode_number": episode_num,
+                "episode_ids": episode_ids,
+                "archive_path": str(archive_path),
+                "table_counts": table_counts,
+                "compaction": None,
+            }
     finally:
         conn.close()
+
+    if result is None:
+        return {
+            "episode_number": episode_num,
+            "episode_ids": [],
+            "archive_path": None,
+            "table_counts": {},
+            "compaction": _compaction_skipped("unknown"),
+        }
+
+    if result["episode_ids"]:
+        result["compaction"] = _compact_sqlite_database()
+    elif result.get("compaction") is None:
+        result["compaction"] = _compaction_skipped("no_matching_episodes")
+    return result
 
 
 def load_agent_interactions(agent_id: str, episode_id: Optional[str] = None,
