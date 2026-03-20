@@ -1071,7 +1071,7 @@ def _build_ai_reviewer_prompt(chapter_text: str, story_context: str = "") -> str
         '  "reader_comment": "<4~6문장 독자 코멘트>"\n'
         "}\n"
         "규칙: 솔직하고 구체적으로. 각 리스트 ≥ 3개 항목. 한국어만 사용.\n\n"
-        f"챕터 본문:\n{chapter_text[:15000]}"
+        f"챕터 본문:\n{chapter_text}"
     )
 
 
