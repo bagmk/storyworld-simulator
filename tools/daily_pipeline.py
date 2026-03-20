@@ -2470,7 +2470,6 @@ async def step_auto_improve_loop(
                 f"점수: 긴장감={_t}/10 | 문체={_s}/10 | 인과성={_c}/10 | 캐릭터={_ch}/10 | 씬기능={_sf}/10\n\n"
                 f"**문제점:**\n{_issues_txt}\n\n"
                 f"**개선 팁:**\n{_tips_txt}"
-                + (f"\n\n**매니저 지시:**\n{manager_instructions[:800]}" if manager_instructions else "")
             )
         ok, summary = await _run_codex_fixer(
             fixer_prompt,
