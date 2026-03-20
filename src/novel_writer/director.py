@@ -818,6 +818,11 @@ class DirectorAI:
                 "The scene is stacking warning cues without cashing them out. Do not add another omen. "
                 "Turn the sharpest existing cue into reaction, confrontation, movement, or a scene exit."
             )
+        if progress_signal.get("pressure_peak"):
+            return (
+                "The scene is at a pressure peak. Keep it open and cash the pressure out through a concrete move, "
+                "reveal, or counteroffer instead of ending on atmosphere alone."
+            )
         if progress_signal["repeated_concern"]:
             if self._reader_wants_repeated_confrontation_merge():
                 return (
@@ -1204,6 +1209,12 @@ class DirectorAI:
                 "15) Keep high-pressure contact on one linear axis: question/response -> approach/terms -> intervention or scene close. "
                 "If the same pair already made contact, do not restart from another fresh stare-down or another first question.\n"
             )
+        pressure_peak_rule = ""
+        if progress_signal.get("pressure_peak"):
+            pressure_peak_rule = (
+                "16) The scene is at a pressure peak. Keep it open until a concrete consequence, reveal, or exit cue lands; "
+                "do not end it on atmosphere alone.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1231,6 +1242,7 @@ class DirectorAI:
             f"{show_dont_tell_rule}"
             f"{repeated_concern_rule}"
             f"{confrontation_axis_rule}"
+            f"{pressure_peak_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1330,6 +1342,17 @@ class DirectorAI:
                     end_scene = False
                     reason = (reason + "; " if reason else "") + \
                         "scene-stall rotation to force new pressure"
+
+        if progress_signal.get("pressure_peak") and not progress_signal["closure_ready"]:
+            end_scene = False
+            reason = (reason + "; " if reason else "") + \
+                "hold scene open at pressure peak until a concrete exit cue lands"
+            if len(active_ids) > 1 and recent_speakers and speaker_id == recent_speakers[-1]:
+                alternates = [aid for aid in active_ids if aid != speaker_id]
+                if alternates:
+                    speaker_id = alternates[0]
+                    reason = (reason + "; " if reason else "") + \
+                        "pressure-peak rotation to force a fresh reaction"
 
         if progress_signal["stalled"] and progress_signal["closure_ready"]:
             end_scene = True
@@ -1502,6 +1525,9 @@ class DirectorAI:
                 "explanation_loop": False,
                 "repeated_concern": False,
                 "signal_stack": False,
+                "emotional_shift": False,
+                "decisive_shift": False,
+                "pressure_peak": False,
             }
 
         recent_speakers = [
@@ -1526,9 +1552,25 @@ class DirectorAI:
         repeated_concern = self._has_repeated_core_concern_exchange(recent)
         signal_stack = self._has_overloaded_threat_signal_stack(recent)
         closure_ready = self._has_scene_exit_cue(recent)
-        stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
+        emotional_shift = any(
+            self._has_emotional_or_decisive_shift(str(i.get("content", "")))
+            for i in recent[-2:]
+        )
+        decisive_shift = any(
+            re.search(
+                r"(결정|선택|거절|수락|걸음을 옮|문으로 향|자료를 건넸|자리를 정리|돌아서|떠났|막아섰|고개를 끄덕|반걸음|물러섰|손을 내밀)",
+                str(i.get("content", "")),
+            )
+            or self._has_confrontation_resolution_shift(str(i.get("content", "")))
+            for i in recent[-2:]
+        )
+        pressure_peak = (
+            (repeated_concern or signal_stack or technical_stall or flat_tension or explanation_loop)
+            and (decisive_shift or emotional_shift)
+        )
+        stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
-        ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack
+        ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
@@ -1537,6 +1579,9 @@ class DirectorAI:
             "explanation_loop": explanation_loop,
             "repeated_concern": repeated_concern,
             "signal_stack": signal_stack,
+            "emotional_shift": emotional_shift,
+            "decisive_shift": decisive_shift,
+            "pressure_peak": pressure_peak,
         }
 
     def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:

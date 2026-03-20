@@ -1742,6 +1742,8 @@ class SceneDistiller:
             parts.append("control")
         if re.search(r"(책임|책임질|법적|감시 한도|oversight|accountability|liability)", low):
             parts.append("responsibility")
+        if re.search(r"(계약|조항|문구|서명|서류|시설|보안|경비|출입|허가|배지|명함|access|security|contract|clause)", low):
+            parts.append("concrete")
         return "|".join(parts[:3])
 
     def _scene_core_concern_signature(self, scene: DistilledScene) -> str:
@@ -1795,6 +1797,8 @@ class SceneDistiller:
             pressure_tags.append("approach")
         if re.search(r"(조건|요구|거절|수락)", low):
             pressure_tags.append("terms")
+        if re.search(r"(계약|조항|문구|서류|시설|보안|경비|배지|명함|access|security|contract|clause)", low):
+            pressure_tags.append("concrete")
         return "::".join(
             part
             for part in (
@@ -1822,7 +1826,7 @@ class SceneDistiller:
         if not low.strip():
             return ""
         if not re.search(
-            r"(질문|물었|되물었|대답|응답|다가섰|접근|말을 걸|멈춰 섰|조건|요구|거절|수락|통제권|책임|외부 지원|실시간|명함|배지|개입|끼어들)",
+            r"(질문|물었|되물었|대답|응답|다가섰|접근|말을 걸|멈춰 섰|조건|요구|거절|수락|통제권|책임|외부 지원|실시간|명함|배지|개입|끼어들|계약|조항|문구|서류|시설|보안|경비)",
             low,
         ):
             return ""
@@ -1906,7 +1910,7 @@ class SceneDistiller:
             if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):
                 concrete += 1
             if re.search(
-                r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|시선|배지|발표장|복도|문 앞|문가|모니터)",
+                r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|시선|배지|발표장|복도|문 앞|문가|모니터|계약|조항|문구|시설|보안|경비|허가|출입|access|security|contract|clause)",
                 str(line or ""),
             ):
                 concrete += 2

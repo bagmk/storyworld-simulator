@@ -169,6 +169,16 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     return build_reader_profile(reader_feedback).as_dict()
 
 
+def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
+    policy = dict(base_policy or {})
+    profile = build_reader_profile(reader_feedback)
+    if profile.reports_stalled_progression():
+        policy["hold_pressure_peak"] = 1
+    if profile.prefers_stronger_scene_compaction():
+        policy["prefer_concrete_offer_detail"] = 1
+    return policy
+
+
 def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
     raw_list = json.loads(Path(path).read_text(encoding="utf-8"))
     scenes: list[DistilledScene] = []
@@ -353,6 +363,8 @@ def main() -> None:
             )
         else:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
+    chapter_runtime_policy = _chapter_runtime_policy(rl_policy, reader_feedback)
+    episode_config["_rl_runtime"] = episode_runtime_policy(chapter_runtime_policy)
 
     # Load guardian briefing for story continuity steering.
     guardian_briefing = ""
@@ -451,7 +463,7 @@ def main() -> None:
     distiller = SceneDistiller(
         llm=llm,
         episode_config=episode_config,
-        runtime_policy=rl_policy,
+        runtime_policy=chapter_runtime_policy,
         reader_feedback=reader_feedback,
     )
     if args.precomputed_scenes:
@@ -518,8 +530,8 @@ def main() -> None:
         episode_config=episode_config,
         output_dir=args.output,
         character_profiles=character_profiles,
-        max_history_episodes=int(rl_policy.get("prose_history_max_episodes", 12) or 12),
-        runtime_policy=rl_policy,
+        max_history_episodes=int(chapter_runtime_policy.get("prose_history_max_episodes", 12) or 12),
+        runtime_policy=chapter_runtime_policy,
         reader_feedback=reader_feedback,
         guardian_briefing=guardian_briefing,
     )

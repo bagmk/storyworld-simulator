@@ -548,6 +548,14 @@ class ProseGenerator:
                 "- Differentiate voices through directness, evasiveness, brevity, and favored wording.\n"
                 "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
+        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항", "밀러"):
+            prompt += (
+                "## Pressure Cash-Out Priority\n"
+                "- When Miller's proposal or a similar coercive offer appears, do not leave the cost abstract.\n"
+                "- Show the price through concrete scene details: clause wording, access restriction, security, badge, facility rule, room placement, deadline, or a visible handoff.\n"
+                "- If the source material only implies danger, keep the implication concrete and physical; do not explain the threat in summary language.\n"
+                "- After the offer lands, the next beat should be consequence, refusal, or a forced choice, not another paraphrase of the warning.\n\n"
+            )
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
                 "## Sentence Variety Priority\n"
