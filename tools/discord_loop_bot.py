@@ -934,6 +934,8 @@ async def async_main() -> None:
                     return "review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
                     return "auto"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프"):
+                    return "auto"  # 사이클마다 새 뜨레드 생성
                 if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
                     return "auto_review"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
