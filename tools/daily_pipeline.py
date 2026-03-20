@@ -120,8 +120,12 @@ def _llm_model_for_tier(review_tier: str) -> str:
     return "gpt-4o-mini"
 
 def _llm_premium_model_for_tier(review_tier: str) -> str:
-    """mini 티어이면 premium도 gpt-4o-mini. 그 외엔 gpt-4o."""
+    """mini 티어이면 gpt-4o-mini. 그 외엔 gpt-4o."""
     return "gpt-4o-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
+
+def _llm_review_model_for_tier(review_tier: str) -> str:
+    """AI 루프 리뷰 모델. mini 티어이면 gpt-5-mini (판단 품질 유지). 그 외엔 gpt-4o."""
+    return "gpt-5-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
 
 def _codex_model_for_tier(review_tier: str) -> str | None:
     """mini 티어이면 gpt-5.1-codex, 그 외엔 None (config.toml 기본값 사용)."""
@@ -1242,7 +1246,7 @@ async def step_chapter_gen(
         "--budget", str(budget * 0.5),
     ]
     if _use_mini_review_tier(review_tier):
-        cmd += ["--model", "gpt-4o-mini", "--premium", "gpt-4o-mini"]
+        cmd += ["--model", "gpt-4o-mini", "--premium", "gpt-4.1-mini"]
     if prev_review:
         cmd += ["--reader-review-md", str(prev_review)]
     if precomputed_scenes_path and precomputed_scenes_path.exists():
@@ -2496,7 +2500,7 @@ async def step_auto_improve_loop(
             chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
             try:
                 llm = LLMClient(
-                    model="gpt-4o-mini",
+                    model=_llm_review_model_for_tier(review_tier),
                     premium_model="gpt-4o",
                     budget_usd=2.0,
                     api_key=os.environ.get("OPENAI_API_KEY", ""),

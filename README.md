@@ -531,15 +531,15 @@ Discord 채널에서 아래처럼 입력합니다.
 | 시뮬레이션 — 에이전트 턴 | gpt-4o-mini | gpt-4o-mini | gpt-4o-mini |
 | 시뮬레이션 — 디렉터/산문 | gpt-5-mini | gpt-5-mini | gpt-5-mini |
 | 챕터 생성 — 기본 구성 | gpt-4o-mini | gpt-4o-mini | gpt-4o-mini |
-| 챕터 생성 — 산문 생성 | gpt-4o-mini ¹ | gpt-5-mini | gpt-5-mini |
+| 챕터 생성 — 산문 생성 | gpt-4.1-mini ¹ | gpt-5-mini | gpt-5-mini |
 | Guardian 분석 | gpt-4o-mini | gpt-4o | gpt-4o-mini |
 | Quality Reviewer | gpt-4o-mini | gpt-4o | gpt-4o-mini |
-| AI 루프 리뷰 | gpt-4o-mini | gpt-4o | Codex CLI (config 기본값) ² |
+| AI 루프 리뷰 | gpt-5-mini | gpt-4o | Codex CLI (config 기본값) ² |
 | Codex 코드 수정 | Codex CLI (`gpt-5.1-codex-mini`) | Codex CLI (config 기본값) ² | Codex CLI (config 기본값) ² |
 | Regen 판단 LLM | gpt-4o-mini | gpt-4o | gpt-4o |
 | Feedback 파싱 LLM | gpt-4o-mini | gpt-4o | gpt-4o |
 
-> ¹ mini 티어는 `--premium gpt-4o-mini` 플래그로 산문 생성도 gpt-4o-mini로 강제합니다.
+> ¹ mini 티어는 `--premium gpt-4.1-mini` 플래그로 산문 생성에 gpt-4.1-mini를 사용합니다 (gpt-4o-mini보다 long-context 성능 우수, gpt-5-mini보다 저렴).
 > ² `config 기본값` = `~/.codex/config.toml`에 설정된 모델 (현재 `gpt-5.4 xhigh`). ChatGPT Pro 구독 사용, OpenAI API 비용 없음.
 
 주의:
