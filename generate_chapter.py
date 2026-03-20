@@ -162,6 +162,21 @@ def adjust_scene_target_for_feedback(
         )
     ):
         adjusted -= 1
+    if (
+        target_words <= 4500
+        and adjusted >= 5
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "짧게 끊기는 문장",
+            "문장이 너무 자주 끊기",
+            "비슷한 리듬",
+            "같은 리듬",
+            "단조로운 리듬",
+            "기술 용어가 자주",
+            "기술 용어가 겹칠 때",
+        )
+    ):
+        adjusted -= 1
     return max(3, adjusted)
 
 

@@ -962,7 +962,8 @@ class DirectorAI:
             f"5) Balance speaking opportunities: avoid choosing the same speaker 3+ turns in a row "
             f"when other active speakers are available.\n"
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
-            f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}\n"
+            f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
+            f"{'8) Recent turns are repeating the same technical explanation without enough reaction or decision change; prefer a speaker who converts it into emotion, conflict, or a scene close.\\n' if progress_signal['technical_stall'] else ''}\n"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1017,6 +1018,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to avoid drag after recent beat landed"
+        elif progress_signal["technical_stall"] and len(recent) >= 4:
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to stop repeated technical explanation without new emotional turn"
         elif (
             progress_signal["stalled"]
             and len(recent) >= 5
@@ -1157,7 +1162,7 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip() != "director"
         ][-5:]
         if len(recent) < 4:
-            return {"stalled": False, "closure_ready": False}
+            return {"stalled": False, "closure_ready": False, "technical_stall": False}
 
         recent_speakers = [
             str(i.get("speaker_id", "")).strip()
@@ -1171,11 +1176,59 @@ class DirectorAI:
         ) >= 3
         fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
         low_novelty = len({fp for fp in fingerprints if fp}) <= 2
+        technical_stall = self._has_repetitive_technical_exchange(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
+        ) or technical_stall
+        return {
+            "stalled": stalled,
+            "closure_ready": closure_ready,
+            "technical_stall": technical_stall,
+        }
+
+    def _has_repetitive_technical_exchange(self, recent_interactions: list[dict]) -> bool:
+        signatures = [
+            self._technical_term_signature(str(i.get("content", "")))
+            for i in recent_interactions
+        ]
+        jargon_rich = [sig for sig in signatures if len(sig) >= 2]
+        if len(jargon_rich) < 2:
+            return False
+        overlap_found = any(
+            len(jargon_rich[idx] & jargon_rich[idx - 1]) >= 1
+            for idx in range(1, len(jargon_rich))
         )
-        return {"stalled": stalled, "closure_ready": closure_ready}
+        if not overlap_found:
+            return False
+        emotion_or_action_shift = any(
+            self._has_emotional_or_decisive_shift(str(i.get("content", "")))
+            for i in recent_interactions[-3:]
+        )
+        return not emotion_or_action_shift
+
+    @staticmethod
+    def _technical_term_signature(text: str) -> set[str]:
+        raw = str(text or "")
+        if not raw.strip():
+            return set()
+        tokens = set(re.findall(r"\b[A-Z]{2,8}(?:-\d+)?\b", raw))
+        low = raw.lower()
+        for term in (
+            "latency", "coherence", "drift", "protocol", "fail-safe",
+            "보정", "지연", "드리프트", "결맞음", "위상", "알고리즘", "프로토콜",
+            "양자", "회로", "파라미터", "오차", "보상",
+        ):
+            if term in low:
+                tokens.add(term)
+        return tokens
+
+    @staticmethod
+    def _has_emotional_or_decisive_shift(text: str) -> bool:
+        return bool(re.search(
+            r"(숨을 골랐|시선을|표정|떨|움찔|웃|멈칫|고개를|침묵|결정|선택|거절|수락|질문|반박|망설|불안|안도|초조|긴장)",
+            str(text or ""),
+        ))
 
     @staticmethod
     def _content_fingerprint(text: str) -> str:

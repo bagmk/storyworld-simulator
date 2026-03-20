@@ -157,6 +157,8 @@ class ProseGenerator:
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
+        final = self._merge_clipped_sentence_runs(final)
+        final = self._compress_redundant_jargon_sentences(final)
         final = self._enforce_sentence_word_caps(final, max_words=self._feedback_sentence_word_cap(default=25))
         final = self._insert_short_beats_after_long_streak(
             final,
@@ -498,6 +500,7 @@ class ProseGenerator:
             f"- Technical terms: first mention only gets a short plain-language gloss; later mentions must be concise callbacks.\n"
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
             f"- If long sentences continue for 3+ beats, insert one short sentence to reset pacing.\n"
+            f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
@@ -584,7 +587,7 @@ class ProseGenerator:
                 "## Term Onboarding Priority\n"
                 "- On first mention of a technical term/acronym, add a very short parenthetical gloss.\n"
                 "- For English acronyms, attach a Korean 풀어쓰기 once, then keep later mentions concise.\n"
-                "- If helpful, add one short everyday analogy sentence and immediately return to scene action.\n\n"
+                "- If helpful, add one short everyday analogy or metaphor and immediately return to scene action.\n\n"
             )
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선", "보정"):
             prompt += (
@@ -686,6 +689,7 @@ class ProseGenerator:
             f"Let dialogue emerge naturally from tension and intent; avoid uniform speaking voices.\n"
             f"Keep technical exposition lightweight: do not stack unexplained jargon in consecutive sentences.\n"
             f"For any technical term on first mention, add a brief plain-language cue (about 3-8 Korean words) once.\n"
+            f"If a hard technical concept needs support, use one short everyday comparison and then move back to character action.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
@@ -925,8 +929,10 @@ class ProseGenerator:
             "- 이미 등장한 인물의 역할/의도 재설명은 축약하고 장면 진행을 우선\n"
             "- 같은 문장 시작 패턴이나 단문 리듬을 3회 이상 반복하지 말 것\n"
             "- 짧은 문장은 앞뒤 문장과 인과관계가 분명할 때만 단독으로 둘 것\n"
+            "- 같은 박자의 단문이 2개 이상 이어지면 1개의 자연스러운 복합문으로 묶을 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
+            "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             "- 출력은 소설 본문만\n\n"
             f"원문:\n{text}"
@@ -1281,7 +1287,9 @@ class ProseGenerator:
             f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 길어지면 인과 단위로 분리\n"
             "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
+            "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
             "- 기술 용어/약어는 첫 등장만 짧게 풀고 이후는 짧은 콜백\n"
+            "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
             f"- 문단당 기술 용어는 최대 {jargon_density_cap}개 내에서 유지(초과 개념은 통합/요약)\n"
             f"- 정보량이 많은 설명 문장은 최대 {dense_sentence_cap}문장으로 압축\n"
             f"{repeat_term_line}"
@@ -1908,6 +1916,110 @@ class ProseGenerator:
 
         return "\n\n".join(out_blocks)
 
+    def _merge_clipped_sentence_runs(self, text: str) -> str:
+        """
+        Merge repeated short narrative fragments into one flowing sentence.
+        This directly targets the clipped, mechanical cadence flagged in reviews.
+        """
+        if not text:
+            return text
+
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            run: list[str] = []
+            for sent in sentences:
+                if self._is_mergeable_clipped_sentence(sent):
+                    run.append(sent.strip())
+                    continue
+                if len(run) >= 2:
+                    rebuilt.append(self._combine_clipped_sentence_run(run))
+                else:
+                    rebuilt.extend(run)
+                run = []
+                rebuilt.append(sent.strip())
+            if len(run) >= 2:
+                rebuilt.append(self._combine_clipped_sentence_run(run))
+            else:
+                rebuilt.extend(run)
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _is_mergeable_clipped_sentence(self, sentence: str) -> bool:
+        sent = str(sentence or "").strip()
+        if not sent:
+            return False
+        if re.search(r"[\"“”'‘’]", sent):
+            return False
+        if len(re.findall(r"[0-9A-Za-z가-힣]+", sent)) > 6:
+            return False
+        if re.search(r"(?:^|[\s])(?:그리고|하지만|그러나|다만|한편|또는)\b", sent):
+            return False
+        return True
+
+    @staticmethod
+    def _combine_clipped_sentence_run(sentences: list[str]) -> str:
+        if not sentences:
+            return ""
+        if len(sentences) == 1:
+            return sentences[0]
+        connectors = ["그리고", "그러자", "그 순간"]
+        combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
+        for idx, sent in enumerate(sentences[1:], start=1):
+            cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
+            if not cleaned:
+                continue
+            connector = connectors[(idx - 1) % len(connectors)]
+            combined = f"{combined}, {connector} {cleaned}"
+        return combined.strip(" ,") + "."
+
+    def _compress_redundant_jargon_sentences(self, text: str) -> str:
+        """
+        Compress adjacent jargon-heavy sentences when they restate the same concept.
+        This reduces technical density before final paragraph normalization.
+        """
+        if not text:
+            return text
+
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            idx = 0
+            while idx < len(sentences):
+                current = sentences[idx].strip()
+                if idx + 1 < len(sentences):
+                    nxt = sentences[idx + 1].strip()
+                    overlap = self._technical_overlap(current, nxt)
+                    if overlap and self._is_jargon_heavy_sentence(current) and self._is_jargon_heavy_sentence(nxt):
+                        merged = re.sub(r"[.!?…]+$", "", current)
+                        follow = re.sub(r"^[\"“”'‘’\s]+|[.!?…]+$", "", nxt)
+                        rebuilt.append(f"{merged}, 그리고 {follow}.")
+                        idx += 2
+                        continue
+                rebuilt.append(current)
+                idx += 1
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
     @staticmethod
     def _block_fingerprint(block: str) -> str:
         cleaned = str(block or "").lower()
@@ -2207,6 +2319,29 @@ class ProseGenerator:
             out = re.sub(pattern, _repl, out, flags=re.IGNORECASE)
         return out
 
+    def _is_jargon_heavy_sentence(self, sentence: str) -> bool:
+        return len(self._technical_term_set(sentence)) >= 2
+
+    def _technical_overlap(self, left: str, right: str) -> set[str]:
+        return self._technical_term_set(left) & self._technical_term_set(right)
+
+    def _technical_term_set(self, text: str) -> set[str]:
+        raw = str(text or "")
+        if not raw.strip():
+            return set()
+        tokens = set(re.findall(r"\b[A-Z]{2,8}(?:-\d+)?\b", raw))
+        low = raw.lower()
+        for entry in self._term_variation_catalog():
+            for variant in entry.get("variants", []):
+                variant_text = str(variant or "").lower()
+                if variant_text and variant_text in low:
+                    tokens.add(variant_text)
+        for term in self._feedback_jargon_terms():
+            low_term = str(term or "").lower()
+            if low_term and low_term in low:
+                tokens.add(low_term)
+        return tokens
+
     @staticmethod
     def _trim_gloss(gloss: str, max_chars: int = 20) -> str:
         g = re.sub(r"\s+", " ", str(gloss or "")).strip()
@@ -2296,26 +2431,26 @@ class ProseGenerator:
         # BANNED from this list: "숨이 멎었다.", "짧은 침묵.", "공기가 식었다.", "시선이 모였다."
         # — they were overused as a mechanical cycle and degraded prose quality.
         samples = [
-            "그가 잠깐 멈췄다.",
-            "발소리가 잦아들었다.",
-            "말이 끊겼다.",
-            "잠시 정적이 흘렀다.",
-            "그의 손이 멈췄다.",
-            "누군가 숨을 골랐다.",
-            "불빛이 흔들렸다.",
-            "그녀가 입술을 다물었다.",
-            "복도 소음이 스쳤다.",
-            "그는 시선을 내렸다.",
-            "의자가 작게 삐걱였다.",
-            "잠깐의 공백이 생겼다.",
-            "그 말이 공중에 남았다.",
-            "둘 사이로 거리가 생겼다.",
-            "펜이 종이 위에 멈췄다.",
-            "그녀의 표정이 굳었다.",
-            "기계음이 낮게 울렸다.",
-            "그는 천천히 고개를 들었다.",
-            "문이 아주 조금 열려 있었다.",
-            "손끝에 힘이 들어갔다.",
+            "질문의 방향이 달라졌다.",
+            "의자가 작게 밀렸다.",
+            "누군가 메모를 멈추고 올려다봤다.",
+            "목 안쪽이 마르게 조여 왔다.",
+            "말끝이 한쪽으로 기울었다.",
+            "공조기 소리만 낮게 남았다.",
+            "테이블 위 그림자가 짧게 흔들렸다.",
+            "한 사람이 먼저 숨을 골랐다.",
+            "시선이 이번에는 정면으로 맞붙었다.",
+            "종이 모서리가 천천히 접혔다.",
+            "답은 아직 나오지 않았다.",
+            "손끝의 힘이 조금 더 굳었다.",
+            "누군가 의도를 감추듯 미소를 접었다.",
+            "질서 있던 호흡이 한 박자 어긋났다.",
+            "문장 하나가 분위기를 바꿨다.",
+            "테이블 위 정적 대신 마찰음이 남았다.",
+            "기계음이 짧게 박자를 끊었다.",
+            "고개를 든 사람은 한 명뿐이었다.",
+            "방 안의 온도가 한 톤 내려간 듯했다.",
+            "그제야 반응의 방향이 드러났다.",
         ]
         sample = samples[idx % len(samples)]
         return self._fit_char_window(sample, min_chars, max_chars)

@@ -222,6 +222,8 @@ class SceneDistiller:
             f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery.\n"
             f"13. If adjacent candidate scenes share cast/location and the latter mainly restates mood or explanation, merge them.\n"
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
+            f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise convert them into action or emotional consequence.\n"
+            f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -399,6 +401,7 @@ class SceneDistiller:
             self._sanitize_scene_dialogue(scene)
             self._compress_expository_dialogue(scene)
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+            scene.narrative_summary = self._rebalance_narrative_summary(scene)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
                 canonical_speakers,
@@ -609,9 +612,22 @@ class SceneDistiller:
             score += 1
         if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
             score += 2
+        if self._summary_is_mood_heavy(left.narrative_summary) or self._summary_is_mood_heavy(right.narrative_summary):
+            score += 1
         if left.pacing == right.pacing:
             score += 1
         return score
+
+    def _summary_is_mood_heavy(self, summary: str) -> bool:
+        sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if not sentences:
+            return False
+        mood_only = sum(1 for sent in sentences if self._is_mood_fragment_sentence(sent))
+        return mood_only >= max(1, len(sentences) - 1)
 
     def _merge_scene_pair(self, left: DistilledScene, right: DistilledScene) -> DistilledScene:
         pacing = right.pacing if right.pacing in {"climax", "resolution"} else left.pacing
@@ -668,6 +684,107 @@ class SceneDistiller:
             sentences.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(sentences[:max_sentences]).strip()
+
+    def _rebalance_narrative_summary(self, scene: DistilledScene) -> str:
+        """
+        Prefer action/reaction summary over repeated mood fragments.
+        Keep at most one atmosphere beat when it carries actual pressure.
+        """
+        raw_sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip())
+            if s.strip()
+        ]
+        if not raw_sentences:
+            return self._summary_replacement_sentence(scene)
+
+        keep: list[str] = []
+        mood_kept = 0
+        for sent in raw_sentences:
+            if not self._is_mood_fragment_sentence(sent):
+                normalized = self._ensure_summary_sentence(sent)
+                if normalized and normalized not in keep:
+                    keep.append(normalized)
+                continue
+            if mood_kept == 0 and self._scene_can_keep_mood_fragment(scene):
+                normalized = self._ensure_summary_sentence(sent)
+                if normalized and normalized not in keep:
+                    keep.append(normalized)
+                mood_kept += 1
+                continue
+            replacement = self._summary_replacement_sentence(scene)
+            if replacement and replacement not in keep:
+                keep.append(replacement)
+
+        if not keep:
+            replacement = self._summary_replacement_sentence(scene)
+            if replacement:
+                keep.append(replacement)
+
+        if keep and not any(self._summary_has_action_or_decision(sent) for sent in keep):
+            replacement = self._summary_replacement_sentence(scene)
+            if replacement:
+                keep[0] = replacement
+
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(keep[:max_sentences]).strip()
+
+    def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
+        if scene.pacing in {"opening", "climax"}:
+            return True
+        if not scene.key_actions and not scene.discoveries:
+            return True
+        return False
+
+    @staticmethod
+    def _ensure_summary_sentence(text: str) -> str:
+        sent = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not sent:
+            return ""
+        if re.search(r"[.!?…]$", sent):
+            return sent
+        return sent + "."
+
+    @staticmethod
+    def _summary_has_action_or_decision(sentence: str) -> bool:
+        return bool(re.search(
+            r"(건넸|밀었|열었|접었|돌렸|움직였|받았|붙잡|꺼냈|멈추|확인|드러났|알아차렸|결정|선택|반응|질문|대답|응답|설득|거절|숨을 골랐|고개를 들었)",
+            str(sentence or ""),
+        ))
+
+    def _is_mood_fragment_sentence(self, sentence: str) -> bool:
+        sent = re.sub(r"\s+", " ", str(sentence or "")).strip()
+        if not sent:
+            return False
+        if self._summary_has_action_or_decision(sent):
+            return False
+        mood_hits = len(re.findall(
+            r"(정적|침묵|공기|소음|복도|불빛|시선|손|표정|숨|기계음|발소리|거리|문|그 말이 공중에 남)",
+            sent,
+        ))
+        if mood_hits == 0:
+            return False
+        token_count = len(re.findall(r"[0-9A-Za-z가-힣]+", sent))
+        return token_count <= 9
+
+    def _summary_replacement_sentence(self, scene: DistilledScene) -> str:
+        for action in scene.key_actions or []:
+            cleaned = self._clean_action_text(action)
+            if cleaned:
+                return self._ensure_summary_sentence(cleaned)
+        for item in scene.discoveries or []:
+            cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
+            if not cleaned:
+                continue
+            if re.search(r"(드러났|확인됐|밝혀졌|알아냈|감지됐|포착됐)", cleaned):
+                return self._ensure_summary_sentence(cleaned)
+            subject = scene.characters_present[0] if scene.characters_present else "인물들은"
+            return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
+        emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
+        if emotional:
+            subject = scene.characters_present[0] if scene.characters_present else "인물들은"
+            return self._ensure_summary_sentence(f"{subject}의 감정선은 {emotional}으로 기울었다")
+        return self._ensure_summary_sentence(scene.narrative_summary)
 
     @staticmethod
     def _compress_beat_content(text: str, max_chars: int = 180) -> str:
