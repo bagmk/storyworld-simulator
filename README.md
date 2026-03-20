@@ -256,10 +256,12 @@ pip install -r requirements.txt
 
 이 저장소에서 OpenAI API는 주로 아래 작업에 쓰입니다.
 
-- 시뮬레이션 중 캐릭터 행동 생성
-- 챕터 본문 생성
-- 품질 리뷰 일부
-- 피드백 분석
+- 시뮬레이션 중 캐릭터 행동·디렉터 개입 생성
+- 챕터 산문 생성
+- Config Guardian 분석
+- 품질 리뷰 스코어카드
+- AI 자동 개선 루프 리뷰
+- 피드백 분석 및 Regen 판단
 
 ### 2-2. 어디에 넣나
 
@@ -604,8 +606,8 @@ Simulator봇: [CHAPTER] 📖 챕터 생성 중  ← 앵커 + 쓰레드 생성
 Programmer 봇이 자동 개선 루프 전체를 맡고, Reader 봇이 각 사이클의 AI 리뷰 결과를 채널에 직접 보냅니다.
 
 ```text
-Programmer봇: [AUTO] 🚀 AI 자동 개선 루프 시작  ← 앵커 + 쓰레드 생성
-               └─ 쓰레드 안: [AUTO] 🔄 루프 1/20 시작
+Programmer봇: [AUTO] 🚀 AI 자동 개선 루프 시작  ← 채널에 직접 (쓰레드 없음)
+               [AUTO] 🔄 루프 1/20 시작
 
 Reader봇: [AUTO] 📊 AI 리뷰 결과 (사이클 1)      ← 채널에 직접 (Reader 봇)
            긴장감: 7/10 | 문체: 8/10 | 인과성: 7/10 ...
@@ -1180,6 +1182,33 @@ cp .env.example .env
 ## 최근 변경사항
 
 ### 2026-03-20
+
+**리뷰 티어 단순화 (mini / premium)**
+`codex` 티어를 폐지했습니다. ChatGPT Pro 한도에 달하면 파이프라인 중간에 실패하는 불안정성 때문입니다.
+이제 리뷰 티어는 `mini`와 `premium` 두 가지만 있습니다.
+코드 수정용 Codex CLI는 두 티어 모두에서 그대로 사용됩니다.
+
+**mini 티어 모델 최적화**
+이전: 모든 단계를 gpt-4o-mini로 균일 다운그레이드.
+이후: 단계별 역할에 맞게 선별 적용.
+
+| 단계 | 이전 | 이후 |
+|---|---|---|
+| 챕터 산문 생성 | gpt-4o-mini | gpt-4.1-mini (long-context 성능 개선) |
+| AI 루프 리뷰 | gpt-4o-mini | gpt-5-mini (문학적 판단 품질 유지) |
+
+**Discord 429 레이트리밋 재시도 처리**
+Fixer 봇 메시지가 두 봇이 번갈아 보내지던 문제를 수정했습니다.
+HTTP 429 응답 시 `retry_after` 값만큼 대기 후 최대 3회 재시도하도록 변경했습니다.
+
+**봇 라우팅 개선**
+- `[GUARDIAN] 💸` 비용 메시지 → Reviewer 봇 guardian 쓰레드로 라우팅
+- `[AUTO] 🚀` → 앵커 없이 채널 직접 메시지로 변경
+- `[RESET] ♻️` → Programmer 봇, 쓰레드 분리
+- `[AUTO] 📊` ✅ 완료 반응 누락 버그 수정
+
+**!benchmark 명령어 추가**
+`output/daily/`의 모든 실행 결과를 스캔해 점수 추이 테이블과 차트를 Discord에 전송합니다.
 
 **Discord 로그 클린 출력**
 시뮬레이터와 챕터 생성기의 Python 로그가 Discord에 그대로 출력되던 문제를 수정했습니다.
