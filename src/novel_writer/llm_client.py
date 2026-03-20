@@ -221,15 +221,14 @@ class LLMClient:
                     if (
                         status == "incomplete"
                         and incomplete_reason == "max_output_tokens"
-                        and not text.strip()
                         and attempt < self.max_retries - 1
                     ):
                         next_limit = min(response_max_tokens * 2, 16000)
                         if next_limit > response_max_tokens:
                             logger.warning(
-                                "Model %s ran out of output tokens before producing visible text; "
+                                "Model %s hit max_output_tokens for purpose %s; "
                                 "retrying with max_output_tokens=%d (was %d).",
-                                model, next_limit, response_max_tokens,
+                                model, purpose, next_limit, response_max_tokens,
                             )
                             response_max_tokens = next_limit
                             continue
@@ -263,6 +262,10 @@ class LLMClient:
             except Exception as exc:
                 last_error = exc
                 err = str(exc)
+                if self._is_context_length_error(err):
+                    raise LLMCallError(
+                        f"LLM context too large for model {model}: {err}"
+                    ) from exc
                 # Some models (e.g., GPT-5) reject max_tokens and require
                 # max_completion_tokens on chat.completions.
                 if "Unsupported parameter: 'max_tokens'" in err and token_param == "max_tokens":
@@ -319,6 +322,15 @@ class LLMClient:
         if model.startswith("gpt-5"):
             return "low"
         return None
+
+    @staticmethod
+    def _is_context_length_error(error_text: str) -> bool:
+        err = str(error_text or "").lower()
+        return (
+            "context_length_exceeded" in err
+            or "maximum context length" in err
+            or "please reduce the length of the messages" in err
+        )
 
     def _resolve_model(self, use_premium: bool, purpose: str) -> str:
         """

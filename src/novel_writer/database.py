@@ -498,12 +498,79 @@ def save_interaction(interaction) -> None:
     conn.close()
 
 
-def load_episode_interactions(episode_id: str) -> list[dict]:
+def _load_preferred_episode_run_id(
+    conn: sqlite3.Connection,
+    episode_id: str,
+    *,
+    source: str = "simulate",
+) -> Optional[int]:
+    """
+    Prefer the latest simulate run for this episode.
+    This prevents chapter generation from accidentally loading every
+    historical interaction row for the same episode across older reruns.
+    """
+    tracked_episode_run_id = _TRACKING_CONTEXT.get("episode_run_id")
+    if tracked_episode_run_id is not None:
+        return int(tracked_episode_run_id)
+
+    clauses = ["episode_id = ?"]
+    params: list[Any] = [episode_id]
+
+    run_id = _TRACKING_CONTEXT.get("run_id")
+    iteration = _TRACKING_CONTEXT.get("iteration")
+    if run_id:
+        clauses.append("run_id = ?")
+        params.append(str(run_id))
+    if iteration is not None:
+        clauses.append("iteration = ?")
+        params.append(int(iteration))
+    if source:
+        clauses.append("source = ?")
+        params.append(source)
+
+    row = conn.execute(
+        f"""
+        SELECT id
+        FROM episode_runs
+        WHERE {' AND '.join(clauses)}
+        ORDER BY
+            CASE status
+                WHEN 'complete' THEN 0
+                WHEN 'running' THEN 1
+                ELSE 2
+            END,
+            COALESCE(ended_at, started_at) DESC,
+            id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if row is None:
+        return None
+    return int(row["id"])
+
+
+def load_episode_interactions(episode_id: str, *, latest_only: bool = True) -> list[dict]:
     conn = _connect()
-    where_tracking, params_tracking = _tracking_where()
-    rows = conn.execute(f"""
-        SELECT * FROM interactions WHERE episode_id=?{where_tracking} ORDER BY turn, timestamp
-    """, [episode_id, *params_tracking]).fetchall()
+    preferred_episode_run_id = (
+        _load_preferred_episode_run_id(conn, episode_id)
+        if latest_only else None
+    )
+    if preferred_episode_run_id is not None:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM interactions
+            WHERE episode_id=? AND episode_run_id=?
+            ORDER BY turn, timestamp
+            """,
+            [episode_id, preferred_episode_run_id],
+        ).fetchall()
+    else:
+        where_tracking, params_tracking = _tracking_where()
+        rows = conn.execute(f"""
+            SELECT * FROM interactions WHERE episode_id=?{where_tracking} ORDER BY turn, timestamp
+        """, [episode_id, *params_tracking]).fetchall()
     conn.close()
     result = []
     for row in rows:
@@ -511,6 +578,132 @@ def load_episode_interactions(episode_id: str) -> list[dict]:
         d["metadata"] = json.loads(d.pop("metadata_json", "{}"))
         result.append(d)
     return result
+
+
+def _episode_scoped_tables(conn: sqlite3.Connection) -> list[str]:
+    tables: list[str] = []
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    ).fetchall()
+    for row in rows:
+        name = str(row["name"])
+        if name == "episodes":
+            continue
+        cols = conn.execute(f'PRAGMA table_info("{name}")').fetchall()
+        if any(str(col["name"]) == "episode_id" for col in cols):
+            tables.append(name)
+    return tables
+
+
+def _episode_ids_at_or_after(conn: sqlite3.Connection, min_episode_number: int) -> list[str]:
+    found: dict[str, int] = {}
+    for table in _episode_scoped_tables(conn):
+        rows = conn.execute(
+            f'SELECT DISTINCT episode_id FROM "{table}" WHERE episode_id IS NOT NULL'
+        ).fetchall()
+        for row in rows:
+            episode_id = str(row["episode_id"] or "").strip()
+            if not episode_id:
+                continue
+            ep_num = _episode_number(episode_id)
+            if ep_num is None or ep_num < min_episode_number:
+                continue
+            found[episode_id] = ep_num
+
+    rows = conn.execute("SELECT id FROM episodes").fetchall()
+    for row in rows:
+        episode_id = str(row["id"] or "").strip()
+        ep_num = _episode_number(episode_id)
+        if episode_id and ep_num is not None and ep_num >= min_episode_number:
+            found[episode_id] = ep_num
+
+    return sorted(found, key=lambda eid: (found[eid], eid))
+
+
+def archive_and_purge_episodes_from(
+    episode_key_or_id: str,
+    backup_dir: Path,
+) -> dict[str, Any]:
+    """
+    Archive DB rows for the target episode number and all later episodes, then
+    purge those rows from the live database so a rerun starts from clean state.
+    """
+    episode_num = _episode_number(episode_key_or_id)
+    if episode_num is None:
+        return {
+            "episode_number": None,
+            "episode_ids": [],
+            "archive_path": None,
+            "table_counts": {},
+        }
+
+    conn = _connect()
+    try:
+        episode_ids = _episode_ids_at_or_after(conn, episode_num)
+        if not episode_ids:
+            return {
+                "episode_number": episode_num,
+                "episode_ids": [],
+                "archive_path": None,
+                "table_counts": {},
+            }
+
+        placeholders = ", ".join("?" for _ in episode_ids)
+        archive: dict[str, Any] = {
+            "created_at": datetime.utcnow().isoformat(),
+            "target_episode": str(episode_key_or_id),
+            "target_episode_number": episode_num,
+            "episode_ids": episode_ids,
+            "tables": {},
+        }
+        table_counts: dict[str, int] = {}
+
+        for table in _episode_scoped_tables(conn):
+            rows = conn.execute(
+                f'SELECT * FROM "{table}" WHERE episode_id IN ({placeholders})',
+                episode_ids,
+            ).fetchall()
+            if not rows:
+                continue
+            serialized = [dict(row) for row in rows]
+            archive["tables"][table] = serialized
+            table_counts[table] = len(serialized)
+
+        ep_rows = conn.execute(
+            f'SELECT * FROM episodes WHERE id IN ({placeholders})',
+            episode_ids,
+        ).fetchall()
+        if ep_rows:
+            serialized_eps = [dict(row) for row in ep_rows]
+            archive["tables"]["episodes"] = serialized_eps
+            table_counts["episodes"] = len(serialized_eps)
+
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        archive_path = backup_dir / "database_episode_archive.json"
+        archive_path.write_text(
+            json.dumps(archive, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        for table in _episode_scoped_tables(conn):
+            conn.execute(
+                f'DELETE FROM "{table}" WHERE episode_id IN ({placeholders})',
+                episode_ids,
+            )
+        conn.execute(
+            f'DELETE FROM episodes WHERE id IN ({placeholders})',
+            episode_ids,
+        )
+        conn.commit()
+
+        return {
+            "episode_number": episode_num,
+            "episode_ids": episode_ids,
+            "archive_path": str(archive_path),
+            "table_counts": table_counts,
+        }
+    finally:
+        conn.close()
 
 
 def load_agent_interactions(agent_id: str, episode_id: Optional[str] = None,

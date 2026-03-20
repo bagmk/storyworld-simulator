@@ -12,7 +12,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from generate_chapter import _apply_reader_feedback_pipeline_overrides, adjust_scene_target_for_feedback
+from generate_chapter import (
+    _apply_reader_feedback_pipeline_overrides,
+    _sanitize_chapter_draft_artifacts,
+    adjust_scene_target_for_feedback,
+)
 from src.novel_writer.director import DirectorAI
 from src.novel_writer.models import ClueManager, WorldState
 from src.novel_writer.prose_generator import ProseGenerator
@@ -235,6 +239,28 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
 
         self.assertEqual((start, end), (11, 14))
 
+    def test_scene_distiller_skips_llm_when_compact_log_exceeds_limit(self):
+        llm = CaptureLLM(response="[]")
+        distiller = SceneDistiller(
+            llm=llm,
+            episode_config={},
+            runtime_policy={"distiller_prompt_chars_max": 12000},
+        )
+        interactions = [
+            {
+                "turn": i + 1,
+                "speaker_name": "수민",
+                "content": "압박이 길어지는 순간이 계속 이어졌다." * 3,
+                "action_type": "dialogue",
+            }
+            for i in range(200)
+        ]
+
+        scenes = distiller._llm_distill(interactions, [], "kim_sumin", target_scenes=8)
+
+        self.assertEqual(len(llm.calls), 0)
+        self.assertEqual(len(scenes), 8)
+
     def test_prose_generator_trims_post_metaphor_explanation_pairs(self):
         prose = ProseGenerator(
             llm=DummyLLM(),
@@ -371,6 +397,16 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertEqual(constraints.get("prefer_pivot_paragraph_breath"), 1)
         self.assertIn("그 말이 끝나자", constraints.get("avoid_transition_terms", []))
 
+    def test_pipeline_overrides_avoid_flagged_stock_bridge_phrase(self):
+        tuned = _apply_reader_feedback_pipeline_overrides(
+            _feedback("짧은 숨이 스친 뒤 같은 반복 접속구를 줄여라", "문장 리듬이 기계적이다")
+        )
+
+        constraints = tuned.get("style_constraints", {})
+
+        self.assertIn("짧은 숨이 스친 뒤", constraints.get("avoid_transition_terms", []))
+        self.assertEqual(constraints.get("max_transition_openers_per_block"), 1)
+
     def test_scene_distiller_compresses_overloaded_threat_signal_stack(self):
         distiller = SceneDistiller(
             llm=DummyLLM(),
@@ -458,6 +494,19 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("where the protagonist is", prompt)
         self.assertIn("artifact appears", prompt)
         self.assertIn("memo", prompt.lower())
+
+    def test_chapter_cleanup_rewrites_draft_artifacts(self):
+        cleaned = _sanitize_chapter_draft_artifacts(
+            "real-time viable if externally supported. 수민는 그 단어은 다시 읽었다.",
+            _feedback("영어 혼입", "오탈자", "퇴고 전 원고처럼 보인다"),
+        )
+
+        self.assertNotIn("real-time viable if externally supported", cleaned)
+        self.assertNotIn("수민는", cleaned)
+        self.assertNotIn("단어은", cleaned)
+        self.assertIn("실시간", cleaned)
+        self.assertIn("수민은", cleaned)
+        self.assertIn("단어는", cleaned)
 
 
 if __name__ == "__main__":

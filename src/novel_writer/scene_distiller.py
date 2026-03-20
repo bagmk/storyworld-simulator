@@ -262,6 +262,11 @@ class SceneDistiller:
                 "from the same speaker.\n"
                 f"{review_guidance}\n\n"
             )
+        if self._reader_wants_repeated_confrontation_merge():
+            prompt += (
+                "33. If presentation, Moreno contact, and Miller intervention all appear, keep that chain once in chronological order.\n"
+                "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation.\n\n"
+            )
         repeat_terms = self.reader_feedback.get("repetition_watch_terms", []) or []
         cleaned_repeat_terms = []
         generic_repeat_terms = {"묘사", "표현", "설명", "감정", "분위기", "정보"}
@@ -643,6 +648,7 @@ class SceneDistiller:
         scene.narrative_summary = self._soften_technical_summary(scene)
         scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
         scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
+        scene.narrative_summary = self._compress_repeated_confrontation_sentences(scene.narrative_summary)
         scene.narrative_summary = self._compress_overloaded_threat_signals(scene.narrative_summary)
         scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
         scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
@@ -868,7 +874,7 @@ class SceneDistiller:
                 if score > best_score:
                     best_idx = idx
                     best_score = score
-            if self._reader_reports_stalled_progression():
+            if self._reader_reports_stalled_progression() or self._reader_wants_repeated_confrontation_merge():
                 merge_threshold = 2
             else:
                 merge_threshold = 3 if self._reader_prefers_stronger_scene_compaction() else 4
@@ -890,6 +896,8 @@ class SceneDistiller:
         left_confrontation = self._scene_confrontation_signature(left)
         right_confrontation = self._scene_confrontation_signature(right)
         same_confrontation = self._confrontation_signature_overlap(left_confrontation, right_confrontation)
+        left_stage = self._scene_confrontation_stage(left)
+        right_stage = self._scene_confrontation_stage(right)
         same_location = (
             self._norm_name_key(left.location)
             and self._norm_name_key(left.location) == self._norm_name_key(right.location)
@@ -930,6 +938,15 @@ class SceneDistiller:
             score += 3
             if turn_gap <= 1:
                 score += 1
+            if left_stage and right_stage:
+                left_rank = self._summary_stage_rank(left_stage)
+                right_rank = self._summary_stage_rank(right_stage)
+                if right_rank <= left_rank:
+                    score += 2
+                elif right_rank == left_rank + 1:
+                    score += 1
+                else:
+                    score -= 1
         if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
             score += 2
         if (
@@ -1046,7 +1063,7 @@ class SceneDistiller:
         if not self._reader_flags_stock_bridge_phrases():
             return cleaned
         cleaned = re.sub(
-            r"(^|(?<=[.!?…]\s))(짧은 숨이 스친 뒤|답이 바로 나오지 않는 사이|말끝이 가라앉자|짧은 정적 끝에|그 말이 끝나자|시선이 옮겨가자)\s*,?\s*",
+            r"(^|(?<=[.!?…]\s))(짧은 숨이 스친 뒤|답이 바로 나오지 않는 사이|말끝이 가라앉자|짧은 정적 끝에|그 말이 끝나자|시선이 옮겨가자|고개를 들자|의자가 밀리자|정면을 버틴 채)\s*,?\s*",
             r"\1",
             cleaned,
         )
@@ -1113,7 +1130,8 @@ class SceneDistiller:
                 seen_fp.add(fp)
                 parts.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return self._compress_repeated_core_concerns(" ".join(parts[:max_sentences]).strip())
+        merged = self._compress_repeated_core_concerns(" ".join(parts[:max_sentences]).strip())
+        return self._compress_repeated_confrontation_sentences(merged)
 
     def _tighten_narrative_summary(self, summary: str) -> str:
         sentences: list[str] = []
@@ -1128,7 +1146,8 @@ class SceneDistiller:
             seen_fp.add(fp)
             sentences.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return self._compress_repeated_core_concerns(" ".join(sentences[:max_sentences]).strip())
+        tightened = self._compress_repeated_core_concerns(" ".join(sentences[:max_sentences]).strip())
+        return self._compress_repeated_confrontation_sentences(tightened)
 
     def _rebalance_narrative_summary(self, scene: DistilledScene) -> str:
         """
@@ -1733,6 +1752,62 @@ class SceneDistiller:
                 concern_index[sig] = len(kept) - 1
         return " ".join(kept).strip()
 
+    @staticmethod
+    def _summary_has_consequence_shift(sentence: str) -> bool:
+        return bool(re.search(
+            r"(결정|선택|걸음을 옮|문으로 향|자료를 건넸|명함을 건넸|반박|거절|수락|자리를 정리|고개를 끄덕|막아섰|끼어들|떠났|돌아서|멈춰 섰)",
+            str(sentence or ""),
+        ))
+
+    def _compress_repeated_confrontation_sentences(self, summary: str) -> str:
+        if not (
+            self._reader_wants_repeated_confrontation_merge()
+            or self._reader_flags_recycled_negotiation_points()
+            or self._reader_reports_timeline_confusion()
+        ):
+            return summary
+
+        sentences = [
+            self._ensure_summary_sentence(s)
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if len(sentences) < 2:
+            return summary
+
+        kept: list[str] = []
+        signature_index: dict[str, int] = {}
+        for sentence in sentences:
+            sig = self._summary_confrontation_signature(sentence)
+            if sig:
+                prev_idx = signature_index.get(sig)
+                if prev_idx is not None:
+                    previous = kept[prev_idx]
+                    previous_stage = self._summary_confrontation_stage(previous)
+                    current_stage = self._summary_confrontation_stage(sentence)
+                    stage_regressed = (
+                        previous_stage
+                        and current_stage
+                        and self._summary_stage_rank(current_stage) <= self._summary_stage_rank(previous_stage)
+                    )
+                    overlap = self._token_overlap_score(previous, sentence)
+                    if (
+                        stage_regressed
+                        and not self._summary_has_consequence_shift(sentence)
+                    ) or (
+                        overlap >= 0.28
+                        and not self._summary_has_consequence_shift(sentence)
+                    ) or self._is_redundant_core_concern(previous, sentence):
+                        kept[prev_idx] = self._prefer_more_concrete_line(previous, sentence)
+                        continue
+
+            kept.append(sentence)
+            if sig:
+                signature_index[sig] = len(kept) - 1
+
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(kept[:max_sentences]).strip()
+
     def _compress_core_concern_lines(self, values: list[str], limit: int) -> list[str]:
         compact = self._dedupe_semantic_lines(values, limit=max(1, limit * 2))
         kept: list[str] = []
@@ -1825,6 +1900,67 @@ class SceneDistiller:
             )
             if part
         )
+
+    def _scene_confrontation_stage(self, scene: DistilledScene) -> str:
+        text = " ".join(
+            [
+                str(scene.location or ""),
+                str(scene.narrative_summary or ""),
+                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
+            ]
+        )
+        return self._summary_confrontation_stage(text)
+
+    def _summary_confrontation_signature(self, text: str) -> str:
+        low = str(text or "").lower()
+        if not low.strip():
+            return ""
+        if not re.search(
+            r"(질문|물었|되물었|대답|응답|다가섰|접근|말을 걸|멈춰 섰|조건|요구|거절|수락|통제권|책임|외부 지원|실시간|명함|배지|개입|끼어들)",
+            low,
+        ):
+            return ""
+
+        parts: list[str] = []
+        if re.search(r"(복도|hallway|corridor|문가|문 앞|doorway)", low):
+            parts.append("hallway")
+        elif re.search(r"(발표|질의응답|q&a|q and a|포디엄|단상|슬라이드|발표장|강연장)", low):
+            parts.append("presentation")
+        if re.search(r"(miller|밀러)", low):
+            parts.append("miller")
+        if re.search(r"(moreno|모레노)", low):
+            parts.append("moreno")
+        if re.search(r"(sumin|수민)", low):
+            parts.append("sumin")
+        concern = self._core_concern_signature(text)
+        if concern:
+            parts.append(concern)
+        return "::".join(parts[:4])
+
+    @staticmethod
+    def _summary_confrontation_stage(text: str) -> str:
+        low = str(text or "").lower()
+        if not low.strip():
+            return ""
+        if re.search(r"(개입|끼어들|가로막|막아섰|사이를 막|명함|배지|소속을 밝|이름을 밝|등장했|나타났)", low):
+            return "intervention"
+        if re.search(r"(조건|요구|거절|수락|통제권|책임|외부 지원|실시간|대가|주도권)", low):
+            return "terms"
+        if re.search(r"(다가섰|접근|말을 걸|멈춰 섰|가까이 왔|손을 내밀)", low):
+            return "contact"
+        if re.search(r"(발표|질의응답|q&a|질문|물었|되물었|대답|응답|슬라이드|포디엄|단상|마이크)", low):
+            return "qa"
+        return ""
+
+    @staticmethod
+    def _summary_stage_rank(stage: str) -> int:
+        return {
+            "qa": 1,
+            "contact": 2,
+            "terms": 3,
+            "intervention": 4,
+        }.get(str(stage or "").strip(), 0)
 
     @staticmethod
     def _confrontation_signature_overlap(left: str, right: str) -> bool:
