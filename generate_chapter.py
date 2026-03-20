@@ -188,6 +188,10 @@ def adjust_scene_target_for_feedback(
             "같은 장면을 다시 도는",
             "같은 장면을 맴도",
             "제자리에서 맴도",
+            "복도 대면",
+            "밀러와의 복도 대면",
+            "사실상 두 번 반복",
+            "하나의 대화로 압축",
             "다른 문장으로 다시 보는",
             "묘사가 반복",
             "문장이 너무 길",
@@ -395,6 +399,10 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "상황 해석이 잦",
         "설명과 해석",
         "반응과 행동으로 보여",
+        "이미 한 번 이해된 개념",
+        "반복 해설하지 말고",
+        "감각 변화",
+        "선택 압박",
     ):
         constraints["max_jargon_terms_per_paragraph"] = 1
         constraints["max_sentences_in_dense_info"] = 1
@@ -582,6 +590,17 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "메타 표식",
+        "작업 메모",
+        "ep01의 온도계",
+        "ep01—scene21",
+        "완성 원고가 아니라 작업 메모",
+    ):
+        constraints["strip_meta_markers"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
         "외부 지원",
         "실시간성",
         "자원과 통제",
@@ -610,6 +629,26 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["max_term_repeats_per_scene"] = 1
         constraints["max_emotion_repeats_per_scene"] = 1
         constraints["single_strong_interior_beat"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "복도 대면",
+        "밀러와의 복도 대면",
+        "밀러 접촉",
+        "사실상 두 번 반복",
+        "하나의 대화로 압축",
+        "질문의 강도",
+        "제자리에서 다시 시작",
+    ):
+        try:
+            compaction_target = int(constraints.get("scene_compaction_ratio_target", 75) or 75)
+        except (TypeError, ValueError):
+            compaction_target = 75
+        constraints["scene_compaction_ratio_target"] = min(75, compaction_target)
+        constraints["merge_repeated_confrontation_beats"] = 1
+        constraints["prefer_linear_scene_axis"] = 1
+        constraints["clarify_event_transitions"] = 1
         changed = True
 
     if _reader_feedback_has_any(

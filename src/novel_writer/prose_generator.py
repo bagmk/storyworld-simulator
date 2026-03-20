@@ -653,6 +653,19 @@ class ProseGenerator:
                 "- Each beat must state who noticed it, where they were, and what changed next.\n"
                 "- Keep event order linear so room movement is easy to picture.\n\n"
             )
+        if self._feedback_flag_enabled("merge_repeated_confrontation_beats") or self._feedback_mentions(
+            "복도 대면",
+            "밀러 접촉",
+            "하나의 대화로 압축",
+            "질문의 강도",
+            "제자리에서 다시 시작",
+        ):
+            prompt += (
+                "## Confrontation Compression Priority\n"
+                "- If the same pair already made contact in the hallway or doorway, keep it as one continuous exchange.\n"
+                "- Do not reset the scene to a fresh stare-down after the first question lands.\n"
+                "- Raise pressure step by step: each next line should sharpen leverage, motive, or choice.\n\n"
+            )
         if self._feedback_flag_enabled("clarify_similar_character_entries") or self._feedback_mentions("다크 수트 남자", "크리스찬 밀러", "같은 인물인지", "다른 인물인지", "헷갈"):
             prompt += (
                 "## Character Entry Clarity Priority\n"
@@ -678,6 +691,18 @@ class ProseGenerator:
                 "## Metaphor Density Priority\n"
                 "- One comparison is enough. Do not follow it with a second sentence that explains the same meaning again.\n"
                 "- After an image lands, return immediately to the body's reaction, dialogue, or movement.\n\n"
+            )
+        if self._feedback_flag_enabled("strip_meta_markers") or self._feedback_mentions(
+            "메타 표식",
+            "작업 메모",
+            "ep01의 온도계",
+            "ep01—scene21",
+            "완성 원고",
+        ):
+            prompt += (
+                "## Manuscript Cleanliness Priority\n"
+                "- Do not output episode tags, scene labels, temperature notes, or work-log markers.\n"
+                "- Output only finished narrative prose, never drafting metadata like 'ep01', 'scene21', or note-style labels.\n\n"
             )
         if self._feedback_flag_enabled("prefer_pivot_paragraph_breath") or self._feedback_mentions("길게 호흡", "핵심 문단"):
             prompt += (
@@ -2311,23 +2336,35 @@ class ProseGenerator:
     def _trim_post_metaphor_explanations(self, text: str) -> str:
         if not text:
             return text
-        if not (
+        trim_metaphor_explanations = (
             self._feedback_flag_enabled("avoid_metaphor_explanation")
             or self._feedback_mentions("비유", "은유", "의미를 다시 설명", "문단 밀도", "호흡이 무거워")
-        ):
+        )
+        strip_meta_markers = (
+            self._feedback_flag_enabled("strip_meta_markers")
+            or self._feedback_mentions("메타 표식", "작업 메모", "ep01의 온도계", "ep01—scene21", "완성 원고")
+        )
+        if not (trim_metaphor_explanations or strip_meta_markers):
             return text
 
         out_blocks: list[str] = []
         for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
-            sentences = self._split_korean_sentences(block)
+            cleaned_block = self._strip_meta_marker_artifacts(block) if strip_meta_markers else block
+            if not cleaned_block:
+                continue
+            sentences = self._split_korean_sentences(cleaned_block)
+            if strip_meta_markers:
+                sentences = [s for s in sentences if not self._is_meta_marker_sentence(s)]
+                if not sentences:
+                    continue
             if len(sentences) < 2:
-                out_blocks.append(block)
+                out_blocks.append(cleaned_block)
                 continue
             kept: list[str] = []
             idx = 0
             while idx < len(sentences):
                 current = sentences[idx].strip()
-                if idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
+                if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
                     kept.append(current)
                     idx += 1
                     while idx < len(sentences):
@@ -2341,6 +2378,50 @@ class ProseGenerator:
                 idx += 1
             out_blocks.append(" ".join(s for s in kept if s).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
+
+    @staticmethod
+    def _meta_marker_patterns() -> tuple[re.Pattern[str], ...]:
+        return (
+            re.compile(r"(?i)\bep\s*\d{1,2}\s*[—\-_:]\s*scene\s*\d+\b"),
+            re.compile(r"(?i)\bscene\s*[-_ ]?\d+\b"),
+            re.compile(r"(?i)\bturn\s*[-_ ]?\d+\b"),
+            re.compile(r"(?i)\bphase\s*[-_ ]?\d+\b"),
+            re.compile(r"(?i)\b(?:ep|episode)\s*\d{1,2}\s*의\s*온도계\b"),
+            re.compile(r"(?i)\b(?:ep|episode)\s*\d{1,2}\b"),
+            re.compile(r"(?i)\b(?:metadata|meta tag|draft note|work note)\b"),
+            re.compile(r"(?i)\b(?:scene|episode)\s*note\b"),
+        )
+
+    def _strip_meta_marker_artifacts(self, text: str) -> str:
+        cleaned_sentences: list[str] = []
+        for raw in self._split_korean_sentences(text):
+            current = str(raw or "").strip()
+            if not current:
+                continue
+            stripped = current
+            for pattern in self._meta_marker_patterns():
+                stripped = pattern.sub(" ", stripped)
+            stripped = re.sub(r"[\[(]\s*(?:ep|scene|turn|phase)[^)\]]*[\])]", " ", stripped, flags=re.IGNORECASE)
+            stripped = re.sub(r"\s{2,}", " ", stripped).strip()
+            content_only = stripped.strip(" ,;:.-")
+            if not re.search(r"[0-9A-Za-z가-힣]", content_only):
+                continue
+            if not content_only or self._is_meta_marker_sentence(content_only):
+                continue
+            cleaned_sentences.append(content_only + stripped[len(content_only):] if stripped.startswith(content_only) else content_only)
+        return " ".join(cleaned_sentences).strip()
+
+    def _is_meta_marker_sentence(self, sentence: str) -> bool:
+        low = re.sub(r"\s+", " ", str(sentence or "").strip().lower())
+        if not low:
+            return False
+        token_count = len(re.findall(r"[0-9a-z가-힣]+", low))
+        meta_hits = sum(1 for pattern in self._meta_marker_patterns() if pattern.search(low))
+        if meta_hits >= 1 and token_count <= 8:
+            return True
+        if re.match(r"^(?:ep|scene|turn|phase)\s*[-_:]?\s*\d+", low):
+            return True
+        return bool(re.match(r"^(?:작업 메모|메타 표식|draft note|work note|scene note|episode note)\b", low))
 
     def _has_post_metaphor_explanation_pairs(self, text: str) -> bool:
         sentences = self._split_korean_sentences(text)
@@ -2604,11 +2685,11 @@ class ProseGenerator:
     @staticmethod
     def _transition_replacement_catalog() -> dict[str, list[str]]:
         return {
-            "그리고": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자", "말끝이 가라앉자", "짧은 숨이 스친 뒤"],
-            "그러자": ["그 말이 끝나자", "시선이 옮겨가자", "말끝이 떨어지자", "문 쪽에서 인기척이 일자", "답이 바로 나오지 않는 사이", "의자 다리가 짧게 끌리자"],
+            "그리고": ["짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이", "말끝이 가라앉자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "정면을 버틴 채"],
+            "그러자": ["답이 바로 나오지 않는 사이", "말끝이 떨어지자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "짧은 정적 끝에", "정면을 버틴 채"],
             "다만": ["대신", "문제는", "그래도", "한편"],
-            "이어서": ["그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자", "말끝이 가라앉자", "정면을 버틴 채"],
-            "그 순간": ["말끝이 떨어지자", "시선이 정면으로 맞붙자", "문 쪽에서 인기척이 일자", "고개를 들자", "누군가 펜을 내려놓자", "짧은 정적 끝에"],
+            "이어서": ["말끝이 가라앉자", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이", "누군가 펜을 내려놓자", "의자 다리가 짧게 끌리자", "정면을 버틴 채"],
+            "그 순간": ["말끝이 떨어지자", "문 쪽에서 인기척이 일자", "누군가 펜을 내려놓자", "짧은 정적 끝에", "의자 다리가 짧게 끌리자", "실내의 공기가 식자"],
         }
 
     def _pick_transition_replacement(
@@ -2747,26 +2828,25 @@ class ProseGenerator:
         connectors = [
             conn
             for conn in [
-                "그 말이 끝나자",
-                "시선이 옮겨가자",
-                "고개를 들자",
-                "의자가 밀리자",
-                "말끝이 가라앉자",
                 "짧은 숨이 스친 뒤",
                 "답이 바로 나오지 않는 사이",
                 "정면을 버틴 채",
+                "말끝이 가라앉자",
+                "문 쪽에서 인기척이 일자",
+                "의자 다리가 짧게 끌리자",
             ]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
-        if not connectors:
-            connectors = ["말끝이 가라앉자", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이"]
+        connector = connectors[0] if connectors else ""
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
             if not cleaned:
                 continue
-            connector = connectors[(idx - 1) % len(connectors)]
-            combined = f"{combined}, {connector} {cleaned}"
+            if idx == 1 and connector:
+                combined = f"{combined}, {connector} {cleaned}"
+            else:
+                combined = f"{combined}, {cleaned}"
         return combined.strip(" ,") + "."
 
     @staticmethod
@@ -3338,33 +3418,33 @@ class ProseGenerator:
         min_chars = max(min_chars, 14)
         max_chars = max(max_chars, 28)
         strong_samples = [
-            "질문의 결이 달라지자 대답도 더는 피해 갈 수 없었다.",
+            "질문의 결이 한 단계 올라서자 대답도 더는 미뤄 둘 수 없었다.",
             "의자 다리가 짧게 끌리며 방 안의 계산이 다른 쪽으로 기울었다.",
-            "수민은 바로 받아치지 않고 상대가 숨을 고르는 틈을 먼저 봤다.",
-            "말끝이 무뎌진 순간, 방 안의 우선순위가 누가 쥐고 있는지 드러났다.",
+            "수민은 바로 받아치지 않고 상대 손끝이 멈추는 순간을 먼저 봤다.",
+            "말끝이 얇아진 자리에서 다음 선택지가 더 선명해졌다.",
             "한쪽이 조건을 꺼내자 다른 쪽은 침묵으로 값을 올렸다.",
             "답이 늦어지는 사이 공조기 소리만 더 또렷해졌다.",
             "누군가 펜을 내려놓자 더 미룰 여지도 함께 사라졌다.",
-            "이번에는 시선보다 의도가 먼저 정면으로 부딪쳤다.",
+            "이번 질문은 확인보다 압박에 가까웠다.",
             "종이 한 장이 밀려 나오자 협상의 무게도 갑자기 현실이 됐다.",
             "한 사람의 망설임이 길어질수록 다른 쪽의 요구는 더 선명해졌다.",
             "짧은 정적 뒤에 남은 건 설명이 아니라 선택뿐이었다.",
             "손끝에 힘이 들어가자 질문의 값도 눈앞에서 달라졌다.",
-            "누군가 미소를 접는 순간 감춰 두던 계산도 절반쯤 모습을 드러냈다.",
+            "누군가 미소를 접는 순간 숨기던 계산도 절반쯤 드러났다.",
             "질서 있던 호흡이 한 박자 어긋나면서 대화의 결도 거칠어졌다.",
-            "단어 하나가 힘의 방향을 바꾸자 모두가 다음 문장을 기다렸다.",
-            "정적은 길지 않았지만 이미 돌아갈 자리도 함께 지워 놓았다.",
-            "한쪽의 양보가 늦어질수록 다른 쪽의 태도는 더 노골적으로 굳었다.",
+            "단어 하나가 힘의 방향을 바꾸자 모두가 다음 반응을 기다렸다.",
+            "정적은 길지 않았지만 돌아갈 여지는 더 짧아졌다.",
+            "한쪽의 양보가 늦어질수록 다른 쪽의 태도는 더 단단해졌다.",
             "고개를 든 사람은 한 명뿐이었고 그 사실이 방의 균형을 바꿨다.",
-            "실내의 공기가 식는 동안 반응의 방향도 선명하게 갈라졌다.",
-            "그제야 모두가 지금부터는 말보다 선택이 더 중요하다는 걸 알았다.",
+            "실내의 공기가 식는 동안 반응의 방향도 더 분명해졌다.",
+            "수민은 답보다 먼저 상대가 어디까지 밀어붙일지를 가늠했다.",
         ]
         plain_samples = [
             "수민은 대답을 한 박자 늦췄다.",
             "누군가 펜 끝만 가볍게 굴렸다.",
             "컵 바닥이 조용히 테이블에 닿았다.",
             "그는 숨을 한번 고르고 의자를 바로잡았다.",
-            "짧은 정리 뒤에 다음 질문이 이어졌다.",
+            "짧은 정리 뒤에 질문의 결이 다시 바뀌었다.",
             "말의 결이 가라앉자 방 안도 잠깐 조용해졌다.",
             "시선 몇 개가 같은 지점에 모였다가 다시 흩어졌다.",
             "그녀는 상대가 먼저 입을 열기를 기다렸다.",

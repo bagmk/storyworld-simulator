@@ -1624,18 +1624,48 @@ class DirectorAI:
             for i in recent_interactions[-4:]
         ]
         concern_signatures = [sig for sig in concern_signatures if sig]
-        if len(concern_signatures) < 2:
+        if len(concern_signatures) >= 2:
+            overlap_pairs = sum(
+                1
+                for idx in range(1, len(concern_signatures))
+                if concern_signatures[idx] & concern_signatures[idx - 1]
+            )
+            if overlap_pairs >= 2 and not any(
+                self._has_emotional_or_decisive_shift(str(i.get("content", "")))
+                for i in recent_interactions[-2:]
+            ):
+                return True
+        return self._has_repeated_confrontation_exchange(recent_interactions)
+
+    def _has_repeated_confrontation_exchange(self, recent_interactions: list[dict]) -> bool:
+        recent = recent_interactions[-4:]
+        if len(recent) < 4:
+            return False
+        if sum(1 for row in recent if str(row.get("action_type", "")).strip() == "dialogue") < 3:
+            return False
+        recent_speakers = [
+            str(row.get("speaker_id", "")).strip()
+            for row in recent
+            if str(row.get("speaker_id", "")).strip()
+        ]
+        if len(set(recent_speakers)) > 2:
+            return False
+        signatures = [
+            self._confrontation_signature(str(row.get("content", "")))
+            for row in recent
+        ]
+        signatures = [sig for sig in signatures if sig]
+        if len(signatures) < 2:
             return False
         overlap_pairs = sum(
-            1
-            for idx in range(1, len(concern_signatures))
-            if concern_signatures[idx] & concern_signatures[idx - 1]
+            1 for idx in range(1, len(signatures))
+            if self._confrontation_signatures_overlap(signatures[idx - 1], signatures[idx])
         )
         if overlap_pairs < 2:
             return False
         return not any(
-            self._has_emotional_or_decisive_shift(str(i.get("content", "")))
-            for i in recent_interactions[-2:]
+            self._has_confrontation_resolution_shift(str(row.get("content", "")))
+            for row in recent[-2:]
         )
 
     def _has_overloaded_threat_signal_stack(self, recent_interactions: list[dict]) -> bool:
@@ -1761,6 +1791,42 @@ class DirectorAI:
         return tokens
 
     @staticmethod
+    def _confrontation_signature(text: str) -> str:
+        low = str(text or "").lower()
+        if not low.strip():
+            return ""
+        if not re.search(r"(다가섰|접근|말을 걸|멈춰 섰|질문|물었|되물었|대답|응답|조건|요구|거절|수락|압박)", low):
+            return ""
+        parts: list[str] = []
+        if re.search(r"(복도|hallway|corridor|문가|문 앞|doorway)", low):
+            parts.append("hallway")
+        if re.search(r"(밀러|miller|모레노|moreno|수트|보안요원|security)", low):
+            parts.append("named")
+        concern = DirectorAI._progress_concern_signature(text)
+        if concern:
+            parts.append("leverage")
+        if re.search(r"(질문|물었|되물었|대답|응답)", low):
+            parts.append("qa")
+        if re.search(r"(다가섰|접근|말을 걸|멈춰 섰)", low):
+            parts.append("approach")
+        if re.search(r"(조건|요구|거절|수락)", low):
+            parts.append("terms")
+        return "|".join(parts)
+
+    @staticmethod
+    def _confrontation_signatures_overlap(left: str, right: str) -> bool:
+        left_tokens = {token for token in str(left or "").split("|") if token}
+        right_tokens = {token for token in str(right or "").split("|") if token}
+        if not left_tokens or not right_tokens:
+            return False
+        shared = left_tokens & right_tokens
+        if len(shared) >= 2:
+            return True
+        if "qa" in shared and (left_tokens | right_tokens) & {"hallway", "named", "leverage", "approach", "terms"}:
+            return True
+        return False
+
+    @staticmethod
     def _threat_signal_signature(text: str) -> set[str]:
         low = str(text or "").lower()
         if not low.strip():
@@ -1778,6 +1844,13 @@ class DirectorAI:
     def _has_consequence_shift(text: str) -> bool:
         return bool(re.search(
             r"(결정|선택|다가섰|다가갔|걸음을 옮|문으로 향|자료를 건넸|질문|반박|거절|수락|말을 걸|자리를 정리|고개를 끄덕)",
+            str(text or ""),
+        ))
+
+    @staticmethod
+    def _has_confrontation_resolution_shift(text: str) -> bool:
+        return bool(re.search(
+            r"(결정|선택|걸음을 옮|문으로 향|자료를 건넸|반박|거절|수락|자리를 정리|고개를 끄덕|돌아서|떠났|끝냈)",
             str(text or ""),
         ))
 

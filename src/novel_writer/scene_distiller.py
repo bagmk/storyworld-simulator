@@ -635,7 +635,7 @@ class SceneDistiller:
 
     def _reader_prefers_faster_progression(self) -> bool:
         corpus = self._reader_feedback_corpus()
-        return self._reader_reports_stalled_progression() or any(
+        return self._reader_reports_stalled_progression() or self._reader_wants_repeated_confrontation_merge() or any(
             token in corpus for token in (
                 "전개가 느려",
                 "느려서 집중",
@@ -647,6 +647,20 @@ class SceneDistiller:
                 "서사적 전진감",
                 "템포가 느려",
                 "속도감이 떨어",
+            )
+        )
+
+    def _reader_wants_repeated_confrontation_merge(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return self._feedback_flag_enabled("merge_repeated_confrontation_beats") or any(
+            token in corpus for token in (
+                "복도 대면",
+                "밀러와의 복도 대면",
+                "밀러 접촉",
+                "하나의 대화로 압축",
+                "질문의 강도",
+                "제자리에서 다시 시작",
+                "사실상 두 번 반복",
             )
         )
 
@@ -681,7 +695,7 @@ class SceneDistiller:
 
     def _reader_prefers_stronger_scene_compaction(self) -> bool:
         corpus = self._reader_feedback_corpus()
-        return self._reader_reports_stalled_progression() or self._feedback_scene_compaction_target() <= 85 or any(
+        return self._reader_reports_stalled_progression() or self._reader_wants_repeated_confrontation_merge() or self._feedback_scene_compaction_target() <= 85 or any(
             token in corpus for token in (
                 "반복되는 표현",
                 "비슷한 상황",
@@ -735,6 +749,8 @@ class SceneDistiller:
         budget = 0
         if self._reader_reports_stalled_progression():
             budget += 1
+        if self._reader_wants_repeated_confrontation_merge():
+            budget += 1
         if self._reader_prefers_faster_progression():
             budget += 1
         if self._reader_needs_contextual_summaries():
@@ -780,6 +796,9 @@ class SceneDistiller:
         same_concern = bool(self._scene_core_concern_signature(left)) and (
             self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
         )
+        left_confrontation = self._scene_confrontation_signature(left)
+        right_confrontation = self._scene_confrontation_signature(right)
+        same_confrontation = self._confrontation_signature_overlap(left_confrontation, right_confrontation)
         same_location = (
             self._norm_name_key(left.location)
             and self._norm_name_key(left.location) == self._norm_name_key(right.location)
@@ -816,6 +835,10 @@ class SceneDistiller:
                 score += 1
             if self._scene_is_low_motion(left) and self._scene_is_low_motion(right):
                 score += 1
+        if same_confrontation:
+            score += 3
+            if turn_gap <= 1:
+                score += 1
         if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
             score += 2
         if (
@@ -851,9 +874,15 @@ class SceneDistiller:
         same_concern = bool(self._scene_core_concern_signature(left)) and (
             self._scene_core_concern_signature(left) == self._scene_core_concern_signature(right)
         )
+        same_confrontation = self._confrontation_signature_overlap(
+            self._scene_confrontation_signature(left),
+            self._scene_confrontation_signature(right),
+        )
         score = self._adjacent_scene_merge_score(left, right)
         if overlap:
-            return score >= 1 or same_location or bool(shared_chars) or same_concern
+            return score >= 1 or same_location or bool(shared_chars) or same_concern or same_confrontation
+        if same_confrontation and turn_gap <= 1:
+            return score >= 2 and (same_location or bool(shared_chars) or same_concern)
         if self._reader_reports_timeline_confusion() and turn_gap <= 1:
             return score >= 2 and (same_location or bool(shared_chars) or same_concern)
         return False
@@ -1633,6 +1662,69 @@ class SceneDistiller:
                 ]
             )
         )
+
+    def _scene_confrontation_signature(self, scene: DistilledScene) -> str:
+        text = " ".join(
+            [
+                str(scene.location or ""),
+                str(scene.narrative_summary or ""),
+                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
+                str(scene.emotional_arc or ""),
+            ]
+        )
+        low = text.lower()
+        if not re.search(r"(다가섰|멈춰 섰|말을 걸|접근|질문|물었|되물었|대답|응답|조건|요구|거절|수락|압박)", low):
+            return ""
+        if re.search(r"(복도|hallway|corridor|문가|문 앞|출입문|doorway)", low):
+            location_key = "hallway"
+        elif self._reader_wants_repeated_confrontation_merge():
+            location_key = self._norm_name_key(scene.location)
+        else:
+            location_key = ""
+        if not location_key:
+            return ""
+        characters = sorted(
+            {
+                self._norm_name_key(name)
+                for name in self._canonicalize_name_list(scene.characters_present, {})
+                if self._norm_name_key(name)
+            }
+        )
+        concern_sig = self._scene_core_concern_signature(scene)
+        leverage_tag = "leverage" if concern_sig else ""
+        if not leverage_tag and re.search(r"(질문|물었|되물었|대답|응답)", low):
+            leverage_tag = "probe"
+        pressure_tags: list[str] = []
+        if re.search(r"(질문|물었|되물었|대답|응답)", low):
+            pressure_tags.append("qa")
+        if re.search(r"(다가섰|멈춰 섰|말을 걸|접근)", low):
+            pressure_tags.append("approach")
+        if re.search(r"(조건|요구|거절|수락)", low):
+            pressure_tags.append("terms")
+        return "::".join(
+            part
+            for part in (
+                location_key,
+                "|".join(characters[:3]),
+                leverage_tag,
+                "|".join(pressure_tags),
+            )
+            if part
+        )
+
+    @staticmethod
+    def _confrontation_signature_overlap(left: str, right: str) -> bool:
+        left_tokens = {token for token in str(left or "").split("|") if token}
+        right_tokens = {token for token in str(right or "").split("|") if token}
+        if not left_tokens or not right_tokens:
+            return False
+        shared = left_tokens & right_tokens
+        if len(shared) >= 2:
+            return True
+        if "qa" in shared and (left_tokens | right_tokens) & {"hallway", "leverage", "approach", "terms"}:
+            return True
+        return False
 
     def _is_redundant_core_concern(self, left: str, right: str) -> bool:
         left_sig = self._core_concern_signature(left)
