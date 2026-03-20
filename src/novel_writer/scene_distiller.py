@@ -185,6 +185,15 @@ class SceneDistiller:
         canonical_speakers = self._build_canonical_speaker_map(interactions)
         # Format interactions compactly
         turns_text = self._format_turns_compact(interactions)
+        prompt_char_limit = self._distill_prompt_char_limit(default=80000)
+        if len(turns_text) > prompt_char_limit:
+            logger.warning(
+                "Skipping LLM scene distillation because compact log is too large "
+                "(%d chars > %d); falling back to deterministic chunking",
+                len(turns_text),
+                prompt_char_limit,
+            )
+            return self._fallback_chunk(interactions, beats, target_scenes)
 
         # Format beats for reference
         beats_text = "\n".join(
@@ -239,6 +248,8 @@ class SceneDistiller:
             f"28. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
             f"29. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
             f"30. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
+            f"31. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
+            f"32. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -547,21 +558,8 @@ class SceneDistiller:
         canonical_speakers: Optional[dict[str, str]] = None,
     ) -> None:
         canonical = canonical_speakers or {}
-        self._sanitize_scene_dialogue(scene)
-        self._compress_expository_dialogue(scene)
-        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
-        scene.narrative_summary = self._rebalance_narrative_summary(scene)
-        scene.narrative_summary = self._soften_technical_summary(scene)
-        scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
-        scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
-        scene.narrative_summary = self._compress_overloaded_threat_signals(scene.narrative_summary)
-        scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
-        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
-        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
-        scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
-        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
-        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
-        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+        self._distill_dialogue(scene)
+        scene.narrative_summary = self._compress_narrative(scene)
         scene.characters_present = self._canonicalize_name_list(
             scene.characters_present,
             canonical,
@@ -577,8 +575,16 @@ class SceneDistiller:
         scene.discoveries = self._compress_core_concern_lines(scene.discoveries, limit=6)
         scene.key_actions = self._compress_threat_signal_lines(scene.key_actions, limit=8)
         scene.discoveries = self._compress_threat_signal_lines(scene.discoveries, limit=6)
-        scene.key_actions = [self._strip_stock_timeline_cues_from_text(line) for line in scene.key_actions]
-        scene.discoveries = [self._strip_stock_timeline_cues_from_text(line) for line in scene.discoveries]
+        scene.key_actions = [
+            cleaned
+            for line in scene.key_actions
+            if (cleaned := self._remove_redundant_phrases(self._strip_stock_timeline_cues_from_text(line)))
+        ]
+        scene.discoveries = [
+            cleaned
+            for line in scene.discoveries
+            if (cleaned := self._remove_redundant_phrases(self._strip_stock_timeline_cues_from_text(line)))
+        ]
         scene.characters_present = self._normalize_scene_character_labels(scene.characters_present)
         scene.narrative_summary = self._normalize_character_mentions(
             scene.narrative_summary,
@@ -592,6 +598,62 @@ class SceneDistiller:
             self._normalize_character_mentions(line, scene.characters_present)
             for line in scene.discoveries
         ]
+
+    def _distill_dialogue(self, scene: DistilledScene) -> None:
+        self._sanitize_scene_dialogue(scene)
+        self._compress_expository_dialogue(scene)
+        if not scene.key_dialogue:
+            return
+
+        compact: list[dict] = []
+        concern_index: dict[str, int] = {}
+        limit = 3 if (
+            self._reader_prefers_stronger_scene_compaction()
+            or self._reader_wants_repeated_confrontation_merge()
+            or self._reader_flags_recycled_negotiation_points()
+        ) else 4
+
+        for row in scene.key_dialogue or []:
+            if not isinstance(row, dict):
+                continue
+            speaker = str(row.get("speaker", "")).strip() or "Unknown"
+            line = self._remove_redundant_phrases(str(row.get("line", "") or ""))
+            line = re.sub(r"\s+", " ", line).strip()
+            if not line:
+                continue
+            cleaned_row = {"speaker": speaker, "line": line}
+            concern_sig = self._core_concern_signature(line)
+            if concern_sig:
+                prev_idx = concern_index.get(concern_sig)
+                if prev_idx is not None:
+                    compact[prev_idx] = self._prefer_more_concrete_dialogue_row(
+                        compact[prev_idx],
+                        cleaned_row,
+                    )
+                    continue
+            compact.append(cleaned_row)
+            if concern_sig:
+                concern_index[concern_sig] = len(compact) - 1
+
+        scene.key_dialogue = compact[:limit]
+
+    def _compress_narrative(self, scene: DistilledScene) -> str:
+        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+        scene.narrative_summary = self._rebalance_narrative_summary(scene)
+        scene.narrative_summary = self._soften_technical_summary(scene)
+        scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
+        scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
+        scene.narrative_summary = self._compress_overloaded_threat_signals(scene.narrative_summary)
+        scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
+        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._remove_redundant_phrases(scene.narrative_summary)
+        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
+        scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
+        scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
+        scene.narrative_summary = self._remove_redundant_phrases(scene.narrative_summary)
+        scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
+        scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
+        return scene.narrative_summary
 
     def _reader_prefers_compact_beats(self) -> bool:
         corpus = self._reader_feedback_corpus()
@@ -709,6 +771,35 @@ class SceneDistiller:
                 "길고 복잡",
                 "이해하기 어려",
                 "지루",
+            )
+        )
+
+    def _reader_flags_recycled_negotiation_points(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            token in corpus for token in (
+                "밀러와의 대화",
+                "협상 논점",
+                "핵심 조건",
+                "외부 지원",
+                "실시간성",
+                "통제권",
+                "책임 문제",
+                "여러 차례 되풀이",
+            )
+        )
+
+    def _reader_flags_stock_bridge_phrases(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            token in corpus for token in (
+                "짧은 숨이 스친 뒤",
+                "반복 접속구",
+                "호흡 문구",
+                "문장 리듬이 기계적",
+                "그 말이 끝나자",
+                "시선이 옮겨가자",
+                "비슷한 리듬",
             )
         )
 
@@ -948,6 +1039,20 @@ class SceneDistiller:
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(rebuilt[:max_sentences]).strip()
 
+    def _remove_redundant_phrases(self, text: str) -> str:
+        cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not cleaned:
+            return ""
+        if not self._reader_flags_stock_bridge_phrases():
+            return cleaned
+        cleaned = re.sub(
+            r"(^|(?<=[.!?…]\s))(짧은 숨이 스친 뒤|답이 바로 나오지 않는 사이|말끝이 가라앉자|짧은 정적 끝에|그 말이 끝나자|시선이 옮겨가자)\s*,?\s*",
+            r"\1",
+            cleaned,
+        )
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+        return cleaned
+
     @staticmethod
     def _strip_stock_timeline_cues_from_text(text: str) -> str:
         cleaned = re.sub(
@@ -1154,6 +1259,14 @@ class SceneDistiller:
         except (TypeError, ValueError):
             cap = default
         return max(10, min(20, cap))
+
+    def _distill_prompt_char_limit(self, default: int = 80000) -> int:
+        raw = self.runtime_policy.get("distiller_prompt_chars_max", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(12000, cap)
 
     def _force_reaction_after_jargon(self) -> bool:
         constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
@@ -1751,9 +1864,22 @@ class SceneDistiller:
                 concrete += 1
             if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):
                 concrete += 1
+            if re.search(
+                r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|시선|배지|발표장|복도|문 앞|문가|모니터)",
+                str(line or ""),
+            ):
+                concrete += 2
             return concrete, -self._summary_word_count(line)
 
         return right if score(right) > score(left) else left
+
+    def _prefer_more_concrete_dialogue_row(self, left: dict, right: dict) -> dict:
+        left_line = str((left or {}).get("line", "") or "").strip()
+        right_line = str((right or {}).get("line", "") or "").strip()
+        chosen = self._prefer_more_concrete_line(left_line, right_line)
+        if chosen == right_line:
+            return right
+        return left
 
     def _normalize_scene_character_labels(self, names: list[str]) -> list[str]:
         named_identity = self._preferred_named_identity(names)

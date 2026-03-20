@@ -147,6 +147,37 @@ def _reader_feedback_mentions_stalled_progression(reader_feedback: dict) -> bool
     )
 
 
+def _reader_feedback_needs_draft_cleanup(reader_feedback: dict) -> bool:
+    return _reader_feedback_has_any(
+        reader_feedback,
+        "영어 혼입",
+        "영어 표현",
+        "오탈자",
+        "퇴고 전 원고",
+        "원고처럼 보이게",
+        "real-time",
+        "real-time viable if externally supported",
+        "수민는",
+        "단어은",
+    )
+
+
+def _sanitize_chapter_draft_artifacts(chapter_text: str, reader_feedback: dict) -> str:
+    if not chapter_text or not _reader_feedback_needs_draft_cleanup(reader_feedback):
+        return chapter_text
+
+    cleaned = str(chapter_text)
+    replacements = {
+        "real-time viable if externally supported": "외부 지원이 붙을 때만 실시간 대응이 가능했다",
+        "수민는": "수민은",
+        "단어은": "단어는",
+    }
+    for bad, good in replacements.items():
+        cleaned = re.sub(re.escape(bad), good, cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\breal[- ]time\b", "실시간", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
 # ── 씬 floor 계산 상수 ──────────────────────────────────────────────────────
 # 씬당 최대 단어수를 초과하면 LLM 호출이 느려지고 타임아웃 위험이 생깁니다.
 # floor = ceil(target_words / _MAX_WORDS_PER_SCENE) 으로 동적 계산됩니다.
@@ -578,6 +609,21 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "짧은 숨이 스친 뒤",
+        "반복 접속구",
+        "호흡 문구",
+        "문장 리듬이 기계적",
+    ):
+        constraints["max_transition_openers_per_block"] = 1
+        constraints["sentence_variety_window"] = max(
+            5,
+            int(constraints.get("sentence_variety_window", 5) or 5),
+        )
+        _merge_transition_avoid_terms("짧은 숨이 스친 뒤")
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
         "비유로 분위기를 만든 직후 의미를 다시 설명",
         "의미를 다시 설명",
         "비유",
@@ -614,6 +660,24 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["scene_compaction_ratio_target"] = 80
         constraints["max_term_repeats_per_scene"] = 1
         constraints["max_emotion_repeats_per_scene"] = 1
+        constraints["dialogue_agenda_contrast"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "밀러와의 대화",
+        "협상 논점",
+        "핵심 조건",
+        "여러 차례 되풀이",
+    ):
+        try:
+            compaction_target = int(constraints.get("scene_compaction_ratio_target", 80) or 80)
+        except (TypeError, ValueError):
+            compaction_target = 80
+        constraints["scene_compaction_ratio_target"] = min(80, compaction_target)
+        constraints["dialogue_agenda_contrast"] = 1
+        constraints["merge_repeated_confrontation_beats"] = 1
+        constraints["prefer_linear_scene_axis"] = 1
         changed = True
 
     if _reader_feedback_has_any(
@@ -728,6 +792,11 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
             5,
             int(constraints.get("sentence_variety_window", 5) or 5),
         )
+        changed = True
+
+    if _reader_feedback_needs_draft_cleanup(tuned):
+        constraints["max_jargon_terms_per_paragraph"] = 1
+        constraints["force_reaction_after_jargon"] = 1
         changed = True
 
     if _reader_feedback_has_any(
@@ -1105,6 +1174,11 @@ def main() -> None:
 
     # === Report ===
     chapter_text = Path(chapter_path).read_text(encoding="utf-8")
+    cleaned_chapter_text = _sanitize_chapter_draft_artifacts(chapter_text, reader_feedback)
+    if cleaned_chapter_text != chapter_text:
+        Path(chapter_path).write_text(cleaned_chapter_text, encoding="utf-8")
+        chapter_text = cleaned_chapter_text
+        logger.info("Applied deterministic draft-artifact cleanup to %s", chapter_path)
     pattern_warnings = _log_sentence_pattern_warnings(prose_gen, chapter_text, logger)
     word_count = len(chapter_text.split())
     total_elapsed = distill_elapsed + prose_elapsed

@@ -855,8 +855,8 @@ class DirectorAI:
         if progress_signal["repeated_concern"]:
             return (
                 "The exchange is revisiting the same leverage point. Do not restate it again. "
-                "Either close the scene now or make the next turn create a new consequence, "
-                "choice, interruption, or movement."
+                "Keep only two or three core conditions, then cash out the next beat through a new consequence, "
+                "choice, interruption, movement, or one concrete leverage detail such as affiliation, card, number, or room reaction."
             )
         if progress_signal["flat_tension"]:
             return (
@@ -1228,7 +1228,8 @@ class DirectorAI:
         if progress_signal["repeated_concern"]:
             repeated_concern_rule = (
                 "14) Recent turns are revisiting the same concern. Do not paraphrase it again; "
-                "either end the scene or force a new consequence, choice, interruption, or movement.\n"
+                "either end the scene or force a new consequence, choice, interruption, or movement. "
+                "Keep at most 2-3 core conditions and let any extra pressure arrive through a concrete detail like affiliation, card, number, or room reaction.\n"
             )
 
         prompt = (
@@ -1619,6 +1620,8 @@ class DirectorAI:
         return False
 
     def _has_repeated_core_concern_exchange(self, recent_interactions: list[dict]) -> bool:
+        if self._has_negotiation_condition_loop(recent_interactions):
+            return True
         concern_signatures = [
             self._progress_concern_signature(str(i.get("content", "")))
             for i in recent_interactions[-4:]
@@ -1636,6 +1639,46 @@ class DirectorAI:
             ):
                 return True
         return self._has_repeated_confrontation_exchange(recent_interactions)
+
+    def _has_negotiation_condition_loop(self, recent_interactions: list[dict]) -> bool:
+        recent = recent_interactions[-4:]
+        if len(recent) < 4:
+            return False
+        dialogue_rows = [
+            row for row in recent
+            if str(row.get("action_type", "")).strip() == "dialogue"
+        ]
+        if len(dialogue_rows) < 3:
+            return False
+
+        concern_signatures: list[set[str]] = []
+        negotiation_hits = 0
+        concrete_detail_hits = 0
+        for row in dialogue_rows:
+            text = str(row.get("content", ""))
+            sig = self._progress_concern_signature(text)
+            if sig:
+                concern_signatures.append(sig)
+            low = text.lower()
+            if re.search(r"(조건|제안|요구|통제권|권한|책임|외부 지원|지원|실시간|real-time|latency|협상|대가)", low):
+                negotiation_hits += 1
+            if re.search(r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|배지|모니터|복도 끝|문 앞)", low):
+                concrete_detail_hits += 1
+
+        if len(concern_signatures) < 3 or negotiation_hits < 3:
+            return False
+        overlap_pairs = sum(
+            1
+            for idx in range(1, len(concern_signatures))
+            if concern_signatures[idx] & concern_signatures[idx - 1]
+        )
+        if overlap_pairs < 2 or concrete_detail_hits >= 1:
+            return False
+        return not any(
+            self._has_consequence_shift(str(row.get("content", "")))
+            or self._has_emotional_or_decisive_shift(str(row.get("content", "")))
+            for row in recent[-2:]
+        )
 
     def _has_repeated_confrontation_exchange(self, recent_interactions: list[dict]) -> bool:
         recent = recent_interactions[-4:]
