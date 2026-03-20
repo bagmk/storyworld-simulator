@@ -2483,46 +2483,29 @@ async def step_auto_improve_loop(
             await notify(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프 {fixer_cycle}/{max_cycles} 시작")
 
         # ── AI 리뷰 ──
-        if review_tier == "codex":
-            # Codex CLI 리뷰 (OpenAI 비용 없음)
-            if notify:
-                await notify(f"{DAILY_TAG}[AUTO] 🤖 Codex 리뷰 중...")
-            review_json = await _run_codex_review(
-                chapter_path=current_chapter,
-                run_dir=run_dir,
-                fixer_cycle=fixer_cycle,
-                set_process=set_process,
+        chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
+        try:
+            llm = LLMClient(
+                model=_llm_review_model_for_tier(review_tier),
+                premium_model="gpt-4o",
+                budget_usd=2.0,
+                api_key=os.environ.get("OPENAI_API_KEY", ""),
             )
-            if review_json is None:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ Codex 리뷰 실패, 루프 종료")
-                break
-            review_budget = {"spent_usd": 0.0, "budget_usd": 0.0, "call_count": 0,
-                             "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-        else:
-            chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
-            try:
-                llm = LLMClient(
-                    model=_llm_review_model_for_tier(review_tier),
-                    premium_model="gpt-4o",
-                    budget_usd=2.0,
-                    api_key=os.environ.get("OPENAI_API_KEY", ""),
-                )
-                _story_ctx = await asyncio.to_thread(_load_story_context_for_review)
-                review_raw = await asyncio.to_thread(
-                    llm.chat,
-                    [{"role": "user", "content": _build_ai_reviewer_prompt(chapter_text, _story_ctx)}],
-                    use_premium=_use_premium_review_tier(review_tier),
-                    purpose="auto_improve_reviewer",
-                    max_tokens=1400,
-                )
-                cleaned = re.sub(r"```(?:json)?\n?", "", review_raw).strip().rstrip("`")
-                review_json = json.loads(cleaned)
-                review_budget = llm.budget_summary()
-            except Exception as exc:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패 ({exc}), 루프 종료")
-                break
+            _story_ctx = await asyncio.to_thread(_load_story_context_for_review)
+            review_raw = await asyncio.to_thread(
+                llm.chat,
+                [{"role": "user", "content": _build_ai_reviewer_prompt(chapter_text, _story_ctx)}],
+                use_premium=_use_premium_review_tier(review_tier),
+                purpose="auto_improve_reviewer",
+                max_tokens=1400,
+            )
+            cleaned = re.sub(r"```(?:json)?\n?", "", review_raw).strip().rstrip("`")
+            review_json = json.loads(cleaned)
+            review_budget = llm.budget_summary()
+        except Exception as exc:
+            if notify:
+                await notify(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패 ({exc}), 루프 종료")
+            break
 
         _ALL_SCORE_KEYS = [
             "thrill_score_10", "style_score_10", "causality_score_10",
@@ -2545,11 +2528,7 @@ async def step_auto_improve_loop(
         _accumulate_usage_totals(metrics, review_budget)
 
         if notify:
-            summary_budget_line = (
-                "AI 리뷰 비용: $0.00 (Codex CLI — OpenAI 비용 없음)"
-                if review_tier == "codex"
-                else _format_budget_line("AI 리뷰 비용", review_budget)
-            )
+            summary_budget_line = _format_budget_line("AI 리뷰 비용", review_budget)
             _review_mood = (
                 "🏆" if avg >= score_threshold else
                 "🌟" if avg >= 7.5 else

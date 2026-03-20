@@ -80,8 +80,6 @@ def _parse_review_tier_choice(text: str) -> str | None:
         return "mini"
     if t in {"2", "premium", "prem", "프리미엄", "정밀", "고품질"}:
         return "premium"
-    if t in {"3", "claude", "클로드", "코덱스", "codex", "무료", "free"}:
-        return "codex"
     return None
 
 
@@ -1067,9 +1065,8 @@ async def async_main() -> None:
                     message.channel,
                     ch_id,
                     "리뷰 등급을 골라주세요.\n"
-                    "`1` 또는 `mini` — GPT-4o-mini (빠르고 저렴)\n"
-                    "`2` 또는 `premium` — GPT-4o (정밀, 비쌈)\n"
-                    "`3` 또는 `codex` — Codex CLI (OpenAI 비용 없음)\n"
+                    "`1` 또는 `mini` — 빠르고 저렴\n"
+                    "`2` 또는 `premium` — 정밀, 고품질\n"
                     "답장으로 보내주시면 시작합니다. 취소는 `취소`.",
                     manager_bot_token,
                 )

@@ -86,9 +86,8 @@ User
 
 Bot
 리뷰 등급을 골라주세요.
-1 또는 mini      — GPT-4o-mini
-2 또는 premium   — GPT-4o
-3 또는 codex     — Codex CLI
+1 또는 mini      — 빠르고 저렴
+2 또는 premium   — 정밀, 고품질
 
 User
 2
@@ -216,8 +215,6 @@ episode config
 중요:
 
 - `OPENAI_API_KEY`는 반드시 필요합니다.
-- `--review-tier codex`를 써도 OpenAI API 키는 여전히 필요합니다.
-  이유: 리뷰 일부를 Codex CLI로 돌릴 수는 있어도, 시뮬레이션과 챕터 생성 자체는 OpenAI API를 사용하기 때문입니다.
 
 ## 1. Python 설치와 프로젝트 준비
 
@@ -507,7 +504,7 @@ Discord 채널에서 아래처럼 입력합니다.
 - `--target-words 3500`: 목표 분량
 - `--budget 4.0`: 실행 예산
 - `--protagonist kim_sumin`: 주인공 ID
-- `--review-tier mini|premium|codex`: 리뷰 방식
+- `--review-tier mini|premium`: 리뷰 방식
 
 ### 6-3. `--review-tier`를 안 넣으면 어떻게 되나
 
@@ -516,7 +513,6 @@ Discord 채널에서 아래처럼 입력합니다.
 ```text
 1 또는 mini      -> 빠르고 저렴
 2 또는 premium   -> 더 정밀
-3 또는 codex     -> Codex CLI 활용
 ```
 
 초보자에게는 보통 아래처럼 시작하는 걸 권장합니다.
@@ -526,26 +522,21 @@ Discord 채널에서 아래처럼 입력합니다.
 
 ### 6-4. 티어별 사용 모델 전체 표
 
-| 단계 | mini | premium | codex |
-|---|---|---|---|
-| 시뮬레이션 — 에이전트 턴 | gpt-4o-mini | gpt-4o-mini | gpt-4o-mini |
-| 시뮬레이션 — 디렉터/산문 | gpt-5-mini | gpt-5-mini | gpt-5-mini |
-| 챕터 생성 — 기본 구성 | gpt-4o-mini | gpt-4o-mini | gpt-4o-mini |
-| 챕터 생성 — 산문 생성 | gpt-4.1-mini ¹ | gpt-5-mini | gpt-5-mini |
-| Guardian 분석 | gpt-4o-mini | gpt-4o | gpt-4o-mini |
-| Quality Reviewer | gpt-4o-mini | gpt-4o | gpt-4o-mini |
-| AI 루프 리뷰 | gpt-5-mini | gpt-4o | Codex CLI (config 기본값) ² |
-| Codex 코드 수정 | Codex CLI (`gpt-5.1-codex-mini`) | Codex CLI (config 기본값) ² | Codex CLI (config 기본값) ² |
-| Regen 판단 LLM | gpt-4o-mini | gpt-4o | gpt-4o |
-| Feedback 파싱 LLM | gpt-4o-mini | gpt-4o | gpt-4o |
+| 단계 | mini | premium |
+|---|---|---|
+| 시뮬레이션 — 에이전트 턴 | gpt-4o-mini | gpt-4o-mini |
+| 시뮬레이션 — 디렉터/산문 | gpt-5-mini | gpt-5-mini |
+| 챕터 생성 — 기본 구성 | gpt-4o-mini | gpt-4o-mini |
+| 챕터 생성 — 산문 생성 | gpt-4.1-mini ¹ | gpt-5-mini |
+| Guardian 분석 | gpt-4o-mini | gpt-4o |
+| Quality Reviewer | gpt-4o-mini | gpt-4o |
+| AI 루프 리뷰 | gpt-5-mini | gpt-4o |
+| Codex 코드 수정 | Codex CLI (`gpt-5.1-codex-mini`) | Codex CLI (config 기본값) ² |
+| Regen 판단 LLM | gpt-4o-mini | gpt-4o |
+| Feedback 파싱 LLM | gpt-4o-mini | gpt-4o |
 
-> ¹ mini 티어는 `--premium gpt-4.1-mini` 플래그로 산문 생성에 gpt-4.1-mini를 사용합니다 (gpt-4o-mini보다 long-context 성능 우수, gpt-5-mini보다 저렴).
-> ² `config 기본값` = `~/.codex/config.toml`에 설정된 모델 (현재 `gpt-5.4 xhigh`). ChatGPT Pro 구독 사용, OpenAI API 비용 없음.
-
-주의:
-
-- `codex`를 선택해도 프로젝트 전체에서 OpenAI API 키가 없어도 되는 것은 아닙니다.
-- 리뷰·코드 수정 단계만 Codex CLI로 대체되고, 나머지 단계는 OpenAI API를 사용합니다.
+> ¹ mini 티어는 `--premium gpt-4.1-mini`로 산문 생성에 gpt-4.1-mini를 사용합니다 (gpt-4o-mini보다 long-context 성능 우수, gpt-5-mini보다 저렴).
+> ² `config 기본값` = `~/.codex/config.toml`에 설정된 모델. ChatGPT Pro 구독 사용, OpenAI API 비용 없음.
 
 ## 7. 실행 중에 Discord에서 보게 되는 것
 
@@ -559,7 +550,7 @@ Manager 봇이 리뷰 등급을 물어봅니다.
 이후 `[GUARDIAN]` 단계가 시작되는 순간 `[START]` 쓰레드에 ✅가 들어옵니다.
 
 ```text
-Manager봇: 리뷰 등급을 골라주세요. (mini / premium / codex)
+Manager봇: 리뷰 등급을 골라주세요. (mini / premium)
 User:       1
 Manager봇: ▶️ !novel-daily ep01 시작 [START] 🎬  ← 앵커 + 쓰레드 생성
              └─ 쓰레드 안: [START] run: ...
