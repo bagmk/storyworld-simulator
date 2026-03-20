@@ -778,6 +778,7 @@ async def async_main() -> None:
                 "auto": None,
                 "auto_review": None,
                 "fixer": None,
+                "yaml_fixer": None,
                 "choice": None,
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
@@ -792,6 +793,7 @@ async def async_main() -> None:
                 "auto": None,
                 "auto_review": None,
                 "fixer": None,
+                "yaml_fixer": None,
                 "choice": None,
             }
 
@@ -800,7 +802,7 @@ async def async_main() -> None:
                     return manager_bot_token
                 if key in {"guardian_rules", "guardian_gpt", "review", "auto_review"}:
                     return reviewer_bot_token
-                if key in {"auto", "fixer", "programmer"}:
+                if key in {"auto", "fixer", "yaml_fixer", "programmer"}:
                     return fixer_bot_token
                 return ""
 
@@ -825,6 +827,8 @@ async def async_main() -> None:
                     return "auto"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
                     return "fixer"
+                if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 YAML 검수 시작"):
+                    return "yaml_fixer"
                 if text.startswith(f"{DAILY_TAG}[CHOICE] 📋 "):
                     return "choice"
                 return None
@@ -858,8 +862,11 @@ async def async_main() -> None:
                 if text.startswith(f"{DAILY_TAG}[AUTO] "):
                     if "AI 자동 개선 루프 시작" not in text:
                         return "auto"
+                if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 "):
+                    if "YAML 검수 시작" not in text:
+                        return "yaml_fixer"
                 if text.startswith(f"{DAILY_TAG}[FIXER] "):
-                    if "Codex 수정 시작" not in text:
+                    if "Codex 수정 시작" not in text and "YAML 검수 시작" not in text:
                         return "fixer"
                 if text.startswith(f"{DAILY_TAG}[CHOICE] "):
                     if "📋 " not in text[:20]:
@@ -918,6 +925,11 @@ async def async_main() -> None:
                     or text.startswith(f"{DAILY_TAG}[FIXER] ❌ Codex 수정 실패")
                 ):
                     keys.append("fixer")
+                if (
+                    text.startswith(f"{DAILY_TAG}[FIXER] ✅ YAML 검수 완료")
+                    or text.startswith(f"{DAILY_TAG}[FIXER] ⚠️ YAML 검수")
+                ):
+                    keys.append("yaml_fixer")
                 return keys
 
             async def _ensure_anchor_thread(key: str, anchor_message: discord.Message) -> discord.abc.Messageable | None:

@@ -2279,6 +2279,58 @@ def _parse_user_choice(text: str) -> str:
     return "other"
 
 
+def _fix_unclosed_yaml_quotes(text: str) -> str:
+    """줄 끝에 닫히지 않은 이중따옴표를 닫아주는 최소 포맷 수정."""
+    fixed: list[str] = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.rstrip("\n\r")
+        # 이스케이프되지 않은 " 개수가 홀수이고, 값 시작에 " 가 있으면 닫기
+        unescaped = stripped.count('"') - stripped.count('\\"')
+        if unescaped % 2 == 1 and re.search(r':\s*"[^"]*$', stripped):
+            eol = line[len(stripped):]
+            stripped = stripped + '"'
+            line = stripped + eol
+        fixed.append(line)
+    return "".join(fixed)
+
+
+def _validate_and_fix_episode_yamls(episode_dir: Path) -> dict:
+    """
+    config/episodes/ 의 ep*.yaml 파일을 전수 검사한다.
+    - 파싱 오류 파일은 _fix_unclosed_yaml_quotes 로 최소 포맷 수정 후 재검증.
+    - 내용(content) 변경 없이 포맷(따옴표 누락)만 수정.
+    반환: {"ok": int, "fixed": [str], "errors": [str]}
+    """
+    import yaml as _yaml
+
+    ok_names: list[str] = []
+    fixed_names: list[str] = []
+    error_names: list[str] = []
+
+    for f in sorted(episode_dir.glob("ep*.yaml")):
+        raw = f.read_text(encoding="utf-8")
+        try:
+            data = _yaml.safe_load(raw)
+            if data and "episode" in data:
+                ok_names.append(f.name)
+            else:
+                error_names.append(f"{f.name}: `episode:` 키 없음")
+        except _yaml.YAMLError:
+            patched = _fix_unclosed_yaml_quotes(raw)
+            if patched != raw:
+                try:
+                    data2 = _yaml.safe_load(patched)
+                    if data2 and "episode" in data2:
+                        f.write_text(patched, encoding="utf-8")
+                        fixed_names.append(f.name)
+                        continue
+                except _yaml.YAMLError:
+                    pass
+            error_names.append(f"{f.name}: YAML 파싱 오류 (수동 수정 필요)")
+
+    return {"ok": len(ok_names), "fixed": fixed_names, "errors": error_names}
+
+
 def _build_story_fixer_prompt(episode_key: str, user_feedback: str) -> str:
     ep_file = resolve_episode_file(episode_key)
     return (
@@ -2759,6 +2811,36 @@ async def run_daily_pipeline(
         if ok:
             if notify:
                 await notify(f"{DAILY_TAG}[CHOICE] ✅ 스토리 수정 완료:\n{summary}")
+
+            # ── YAML 검수 단계 ──
+            ep_dir = REPO_ROOT / "config" / "episodes"
+            if notify:
+                await notify(f"{DAILY_TAG}[FIXER] 🔍 YAML 검수 시작 — 에피소드 파일 전수 검사 중...")
+            if set_status:
+                set_status("YAML 검수 중...")
+            yaml_result = await asyncio.to_thread(_validate_and_fix_episode_yamls, ep_dir)
+            if yaml_result["fixed"]:
+                fixed_list = ", ".join(yaml_result["fixed"])
+                if notify:
+                    await notify(
+                        f"{DAILY_TAG}[FIXER] 🔍 포맷 수정 완료: {fixed_list}\n"
+                        f"(따옴표 누락 자동 수정 — 내용 변경 없음)"
+                    )
+            if yaml_result["errors"]:
+                err_list = "\n".join(f"  • {e}" for e in yaml_result["errors"])
+                if notify:
+                    await notify(
+                        f"{DAILY_TAG}[FIXER] ⚠️ YAML 검수 — 수동 수정 필요:\n{err_list}"
+                    )
+            else:
+                if notify:
+                    await notify(
+                        f"{DAILY_TAG}[FIXER] ✅ YAML 검수 완료 "
+                        f"({yaml_result['ok']}개 정상"
+                        + (f", {len(yaml_result['fixed'])}개 포맷 수정됨" if yaml_result["fixed"] else "")
+                        + ")"
+                    )
+
             committed, _ = await _git_commit_story_fix(episode_key, summary)
             if committed and notify:
                 await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료 — 다음 `!novel-daily`에 반영됩니다")
