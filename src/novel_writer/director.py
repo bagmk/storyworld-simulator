@@ -97,6 +97,12 @@ class DirectorAI:
         )
         self._last_completion_check_turn: int = 0
         self._last_completion_result: Optional[tuple[bool, list[str]]] = None
+        if self._reader_reports_stalled_progression():
+            self.min_turns_before_completion = min(
+                self.min_turns_before_completion,
+                max(4, int(self.max_turns * 0.2)),
+            )
+            self.completion_check_interval = 1
 
         # Hidden facts as a set of strings for leak detection
         self._hidden_fact_texts: list[str] = [
@@ -474,6 +480,18 @@ class DirectorAI:
         lowered = [str(k).lower() for k in keywords if k]
         return any(k in all_text for k in lowered)
 
+    def _reader_reports_stalled_progression(self) -> bool:
+        return self._feedback_mentions(
+            "멈춘 이유",
+            "멈춘",
+            "멈춤",
+            "정체",
+            "제자리",
+            "안 나가",
+            "진행이 안",
+            "흐름이 끊",
+        )
+
     def _feedback_style_constraints(self) -> dict:
         raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
         return raw if isinstance(raw, dict) else {}
@@ -639,6 +657,11 @@ class DirectorAI:
         progress = turn / max(target_turns, 1)
         progress_signal = self._scene_progress_signal(recent_interactions)
 
+        if progress_signal["stalled"] and self._reader_reports_stalled_progression():
+            return (
+                "Reader flagged stalled progression. If the beat already landed, close the scene now; "
+                "otherwise force one concrete shift such as a decision, interruption, movement, or reveal."
+            )
         if progress_signal["explanation_loop"]:
             return (
                 "The scene is explaining instead of moving. Cut the next turn into short direct sentences, "
@@ -1037,6 +1060,10 @@ class DirectorAI:
             prompt += (
                 "\nReader priority: prefer turns that say one point at a time in short direct sentences."
             )
+        if self._reader_reports_stalled_progression():
+            prompt += (
+                "\nReader priority: if the core beat has already landed, end the scene early instead of extending another diagnostic turn."
+            )
 
         result = self._safe_llm_call(
             [{"role": "user", "content": prompt}],
@@ -1095,6 +1122,10 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to keep repeated tension beats from flattening out"
+        elif progress_signal["stalled"] and len(recent) >= 4 and self._reader_reports_stalled_progression():
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "reader-priority scene closure for stalled progression"
         elif (
             progress_signal["stalled"]
             and len(recent) >= 5

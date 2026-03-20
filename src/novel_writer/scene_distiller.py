@@ -329,6 +329,12 @@ class SceneDistiller:
                 "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction.\n"
                 "This prevents mid-scene pacing drops.\n\n"
             )
+        if self._reader_reports_stalled_progression():
+            prompt += (
+                "Reader flagged that the chapter feels stalled.\n"
+                "Merge pauses, repeated analysis, and lingering mood beats into the nearest scene unless they create a real decision, discovery, or pressure change.\n"
+                "End each retained scene summary on what changed next, not on atmosphere alone.\n\n"
+            )
         if any(k in feedback_corpus for k in ("심리", "내면", "설명적", "감정선", "표정", "행동", "보여")):
             prompt += (
                 "Prefer observable emotion evidence (micro-action, gaze, posture) over abstract "
@@ -521,9 +527,24 @@ class SceneDistiller:
             if str(x).strip()
         ).lower()
 
-    def _reader_prefers_faster_progression(self) -> bool:
+    def _reader_reports_stalled_progression(self) -> bool:
         corpus = self._reader_feedback_corpus()
         return any(
+            token in corpus for token in (
+                "멈춘 이유",
+                "멈춘",
+                "멈춤",
+                "정체",
+                "제자리",
+                "안 나가",
+                "진행이 안",
+                "흐름이 끊",
+            )
+        )
+
+    def _reader_prefers_faster_progression(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return self._reader_reports_stalled_progression() or any(
             token in corpus for token in (
                 "전개가 느려",
                 "느려서 집중",
@@ -548,7 +569,7 @@ class SceneDistiller:
 
     def _reader_prefers_stronger_scene_compaction(self) -> bool:
         corpus = self._reader_feedback_corpus()
-        return any(
+        return self._reader_reports_stalled_progression() or any(
             token in corpus for token in (
                 "반복되는 표현",
                 "비슷한 상황",
@@ -563,6 +584,8 @@ class SceneDistiller:
 
     def _scene_merge_budget(self, target_scenes: int) -> int:
         budget = 0
+        if self._reader_reports_stalled_progression():
+            budget += 1
         if self._reader_prefers_faster_progression():
             budget += 1
         if self._reader_needs_contextual_summaries():
@@ -587,7 +610,10 @@ class SceneDistiller:
                 if score > best_score:
                     best_idx = idx
                     best_score = score
-            merge_threshold = 3 if self._reader_prefers_stronger_scene_compaction() else 4
+            if self._reader_reports_stalled_progression():
+                merge_threshold = 2
+            else:
+                merge_threshold = 3 if self._reader_prefers_stronger_scene_compaction() else 4
             if best_idx < 0 or best_score < merge_threshold:
                 break
             merged[best_idx: best_idx + 2] = [

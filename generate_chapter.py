@@ -129,6 +129,20 @@ def _reader_feedback_has_any(reader_feedback: dict, *tokens: str) -> bool:
     return bool(corpus) and any(str(token).lower() in corpus for token in tokens if token)
 
 
+def _reader_feedback_mentions_stalled_progression(reader_feedback: dict) -> bool:
+    return _reader_feedback_has_any(
+        reader_feedback,
+        "멈춘 이유",
+        "멈춘",
+        "멈춤",
+        "정체",
+        "제자리",
+        "안 나가",
+        "진행이 안",
+        "흐름이 끊",
+    )
+
+
 def adjust_scene_target_for_feedback(
     target_scenes: int,
     target_words: int,
@@ -140,6 +154,8 @@ def adjust_scene_target_for_feedback(
 
     adjusted = target_scenes
     if any(token in corpus for token in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
+        adjusted -= 1
+    if target_words <= 4500 and adjusted >= 5 and _reader_feedback_mentions_stalled_progression(reader_feedback):
         adjusted -= 1
     if (
         target_words <= 4000
@@ -284,6 +300,26 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["max_term_repeats_per_scene"] = 1
         constraints["tension_phrase_cap"] = 1
         constraints["max_sensory_channels_per_paragraph"] = 2
+        constraints["max_emotion_repeats_per_scene"] = 1
+        changed = True
+
+    if _reader_feedback_mentions_stalled_progression(tuned):
+        try:
+            paragraph_cap = int(constraints.get("max_sentences_per_paragraph", 2) or 2)
+        except (TypeError, ValueError):
+            paragraph_cap = 2
+        constraints["max_sentences_per_paragraph"] = min(2, paragraph_cap)
+        try:
+            dense_cap = int(constraints.get("max_sentences_in_dense_info", 2) or 2)
+        except (TypeError, ValueError):
+            dense_cap = 2
+        constraints["max_sentences_in_dense_info"] = min(2, dense_cap)
+        try:
+            summary_words_cap = int(constraints.get("scene_summary_sentence_words_max", 15) or 15)
+        except (TypeError, ValueError):
+            summary_words_cap = 15
+        constraints["scene_summary_sentence_words_max"] = min(14, summary_words_cap)
+        constraints["tension_phrase_cap"] = 1
         constraints["max_emotion_repeats_per_scene"] = 1
         changed = True
 

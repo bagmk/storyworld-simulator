@@ -555,6 +555,13 @@ class ProseGenerator:
                 "- Avoid stacking multiple ultra-short sentences that omit who acted or why it matters.\n"
                 "- If a clipped sentence would feel ambiguous alone, fuse it with the neighboring sentence.\n\n"
             )
+        if self._feedback_reports_stalled_progression():
+            prompt += (
+                "## Stalled Progression Priority\n"
+                "- If a beat already landed, do not spend another paragraph analyzing or restating the same pressure.\n"
+                "- Move from tension to decision, interruption, discovery, or location shift within the next 1-2 sentences.\n"
+                "- End paragraphs on changed situation or consequence, not repeated atmosphere.\n\n"
+            )
         if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
             prompt += (
                 "## Story Momentum Priority\n"
@@ -750,6 +757,10 @@ class ProseGenerator:
             prompt += (
                 "\nMake sure every paragraph advances the scene instead of restating tension."
             )
+        if self._feedback_reports_stalled_progression():
+            prompt += (
+                "\nIf the same pressure already landed, jump to changed consequence in the very next sentence."
+            )
         if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루"):
             prompt += (
                 "\nIf the same situation has already landed, keep one sharper callback and move to consequence."
@@ -795,6 +806,18 @@ class ProseGenerator:
             return text
         return text[: max(0, limit - 3)].rstrip() + "..."
 
+    def _feedback_reports_stalled_progression(self) -> bool:
+        return self._feedback_mentions(
+            "멈춘 이유",
+            "멈춘",
+            "멈춤",
+            "정체",
+            "제자리",
+            "안 나가",
+            "진행이 안",
+            "흐름이 끊",
+        )
+
     def _readability_controls(self) -> dict[str, int]:
         """Readability defaults, overridable via runtime policy."""
         min_sent = int(self.runtime_policy.get("prose_paragraph_min_sentences", 1) or 1)
@@ -802,6 +825,8 @@ class ProseGenerator:
         feedback_cap = self._feedback_paragraph_sentence_cap()
         if feedback_cap is not None:
             max_sent = min(max_sent, feedback_cap)
+        if self._feedback_reports_stalled_progression():
+            max_sent = min(max_sent, 2)
         if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴", "길고 복잡", "이해하기 어려", "이해하기 어렵"):
             # Reader explicitly asked for tighter paragraph breathing.
             max_sent = min(max_sent, 2)
@@ -920,7 +945,7 @@ class ProseGenerator:
         if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
             if self._has_excess_clipped_sentences(text):
                 reasons.append("짧은 문장이 누적되어 문맥 연결이 자주 끊김")
-        if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
+        if self._feedback_reports_stalled_progression() or self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
             if self._has_low_momentum_paragraphs(text):
                 reasons.append("상황 진전 없이 같은 압박을 반복하는 문단이 있어 전개가 느림")
         if self._feedback_mentions("인물", "역할", "의도", "설명", "템포", "느려"):
