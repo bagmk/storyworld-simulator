@@ -645,6 +645,17 @@ class DirectorAI:
             "흐름이 끊",
         )
 
+    def _reader_wants_repeated_confrontation_merge(self) -> bool:
+        return self._feedback_flag_enabled("merge_repeated_confrontation_beats") or self._feedback_mentions(
+            "복도 대면",
+            "밀러와의 복도 대면",
+            "밀러 접촉",
+            "하나의 대화로 압축",
+            "질문의 강도",
+            "제자리에서 다시 시작",
+            "사실상 두 번 반복",
+        )
+
     def _feedback_style_constraints(self) -> dict:
         raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
         return raw if isinstance(raw, dict) else {}
@@ -853,6 +864,13 @@ class DirectorAI:
                 "Turn the sharpest existing cue into reaction, confrontation, movement, or a scene exit."
             )
         if progress_signal["repeated_concern"]:
+            if self._reader_wants_repeated_confrontation_merge():
+                return (
+                    "The same high-pressure contact is being reopened. Keep one linear axis only: question/response, "
+                    "then approach/terms, then intervention or scene close. Do not restart the exchange from zero. "
+                    "Keep only two or three core conditions, then cash out the next beat through a new consequence, "
+                    "choice, interruption, movement, or one concrete leverage detail such as affiliation, card, number, or room reaction."
+                )
             return (
                 "The exchange is revisiting the same leverage point. Do not restate it again. "
                 "Keep only two or three core conditions, then cash out the next beat through a new consequence, "
@@ -1231,6 +1249,12 @@ class DirectorAI:
                 "either end the scene or force a new consequence, choice, interruption, or movement. "
                 "Keep at most 2-3 core conditions and let any extra pressure arrive through a concrete detail like affiliation, card, number, or room reaction.\n"
             )
+        confrontation_axis_rule = ""
+        if self._reader_wants_repeated_confrontation_merge():
+            confrontation_axis_rule = (
+                "15) Keep high-pressure contact on one linear axis: question/response -> approach/terms -> intervention or scene close. "
+                "If the same pair already made contact, do not restart from another fresh stare-down or another first question.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1257,6 +1281,7 @@ class DirectorAI:
             f"{brevity_rule}"
             f"{show_dont_tell_rule}"
             f"{repeated_concern_rule}"
+            f"{confrontation_axis_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1369,7 +1394,9 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to stop repeated technical explanation without new emotional turn"
-        elif progress_signal["repeated_concern"] and len(recent) >= 4:
+        elif progress_signal["repeated_concern"] and len(recent) >= (
+            3 if self._reader_wants_repeated_confrontation_merge() else 4
+        ):
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to stop revisiting the same concern without new consequence"
@@ -1520,11 +1547,12 @@ class DirectorAI:
     # ------------------------------------------------------------------ #
 
     def _scene_progress_signal(self, recent_interactions: Optional[list[dict]]) -> dict[str, bool]:
+        min_window = 3 if self._reader_wants_repeated_confrontation_merge() else 4
         recent = [
             i for i in (recent_interactions or [])
             if str(i.get("speaker_id", "")).strip() != "director"
         ][-5:]
-        if len(recent) < 4:
+        if len(recent) < min_window:
             return {
                 "stalled": False,
                 "closure_ready": False,
@@ -1541,12 +1569,16 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip()
         ]
         repeated_speaker = len(recent_speakers) >= 3 and len(set(recent_speakers[-3:])) == 1
-        repeated_pair = len(recent_speakers) >= 4 and len(set(recent_speakers[-4:])) <= 2
+        repeated_pair = len(recent_speakers) >= (
+            3 if self._reader_wants_repeated_confrontation_merge() else 4
+        ) and len(set(recent_speakers[-(3 if self._reader_wants_repeated_confrontation_merge() else 4):])) <= 2
         mostly_dialogue = sum(
             1 for i in recent if str(i.get("action_type", "")).strip() == "dialogue"
-        ) >= 3
+        ) >= min(3, len(recent))
         fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
-        low_novelty = len({fp for fp in fingerprints if fp}) <= 2
+        low_novelty = len({fp for fp in fingerprints if fp}) <= (
+            1 if self._reader_wants_repeated_confrontation_merge() and len(recent) <= 3 else 2
+        )
         technical_stall = self._has_repetitive_technical_exchange(recent)
         flat_tension = self._has_flat_tension_plateau(recent)
         explanation_loop = self._has_explanatory_loop(recent)
@@ -1641,14 +1673,15 @@ class DirectorAI:
         return self._has_repeated_confrontation_exchange(recent_interactions)
 
     def _has_negotiation_condition_loop(self, recent_interactions: list[dict]) -> bool:
+        window = 3 if self._reader_wants_repeated_confrontation_merge() else 4
         recent = recent_interactions[-4:]
-        if len(recent) < 4:
+        if len(recent) < window:
             return False
         dialogue_rows = [
             row for row in recent
             if str(row.get("action_type", "")).strip() == "dialogue"
         ]
-        if len(dialogue_rows) < 3:
+        if len(dialogue_rows) < min(3, window):
             return False
 
         concern_signatures: list[set[str]] = []
@@ -1665,14 +1698,15 @@ class DirectorAI:
             if re.search(r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|배지|모니터|복도 끝|문 앞)", low):
                 concrete_detail_hits += 1
 
-        if len(concern_signatures) < 3 or negotiation_hits < 3:
+        required_hits = 2 if window == 3 else 3
+        if len(concern_signatures) < required_hits or negotiation_hits < required_hits:
             return False
         overlap_pairs = sum(
             1
             for idx in range(1, len(concern_signatures))
             if concern_signatures[idx] & concern_signatures[idx - 1]
         )
-        if overlap_pairs < 2 or concrete_detail_hits >= 1:
+        if overlap_pairs < (1 if window == 3 else 2) or concrete_detail_hits >= 1:
             return False
         return not any(
             self._has_consequence_shift(str(row.get("content", "")))
@@ -1681,10 +1715,11 @@ class DirectorAI:
         )
 
     def _has_repeated_confrontation_exchange(self, recent_interactions: list[dict]) -> bool:
+        window = 3 if self._reader_wants_repeated_confrontation_merge() else 4
         recent = recent_interactions[-4:]
-        if len(recent) < 4:
+        if len(recent) < window:
             return False
-        if sum(1 for row in recent if str(row.get("action_type", "")).strip() == "dialogue") < 3:
+        if sum(1 for row in recent if str(row.get("action_type", "")).strip() == "dialogue") < min(3, window):
             return False
         recent_speakers = [
             str(row.get("speaker_id", "")).strip()
@@ -1704,7 +1739,7 @@ class DirectorAI:
             1 for idx in range(1, len(signatures))
             if self._confrontation_signatures_overlap(signatures[idx - 1], signatures[idx])
         )
-        if overlap_pairs < 2:
+        if overlap_pairs < (1 if window == 3 else 2):
             return False
         return not any(
             self._has_confrontation_resolution_shift(str(row.get("content", "")))

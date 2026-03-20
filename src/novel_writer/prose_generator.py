@@ -155,6 +155,7 @@ class ProseGenerator:
         final = self._ensure_anchor_coverage(final, coverage_anchors, target_words, style)
         final = self._reader_feedback_final_pass(final, target_words, style, coverage_anchors)
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
+        final = self._cleanup_pov_reference_artifacts(final, style, protagonist_name)
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
         final = self._compress_repeated_tension_beats(final)
@@ -394,6 +395,7 @@ class ProseGenerator:
         established_anchors: Optional[list[str]] = None,
     ) -> str:
         """Generate literary prose for one distilled scene."""
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         ep = episode_context
         protagonist_short = "수민" if "sumin" in protagonist_name.lower() else protagonist_name
@@ -754,6 +756,27 @@ class ProseGenerator:
                 "- Avoid flat emotional intensity across consecutive paragraphs.\n"
                 "- After an easing beat, re-enter tension with a concrete trigger.\n\n"
             )
+        if style == "first_person" or self._feedback_flag_enabled("force_first_person_pov"):
+            prompt += (
+                "## First-Person POV Priority\n"
+                "- Keep Sumin's narration in first person throughout exposition and interior beats.\n"
+                "- Do not refer to Sumin as '수민은/그는/그녀는' in narration unless another character is speaking.\n"
+                "- Anchor perception, judgment, and immediate bodily reaction to '나' when the sentence belongs to narration.\n\n"
+            )
+        if self._feedback_needs_draft_cleanup():
+            prompt += (
+                "## Draft Cleanup Priority\n"
+                "- Remove fragment-like unfinished sentences unless they are deliberate complete beats.\n"
+                "- Keep names, titles, and demonstratives stable so the reader never has to guess who '그' or '그 사람' means.\n"
+                "- If a sentence starts with a vague pronoun or pointer, replace it with the acting subject when needed.\n\n"
+            )
+        avoid_terms = sorted(self._feedback_transition_avoid_terms())
+        if avoid_terms:
+            prompt += (
+                "## Avoid Recycled Bridge Phrases\n"
+                f"- Do not use these stock transition openers unless absolutely unavoidable: {', '.join(avoid_terms[:8])}\n"
+                "- Prefer concrete movement, gaze, object, or room-change cues instead.\n\n"
+            )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
             prompt += (
@@ -1079,6 +1102,20 @@ class ProseGenerator:
                     role_explain_blocks += 1
             if role_explain_blocks >= 1:
                 reasons.append("인물 역할/의도 설명이 과밀해 전개 속도가 느림")
+        if self._feedback_needs_draft_cleanup():
+            if re.search(r"\b(real[- ]time viable if externally supported)\b", text, re.IGNORECASE):
+                reasons.append("영어 초안 흔적이 남아 완성 원고처럼 읽히지 않음")
+            fragment_runs = 0
+            for block in blocks:
+                clipped = [
+                    sent for sent in self._split_korean_sentences(block)
+                    if len(re.findall(r"[0-9A-Za-z가-힣]+", sent)) <= 4
+                    and not re.search(r"[\"“”'‘’]", sent)
+                ]
+                if len(clipped) >= 2:
+                    fragment_runs += 1
+            if fragment_runs >= 1:
+                reasons.append("미완·초안처럼 보이는 짧은 문장 뭉침이 남아 있음")
 
         if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "인물", "역할", "구분", "호칭", "이름", "말투", "어투", "톤", "speaker"):
             ambiguous_dialogue_lines = 0
@@ -1110,9 +1147,18 @@ class ProseGenerator:
         word_budget: int,
         style: str,
     ) -> str:
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         reason_text = "; ".join(r for r in reasons if r).strip() or "가독성 개선 필요"
         sentence_cap = self._feedback_sentence_word_cap(default=25)
+        first_person_cleanup_line = (
+            "- 수민 서술은 1인칭으로 유지하고 내레이션에서 '수민은/그는' 식 자기지칭을 지울 것\n"
+            if style == "first_person" else ""
+        )
+        draft_cleanup_line = (
+            "- 미완 문장, 대명사 흔들림, 호칭·지시어 혼선을 정리해 완성 원고처럼 읽히게 할 것\n"
+            if self._feedback_needs_draft_cleanup() else ""
+        )
         prompt = (
             "다음 한국어 장면 산문을 같은 사건 흐름으로 유지하면서 1회 리라이트하라.\n"
             f"개선 사유: {reason_text}\n\n"
@@ -1140,6 +1186,8 @@ class ProseGenerator:
             "- 영어 키워드나 기술 용어 뒤에는 다음 문장으로 쉬운 풀어쓰기를 한 번 붙인 뒤, 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
             "- 쉼표와 접속으로 절이 길게 이어지면 짧고 분명한 두 문장으로 나눌 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
+            f"{first_person_cleanup_line}"
+            f"{draft_cleanup_line}"
             "- 출력은 소설 본문만\n\n"
             f"원문:\n{text}"
         )
@@ -1330,6 +1378,12 @@ class ProseGenerator:
         raw = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
         return raw if isinstance(raw, dict) else {}
 
+    def _effective_style(self, style: str) -> str:
+        requested = str(style or "third_person_close").strip() or "third_person_close"
+        if requested != "first_person" and self._feedback_flag_enabled("force_first_person_pov"):
+            return "first_person"
+        return requested
+
     def _feedback_flag_enabled(self, key: str, default: bool = False) -> bool:
         constraints = self._feedback_style_constraints()
         raw = constraints.get(key, 1 if default else 0)
@@ -1485,6 +1539,19 @@ class ProseGenerator:
             window = default
         return max(3, min(6, window))
 
+    def _feedback_needs_draft_cleanup(self) -> bool:
+        return self._feedback_mentions(
+            "영어 혼입",
+            "영어 표현",
+            "오탈자",
+            "퇴고 전 초안",
+            "퇴고 전 원고",
+            "미완 문장",
+            "대명사 오류",
+            "호칭 혼선",
+            "지시어 혼선",
+        ) or self._feedback_flag_enabled("force_complete_sentences") or self._feedback_flag_enabled("stabilize_reference_labels")
+
     @staticmethod
     def _count_feedback_term_occurrences(text: str, term: str) -> int:
         return count_feedback_term_occurrences(text, term)
@@ -1514,10 +1581,12 @@ class ProseGenerator:
             "긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려",
             "감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사",
             "비슷한 감각 묘사", "감각 묘사", "영어 키워드", "영어 표현", "해석 부담",
+            "1인칭", "시점", "미완 문장", "대명사 오류", "지시어 혼선", "퇴고 전 초안", "퇴고 전 원고",
         )
         if not needs_pass:
             return text
 
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         anchors = chapter_anchors or []
         anchors_text = ", ".join(anchors[:20]) if anchors else "(none)"
@@ -1539,6 +1608,14 @@ class ProseGenerator:
         paragraph_cap_line = (
             f"- 문단은 최대 {paragraph_sentence_cap}문장까지 유지하고 초과 시 분할\n"
             if paragraph_sentence_cap is not None else ""
+        )
+        first_person_cleanup_line = (
+            "- 수민 서술은 1인칭으로 고정하고 내레이션에서 '수민은/그는' 식 자기지칭을 제거할 것\n"
+            if style == "first_person" else ""
+        )
+        draft_cleanup_line = (
+            "- 미완 문장, 대명사 오류, 호칭·지시어 혼선을 먼저 정리해 초안 흔적을 지울 것\n"
+            if self._feedback_needs_draft_cleanup() else ""
         )
         prompt = (
             "다음 한국어 소설 본문을 사건/정보/감정선 순서를 유지한 채 1회 리라이트하라.\n"
@@ -1581,6 +1658,8 @@ class ProseGenerator:
             "- 이미 알려진 인물을 매번 새 호칭으로 재소개하지 말 것\n"
             "- 인물의 역할/의도는 장면상 필요할 때만 짧게 제시하고 중복 설명은 삭제\n"
             "- 영어 키워드/기술 용어 뒤에는 바로 인물의 이해, 당혹, 긴장, 행동 반응을 붙일 것\n"
+            f"{first_person_cleanup_line}"
+            f"{draft_cleanup_line}"
             f"- 가능한 맥락에서 다음 앵커를 보존: {anchors_text}\n"
             "- 출력은 소설 본문만\n\n"
             "독자 피드백:\n"
@@ -1984,6 +2063,7 @@ class ProseGenerator:
         if len(sections) <= 1:
             return sections[0] if sections else ""
 
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         parts = [sections[0]]
 
@@ -2056,6 +2136,7 @@ class ProseGenerator:
     ) -> str:
         """Final consistency and word count pass."""
         current = len(text.split())
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         anchors = chapter_anchors or []
         anchors_text = ", ".join(anchors[:30]) if anchors else "(none)"
@@ -2175,6 +2256,7 @@ class ProseGenerator:
             "기술", "용어", "약자", "약어", "전문", "jargon", "acronym", "반복", "중복"
         ) else 6
         missing = [a for a in anchors if a not in present][:missing_cap]
+        style = self._effective_style(style)
         pov = "first person" if style == "first_person" else "third person close"
         prompt = (
             f"Revise this Korean chapter to preserve story flow while increasing evidence fidelity.\n\n"
@@ -2210,6 +2292,7 @@ class ProseGenerator:
             return text
 
         out = text
+        style = self._effective_style(style)
         protagonist = "수민" if "sumin" in protagonist_name.lower() else protagonist_name
 
         if style == "third_person_close":
@@ -2251,6 +2334,66 @@ class ProseGenerator:
                     out = f"{date_phrase}, 수민은 그날의 공기가 바뀌는 순간을 또렷하게 감지했다.\n\n{out}"
 
         return out
+
+    def _cleanup_pov_reference_artifacts(
+        self,
+        text: str,
+        style: str,
+        protagonist_name: str,
+    ) -> str:
+        if not text:
+            return text
+
+        style = self._effective_style(style)
+        if style != "first_person" and not self._feedback_needs_draft_cleanup():
+            return text
+
+        protagonist_short = "수민" if "sumin" in protagonist_name.lower() else protagonist_name.strip()
+        alias_candidates = [
+            protagonist_short,
+            protagonist_name.strip(),
+        ]
+        alias_candidates = [alias for alias in alias_candidates if alias]
+        unique_aliases: list[str] = []
+        seen_aliases: set[str] = set()
+        for alias in alias_candidates:
+            key = alias.lower()
+            if key in seen_aliases:
+                continue
+            seen_aliases.add(key)
+            unique_aliases.append(alias)
+        alias_pattern = "|".join(
+            re.escape(alias)
+            for alias in unique_aliases
+        )
+        if not alias_pattern:
+            alias_pattern = re.escape(protagonist_short or protagonist_name or "수민")
+
+        out_blocks: list[str] = []
+        for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+            sentences = self._split_korean_sentences(block)
+            if not sentences:
+                out_blocks.append(block)
+                continue
+            rebuilt: list[str] = []
+            for sent in sentences:
+                current = sent.strip()
+                if not current:
+                    continue
+                if not re.match(r"^[\"“”'‘’]", current):
+                    if style == "first_person":
+                        current = re.sub(rf"^({alias_pattern})(?:은|는)(?=[\s,.;!?…]|$)", "나는", current)
+                        current = re.sub(rf"^({alias_pattern})(?:이|가)(?=[\s,.;!?…]|$)", "내가", current)
+                        current = re.sub(rf"^({alias_pattern})의(?=[\s,.;!?…]|$)", "내", current)
+                        current = re.sub(r"^(그는|그녀는)(?=[\s,.;!?…]|$)", "나는", current)
+                        current = re.sub(r"^(그가|그녀가)(?=[\s,.;!?…]|$)", "내가", current)
+                        current = re.sub(r"^(그의|그녀의)(?=[\s,.;!?…]|$)", "내", current)
+                    if self._feedback_needs_draft_cleanup():
+                        current = re.sub(r"\b수민는\b", "수민은", current)
+                        current = re.sub(r"\b단어은\b", "단어는", current)
+                rebuilt.append(current)
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _reduce_local_repetition(self, text: str) -> str:
         """
@@ -2685,10 +2828,10 @@ class ProseGenerator:
     @staticmethod
     def _transition_replacement_catalog() -> dict[str, list[str]]:
         return {
-            "그리고": ["짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이", "말끝이 가라앉자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "정면을 버틴 채"],
+            "그리고": ["답이 바로 나오지 않는 사이", "말끝이 가라앉자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤"],
             "그러자": ["답이 바로 나오지 않는 사이", "말끝이 떨어지자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "짧은 정적 끝에", "정면을 버틴 채"],
             "다만": ["대신", "문제는", "그래도", "한편"],
-            "이어서": ["말끝이 가라앉자", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이", "누군가 펜을 내려놓자", "의자 다리가 짧게 끌리자", "정면을 버틴 채"],
+            "이어서": ["말끝이 가라앉자", "답이 바로 나오지 않는 사이", "누군가 펜을 내려놓자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤"],
             "그 순간": ["말끝이 떨어지자", "문 쪽에서 인기척이 일자", "누군가 펜을 내려놓자", "짧은 정적 끝에", "의자 다리가 짧게 끌리자", "실내의 공기가 식자"],
         }
 
@@ -2828,12 +2971,12 @@ class ProseGenerator:
         connectors = [
             conn
             for conn in [
-                "짧은 숨이 스친 뒤",
                 "답이 바로 나오지 않는 사이",
-                "정면을 버틴 채",
                 "말끝이 가라앉자",
                 "문 쪽에서 인기척이 일자",
                 "의자 다리가 짧게 끌리자",
+                "정면을 버틴 채",
+                "짧은 숨이 스친 뒤",
             ]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]

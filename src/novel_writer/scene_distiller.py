@@ -595,6 +595,7 @@ class SceneDistiller:
             scene.narrative_summary,
             scene.characters_present,
         )
+        scene.narrative_summary = self._stabilize_summary_sentence_subjects(scene)
         scene.key_actions = [
             self._normalize_character_mentions(line, scene.characters_present)
             for line in scene.key_actions
@@ -2048,6 +2049,59 @@ class SceneDistiller:
             re.IGNORECASE,
         )
         return pattern.sub(replacement, raw)
+
+    def _stabilize_summary_sentence_subjects(self, scene: DistilledScene) -> str:
+        summary = str(scene.narrative_summary or "").strip()
+        if not summary:
+            return summary
+
+        sentences = [
+            self._ensure_summary_sentence(s)
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", summary)
+            if s.strip()
+        ]
+        if not sentences:
+            return summary
+
+        preferred_subject = self._preferred_named_identity(scene.characters_present) or (
+            scene.characters_present[0] if scene.characters_present else "인물은"
+        )
+        if preferred_subject and not preferred_subject.endswith(("은", "는")):
+            preferred_topic = f"{preferred_subject}은"
+        else:
+            preferred_topic = preferred_subject
+        if preferred_subject and not preferred_subject.endswith(("이", "가")):
+            preferred_subject_form = f"{preferred_subject}이"
+        else:
+            preferred_subject_form = preferred_subject
+
+        rebuilt: list[str] = []
+        for idx, sentence in enumerate(sentences):
+            current = sentence
+            current = re.sub(r"^(그는|그녀는|그 사람은|그 남자는)(?=[\s,.;!?…]|$)", preferred_topic, current)
+            current = re.sub(r"^(그가|그녀가|그 사람이|그 남자가)(?=[\s,.;!?…]|$)", preferred_subject_form, current)
+            if idx == 0 and self._summary_looks_fragmentary(current):
+                replacement = self._summary_replacement_sentence(scene)
+                if replacement:
+                    current = replacement
+            rebuilt.append(self._ensure_summary_sentence(current))
+
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(rebuilt[:max_sentences]).strip()
+
+    @staticmethod
+    def _summary_looks_fragmentary(sentence: str) -> bool:
+        sent = re.sub(r"\s+", " ", str(sentence or "")).strip()
+        if not sent:
+            return False
+        if re.search(r"[\"“”'‘’]", sent):
+            return False
+        if re.search(r"(했다|했다\.|였다|있었다|없었다|드러났다|밝혀졌다|멈췄다|알아차렸다|건넸다|질문했다|대답했다|응답했다)$", sent):
+            return False
+        token_count = len(re.findall(r"[0-9A-Za-z가-힣]+", sent))
+        if token_count > 6:
+            return False
+        return bool(re.search(r"(정적|침묵|공기|소음|숨|시선|그 말|그것|이것|복도)", sent))
 
     def _clarify_adjacent_character_entries(self, scenes: list[DistilledScene]) -> None:
         for idx, scene in enumerate(scenes):

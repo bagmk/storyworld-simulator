@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from generate_chapter import (
     _apply_reader_feedback_pipeline_overrides,
+    _resolve_generation_style,
     _sanitize_chapter_draft_artifacts,
     adjust_scene_target_for_feedback,
 )
@@ -214,6 +215,33 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("이름 모를 수트 차림의 남자", refined[0].narrative_summary)
         self.assertIn("Christian Miller", refined[1].narrative_summary)
 
+    def test_scene_distiller_stabilizes_summary_subjects_and_fragments(self):
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config={},
+            reader_feedback=_feedback("미완 문장", "대명사 오류", "호칭 혼선"),
+        )
+        scene = DistilledScene(
+            scene_number=1,
+            title="복도 대기",
+            turn_range=(1, 2),
+            location="복도",
+            characters_present=["수민", "Christian Miller"],
+            key_dialogue=[],
+            key_actions=["수민은 자료를 가방 안으로 밀어 넣었다."],
+            discoveries=[],
+            emotional_arc="경계",
+            beat_references=[],
+            narrative_summary="그는 숨을 고르지 못했다. 복도 소음.",
+            pacing="building",
+            raw_turn_count=2,
+        )
+
+        distiller._apply_scene_readability_guards(scene)
+
+        self.assertIn("수민은", scene.narrative_summary)
+        self.assertNotIn("복도 소음.", scene.narrative_summary)
+
     def test_scene_distiller_coerces_prefixed_turn_numbers(self):
         self.assertEqual(SceneDistiller._coerce_turn_number("T11"), 11)
         self.assertEqual(SceneDistiller._coerce_turn_number("turn 14"), 14)
@@ -407,6 +435,25 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("짧은 숨이 스친 뒤", constraints.get("avoid_transition_terms", []))
         self.assertEqual(constraints.get("max_transition_openers_per_block"), 1)
 
+    def test_pipeline_overrides_capture_first_person_and_draft_cleanup_flags(self):
+        tuned = _apply_reader_feedback_pipeline_overrides(
+            _feedback("수민 1인칭 시점으로 고정하라", "미완 문장과 대명사 오류를 먼저 정리하라")
+        )
+
+        constraints = tuned.get("style_constraints", {})
+
+        self.assertEqual(constraints.get("force_first_person_pov"), 1)
+        self.assertEqual(constraints.get("force_complete_sentences"), 1)
+        self.assertEqual(constraints.get("stabilize_reference_labels"), 1)
+
+    def test_generation_style_resolves_from_reader_feedback(self):
+        style = _resolve_generation_style(
+            "third_person_close",
+            _feedback("시리즈 컨텍스트에 맞춰 수민 1인칭 시점으로 고정하라"),
+        )
+
+        self.assertEqual(style, "first_person")
+
     def test_scene_distiller_compresses_overloaded_threat_signal_stack(self):
         distiller = SceneDistiller(
             llm=DummyLLM(),
@@ -507,6 +554,25 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("실시간", cleaned)
         self.assertIn("수민은", cleaned)
         self.assertIn("단어는", cleaned)
+
+    def test_prose_generator_first_person_guard_rewrites_leading_self_reference(self):
+        prose = ProseGenerator(
+            llm=DummyLLM(),
+            episode_config={"id": "ep_test"},
+            reader_feedback={
+                **_feedback("수민 1인칭 시점으로 고정하라"),
+                "style_constraints": {"force_first_person_pov": 1},
+            },
+        )
+
+        cleaned = prose._cleanup_pov_reference_artifacts(
+            "수민은 숨을 골랐다. 그녀는 문 쪽을 먼저 봤다.",
+            "third_person_close",
+            "Kim Sumin",
+        )
+
+        self.assertIn("나는 숨을 골랐다.", cleaned)
+        self.assertIn("나는 문 쪽을 먼저 봤다.", cleaned)
 
 
 if __name__ == "__main__":

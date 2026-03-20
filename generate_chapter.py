@@ -162,6 +162,18 @@ def _reader_feedback_needs_draft_cleanup(reader_feedback: dict) -> bool:
     )
 
 
+def _reader_feedback_prefers_sumin_first_person(reader_feedback: dict) -> bool:
+    return _reader_feedback_has_any(
+        reader_feedback,
+        "수민 1인칭",
+        "수민 1인칭 시점",
+        "1인칭 시점",
+        "1인칭으로",
+        "1인칭 고정",
+        "시점으로 고정",
+    )
+
+
 def _sanitize_chapter_draft_artifacts(chapter_text: str, reader_feedback: dict) -> str:
     if not chapter_text or not _reader_feedback_needs_draft_cleanup(reader_feedback):
         return chapter_text
@@ -316,6 +328,13 @@ def adjust_scene_target_for_feedback(
     # Dynamic floor: never allow so few scenes that any one exceeds _MAX_WORDS_PER_SCENE.
     scene_floor = math.ceil(target_words / _MAX_WORDS_PER_SCENE)
     return max(scene_floor, adjusted)
+
+
+def _resolve_generation_style(cli_style: str, reader_feedback: dict) -> str:
+    style = str(cli_style or "third_person_close").strip() or "third_person_close"
+    if style != "first_person" and _reader_feedback_prefers_sumin_first_person(reader_feedback):
+        return "first_person"
+    return style
 
 
 def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
@@ -770,6 +789,29 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         )
         changed = True
 
+    if _reader_feedback_prefers_sumin_first_person(tuned):
+        try:
+            refresh_streak = int(constraints.get("speaker_refresh_streak", 2) or 2)
+        except (TypeError, ValueError):
+            refresh_streak = 2
+        constraints["force_first_person_pov"] = 1
+        constraints["speaker_refresh_streak"] = max(2, refresh_streak)
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "미완 문장",
+        "대명사 오류",
+        "호칭 혼선",
+        "지시어 혼선",
+        "퇴고 전 초안",
+        "퇴고 전 원고",
+        "신뢰도를 떨어",
+    ):
+        constraints["force_complete_sentences"] = 1
+        constraints["stabilize_reference_labels"] = 1
+        changed = True
+
     if _reader_feedback_has_any(
         tuned,
         "다크 수트 남자",
@@ -797,6 +839,8 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     if _reader_feedback_needs_draft_cleanup(tuned):
         constraints["max_jargon_terms_per_paragraph"] = 1
         constraints["force_reaction_after_jargon"] = 1
+        constraints["force_complete_sentences"] = 1
+        constraints["stabilize_reference_labels"] = 1
         changed = True
 
     if _reader_feedback_has_any(
@@ -1032,6 +1076,13 @@ def main() -> None:
 
     # Determine target words
     target_words = args.words or episode_config.get("recommended_length", 3500)
+    resolved_style = _resolve_generation_style(args.style, reader_feedback)
+    if resolved_style != args.style:
+        logger.info(
+            "Reader feedback adjusted prose POV style: %s -> %s",
+            args.style,
+            resolved_style,
+        )
 
     # Auto-calculate target scenes based on word count if not specified
     # Logic: shorter episodes need fewer scenes to avoid fragmentation
@@ -1167,7 +1218,7 @@ def main() -> None:
     chapter_path = prose_gen.generate_chapter(
         scenes=scenes,
         protagonist_name=args.protagonist_name,
-        style=args.style,
+        style=resolved_style,
         target_words=target_words,
     )
     prose_elapsed = (datetime.utcnow() - prose_start).total_seconds()
