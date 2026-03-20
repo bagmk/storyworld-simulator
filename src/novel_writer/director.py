@@ -966,6 +966,11 @@ class DirectorAI:
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
+        if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루", "문장이 너무 길", "길고 복잡"):
+            prompt += (
+                "\nReader priority: if recent turns are paraphrasing the same point or mood without new information, "
+                "prefer ending the scene over extending the exchange."
+            )
 
         result = self._safe_llm_call(
             [{"role": "user", "content": prompt}],
@@ -1012,6 +1017,22 @@ class DirectorAI:
             end_scene = True
             reason = (reason + "; " if reason else "") + \
                 "scene closure to avoid drag after recent beat landed"
+        elif (
+            progress_signal["stalled"]
+            and len(recent) >= 5
+            and self._feedback_mentions(
+                "반복되는 표현",
+                "비슷한 상황",
+                "비슷한 상황과 묘사",
+                "묘사가 반복",
+                "지루",
+                "문장이 너무 길",
+                "길고 복잡",
+            )
+        ):
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "reader-priority scene closure to cut repeated exchange"
 
         self._log(
             "turn_allocation",
@@ -1144,13 +1165,16 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip()
         ]
         repeated_speaker = len(recent_speakers) >= 3 and len(set(recent_speakers[-3:])) == 1
+        repeated_pair = len(recent_speakers) >= 4 and len(set(recent_speakers[-4:])) <= 2
         mostly_dialogue = sum(
             1 for i in recent if str(i.get("action_type", "")).strip() == "dialogue"
         ) >= 3
         fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
         low_novelty = len({fp for fp in fingerprints if fp}) <= 2
         closure_ready = self._has_scene_exit_cue(recent)
-        stalled = mostly_dialogue and (repeated_speaker or low_novelty)
+        stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
+            repeated_pair and low_novelty
+        )
         return {"stalled": stalled, "closure_ready": closure_ready}
 
     @staticmethod

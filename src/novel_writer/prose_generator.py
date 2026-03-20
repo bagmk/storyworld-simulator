@@ -444,6 +444,7 @@ class ProseGenerator:
             position = f"MIDDLE (scene {scene_index + 1}/{total_scenes}) — develop naturally"
 
         readability = self._readability_controls()
+        sentence_cap = self._feedback_sentence_word_cap(default=25)
         term_glossary = self._build_scene_term_glossary(scene, matched_beats, blocked_terms=established)
 
         system = (
@@ -487,6 +488,7 @@ class ProseGenerator:
             f"## POV and Time Guidance\n{pov_and_time}\n"
             f"## Readability and Rhythm Constraints\n"
             f"- Keep paragraph rhythm breathable: usually {readability['paragraph_min']}-{readability['paragraph_max']} sentences per paragraph.\n"
+            f"- Keep most sentences under about {sentence_cap} words; split explanatory chains before they sprawl.\n"
             f"- Alternate inner thought and outer action to avoid continuous analytical voice.\n"
             f"- Use short sentence beats at tension peaks for pacing contrast.\n"
             f"- Avoid repeating the same tension phrasing across nearby paragraphs.\n\n"
@@ -496,6 +498,7 @@ class ProseGenerator:
             f"- Technical terms: first mention only gets a short plain-language gloss; later mentions must be concise callbacks.\n"
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
             f"- If long sentences continue for 3+ beats, insert one short sentence to reset pacing.\n"
+            f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
@@ -521,14 +524,14 @@ class ProseGenerator:
                 "- Add subtle per-character speech habits without caricature.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
             )
-        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
                 "## Sentence Variety Priority\n"
                 "- Vary sentence openings and clause shapes; do not let 3 nearby sentences start with the same subject/action pattern.\n"
                 "- Mix short, medium, and longer sentences with deliberate contrast instead of repeating clipped declarative beats.\n"
                 "- When using a short sentence for tension, surround it with context-rich sentences so rhythm does not turn mechanical.\n\n"
             )
-        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들", "길고 복잡", "이해하기 어려", "이해하기 어렵"):
             prompt += (
                 "## Context Link Priority\n"
                 "- Keep subject, place, and causal link explicit whenever a sentence becomes short.\n"
@@ -541,6 +544,13 @@ class ProseGenerator:
                 "- Each paragraph must change something: decision, tension, discovery, or relationship pressure.\n"
                 "- Remove restatement of the same concern once it has landed.\n"
                 "- If a conversation beat explains too long, compress it and move to reaction or consequence.\n\n"
+            )
+        if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루"):
+            prompt += (
+                "## Anti-Repetition Priority\n"
+                "- Keep only the freshest local image or phrase for a repeated tension beat.\n"
+                "- If a paragraph repeats a situation already established, convert it into one short consequence sentence instead.\n"
+                "- Do not reuse the same emotional paraphrase across adjacent paragraphs.\n\n"
             )
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
             prompt += (
@@ -688,17 +698,21 @@ class ProseGenerator:
             prompt += (
                 "\nAt each location/focus change, include a short transition sentence to keep flow explicit."
             )
-        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
                 "\nVary sentence openings and do not repeat the same clipped sentence pattern three times in a row."
             )
-        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들", "길고 복잡", "이해하기 어려", "이해하기 어렵"):
             prompt += (
                 "\nIf a short sentence weakens context, merge it into a clearer cause-and-effect sentence."
             )
         if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
             prompt += (
                 "\nMake sure every paragraph advances the scene instead of restating tension."
+            )
+        if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루"):
+            prompt += (
+                "\nIf the same situation has already landed, keep one sharper callback and move to consequence."
             )
         if self._feedback_mentions("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려"):
             prompt += (
@@ -748,7 +762,7 @@ class ProseGenerator:
         feedback_cap = self._feedback_paragraph_sentence_cap()
         if feedback_cap is not None:
             max_sent = min(max_sent, feedback_cap)
-        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴"):
+        if self._feedback_mentions("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴", "길고 복잡", "이해하기 어려", "이해하기 어렵"):
             # Reader explicitly asked for tighter paragraph breathing.
             max_sent = min(max_sent, 2)
         min_sent = max(1, min(4, min_sent))
@@ -895,6 +909,7 @@ class ProseGenerator:
     ) -> str:
         pov = "first person" if style == "first_person" else "third person close"
         reason_text = "; ".join(r for r in reasons if r).strip() or "가독성 개선 필요"
+        sentence_cap = self._feedback_sentence_word_cap(default=25)
         prompt = (
             "다음 한국어 장면 산문을 같은 사건 흐름으로 유지하면서 1회 리라이트하라.\n"
             f"개선 사유: {reason_text}\n\n"
@@ -902,6 +917,7 @@ class ProseGenerator:
             f"- 시점 유지: {pov}\n"
             f"- 분량 유지: 약 {word_budget}단어(크게 벗어나지 말 것)\n"
             "- 긴 설명문을 줄이고 문단 호흡을 짧게 분할\n"
+            f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 인과가 길어지면 둘로 나눌 것\n"
             "- 같은 기술 용어/수치를 연속 문단에서 반복 설명하지 말 것\n"
             "- 기술 용어 첫 언급만 짧게 풀고 이후는 짧은 콜백으로 처리\n"
             "- 약어/대문자 기술 표기는 첫 등장에만 짧게 풀고 이후 최소화\n"
@@ -909,6 +925,7 @@ class ProseGenerator:
             "- 이미 등장한 인물의 역할/의도 재설명은 축약하고 장면 진행을 우선\n"
             "- 같은 문장 시작 패턴이나 단문 리듬을 3회 이상 반복하지 말 것\n"
             "- 짧은 문장은 앞뒤 문장과 인과관계가 분명할 때만 단독으로 둘 것\n"
+            "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             "- 출력은 소설 본문만\n\n"
@@ -934,17 +951,21 @@ class ProseGenerator:
                 "- 긴 대화 구간은 1-2회 발화마다 짧은 행동/환경 반응 비트를 삽입할 것\n"
                 "- 설명형 대사를 연속으로 길게 배치하지 말 것\n"
             )
-        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
                 "- 인접 문장에서 주어 시작과 종결 리듬을 분산해 단조로운 문장 구조 반복을 피할 것\n"
             )
-        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들", "길고 복잡", "이해하기 어려", "이해하기 어렵"):
             prompt += (
                 "- 지나치게 짧은 문장이 이어지면 1개 이상을 연결해 누가/왜/어디서가 드러나게 만들 것\n"
             )
         if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
             prompt += (
                 "- 이미 성립한 긴장이나 정보를 반복 설명하지 말고 바로 다음 반응 또는 결정으로 넘어갈 것\n"
+            )
+        if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루"):
+            prompt += (
+                "- 비슷한 상황과 묘사를 다른 표현으로 반복하지 말고, 장면이 달라진 지점만 남길 것\n"
             )
         if self._feedback_mentions("감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사"):
             prompt += (
@@ -993,8 +1014,8 @@ class ProseGenerator:
             return True
 
         # Rhythm monotony complaints are often phrased without explicit "긴 문장" wording.
-        if any(k in lowered for k in ("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴")):
-            if any(token in all_text for token in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "단조롭게", "리듬이 반복", "속도감이 단조", "속도감이 떨어", "템포가 느려", "템포가 떨어")):
+        if any(k in lowered for k in ("긴 문장", "문장이 길", "긴 문단", "문단이 길", "문단", "호흡", "리듬", "속도감", "정보가 밀집", "밀집", "길게 느껴", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
+            if any(token in all_text for token in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "단조롭게", "리듬이 반복", "속도감이 단조", "속도감이 떨어", "템포가 느려", "템포가 떨어", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
                 return True
 
         # Reader may phrase jargon-density complaints as checklist/list-style repetition.
@@ -1002,12 +1023,12 @@ class ProseGenerator:
             if any(token in all_text for token in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "건조", "단조롭")):
                 return True
 
-        if any(k in lowered for k in ("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루")):
-            if any(token in all_text for token in ("반복적인 문장 구조", "문장 구조가 반복", "비슷한 리듬", "같은 리듬", "단조", "지루")):
+        if any(k in lowered for k in ("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복")):
+            if any(token in all_text for token in ("반복적인 문장 구조", "문장 구조가 반복", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복")):
                 return True
 
-        if any(k in lowered for k in ("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들")):
-            if any(token in all_text for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "맥락이 약", "문맥이 약")):
+        if any(k in lowered for k in ("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
+            if any(token in all_text for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "맥락이 약", "문맥이 약", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
                 return True
 
         if any(k in lowered for k in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
@@ -1243,6 +1264,7 @@ class ProseGenerator:
         jargon_density_cap = self._feedback_jargon_term_cap(default=2)
         dense_sentence_cap = self._feedback_dense_sentence_cap(default=2)
         paragraph_sentence_cap = self._feedback_paragraph_sentence_cap()
+        sentence_cap = self._feedback_sentence_word_cap(default=25)
         paragraph_cap_line = (
             f"- 문단은 최대 {paragraph_sentence_cap}문장까지 유지하고 초과 시 분할\n"
             if paragraph_sentence_cap is not None else ""
@@ -1256,6 +1278,7 @@ class ProseGenerator:
             "- 동일 정보/표현의 반복은 삭제 또는 통합\n"
             "- 긴 문단은 1-2문장 단위로 자연 분할\n"
             f"{paragraph_cap_line}"
+            f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 길어지면 인과 단위로 분리\n"
             "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 기술 용어/약어는 첫 등장만 짧게 풀고 이후는 짧은 콜백\n"
@@ -1666,6 +1689,7 @@ class ProseGenerator:
             f"- Consistent {pov} voice throughout (Korean)\n"
             f"- No simulation artifacts (turn numbers, metadata, labels)\n"
             f"- Paragraphs should usually contain {self._readability_controls()['paragraph_min']}-{self._readability_controls()['paragraph_max']} sentences\n"
+            f"- Most sentences should stay under about {self._feedback_sentence_word_cap(default=25)} words; split explanatory chains early\n"
             f"- Sentence rhythm should vary naturally (avoid repetitive cadence)\n"
             f"- Natural paragraph breaks at emotional beats\n"
             f"- If technical terms appear, keep first mention briefly readable with plain-language context\n"
@@ -1843,6 +1867,15 @@ class ProseGenerator:
         blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
         out_blocks: list[str] = []
         recent_sentence_fp: list[str] = []
+        fp_window = 5 if self._feedback_mentions(
+            "반복",
+            "중복",
+            "반복되는 표현",
+            "비슷한 상황",
+            "비슷한 상황과 묘사",
+            "묘사가 반복",
+            "지루",
+        ) else 3
 
         for block in blocks:
             if block.startswith("#") or block.startswith("*") or block.startswith("---"):
@@ -1867,7 +1900,7 @@ class ProseGenerator:
                 keep.append(sent)
                 if fp:
                     recent_sentence_fp.append(fp)
-                    if len(recent_sentence_fp) > 3:
+                    if len(recent_sentence_fp) > fp_window:
                         recent_sentence_fp.pop(0)
 
             if keep:

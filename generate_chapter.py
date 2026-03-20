@@ -121,6 +121,11 @@ def _reader_feedback_corpus(reader_feedback: dict) -> str:
     return " ".join(parts).lower()
 
 
+def _reader_feedback_has_any(reader_feedback: dict, *tokens: str) -> bool:
+    corpus = _reader_feedback_corpus(reader_feedback)
+    return bool(corpus) and any(str(token).lower() in corpus for token in tokens if token)
+
+
 def adjust_scene_target_for_feedback(
     target_scenes: int,
     target_words: int,
@@ -137,6 +142,21 @@ def adjust_scene_target_for_feedback(
         target_words <= 4000
         and adjusted >= 5
         and any(token in corpus for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "문맥이 약"))
+    ):
+        adjusted -= 1
+    if (
+        target_words <= 4500
+        and adjusted >= 6
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "반복되는 표현",
+            "비슷한 상황",
+            "비슷한 상황과 묘사",
+            "묘사가 반복",
+            "문장이 너무 길",
+            "길고 복잡",
+            "이해하기 어려",
+        )
     ):
         adjusted -= 1
     return max(3, adjusted)

@@ -219,6 +219,9 @@ class SceneDistiller:
             f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit when a short sentence would feel too clipped.\n"
             f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary.\n"
             f"11. Do NOT invent content not present in the log. Only compress and select.\n\n"
+            f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery.\n"
+            f"13. If adjacent candidate scenes share cast/location and the latter mainly restates mood or explanation, merge them.\n"
+            f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -302,6 +305,14 @@ class SceneDistiller:
         if any(k in feedback_corpus for k in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "속도감이 단조")):
             prompt += (
                 "Vary sentence length inside summaries (mix short and medium beats) to avoid rhythmic monotony.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루")):
+            prompt += (
+                "If two nearby moments express the same tension with similar wording, keep only the sharper one and fold the rest into consequence.\n\n"
+            )
+        if any(k in feedback_corpus for k in ("문장이 너무 길", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
+            prompt += (
+                "Keep summaries syntactically simple: one action or discovery per sentence, with explicit subject early in the line.\n\n"
             )
         if any(k in feedback_corpus for k in ("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려")):
             prompt += (
@@ -387,6 +398,7 @@ class SceneDistiller:
             )
             self._sanitize_scene_dialogue(scene)
             self._compress_expository_dialogue(scene)
+            scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
                 canonical_speakers,
@@ -518,11 +530,28 @@ class SceneDistiller:
             )
         )
 
+    def _reader_prefers_stronger_scene_compaction(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            token in corpus for token in (
+                "반복되는 표현",
+                "비슷한 상황",
+                "비슷한 상황과 묘사",
+                "묘사가 반복",
+                "문장이 너무 길",
+                "길고 복잡",
+                "이해하기 어려",
+                "지루",
+            )
+        )
+
     def _scene_merge_budget(self, target_scenes: int) -> int:
         budget = 0
         if self._reader_prefers_faster_progression():
             budget += 1
         if self._reader_needs_contextual_summaries():
+            budget += 1
+        if self._reader_prefers_stronger_scene_compaction():
             budget += 1
         return max(0, min(budget, max(0, target_scenes - 3)))
 
@@ -578,6 +607,8 @@ class SceneDistiller:
             score += 1
         if len((left.narrative_summary or "").strip()) <= 90 or len((right.narrative_summary or "").strip()) <= 90:
             score += 1
+        if self._token_overlap_score(left.narrative_summary, right.narrative_summary) >= 0.35:
+            score += 2
         if left.pacing == right.pacing:
             score += 1
         return score
@@ -607,16 +638,36 @@ class SceneDistiller:
             raw_turn_count=left.raw_turn_count + right.raw_turn_count,
         )
 
-    @staticmethod
-    def _merge_scene_summaries(left: str, right: str) -> str:
+    def _merge_scene_summaries(self, left: str, right: str) -> str:
         parts: list[str] = []
+        seen_fp: set[str] = set()
         for raw in (left, right):
             for sentence in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(raw or "").strip()):
                 sent = sentence.strip()
-                if not sent or sent in parts:
+                if not sent:
                     continue
+                fp = self._dialogue_fingerprint(sent)
+                if not fp or fp in seen_fp:
+                    continue
+                seen_fp.add(fp)
                 parts.append(sent)
-        return " ".join(parts[:4]).strip()
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(parts[:max_sentences]).strip()
+
+    def _tighten_narrative_summary(self, summary: str) -> str:
+        sentences: list[str] = []
+        seen_fp: set[str] = set()
+        for raw in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip()):
+            sent = raw.strip()
+            if not sent:
+                continue
+            fp = self._dialogue_fingerprint(sent)
+            if not fp or fp in seen_fp:
+                continue
+            seen_fp.add(fp)
+            sentences.append(sent)
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(sentences[:max_sentences]).strip()
 
     @staticmethod
     def _compress_beat_content(text: str, max_chars: int = 180) -> str:
