@@ -1345,14 +1345,18 @@ def _build_codex_fixer_prompt(review_json: dict, manager_instructions: str = "")
     issues = review_json.get("what_felt_boring_or_hard", [])
     tips = review_json.get("style_tips", [])
     comment = review_json.get("reader_comment", "")
-    thrill = review_json.get("thrill_score_10", "?")
-    style = review_json.get("style_score_10", "?")
+    thrill    = review_json.get("thrill_score_10", "?")
+    style     = review_json.get("style_score_10", "?")
+    causality = review_json.get("causality_score_10", "?")
+    character = review_json.get("character_score_10", "?")
+    scene_fn  = review_json.get("scene_function_score_10", "?")
     manager_block = (
         f"\n## 매니저 분석 지시사항 (우선 적용)\n{manager_instructions}\n"
         if manager_instructions else ""
     )
     return (
-        f"독자 AI 리뷰 결과: 긴장감={thrill}/10, 문체={style}/10\n\n"
+        f"독자 AI 리뷰 결과: 긴장감={thrill}/10, 문체={style}/10, "
+        f"인과성={causality}/10, 캐릭터={character}/10, 씬기능={scene_fn}/10\n\n"
         f"문제점:\n" + "\n".join(f"- {i}" for i in issues) + "\n\n"
         f"개선 팁:\n" + "\n".join(f"- {t}" for t in tips) + "\n\n"
         f"리뷰 전문: {comment}\n"
@@ -2310,6 +2314,22 @@ async def step_auto_improve_loop(
             await notify(f"{DAILY_TAG}[AUTO] 💾 이전 버전 백업 완료 → `{backup_dir.name}/`")
 
         fixer_prompt = _build_codex_fixer_prompt(review_json, manager_instructions=manager_instructions)
+        # 리뷰 진단 요약 → Reviewer 봇 스레드로 전송
+        if notify:
+            _t = review_json.get("thrill_score_10", "?")
+            _s = review_json.get("style_score_10", "?")
+            _c = review_json.get("causality_score_10", "?")
+            _ch = review_json.get("character_score_10", "?")
+            _sf = review_json.get("scene_function_score_10", "?")
+            _issues_txt = "\n".join(f"- {i}" for i in review_json.get("what_felt_boring_or_hard", []))
+            _tips_txt   = "\n".join(f"- {t}" for t in review_json.get("style_tips", []))
+            await notify(
+                f"{DAILY_TAG}[AUTO] 📋 Codex 수정 진단 (사이클 {fixer_cycle})\n"
+                f"점수: 긴장감={_t}/10 | 문체={_s}/10 | 인과성={_c}/10 | 캐릭터={_ch}/10 | 씬기능={_sf}/10\n\n"
+                f"**문제점:**\n{_issues_txt}\n\n"
+                f"**개선 팁:**\n{_tips_txt}"
+                + (f"\n\n**매니저 지시:**\n{manager_instructions[:800]}" if manager_instructions else "")
+            )
         ok, summary = await _run_codex_fixer(
             fixer_prompt,
             run_dir,
