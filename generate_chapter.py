@@ -195,6 +195,22 @@ def adjust_scene_target_for_feedback(
         )
     ):
         adjusted -= 1
+    if (
+        target_words <= 4500
+        and adjusted >= 5
+        and _reader_feedback_has_any(
+            reader_feedback,
+            "같은 긴장을 여러 번",
+            "같은 긴장",
+            "비슷한 뜻의 문장",
+            "비슷한 문장으로 여러 번",
+            "설명문을 읽는",
+            "장면을 따라가기보다 설명문",
+            "용어 설명",
+            "상황 해석이 잦",
+        )
+    ):
+        adjusted -= 1
     return max(3, adjusted)
 
 
@@ -284,6 +300,22 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "설명문",
+        "장면을 따라가기보다 설명문",
+        "용어 설명",
+        "상황 해석",
+        "상황 해석이 잦",
+        "설명과 해석",
+        "반응과 행동으로 보여",
+    ):
+        constraints["max_jargon_terms_per_paragraph"] = 1
+        constraints["max_sentences_in_dense_info"] = 1
+        constraints["force_reaction_after_jargon"] = 1
+        constraints["summary_easy_metaphor_once"] = 0
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
         "비슷한 감각 묘사",
         "감각 묘사",
         "심리 표현",
@@ -300,6 +332,19 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         constraints["max_term_repeats_per_scene"] = 1
         constraints["tension_phrase_cap"] = 1
         constraints["max_sensory_channels_per_paragraph"] = 2
+        constraints["max_emotion_repeats_per_scene"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "같은 긴장을 여러 번",
+        "같은 긴장",
+        "비슷한 뜻의 문장",
+        "비슷한 문장으로 여러 번",
+        "같은 정보를 여러 번",
+    ):
+        constraints["max_term_repeats_per_scene"] = 1
+        constraints["tension_phrase_cap"] = 1
         constraints["max_emotion_repeats_per_scene"] = 1
         changed = True
 
@@ -353,6 +398,24 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "짧은 문장과 긴 문장을 섞",
+        "속도감과 긴장감",
+        "대화 장면의 속도감",
+        "문장 길이를 다양",
+    ):
+        constraints["sentence_variety_window"] = max(
+            5,
+            int(constraints.get("sentence_variety_window", 5) or 5),
+        )
+        try:
+            short_max = int(constraints.get("short_beats_per_scene_max", 1) or 1)
+        except (TypeError, ValueError):
+            short_max = 1
+        constraints["short_beats_per_scene_max"] = max(1, min(2, short_max))
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
         "손가락",
         "숨",
         "노트북",
@@ -364,15 +427,19 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 
     if _reader_feedback_has_any(
         tuned,
+        "그리고",
+        "그러자",
         "이어서",
         "그 순간",
         "접속 습관",
         "문장 연결",
+        "연결이 너무 자주",
+        "연결어 사용 빈도",
         "더 자연스럽",
         "덜 작위적",
     ):
         constraints["max_transition_openers_per_block"] = 1
-        constraints["avoid_transition_terms"] = ["이어서", "그 순간"]
+        constraints["avoid_transition_terms"] = ["그리고", "그러자", "이어서", "그 순간"]
         changed = True
 
     if changed:

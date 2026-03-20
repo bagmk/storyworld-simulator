@@ -157,11 +157,13 @@ class ProseGenerator:
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
+        final = self._compress_repeated_tension_beats(final)
         final = self._trim_redundant_sensory_sentences(final)
         final = self._trim_redundant_emotion_sentences(final)
         final = self._diversify_transition_openers(final)
         final = self._merge_clipped_sentence_runs(final)
         final = self._stagger_sentence_rhythm(final)
+        final = self._diversify_transition_openers(final)
         final = self._compress_redundant_jargon_sentences(final)
         final = self._enforce_sentence_word_caps(final, max_words=self._feedback_sentence_word_cap(default=25))
         final = self._insert_short_beats_after_long_streak(
@@ -510,6 +512,7 @@ class ProseGenerator:
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
             f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
+            f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
@@ -1421,6 +1424,7 @@ class ProseGenerator:
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
             "- 강한 문장과 담백한 문장을 섞어 압박의 고저를 만들 것\n"
+            "- 같은 정보나 해석이 이미 한 번 전달됐다면 다음 문장에서는 되풀이하지 말고 반응, 행동, 결정으로 넘어갈 것\n"
             "- 기술 용어/약어는 꼭 필요할 때만 짧게 풀고 이후는 짧은 콜백으로 유지할 것\n"
             "- 괄호 설명은 기본값으로 쓰지 말고, 필요하면 본문 안에 짧게 녹여 쓸 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비교를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
@@ -2155,6 +2159,103 @@ class ProseGenerator:
                 out_blocks.append(" ".join(keep))
 
         return "\n\n".join(out_blocks)
+
+    def _compress_repeated_tension_beats(self, text: str) -> str:
+        """
+        Collapse adjacent sentences that restate the same tension without
+        adding a new action, decision, or consequence.
+        """
+        if not text:
+            return text
+
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            for sent in sentences:
+                current = sent.strip()
+                if rebuilt and self._is_redundant_tension_restatement(rebuilt[-1], current):
+                    rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
+                    continue
+                rebuilt.append(current)
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _is_redundant_tension_restatement(self, left: str, right: str) -> bool:
+        left_clean = str(left or "").strip()
+        right_clean = str(right or "").strip()
+        if not left_clean or not right_clean:
+            return False
+        if re.search(r"[\"“”'‘’]", left_clean + right_clean):
+            return False
+
+        left_tokens = self._sentence_token_set(left_clean)
+        right_tokens = self._sentence_token_set(right_clean)
+        if not left_tokens or not right_tokens:
+            return False
+
+        overlap = len(left_tokens & right_tokens) / max(1, min(len(left_tokens), len(right_tokens)))
+        same_emotion = bool(self._emotion_signature(left_clean)) and (
+            self._emotion_signature(left_clean) == self._emotion_signature(right_clean)
+        )
+        same_pressure = self._is_pressure_heavy_sentence(left_clean) and self._is_pressure_heavy_sentence(right_clean)
+        both_static = not self._sentence_has_action_or_decision(left_clean) and not self._sentence_has_action_or_decision(right_clean)
+        return (same_emotion or same_pressure) and both_static and overlap >= 0.4
+
+    def _prefer_stronger_tension_sentence(self, left: str, right: str) -> str:
+        left_has_action = self._sentence_has_action_or_decision(left)
+        right_has_action = self._sentence_has_action_or_decision(right)
+        if left_has_action != right_has_action:
+            return right if right_has_action else left
+
+        left_score = self._pressure_sentence_score(left)
+        right_score = self._pressure_sentence_score(right)
+        if right_score != left_score:
+            return right if right_score > left_score else left
+
+        left_words = self._sentence_word_count(left)
+        right_words = self._sentence_word_count(right)
+        if right_words != left_words:
+            return right if right_words < left_words else left
+        return left
+
+    @staticmethod
+    def _sentence_token_set(sentence: str) -> set[str]:
+        cleaned = re.sub(r"[^0-9a-zA-Z가-힣\s]", " ", str(sentence or "").lower())
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        stop = {
+            "그리고", "그러자", "다만", "하지만", "그러나", "한편", "이어서", "그", "그의",
+            "수민은", "수민이", "그는", "그가", "그녀는", "그녀가",
+        }
+        return {
+            token for token in cleaned.split()
+            if len(token) >= 2 and token not in stop
+        }
+
+    @staticmethod
+    def _is_pressure_heavy_sentence(sentence: str) -> bool:
+        return bool(re.search(
+            r"(긴장|압박|불안|초조|정적|침묵|차갑|날카롭|굳었|멈칫|숨을 죽|턱선|경계|서늘)",
+            str(sentence or "").lower(),
+        ))
+
+    def _pressure_sentence_score(self, sentence: str) -> int:
+        score = 0
+        if self._sentence_has_action_or_decision(sentence):
+            score += 3
+        if self._is_pressure_heavy_sentence(sentence):
+            score += 2
+        if re.search(r"(드러났|밝혀졌|확인됐|선택|결정|질문|대답|응답|거절|수락)", str(sentence or "")):
+            score += 2
+        return score
 
     def _trim_redundant_sensory_sentences(self, text: str) -> str:
         if not text:

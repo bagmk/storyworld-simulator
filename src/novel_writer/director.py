@@ -665,7 +665,8 @@ class DirectorAI:
         if progress_signal["explanation_loop"]:
             return (
                 "The scene is explaining instead of moving. Cut the next turn into short direct sentences, "
-                "translate the point into plain consequence, and force a reaction, choice, or interruption."
+                "translate the point into plain consequence, and show it through reaction, choice, interruption, "
+                "or physical movement instead of another interpretation pass."
             )
         if progress_signal["technical_stall"]:
             return (
@@ -778,6 +779,7 @@ class DirectorAI:
             f"Recent interactions:\n{recent_text}\n\n"
             f"Has the beat reached a natural completion point for ending this episode now?\n"
             f"Do not require every possible detail; only require that core beat intent has clearly landed.\n"
+            f"If the remaining material would mostly restate explanation, terminology, or mood that already landed, treat the beat as complete.\n"
             f"Reply JSON only:\n"
             f"{{\"complete\": true/false, \"confidence\": 0.0-1.0, \"reason\": \"...\"}}"
         )
@@ -1002,7 +1004,7 @@ class DirectorAI:
         )
         jargon_reaction_rule = ""
         if progress_signal["technical_stall"] or self._feedback_mentions(
-            "기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "영어", "영어 키워드"
+            "기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "영어", "영어 키워드", "설명문", "상황 해석"
         ):
             jargon_reaction_rule = (
                 "10) If the next turn keeps a technical or English term, it must be followed by "
@@ -1010,11 +1012,23 @@ class DirectorAI:
             )
         brevity_rule = ""
         if progress_signal["explanation_loop"] or self._feedback_mentions(
-            "쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성"
+            "쉼표", "접속", "문장이 너무 길", "길고 복잡", "호흡", "가독성", "설명문", "상황 해석"
         ):
             brevity_rule = (
                 "11) Favor short direct sentences for the next turn. Split comma-heavy clause chains "
                 "into 1-2 clear beats.\n"
+            )
+        show_dont_tell_rule = ""
+        if progress_signal["explanation_loop"] or self._feedback_mentions(
+            "설명문",
+            "장면을 따라가기보다 설명문",
+            "용어 설명",
+            "상황 해석",
+            "반응과 행동으로 보여",
+        ):
+            show_dont_tell_rule = (
+                "12) Do not spend the next turn defining or interpreting the situation again. "
+                "Show pressure through visible reaction, interruption, gesture, movement, or a blunt choice.\n"
             )
 
         prompt = (
@@ -1038,6 +1052,7 @@ class DirectorAI:
             f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
             f"{jargon_reaction_rule}"
             f"{brevity_rule}"
+            f"{show_dont_tell_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1051,6 +1066,10 @@ class DirectorAI:
                 "\nReader priority: do not spend another turn unpacking terminology unless the plot truly requires it; "
                 "prefer visible reaction, choice, or interruption."
                 "\nIf terminology still appears, the turn should translate it into plain consequence and immediate human response."
+            )
+        if self._feedback_mentions("설명문", "장면을 따라가기보다 설명문", "용어 설명", "상황 해석", "반응과 행동으로 보여"):
+            prompt += (
+                "\nReader priority: cut low-value explanation first. If a point is already clear, use the next turn for action, reaction, silence, or a forced decision instead of restating it."
             )
         if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
             prompt += (
@@ -1307,11 +1326,11 @@ class DirectorAI:
         technical_hits = 0
         for row in recent:
             text = str(row.get("content", ""))
-            if re.search(r"(즉|다시 말해|정리하면|요약하면|핵심은|설명하자면|왜냐하면)", text):
+            if re.search(r"(즉|다시 말해|정리하면|요약하면|핵심은|설명하자면|왜냐하면|쉽게 말해|의미는|뜻이었다|해석하면)", text):
                 explain_hits += 1
             if (text.count(",") + text.count(";")) >= 2:
                 explain_hits += 1
-            if len(re.findall(r"(그리고|그러나|하지만|다만|또한|한편|그래서)", text)) >= 2:
+            if len(re.findall(r"(그리고|그러자|그러나|하지만|다만|또한|한편|그래서)", text)) >= 2:
                 explain_hits += 1
             if self._technical_term_signature(text):
                 technical_hits += 1
@@ -1355,10 +1374,14 @@ class DirectorAI:
         relief_hits = 0
         decisive_hits = 0
         tail_fingerprints: list[str] = []
+        pressure_fingerprints: list[str] = []
         for row in recent:
             text = str(row.get("content", ""))
             if re.search(r"(긴장|압박|침묵|정적|날카|차갑|굳었|버텼|몰아붙|목소리를 낮추|숨을 죽였)", text):
                 pressure_hits += 1
+                pressure_fp = self._content_fingerprint(text)
+                if pressure_fp:
+                    pressure_fingerprints.append(pressure_fp)
             if re.search(r"(웃|미소|숨을 고르|한숨|물컵|잔|메모|의자|어깨를 풀|고개를 끄덕)", text):
                 relief_hits += 1
             if re.search(r"(결정|선택|드러났|밝혀졌|확인됐|거절|수락|합의|결론)", text):
@@ -1370,11 +1393,15 @@ class DirectorAI:
         repeated_tail = bool(tail_fingerprints) and (
             len(set(tail_fingerprints)) <= max(1, len(tail_fingerprints) - 2)
         )
+        repeated_pressure = len(pressure_fingerprints) >= 2 and len(set(pressure_fingerprints)) <= max(
+            1,
+            len(pressure_fingerprints) - 1,
+        )
         return (
             pressure_hits >= max(2, tension_cap + 1)
             and relief_hits == 0
             and decisive_hits == 0
-            and repeated_tail
+            and (repeated_tail or repeated_pressure)
         )
 
     @staticmethod

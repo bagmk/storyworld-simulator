@@ -228,7 +228,10 @@ class SceneDistiller:
             f"17. If a technical term or acronym survives in the summary, add one short plain-language Korean sentence immediately after it, then show an immediate human reaction or consequence.\n"
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
-            f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n\n"
+            f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
+            f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
+            f"22. If two candidate lines restate the same pressure or explanation, keep the line with clearer action/reaction and drop the other.\n"
+            f"23. When scene count is limited, preserve higher-tension beats first: reveal, interruption, exposed contradiction, forced decision, or visible stress reaction.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -419,7 +422,9 @@ class SceneDistiller:
             scene.narrative_summary = self._soften_technical_summary(scene)
             scene.narrative_summary = self._simplify_summary_wording(scene.narrative_summary)
             scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
+            scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
             scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
+            scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
@@ -625,6 +630,7 @@ class SceneDistiller:
 
     def _adjacent_scene_merge_score(self, left: DistilledScene, right: DistilledScene) -> int:
         score = 0
+        tension_peak = max(self._scene_tension_score(left), self._scene_tension_score(right))
         same_location = (
             self._norm_name_key(left.location)
             and self._norm_name_key(left.location) == self._norm_name_key(right.location)
@@ -656,6 +662,12 @@ class SceneDistiller:
             score += 1
         if left.pacing == right.pacing:
             score += 1
+        if tension_peak >= 6:
+            score -= 3
+        elif tension_peak >= 4:
+            score -= 1
+        elif self._scene_tension_score(left) + self._scene_tension_score(right) <= 2:
+            score += 1
         return score
 
     def _summary_is_mood_heavy(self, summary: str) -> bool:
@@ -668,6 +680,56 @@ class SceneDistiller:
             return False
         mood_only = sum(1 for sent in sentences if self._is_mood_fragment_sentence(sent))
         return mood_only >= max(1, len(sentences) - 1)
+
+    def _scene_tension_score(self, scene: DistilledScene) -> int:
+        text = " ".join(
+            [
+                str(scene.narrative_summary or ""),
+                " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
+                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
+                str(scene.emotional_arc or ""),
+            ]
+        )
+        low = text.lower()
+        score = 0
+        score += min(2, len(scene.discoveries or []))
+        score += min(1, len(scene.key_dialogue or []))
+        if re.search(r"(드러났|밝혀졌|확인됐|폭로|반전|결정|선택|거절|수락|중단|경고|위험|충돌|대치)", low):
+            score += 2
+        if re.search(r"(긴장|압박|불안|초조|경계|결심|분노|공포|당황|침묵|정적|날카롭)", low):
+            score += 1
+        if re.search(r"(숨|손끝|손바닥|시선|턱선|몸이 먼저|멈칫|굳었|떨렸|멎은 듯)", low):
+            score += 1
+        return min(score, 7)
+
+    def _trim_summary_leading_connectors(self, summary: str) -> str:
+        sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if not sentences:
+            return ""
+
+        rebuilt: list[str] = []
+        seen_fp: set[str] = set()
+        for sent in sentences:
+            cleaned = re.sub(
+                r"^(그리고|그러자|다만|또한|한편|이어서|그 순간)\s+",
+                "",
+                sent,
+            ).strip()
+            if not cleaned:
+                continue
+            normalized = self._ensure_summary_sentence(cleaned)
+            fp = self._dialogue_fingerprint(normalized)
+            if fp in seen_fp:
+                continue
+            seen_fp.add(fp)
+            rebuilt.append(normalized)
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(rebuilt[:max_sentences]).strip()
 
     def _merge_scene_pair(self, left: DistilledScene, right: DistilledScene) -> DistilledScene:
         pacing = right.pacing if right.pacing in {"climax", "resolution"} else left.pacing
