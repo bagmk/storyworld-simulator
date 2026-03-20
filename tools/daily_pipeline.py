@@ -188,42 +188,49 @@ def _generate_quality_chart(
             plt.rcParams["axes.unicode_minus"] = False
             break
 
+    # ── 5개 점수 로드 ──────────────────────────────────────────────────────────
+    SCORE_DEFS = [
+        ("thrill_score_10",        "긴장감",  "#e74c3c"),
+        ("style_score_10",         "문체",    "#3498db"),
+        ("causality_score_10",     "인과성",  "#9b59b6"),
+        ("character_score_10",     "캐릭터",  "#f39c12"),
+        ("scene_function_score_10","씬기능",  "#2ecc71"),
+    ]
     review_files = sorted(run_dir.glob("auto_review_cycle*.json"))
-    cycles, thrill_scores, style_scores, avg_scores = [], [], [], []
+    cycles: list[int] = []
+    score_data: dict[str, list[float]] = {k: [] for k, _, _ in SCORE_DEFS}
+    avg_scores: list[float] = []
     for rf in review_files:
         try:
             data = json.loads(rf.read_text(encoding="utf-8"))
             m = re.search(r"cycle(\d+)", rf.stem)
             if not m:
                 continue
-            c = int(m.group(1))
-            t = int(data.get("thrill_score_10", 0))
-            s = int(data.get("style_score_10", 0))
-            cycles.append(c)
-            thrill_scores.append(t)
-            style_scores.append(s)
-            avg_scores.append((t + s) / 2)
+            cycles.append(int(m.group(1)))
+            row = [float(data.get(k, 0)) for k, _, _ in SCORE_DEFS]
+            for (k, _, _), v in zip(SCORE_DEFS, row):
+                score_data[k].append(v)
+            avg_scores.append(sum(row) / len(row))
         except Exception:
             pass
 
+    # ── 비용: 3개 카테고리로 합산 ──────────────────────────────────────────────
     tracker = cost_tracker or {}
-    cost_labels = ["시뮬레이션", "초기챕터", "AUTO챕터", "AUTO리뷰", "최종리뷰", "피드백"]
-    cost_keys = ["simulation", "chapter", "auto_chapter", "auto_review", "final_review", "feedback_parse"]
-    cost_vals_nonzero = [
-        (l, float(tracker.get(k, 0.0)))
-        for l, k in zip(cost_labels, cost_keys)
-        if float(tracker.get(k, 0.0)) > 0.0001
-    ]
+    cat_cost = {
+        "시뮬레이션": float(tracker.get("simulation", 0.0)),
+        "챕터생성":   float(tracker.get("chapter", 0.0)) + float(tracker.get("auto_chapter", 0.0)),
+        "리뷰":       float(tracker.get("auto_review", 0.0)) + float(tracker.get("final_review", 0.0)) + float(tracker.get("feedback_parse", 0.0)),
+    }
+    cost_vals_nonzero = [(l, v) for l, v in cat_cost.items() if v > 0.0001]
 
-    # 단계별 소요 시간
-    time_step_labels = ["Guardian", "시뮬레이션", "챕터 생성", "AUTO 개선", "최종 리뷰"]
-    time_step_keys   = ["guardian",  "simulator",  "chapter_gen", "auto_improve", "quality_review"]
+    # ── 소요 시간: 3개 카테고리로 합산 ────────────────────────────────────────
     tracker_t = time_tracker or {}
-    time_vals_nonzero = [
-        (l, tracker_t[k])
-        for l, k in zip(time_step_labels, time_step_keys)
-        if tracker_t.get(k, 0.0) > 0.5
-    ]
+    cat_time = {
+        "시뮬레이션": tracker_t.get("simulator", 0.0),
+        "챕터생성":   tracker_t.get("chapter_gen", 0.0) + tracker_t.get("auto_improve", 0.0),
+        "리뷰":       tracker_t.get("quality_review", 0.0) + tracker_t.get("guardian", 0.0),
+    }
+    time_vals_nonzero = [(l, v) for l, v in cat_time.items() if v > 0.5]
 
     has_scores = len(cycles) > 0
     has_costs = len(cost_vals_nonzero) > 0
@@ -243,36 +250,38 @@ def _generate_quality_chart(
     if has_scores:
         ax = axes[ax_idx]; ax_idx += 1
         x = list(range(len(cycles)))
-        ax.plot(x, thrill_scores, "o-", color="#e74c3c", label="긴장감", linewidth=2, markersize=7)
-        ax.plot(x, style_scores, "s-", color="#3498db", label="문체", linewidth=2, markersize=7)
-        ax.plot(x, avg_scores, "^--", color="#2ecc71", label="평균", linewidth=1.5, markersize=6, alpha=0.8)
+        for k, label, color in SCORE_DEFS:
+            ax.plot(x, score_data[k], "o-", color=color, label=label, linewidth=2, markersize=6)
+        ax.plot(x, avg_scores, "^-", color="#000000", label="평균",
+                linewidth=2.5, markersize=7, zorder=5, fontsize=9)
         ax.axhline(y=AUTO_IMPROVE_SCORE_THRESHOLD, color="#e67e22", linestyle=":",
                    linewidth=1.5, label=f"목표 {AUTO_IMPROVE_SCORE_THRESHOLD}")
         ax.set_ylim(0, 10.5)
         ax.set_xticks(x)
         ax.set_xticklabels([f"사이클{c}" for c in cycles], fontsize=8)
         ax.set_ylabel("점수 (/ 10)", fontsize=10)
-        ax.set_title("AI 리뷰 점수 추세", fontsize=11)
+        ax.set_title("AI 리뷰 점수 추세 (5개 항목)", fontsize=11)
         ax.legend(loc="lower right", fontsize=9)
         ax.grid(True, alpha=0.3)
         for xi, yi in zip(x, avg_scores):
             ax.annotate(f"{yi:.1f}", (xi, yi), textcoords="offset points",
-                        xytext=(0, 8), ha="center", fontsize=8)
+                        xytext=(0, 8), ha="center", fontsize=8, fontweight="bold", color="#000000")
 
     if has_costs:
         ax = axes[ax_idx]; ax_idx += 1
         labels_nz = [l for l, _ in cost_vals_nonzero]
         vals_nz = [v for _, v in cost_vals_nonzero]
         total_cost = sum(vals_nz)
-        colors = ["#3498db", "#2ecc71", "#e74c3c", "#9b59b6", "#f39c12"][:len(vals_nz)]
+        cat_colors = {"시뮬레이션": "#3498db", "챕터생성": "#e74c3c", "리뷰": "#2ecc71"}
+        colors = [cat_colors.get(l, "#9b59b6") for l in labels_nz]
         wedges, texts, autotexts = ax.pie(
             vals_nz, labels=labels_nz, autopct="%1.1f%%",
             colors=colors, startangle=140, pctdistance=0.75,
         )
         for t in texts:
-            t.set_fontsize(9)
+            t.set_fontsize(10)
         for at in autotexts:
-            at.set_fontsize(8)
+            at.set_fontsize(9)
         ax.set_title(f"LLM 비용 구성 (총 ${total_cost:.4f}, Codex CLI 제외)", fontsize=11)
 
     if has_times:
@@ -280,7 +289,8 @@ def _generate_quality_chart(
         t_labels = [l for l, _ in time_vals_nonzero]
         t_vals   = [v for _, v in time_vals_nonzero]
         total_sec = sum(t_vals)
-        bar_colors = ["#3498db", "#e74c3c", "#2ecc71", "#9b59b6", "#f39c12"][:len(t_vals)]
+        cat_colors = {"시뮬레이션": "#3498db", "챕터생성": "#e74c3c", "리뷰": "#2ecc71"}
+        bar_colors = [cat_colors.get(l, "#9b59b6") for l in t_labels]
         bars = ax.barh(t_labels, [v / 60 for v in t_vals], color=bar_colors, edgecolor="white", height=0.55)
         for bar, sec in zip(bars, t_vals):
             mins = int(sec // 60)
