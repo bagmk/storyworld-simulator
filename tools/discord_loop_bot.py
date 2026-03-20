@@ -60,6 +60,7 @@ DAILY_SESSION_METRICS: dict[int, dict[str, Any]] = {}
 DAILY_CHAPTER_PATHS: dict[int, Path] = {}  # channel_id → 최근 생성된 챕터 파일 경로
 DAILY_PENDING_REVIEW_TIER: dict[int, dict[str, Any]] = {}
 DAILY_START_TIMES: dict[int, float] = {}   # channel_id → pipeline start time (monotonic)
+DAILY_EPISODE_KEYS: dict[int, str] = {}    # channel_id → episode key (kept after stop for chart)
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -276,6 +277,97 @@ def _resolve_stage_bot_tokens() -> tuple[str, str, str]:
 def _find_latest(base_dir: Path, path_pattern: str) -> Path | None:
     files = sorted(base_dir.glob(path_pattern), key=lambda p: p.stat().st_mtime)
     return files[-1] if files else None
+
+
+def _make_stop_chart(episode_key: str) -> Path | None:
+    """
+    !stop 시 현재까지의 사이클별 5개 점수를 matplotlib 차트로 생성.
+    가장 최근 run_dir을 자동 탐색. PNG 임시 파일 경로 반환.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+        import tempfile
+    except ImportError:
+        return None
+
+    # 가장 최근 run_dir 탐색
+    daily_dir = REPO_ROOT / "output" / "daily"
+    if not daily_dir.exists():
+        return None
+    run_dirs = sorted(daily_dir.glob(f"*_{episode_key}/*/"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not run_dirs:
+        # episode_key 없이 최신 폴더로 대체
+        run_dirs = sorted(daily_dir.glob("*/*/"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not run_dirs:
+        return None
+    run_dir = run_dirs[0]
+
+    SCORE_DEFS = [
+        ("thrill_score_10",        "긴장감",  "#e74c3c"),
+        ("style_score_10",         "문체",    "#3498db"),
+        ("causality_score_10",     "인과성",  "#9b59b6"),
+        ("character_score_10",     "캐릭터",  "#f39c12"),
+        ("scene_function_score_10","씬기능",  "#2ecc71"),
+    ]
+
+    review_files = sorted(run_dir.glob("auto_review_cycle*.json"))
+    cycles: list[int] = []
+    score_data: dict[str, list[float]] = {k: [] for k, _, _ in SCORE_DEFS}
+    avg_scores: list[float] = []
+
+    for rf in review_files:
+        try:
+            data = json.loads(rf.read_text(encoding="utf-8"))
+            m = re.search(r"cycle(\d+)", rf.stem)
+            if not m:
+                continue
+            cycles.append(int(m.group(1)))
+            row_vals = []
+            for k, _, _ in SCORE_DEFS:
+                v = float(data.get(k, 0))
+                score_data[k].append(v)
+                row_vals.append(v)
+            avg_scores.append(sum(row_vals) / len(row_vals))
+        except Exception:
+            pass
+
+    if not cycles:
+        return None
+
+    # 한글 폰트
+    _available = {f.name for f in fm.fontManager.ttflist}
+    for _kf in ["AppleGothic", "NanumGothic", "Malgun Gothic", "Noto Sans CJK KR"]:
+        if _kf in _available:
+            plt.rcParams["font.family"] = _kf
+            plt.rcParams["axes.unicode_minus"] = False
+            break
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    x = list(range(len(cycles)))
+
+    for k, label, color in SCORE_DEFS:
+        ax.plot(x, score_data[k], "o-", color=color, label=label, linewidth=2, markersize=6)
+    ax.plot(x, avg_scores, "^--", color="#555555", label="평균", linewidth=1.5, markersize=5, alpha=0.8)
+    ax.axhline(y=8.5, color="#e67e22", linestyle=":", linewidth=1.5, label="목표 8.5")
+
+    ax.set_ylim(0, 10.5)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"사이클{c}" for c in cycles], fontsize=9)
+    ax.set_ylabel("점수 (/ 10)", fontsize=11)
+    ax.set_title(f"[{episode_key}] 중단 시점 — 사이클별 AI 리뷰 점수", fontsize=13, fontweight="bold")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(True, alpha=0.3)
+    for xi, yi in zip(x, avg_scores):
+        ax.annotate(f"{yi:.1f}", (xi, yi), textcoords="offset points", xytext=(0, 8), ha="center", fontsize=8)
+
+    plt.tight_layout()
+    tmp = Path(tempfile.mktemp(suffix=".png", prefix="stop_chart_"))
+    fig.savefig(str(tmp), dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return tmp
 
 
 async def _send_file(channel: discord.abc.Messageable, path: Path, note: str) -> None:
@@ -633,6 +725,22 @@ async def async_main() -> None:
                     "🛑 중단 요청 전송. 현재 단계가 끝나는 즉시 파이프라인을 멈춥니다.",
                     manager_bot_token,
                 )
+                # 중단 시점 점수 차트 생성 & 전송
+                ep_key = DAILY_EPISODE_KEYS.get(ch_id)
+                if ep_key:
+                    try:
+                        chart_path = await asyncio.to_thread(_make_stop_chart, ep_key)
+                        if chart_path and chart_path.exists():
+                            await _send_file_with_token(
+                                message.channel,
+                                ch_id,
+                                chart_path,
+                                f"📊 [{ep_key}] 중단 시점 — 사이클별 점수 현황",
+                                manager_bot_token,
+                            )
+                            chart_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass  # 차트 실패해도 중단은 정상 처리됨
             else:
                 await _send_text_with_token(
                     message.channel,
@@ -729,6 +837,7 @@ async def async_main() -> None:
             DAILY_FEEDBACK_QUEUES[ch_id] = feedback_q
             DAILY_STOP_EVENTS[ch_id] = stop_ev
             DAILY_STATUS[ch_id] = f"시작 대기 — {episode_key}"
+            DAILY_EPISODE_KEYS[ch_id] = episode_key  # for stop chart
             DAILY_START_TIMES[ch_id] = time.monotonic()
             DAILY_SESSION_METRICS[ch_id] = {
                 "simulation": 0.0,
