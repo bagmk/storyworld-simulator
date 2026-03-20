@@ -163,6 +163,7 @@ def _generate_quality_chart(
     run_dir: Path,
     cost_tracker: dict[str, float] | None,
     time_tracker: dict[str, float] | None = None,
+    review_tier: str = "premium",
 ) -> Path | None:
     """
     이번 파이프라인 실행 결과를 matplotlib 차트로 생성.
@@ -232,10 +233,44 @@ def _generate_quality_chart(
     }
     time_vals_nonzero = [(l, v) for l, v in cat_time.items() if v > 0.5]
 
-    has_scores = len(cycles) > 0
-    has_costs = len(cost_vals_nonzero) > 0
-    has_times = len(time_vals_nonzero) > 0
-    n_rows = (1 if has_scores else 0) + (1 if has_costs else 0) + (1 if has_times else 0)
+    # ── 모델별 시간 비율 (근사치) ───────────────────────────────────────────────
+    # 각 스텝이 사용하는 모델을 알고 있으므로 시간을 비례 배분
+    # simulator/chapter_gen: subprocess → gpt-4o-mini (에이전트/기본) + gpt-5-mini (디렉터/산문)
+    # guardian/quality_review: review_tier에 따라 결정
+    # auto_improve: Codex CLI (픽서) + gpt-5-mini (챕터 재생성 산문) + tier 모델 (리뷰)
+    _is_premium = str(review_tier).strip().lower() == "premium"
+    _mt: dict[str, float] = {}
+
+    def _mt_add(model: str, secs: float) -> None:
+        _mt[model] = _mt.get(model, 0.0) + secs
+
+    _sim = tracker_t.get("simulator", 0.0)
+    _mt_add("gpt-4o-mini", _sim * 0.50)   # 에이전트 턴
+    _mt_add("gpt-5-mini",  _sim * 0.50)   # 디렉터
+
+    _ch = tracker_t.get("chapter_gen", 0.0)
+    _mt_add("gpt-4o-mini", _ch * 0.40)    # 기본 구성
+    _mt_add("gpt-5-mini",  _ch * 0.60)    # 산문 생성
+
+    _guard = tracker_t.get("guardian", 0.0)
+    _mt_add("gpt-4o" if _is_premium else "gpt-4o-mini", _guard)
+
+    _qr = tracker_t.get("quality_review", 0.0)
+    _mt_add("gpt-4o" if _is_premium else "gpt-4o-mini", _qr)
+
+    _ai = tracker_t.get("auto_improve", 0.0)
+    _mt_add("Codex CLI",   _ai * 0.50)    # 픽서 subprocess
+    _mt_add("gpt-5-mini",  _ai * 0.20)    # 챕터 재생성 산문
+    _mt_add("gpt-4o-mini", _ai * 0.10)    # 챕터 재생성 에이전트
+    _mt_add("gpt-4o" if _is_premium else "gpt-4o-mini", _ai * 0.20)  # 사이클 리뷰
+
+    model_time_nonzero = [(m, t) for m, t in _mt.items() if t > 0.5]
+
+    has_scores  = len(cycles) > 0
+    has_costs   = len(cost_vals_nonzero) > 0
+    has_times   = len(time_vals_nonzero) > 0
+    has_models  = len(model_time_nonzero) > 0
+    n_rows = (1 if has_scores else 0) + (1 if has_costs else 0) + (1 if has_times else 0) + (1 if has_models else 0)
     if n_rows == 0:
         return None
 
@@ -304,6 +339,33 @@ def _generate_quality_chart(
         ax.set_title(f"단계별 소요 시간 (총 {total_mins}분 {total_secs:02d}초)", fontsize=11)
         ax.grid(True, axis="x", alpha=0.3)
         ax.set_xlim(0, max(v / 60 for v in t_vals) * 1.25)
+
+    if has_models:
+        ax = axes[ax_idx]; ax_idx += 1
+        model_colors = {
+            "gpt-4o-mini": "#3498db",
+            "gpt-4o":      "#e74c3c",
+            "gpt-5-mini":  "#9b59b6",
+            "Codex CLI":   "#2ecc71",
+        }
+        m_labels = [m for m, _ in model_time_nonzero]
+        m_vals   = [t for _, t in model_time_nonzero]
+        total_model_sec = sum(m_vals)
+        m_colors = [model_colors.get(m, "#f39c12") for m in m_labels]
+        wedges, texts, autotexts = ax.pie(
+            m_vals, labels=m_labels, autopct="%1.1f%%",
+            colors=m_colors, startangle=140, pctdistance=0.75,
+        )
+        for t in texts:
+            t.set_fontsize(10)
+        for at in autotexts:
+            at.set_fontsize(9)
+        total_model_min = int(total_model_sec // 60)
+        total_model_s   = int(total_model_sec % 60)
+        ax.set_title(
+            f"모델별 사용 시간 비율 (총 {total_model_min}분 {total_model_s:02d}초, 근사치)",
+            fontsize=11,
+        )
 
     plt.tight_layout()
     chart_path = run_dir / "pipeline_report.png"
@@ -2853,7 +2915,7 @@ async def run_daily_pipeline(
 
     # ── 품질 차트 생성 + Discord 전송 ──
     chart_path = await asyncio.to_thread(
-        _generate_quality_chart, episode_key, run_dir, cost_tracker, time_tracker
+        _generate_quality_chart, episode_key, run_dir, cost_tracker, time_tracker, review_tier
     )
     if chart_path and upload:
         try:
