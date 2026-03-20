@@ -457,9 +457,9 @@ def format_factor_report(model_result: dict, chapter_excerpt: str = "") -> str:
         lines.append("")
 
     if chapter_excerpt:
-        lines.append("### 최근 챕터 참고 (소설 내용 — Codex가 수정 전 반드시 읽을 것)")
+        lines.append("### 최근 챕터 전문 (소설 내용 — Codex가 수정 전 반드시 전체를 읽을 것)")
         lines.append("```")
-        lines.append(chapter_excerpt[:600].strip())
+        lines.append(chapter_excerpt.strip())
         lines.append("```")
         lines.append("")
 
@@ -474,7 +474,7 @@ def format_factor_report(model_result: dict, chapter_excerpt: str = "") -> str:
 # ── 5. 최근 챕터 추출 ─────────────────────────────────────────────────────────
 
 def get_latest_chapter_excerpt(run_dir: Path) -> str:
-    """run_dir에서 가장 최근 챕터 텍스트 앞부분 반환."""
+    """run_dir에서 가장 최근 챕터 텍스트 전체 반환."""
     chapter_files = sorted(
         list(run_dir.glob("*_chapter*.txt")),
         key=lambda p: p.stat().st_mtime,
@@ -482,7 +482,7 @@ def get_latest_chapter_excerpt(run_dir: Path) -> str:
     )
     if chapter_files:
         try:
-            return chapter_files[0].read_text(encoding="utf-8")[:600]
+            return chapter_files[0].read_text(encoding="utf-8")
         except Exception:
             pass
     return ""
