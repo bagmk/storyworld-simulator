@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-4o":             (0.005,  0.015),
     "gpt-4o-mini":        (0.00015, 0.0006),
+    "gpt-5-mini":         (0.00025, 0.002),
+    "gpt-5-mini-2025-08-07": (0.00025, 0.002),
     "gpt-4-turbo":        (0.01,   0.03),
     "gpt-4":              (0.03,   0.06),
     "gpt-3.5-turbo":      (0.0005, 0.0015),
@@ -38,6 +40,14 @@ DEFAULT_PREMIUM_MODEL = "gpt-4o"
 # GPT-5 Responses calls can consume output budget before emitting visible text.
 # Start with a safer floor to avoid frequent empty-first retries.
 MIN_GPT5_OUTPUT_TOKENS = 800
+GPT5_CORE_PROSE_PURPOSES = {
+    "prose_scene_gen",
+    "prose_reader_feedback_pass",
+    "prose_polish",
+    # Legacy generator purposes kept aligned with the same policy.
+    "narrative_gen",
+    "narrative_polish",
+}
 
 
 @dataclass
@@ -171,7 +181,7 @@ class LLMClient:
                 f"(spent ${self._spent_usd:.4f})."
             )
 
-        model = self.premium_model if use_premium else self.model
+        model = self._resolve_model(use_premium=use_premium, purpose=purpose)
         temp  = temperature if temperature is not None else self.temperature
 
         full_messages = []
@@ -309,6 +319,24 @@ class LLMClient:
         if model.startswith("gpt-5"):
             return "low"
         return None
+
+    def _resolve_model(self, use_premium: bool, purpose: str) -> str:
+        """
+        Route GPT-5 premium traffic only to core prose-generation purposes.
+        Other premium-marked calls fall back to the cheap model so the
+        project keeps GPT-5 focused on the main body-writing steps.
+        """
+        if not use_premium:
+            return self.model
+
+        candidate = self.premium_model
+        if candidate.startswith("gpt-5") and purpose not in GPT5_CORE_PROSE_PURPOSES:
+            logger.debug(
+                "Downgrading premium purpose '%s' from %s to %s per core-prose-only policy.",
+                purpose, candidate, self.model,
+            )
+            return self.model
+        return candidate
 
     @staticmethod
     def _to_responses_input(messages: list[dict]) -> list[dict]:

@@ -25,12 +25,15 @@
       },
       "feedback": {
         "approved_next_episode": false,
-        "specific_issues": [],
+        "specific_issues": [
+          "챕터 생성 실패",
+          "ValueError: invalid literal for int() with base 10: 'T11'"
+        ],
         "positive_notes": [],
-        "raw_feedback": "별로야"
+        "raw_feedback": "1 [CHAPTER] ❌ 챕터 생성 실패 (rc=1):\n\nrecent call last):\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/generate_chapter.py\", line 827, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/generate_chapter.py\", line 746, in main\n    scenes = distiller.distill(\n        episode_id=episode_id,\n        protagonist_id=args.protagonist,\n        target_scenes=target_scenes,\n    )\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/src/novel_writer/scene_distiller.py\", line 126, in distill\n    scenes = self._llm_distill(pov, beats, protagonist_id, target_scenes)\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/src/novel_writer/scene_distiller.py\", line 403, in _llm_distill\n    raw_start = int(sd.get(\"turn_start\", 0) or 0)\nValueError: invalid literal for int() with base 10: 'T11'\n\n\n왜 실패한거야!"
       },
       "completed_at": "2026-03-20",
-      "cycle_count": 3
+      "cycle_count": 2
     }
   },
   "active_clues": {}

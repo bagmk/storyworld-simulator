@@ -4,6 +4,7 @@ Regression tests for reader-feedback-driven readability guards.
 """
 
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -100,7 +101,8 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         merged = prose._merge_clipped_sentence_runs("그의 숨이 막혔다. 문이 열렸다. 발소리가 가까워졌다.")
 
         self.assertEqual(len(prose._split_korean_sentences(merged)), 1)
-        self.assertTrue(any(token in merged for token in ("그 말이 끝나자", "시선이 옮겨가자", "고개를 들자", "의자가 밀리자")))
+        self.assertTrue(any(token in merged for token in ("짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이", "말끝이 가라앉자")))
+        self.assertFalse(any(token in merged for token in ("그 말이 끝나자", "시선이 옮겨가자")))
         self.assertFalse(any(token in merged for token in ("그 직후", "잠시 뒤")))
 
     def test_rhythm_bridge_samples_avoid_flagged_stock_fragments(self):
@@ -251,6 +253,86 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("그 말은 칼날처럼 얇았다.", trimmed)
         self.assertIn("수민은 숨을 고쳤다.", trimmed)
 
+    def test_prose_generator_strips_meta_marker_artifacts(self):
+        prose = ProseGenerator(
+            llm=DummyLLM(),
+            episode_config={"id": "ep_test"},
+            reader_feedback={
+                **_feedback("메타 표식", "작업 메모"),
+                "style_constraints": {"strip_meta_markers": 1},
+            },
+        )
+
+        cleaned = prose._trim_post_metaphor_explanations(
+            "ep01—scene21. ep01의 온도계. 수민은 숨을 고쳤다."
+        )
+
+        self.assertNotIn("ep01", cleaned.lower())
+        self.assertNotIn("scene21", cleaned.lower())
+        self.assertIn("수민은 숨을 고쳤다.", cleaned)
+
+    def test_scene_distiller_merges_repeated_hallway_confrontation_beats(self):
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config={},
+            reader_feedback={
+                **_feedback("밀러와의 복도 대면이 사실상 두 번 반복된다", "하나의 대화로 압축하라"),
+                "style_constraints": {"merge_repeated_confrontation_beats": 1},
+            },
+        )
+        left = DistilledScene(
+            scene_number=1,
+            title="복도 질문",
+            turn_range=(11, 12),
+            location="복도",
+            characters_present=["수민", "Christian Miller"],
+            key_dialogue=[],
+            key_actions=["Christian Miller가 수민에게 다가섰다."],
+            discoveries=[],
+            emotional_arc="경계 -> 압박",
+            beat_references=[],
+            narrative_summary="Christian Miller가 복도에서 수민에게 통제권을 누가 쥐는지 물었다.",
+            pacing="building",
+            raw_turn_count=2,
+        )
+        right = DistilledScene(
+            scene_number=2,
+            title="복도 재질문",
+            turn_range=(13, 14),
+            location="복도",
+            characters_present=["수민", "Christian Miller"],
+            key_dialogue=[],
+            key_actions=["수민이 답을 늦추며 숨을 골랐다."],
+            discoveries=[],
+            emotional_arc="압박 -> 결심",
+            beat_references=[],
+            narrative_summary="Christian Miller는 같은 자리에서 책임을 누가 질지 다시 되물었다.",
+            pacing="building",
+            raw_turn_count=2,
+        )
+
+        self.assertTrue(distiller._scenes_need_timeline_merge(left, right))
+
+    def test_director_detects_repeated_hallway_confrontation_exchange(self):
+        director = DirectorAI(
+            episode_config={"summary": "복도 대면", "location": "복도"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=DummyLLM(),
+            reader_feedback=_feedback("복도 대면이 사실상 두 번 반복된다"),
+        )
+        recent = [
+            {"speaker_id": "miller", "action_type": "dialogue", "content": "Miller가 복도에서 다가서며 통제권이 누구에게 있는지 물었다."},
+            {"speaker_id": "sumin", "action_type": "dialogue", "content": "수민은 같은 복도에서 바로 답하지 않았다."},
+            {"speaker_id": "miller", "action_type": "dialogue", "content": "Miller는 다시 다가서며 책임을 누가 질지 되물었다."},
+            {"speaker_id": "sumin", "action_type": "dialogue", "content": "수민은 답을 미루며 같은 질문을 되받았다."},
+        ]
+
+        signal = director._scene_progress_signal(recent)
+
+        self.assertTrue(signal["repeated_concern"])
+        self.assertTrue(signal["stalled"])
+
     def test_pipeline_overrides_enable_new_reader_feedback_flags(self):
         tuned = _apply_reader_feedback_pipeline_overrides(
             _feedback(
@@ -269,6 +351,85 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertEqual(constraints.get("clarify_event_transitions"), 1)
         self.assertEqual(constraints.get("clarify_similar_character_entries"), 1)
         self.assertEqual(constraints.get("scene_compaction_ratio_target"), 80)
+
+    def test_pipeline_overrides_capture_review_specific_style_flags(self):
+        tuned = _apply_reader_feedback_pipeline_overrides(
+            _feedback(
+                "같은 정보와 감정이 재진술돼 제자리에서 맴도는 인상이다",
+                "그 말이 끝나자, 시선이 옮겨가자 같은 연결어 반복을 줄여라",
+                "메모, 모니터 경보, 보안요원 시선 같은 위협 신호가 과밀하다",
+                "모레노와 밀러의 대사는 이해관계와 말버릇이 드러나야 한다",
+                "핵심 문단 몇 개는 길게 호흡하라",
+            )
+        )
+
+        constraints = tuned.get("style_constraints", {})
+
+        self.assertEqual(constraints.get("single_strong_interior_beat"), 1)
+        self.assertEqual(constraints.get("compress_threat_signal_stack"), 1)
+        self.assertEqual(constraints.get("dialogue_agenda_contrast"), 1)
+        self.assertEqual(constraints.get("prefer_pivot_paragraph_breath"), 1)
+        self.assertIn("그 말이 끝나자", constraints.get("avoid_transition_terms", []))
+
+    def test_scene_distiller_compresses_overloaded_threat_signal_stack(self):
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config={},
+            reader_feedback={
+                **_feedback("메모, 모니터 경보, 보안요원 시선 같은 위협 신호가 과밀하다"),
+                "style_constraints": {"compress_threat_signal_stack": 1, "max_static_threat_signals_per_scene": 1},
+            },
+        )
+        scene = DistilledScene(
+            scene_number=1,
+            title="복도 경고",
+            turn_range=(1, 3),
+            location="복도",
+            characters_present=["수민", "보안요원"],
+            key_dialogue=[],
+            key_actions=["수민은 문 쪽으로 반걸음 물러섰다."],
+            discoveries=["메모가 의자 위에 놓여 있었다.", "모니터 경보가 복도 끝에서 울렸다."],
+            emotional_arc="경계 -> 압박",
+            beat_references=[],
+            narrative_summary="메모가 의자 위에 놓여 있었다. 모니터 경보가 복도 끝에서 울렸다. 보안요원의 시선이 수민을 따라왔다. 수민은 문 쪽으로 반걸음 물러섰다.",
+            pacing="building",
+            raw_turn_count=3,
+        )
+
+        distiller._apply_scene_readability_guards(scene)
+
+        self.assertIn("수민은 문 쪽으로 반걸음 물러섰다.", scene.narrative_summary)
+        self.assertLessEqual(
+            sum(
+                1
+                for sent in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", scene.narrative_summary)
+                if distiller._threat_signal_signature(sent) and not distiller._summary_has_action_or_decision(sent)
+            ),
+            1,
+        )
+
+    def test_director_detects_overloaded_threat_signal_stack(self):
+        director = DirectorAI(
+            episode_config={"summary": "복도 압박", "location": "복도"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=DummyLLM(),
+            reader_feedback={
+                **_feedback("메모, 모니터 경보, 보안요원 시선 같은 위협 신호가 과밀하다"),
+                "style_constraints": {"compress_threat_signal_stack": 1, "max_static_threat_signals_per_scene": 1},
+            },
+        )
+        recent = [
+            {"speaker_id": "a", "action_type": "dialogue", "content": "메모가 의자 위에 놓여 있습니다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "모니터 경보가 다시 울렸습니다."},
+            {"speaker_id": "a", "action_type": "dialogue", "content": "보안요원의 시선이 계속 따라옵니다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "복도 끝 화면에도 warning 표시가 떠 있습니다."},
+        ]
+
+        signal = director._scene_progress_signal(recent)
+
+        self.assertTrue(signal["signal_stack"])
+        self.assertTrue(signal["stalled"])
 
     def test_director_document_artifact_prompt_demands_spatial_clarity(self):
         llm = CaptureLLM("메모가 의자 위에서 눈에 들어왔다.")
