@@ -514,5 +514,9 @@ if __name__ == "__main__":
     load_project_env()
     from openai import OpenAI
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    report = run_full_analysis(OUTPUT_DIR / "daily", client)
+    # 가장 최근 run_dir 탐색 (output/daily/DATE_KEY/HHMMSS/)
+    _daily = OUTPUT_DIR / "daily"
+    _run_dirs = sorted(_daily.glob("*/*/"), key=lambda p: p.stat().st_mtime, reverse=True)
+    _run_dir = _run_dirs[0] if _run_dirs else _daily
+    report = run_full_analysis(_run_dir, client)
     print(report)

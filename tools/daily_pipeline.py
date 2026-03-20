@@ -288,7 +288,7 @@ def _generate_quality_chart(
         for k, label, color in SCORE_DEFS:
             ax.plot(x, score_data[k], "o-", color=color, label=label, linewidth=2, markersize=6)
         ax.plot(x, avg_scores, "^-", color="#000000", label="평균",
-                linewidth=2.5, markersize=7, zorder=5, fontsize=9)
+                linewidth=2.5, markersize=7, zorder=5)
         ax.axhline(y=AUTO_IMPROVE_SCORE_THRESHOLD, color="#e67e22", linestyle=":",
                    linewidth=1.5, label=f"목표 {AUTO_IMPROVE_SCORE_THRESHOLD}")
         ax.set_ylim(0, 10.5)
