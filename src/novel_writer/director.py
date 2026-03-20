@@ -624,6 +624,18 @@ class DirectorAI:
         progress = turn / max(target_turns, 1)
         progress_signal = self._scene_progress_signal(recent_interactions)
 
+        if progress_signal["technical_stall"]:
+            return (
+                "Technical back-and-forth is looping. Translate the next technical point into "
+                "a plain consequence or immediate physical reaction, then force a decision, "
+                "interruption, or movement."
+            )
+        if progress_signal["flat_tension"]:
+            return (
+                "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "
+                "brief human reaction, uneasy silence, dry aside, or small physical movement, "
+                "then sharpen the next question or choice."
+            )
         if progress_signal["stalled"]:
             return (
                 "The current exchange is reiterating itself. Force a concrete shift: "
@@ -1181,14 +1193,16 @@ class DirectorAI:
         fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
         low_novelty = len({fp for fp in fingerprints if fp}) <= 2
         technical_stall = self._has_repetitive_technical_exchange(recent)
+        flat_tension = self._has_flat_tension_plateau(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         stalled = (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
-        ) or technical_stall
+        ) or technical_stall or flat_tension
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
             "technical_stall": technical_stall,
+            "flat_tension": flat_tension,
         }
 
     def _has_repetitive_technical_exchange(self, recent_interactions: list[dict]) -> bool:
@@ -1210,6 +1224,29 @@ class DirectorAI:
             for i in recent_interactions[-3:]
         )
         return not emotion_or_action_shift
+
+    def _has_flat_tension_plateau(self, recent_interactions: list[dict]) -> bool:
+        if len(recent_interactions) < 4:
+            return False
+        recent = recent_interactions[-4:]
+        mostly_dialogue = sum(
+            1 for i in recent if str(i.get("action_type", "")).strip() == "dialogue"
+        ) >= 3
+        if not mostly_dialogue:
+            return False
+
+        pressure_hits = 0
+        relief_hits = 0
+        decisive_hits = 0
+        for row in recent:
+            text = str(row.get("content", ""))
+            if re.search(r"(긴장|압박|침묵|정적|날카|차갑|굳었|버텼|몰아붙|목소리를 낮추|숨을 죽였)", text):
+                pressure_hits += 1
+            if re.search(r"(웃|미소|숨을 고르|한숨|물컵|잔|메모|의자|어깨를 풀|고개를 끄덕)", text):
+                relief_hits += 1
+            if re.search(r"(결정|선택|드러났|밝혀졌|확인됐|거절|수락|합의|결론)", text):
+                decisive_hits += 1
+        return pressure_hits >= 3 and relief_hits == 0 and decisive_hits == 0
 
     @staticmethod
     def _technical_term_signature(text: str) -> set[str]:

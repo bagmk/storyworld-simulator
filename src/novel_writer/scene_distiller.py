@@ -224,6 +224,8 @@ class SceneDistiller:
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
             f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise rewrite them as action or emotional consequence in the same sentence.\n"
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
+            f"17. If a technical term or acronym survives in the summary, pair it once with a short plain-language cue or an immediate human reaction.\n"
+            f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -402,6 +404,7 @@ class SceneDistiller:
             self._compress_expository_dialogue(scene)
             scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.narrative_summary = self._rebalance_narrative_summary(scene)
+            scene.narrative_summary = self._soften_technical_summary(scene)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
                 canonical_speakers,
@@ -803,6 +806,90 @@ class SceneDistiller:
             subject = scene.characters_present[0] if scene.characters_present else "인물들은"
             return self._ensure_summary_sentence(f"{subject}의 감정선은 {emotional}으로 기울었다")
         return self._ensure_summary_sentence(scene.narrative_summary)
+
+    def _soften_technical_summary(self, scene: DistilledScene) -> str:
+        sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip())
+            if s.strip()
+        ]
+        if not sentences:
+            return scene.narrative_summary
+
+        rebuilt: list[str] = []
+        added_reaction = False
+        for sent in sentences:
+            normalized = self._ensure_summary_sentence(sent)
+            if not self._summary_is_jargon_heavy(sent) or self._summary_has_reaction_or_sensory(sent):
+                rebuilt.append(normalized)
+                continue
+
+            base = re.sub(r"[.!?…]+$", "", normalized).strip()
+            cue = self._plain_term_cue(sent)
+            if cue:
+                base = f"{base}, {cue}"
+            rebuilt.append(self._ensure_summary_sentence(base))
+
+            if not added_reaction:
+                reaction = self._summary_reaction_tail(scene)
+                if reaction:
+                    rebuilt.append(reaction)
+                    added_reaction = True
+
+        max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        return " ".join(rebuilt[:max_sentences]).strip()
+
+    @staticmethod
+    def _summary_is_jargon_heavy(sentence: str) -> bool:
+        raw = str(sentence or "")
+        if not raw.strip():
+            return False
+        low = raw.lower()
+        hits = len(re.findall(r"\b[A-Z]{2,8}(?:-\d+)?\b", raw))
+        for token in (
+            "latency", "coherence", "drift", "protocol", "qpu",
+            "지연", "결맞음", "드리프트", "편차", "프로토콜", "양자", "보정", "오차",
+        ):
+            if token in low:
+                hits += 1
+        return hits >= 1
+
+    @staticmethod
+    def _summary_has_reaction_or_sensory(sentence: str) -> bool:
+        return bool(re.search(
+            r"(손끝|손바닥|목 안|숨|호흡|시선|눈빛|귀|귀에|차갑|뜨겁|굳었|멈칫|흔들|고개를 들|답을 잇지 못했|몸이 먼저|표정이)",
+            str(sentence or ""),
+        ))
+
+    @staticmethod
+    def _plain_term_cue(sentence: str) -> str:
+        low = str(sentence or "").lower()
+        if "latency" in low or "지연" in low:
+            return "즉 반응이 한 박자 늦는다는 뜻이었다"
+        if "coherence" in low or "결맞음" in low:
+            return "즉 계산의 결이 흐트러질 수 있다는 뜻이었다"
+        if "drift" in low or "드리프트" in low or "편차" in low:
+            return "즉 수치가 조금씩 밀리고 있다는 뜻이었다"
+        if "qpu" in low or "양자 처리 칩" in low:
+            return "장비의 핵심 칩 쪽 문제라는 뜻이었다"
+        if "protocol" in low or "프로토콜" in low:
+            return "현장 절차를 다시 밟아야 한다는 뜻이었다"
+        if "보정" in low or "오차" in low:
+            return "숫자를 다시 맞춰야 한다는 뜻이었다"
+        return ""
+
+    def _summary_reaction_tail(self, scene: DistilledScene) -> str:
+        subject = scene.characters_present[0] if scene.characters_present else "인물들"
+        emotional = str(scene.emotional_arc or "")
+        if re.search(r"(불안|긴장|초조|압박)", emotional):
+            return self._ensure_summary_sentence(f"{subject}의 손끝이 먼저 굳었다")
+        if re.search(r"(안도|진정|안정)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 그제야 어깨 힘을 조금 풀었다")
+        if re.search(r"(분노|짜증|격앙)", emotional):
+            return self._ensure_summary_sentence(f"{subject}의 턱선이 눈에 띄게 굳었다")
+        if re.search(r"(혼란|당황|망설임)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 잠깐 답을 잇지 못했다")
+        return self._ensure_summary_sentence(f"{subject}은 반사적으로 시선을 들었다")
 
     @staticmethod
     def _compress_beat_content(text: str, max_chars: int = 180) -> str:

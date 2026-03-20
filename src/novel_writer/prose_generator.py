@@ -157,6 +157,7 @@ class ProseGenerator:
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
+        final = self._diversify_transition_openers(final)
         final = self._merge_clipped_sentence_runs(final)
         final = self._compress_redundant_jargon_sentences(final)
         final = self._enforce_sentence_word_caps(final, max_words=self._feedback_sentence_word_cap(default=25))
@@ -504,6 +505,8 @@ class ProseGenerator:
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
+            f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
+            f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
             f"## Essential Content (from simulation)\n"
             f"Key dialogue:\n{dialogue_text}\n"
@@ -694,6 +697,10 @@ class ProseGenerator:
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
+        prompt += (
+            "\nAvoid repeating sentence openings with '그리고', '그러자', '다만'."
+            "\nMix sharp emphasis lines with calmer connective lines so dialogue tension is not flat."
+        )
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
             prompt += (
                 "\nUse action/gesture beats to externalize emotion before adding inner analysis."
@@ -836,6 +843,8 @@ class ProseGenerator:
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
             if self._has_repetitive_sentence_openings(text):
                 reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
+            if self._has_transition_opener_streak(text):
+                reasons.append("'그리고/그러자/다만' 계열 연결어 시작이 반복되어 흐름이 뻣뻣함")
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선"):
             synonym_groups = [
                 ("보정", "실시간", "드리프트"),
@@ -928,8 +937,10 @@ class ProseGenerator:
             "- 가능성/계산/추론 같은 내면 분석 어휘는 반복하지 말고 행동으로 치환\n"
             "- 이미 등장한 인물의 역할/의도 재설명은 축약하고 장면 진행을 우선\n"
             "- 같은 문장 시작 패턴이나 단문 리듬을 3회 이상 반복하지 말 것\n"
+            "- '그리고', '그러자', '다만' 같은 연결어 시작은 근접 문장에서 반복하지 말 것\n"
             "- 짧은 문장은 앞뒤 문장과 인과관계가 분명할 때만 단독으로 둘 것\n"
             "- 같은 박자의 단문이 2개 이상 이어지면 1개의 자연스러운 복합문으로 묶을 것\n"
+            "- 강하게 압박하는 문장과 담백하게 상황을 잇는 문장을 섞어 리듬 고저를 만들 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
@@ -1286,8 +1297,10 @@ class ProseGenerator:
             f"{paragraph_cap_line}"
             f"- 대부분의 문장은 약 {sentence_cap}어절 이하로 유지하고, 길어지면 인과 단위로 분리\n"
             "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
+            "- '그리고', '그러자', '다만' 같은 연결어를 연속 문장 시작에 반복하지 말 것\n"
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
+            "- 강한 문장과 담백한 문장을 섞어 압박의 고저를 만들 것\n"
             "- 기술 용어/약어는 꼭 필요할 때만 짧게 풀고 이후는 짧은 콜백으로 유지할 것\n"
             "- 괄호 설명은 기본값으로 쓰지 말고, 필요하면 본문 안에 짧게 녹여 쓸 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비교를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
@@ -1355,6 +1368,89 @@ class ProseGenerator:
                 streak = 1
         sample = openers[:8]
         return len(set(sample)) <= max(2, len(sample) // 3)
+
+    @staticmethod
+    def _sentence_leading_connector(sentence: str) -> str:
+        cleaned = re.sub(r"^[\"“”'‘’\(\)\[\]\s]+", "", str(sentence or "").strip())
+        match = re.match(r"(그리고|그러자|다만|하지만|그러나|한편|곧이어|이어서)\b", cleaned)
+        return match.group(1) if match else ""
+
+    def _has_transition_opener_streak(self, text: str) -> bool:
+        connectors = [
+            self._sentence_leading_connector(sent)
+            for sent in self._split_korean_sentences(text)
+        ]
+        connectors = [c for c in connectors if c in {"그리고", "그러자", "다만"}]
+        if len(connectors) < 3:
+            return False
+        streak = 1
+        for idx in range(1, len(connectors)):
+            if connectors[idx] == connectors[idx - 1]:
+                streak += 1
+                if streak >= 2:
+                    return True
+            else:
+                streak = 1
+        return any(connectors.count(conn) >= 3 for conn in {"그리고", "그러자", "다만"})
+
+    def detect_repetition_pattern_warnings(self, text: str) -> list[str]:
+        if not text:
+            return []
+        warnings: list[str] = []
+        connector_counts: dict[str, int] = {"그리고": 0, "그러자": 0, "다만": 0}
+        for sent in self._split_korean_sentences(text):
+            conn = self._sentence_leading_connector(sent)
+            if conn in connector_counts:
+                connector_counts[conn] += 1
+        overused_connectors = [
+            f"{conn} {count}회"
+            for conn, count in connector_counts.items()
+            if count >= 3
+        ]
+        if overused_connectors:
+            warnings.append("연결어 반복 감지: " + ", ".join(overused_connectors))
+        if self._has_transition_opener_streak(text):
+            warnings.append("인접 문장에서 같은 연결어 시작 패턴이 반복됨")
+        if self._has_repetitive_sentence_openings(text):
+            warnings.append("인접 문장 시작 패턴이 반복됨")
+
+        repeated_patterns: list[str] = []
+        seen_fp: dict[str, int] = {}
+        for sent in self._split_korean_sentences(text):
+            fp = self._sentence_fingerprint(sent)
+            if len(fp.split()) < 3:
+                continue
+            seen_fp[fp] = seen_fp.get(fp, 0) + 1
+            if seen_fp[fp] == 2:
+                repeated_patterns.append(self._truncate_text(re.sub(r"\s+", " ", sent).strip(), 24))
+        if repeated_patterns:
+            warnings.append("유사 문장 패턴 반복: " + ", ".join(repeated_patterns[:3]))
+        if self._has_monotone_sentence_length_run(text):
+            warnings.append("강한 문장과 담백한 문장의 길이 대비가 부족함")
+        return warnings
+
+    def _has_monotone_sentence_length_run(self, text: str) -> bool:
+        sentences = self._split_korean_sentences(text)
+        if len(sentences) < 5:
+            return False
+        bands: list[str] = []
+        for sent in sentences:
+            wc = self._sentence_word_count(sent)
+            if wc <= 6:
+                bands.append("short")
+            elif wc <= 16:
+                bands.append("medium")
+            else:
+                bands.append("long")
+        streak = 1
+        for idx in range(1, len(bands)):
+            if bands[idx] == bands[idx - 1]:
+                streak += 1
+                if streak >= 4:
+                    return True
+            else:
+                streak = 1
+        return False
 
     def _has_excess_clipped_sentences(self, text: str) -> bool:
         sentences = self._split_korean_sentences(text)
@@ -1917,6 +2013,46 @@ class ProseGenerator:
 
         return "\n\n".join(out_blocks)
 
+    def _diversify_transition_openers(self, text: str) -> str:
+        if not text:
+            return text
+        replacements = {
+            "그리고": ["이어서", "그 직후", "잠시 뒤", "한편"],
+            "그러자": ["그 순간", "곧이어", "그러는 사이", "그 말이 끝나자"],
+            "다만": ["대신", "문제는", "한편", "그래도"],
+        }
+        out_blocks: list[str] = []
+        swap_index = {key: 0 for key in replacements}
+        for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+            sentences = self._split_korean_sentences(block)
+            if not sentences:
+                out_blocks.append(block)
+                continue
+            rebuilt: list[str] = []
+            recent_connectors: list[str] = []
+            for sent in sentences:
+                connector = self._sentence_leading_connector(sent)
+                needs_swap = connector in replacements and (
+                    recent_connectors.count(connector) >= 1
+                    or (recent_connectors and recent_connectors[-1] in replacements)
+                )
+                if needs_swap:
+                    options = replacements[connector]
+                    replacement = options[swap_index[connector] % len(options)]
+                    swap_index[connector] += 1
+                    sent = re.sub(
+                        rf"^([\"“”'‘’\(\)\[\]\s]*){connector}\s*,?\s*",
+                        rf"\1{replacement} ",
+                        sent.strip(),
+                        count=1,
+                    ).strip()
+                rebuilt.append(sent)
+                recent_connectors.append(self._sentence_leading_connector(sent))
+                if len(recent_connectors) > 2:
+                    recent_connectors.pop(0)
+            out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
+        return "\n\n".join(out_blocks)
+
     def _merge_clipped_sentence_runs(self, text: str) -> str:
         """
         Merge repeated short narrative fragments into one flowing sentence.
@@ -1974,7 +2110,7 @@ class ProseGenerator:
             return ""
         if len(sentences) == 1:
             return sentences[0]
-        connectors = ["그리고", "그러자", "그 순간"]
+        connectors = ["이어서", "그 순간", "한 박자 늦게"]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
@@ -2013,7 +2149,7 @@ class ProseGenerator:
                     if overlap and self._is_jargon_heavy_sentence(current) and self._is_jargon_heavy_sentence(nxt):
                         merged = re.sub(r"[.!?…]+$", "", current)
                         follow = re.sub(r"^[\"“”'‘’\s]+|[.!?…]+$", "", nxt)
-                        rebuilt.append(f"{merged}, 그리고 {follow}.")
+                        rebuilt.append(f"{merged}, 이어 {follow}.")
                         idx += 2
                         continue
                 rebuilt.append(current)
@@ -2415,17 +2551,37 @@ class ProseGenerator:
                 else:
                     streak = 0
                 if streak > streak_limit and inserted < max_per_scene:
-                    rebuilt.append(self._rhythm_bridge_sentence(beat_idx, min_short, max_short))
+                    tone = self._bridge_tone_for_context(rebuilt[-2:])
+                    rebuilt.append(self._rhythm_bridge_sentence(beat_idx, min_short, max_short, tone=tone))
                     beat_idx += 1
                     inserted += 1
                     streak = 0
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
 
-    def _rhythm_bridge_sentence(self, idx: int, min_chars: int = 5, max_chars: int = 10) -> str:
+    @staticmethod
+    def _sentence_intensity_score(sentence: str) -> int:
+        return len(re.findall(
+            r"(긴장|압박|정적|침묵|날카|버텼|몰아붙|흔들|초조|불안|결정|선택|반박|거절|수락)",
+            str(sentence or ""),
+        ))
+
+    def _bridge_tone_for_context(self, recent_sentences: list[str]) -> str:
+        if not recent_sentences:
+            return "strong"
+        intensity = sum(self._sentence_intensity_score(sent) for sent in recent_sentences[-2:])
+        return "plain" if intensity >= 2 else "strong"
+
+    def _rhythm_bridge_sentence(
+        self,
+        idx: int,
+        min_chars: int = 5,
+        max_chars: int = 10,
+        tone: str = "strong",
+    ) -> str:
         min_chars = max(min_chars, 14)
         max_chars = max(max_chars, 28)
-        samples = [
+        strong_samples = [
             "질문의 방향이 바뀌자 테이블 반대편의 시선도 함께 움직였다.",
             "의자가 살짝 밀리는 소리 뒤로 회의장의 호흡이 한 박자 늦어졌다.",
             "누군가 메모를 멈추고 고개를 들면서 방 안의 집중이 한곳으로 쏠렸다.",
@@ -2447,6 +2603,17 @@ class ProseGenerator:
             "실내의 온도가 내려간 듯한 착각과 함께 반응의 방향도 선명해졌다.",
             "그제야 모두가, 지금부터는 말보다 선택이 더 중요해졌다는 걸 알아차렸다.",
         ]
+        plain_samples = [
+            "수민은 바로 대답하지 않았다.",
+            "누군가 메모를 한 줄 더 적었다.",
+            "컵 바닥이 조용히 테이블에 닿았다.",
+            "그는 숨을 한 번 고르고 말을 골랐다.",
+            "짧은 정리 뒤에 다음 질문이 이어졌다.",
+            "말의 끝이 가라앉자 방 안도 잠깐 조용해졌다.",
+            "시선 몇 개가 같은 지점에 모였다가 다시 흩어졌다.",
+            "누군가는 고개만 아주 작게 끄덕였다.",
+        ]
+        samples = plain_samples if tone == "plain" else strong_samples
         sample = samples[idx % len(samples)]
         return self._fit_char_window(sample, min_chars, max_chars)
 
@@ -2635,6 +2802,8 @@ class ProseGenerator:
                 "long_sentence_ratio": 0.0,
                 "jargon_repeat_terms": 0.0,
                 "max_visual_streak": 0.0,
+                "transition_opener_repeats": 0.0,
+                "pattern_warning_count": 0.0,
             }
         blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
         sentence_counts = [len(self._split_korean_sentences(b)) for b in blocks if b]
@@ -2655,6 +2824,10 @@ class ProseGenerator:
                 max_streak = max(max_streak, streak)
             else:
                 streak = 0
+        transition_repeat_count = sum(
+            1 for warning in self.detect_repetition_pattern_warnings(text)
+            if "연결어" in warning or "시작 패턴" in warning
+        )
 
         return {
             "avg_paragraph_sentences": (
@@ -2665,6 +2838,8 @@ class ProseGenerator:
             ),
             "jargon_repeat_terms": float(repeat_count),
             "max_visual_streak": float(max_streak),
+            "transition_opener_repeats": float(transition_repeat_count),
+            "pattern_warning_count": float(len(self.detect_repetition_pattern_warnings(text))),
         }
 
     def _warn_sensory_streak(self, text: str, streak_limit: int = 3) -> None:

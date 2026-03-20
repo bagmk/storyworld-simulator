@@ -271,6 +271,17 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
     return scenes
 
 
+def _log_sentence_pattern_warnings(
+    prose_gen: ProseGenerator,
+    chapter_text: str,
+    logger: logging.Logger,
+) -> list[str]:
+    warnings = prose_gen.detect_repetition_pattern_warnings(chapter_text)
+    for warning in warnings:
+        logger.warning("Sentence pattern guard: %s", warning)
+    return warnings
+
+
 def main() -> None:
     load_project_env()
     args = parse_args()
@@ -499,6 +510,7 @@ def main() -> None:
 
     # === Report ===
     chapter_text = Path(chapter_path).read_text(encoding="utf-8")
+    pattern_warnings = _log_sentence_pattern_warnings(prose_gen, chapter_text, logger)
     word_count = len(chapter_text.split())
     total_elapsed = distill_elapsed + prose_elapsed
 
@@ -508,6 +520,8 @@ def main() -> None:
     logger.info("  Chapter: %s", chapter_path)
     logger.info("  Words: %d (target: %d)", word_count, target_words)
     logger.info("  Scenes: %d distilled from %d turns", len(scenes), len(interactions))
+    if pattern_warnings:
+        logger.info("  Pattern warnings: %d", len(pattern_warnings))
     logger.info("  Time: %.1fs (distill: %.1fs, prose: %.1fs)",
                 total_elapsed, distill_elapsed, prose_elapsed)
     logger.info(
