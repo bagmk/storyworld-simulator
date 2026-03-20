@@ -54,7 +54,9 @@ DAILY_TAG = "[DAILY]"
 
 # Auto-improve loop settings
 AUTO_IMPROVE_MAX_CYCLES = 3       # Codex fixer 최대 반복 횟수
-AUTO_IMPROVE_SCORE_THRESHOLD = 7  # thrill+style 평균 이 점수 이상이면 통과 (10점 만점)
+AUTO_IMPROVE_SCORE_THRESHOLD = 8.5  # thrill+style 평균 이 점수 이상이면 통과 (10점 만점)
+# 근거: novel-loop 실측 데이터상 좋은 챕터 평균 8.0, 최솟값 7.5.
+# 7.0 기준은 사이클1에서 바로 통과되어 Codex가 실행되지 않음.
 
 # Fixer: config/episodes는 건드리지 않음. 이 파일들만 수정 대상.
 FIXER_TARGET_FILES = [
@@ -69,6 +71,7 @@ FIXER_TARGET_FILES = [
 NotifyFn = Callable[[str], Awaitable[None]] | None
 UploadFn = Callable[[Path, str], Awaitable[None]] | None
 StatusFn = Callable[[str], None] | None      # sync callback to update shared status string
+ProcessFn = Callable[[str | None, int | None, str | None], None] | None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -113,6 +116,8 @@ async def _stream_subprocess(
     timeout_sec: int = 3600,
     on_heartbeat: Callable[[int], Awaitable[None]] | None = None,
     heartbeat_sec: int = 120,
+    on_process_started: Callable[[int], None] | None = None,
+    on_process_ended: Callable[[], None] | None = None,
 ) -> tuple[int, str]:
     """
     Run a subprocess, stream stdout+stderr line-by-line through on_line callback.
@@ -128,6 +133,8 @@ async def _stream_subprocess(
         cwd=str(REPO_ROOT),
         env=env,
     )
+    if on_process_started:
+        on_process_started(proc.pid)
 
     output_lines: list[str] = []
     last_output_time: list[float] = [asyncio.get_event_loop().time()]
@@ -181,6 +188,8 @@ async def _stream_subprocess(
         pass
 
     await proc.wait()
+    if on_process_ended:
+        on_process_ended()
 
     if stop_event and stop_event.is_set():
         return -1, "\n".join(output_lines)
@@ -370,6 +379,7 @@ async def step_simulator(
     notify: NotifyFn,
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
+    set_process: ProcessFn = None,
     guardian_briefing_path: Path | None = None,
 ) -> bool:
     if stop_event and stop_event.is_set():
@@ -395,22 +405,25 @@ async def step_simulator(
         cmd += ["--guardian-briefing", str(guardian_briefing_path)]
 
     turn_re = re.compile(r"Turn\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+    current_turn_label = "준비 중"
 
     async def on_line(line: str) -> None:
+        nonlocal current_turn_label
         if not line:
             return
         m = turn_re.search(line)
         if m:
             turn = int(m.group(1))
             total = max(int(m.group(2)), 1)
+            current_turn_label = f"Turn {turn}/{total}"
             status_str = f"2/4 시뮬레이션 Turn {turn}/{total}"
             if set_status:
                 set_status(status_str)
             if notify:
-                await notify(f"{DAILY_TAG}[SIM] ⚙️ Turn {turn}/{total}")
+                await notify(f"{DAILY_TAG}[SIM] ⚙️ {current_turn_label}")
             return
         if notify:
-            await notify(f"{DAILY_TAG}[SIM] {line}")
+            await notify(f"{DAILY_TAG}[SIM] ⚙️ {current_turn_label} | {line}")
 
     async def on_heartbeat_sim(elapsed: int) -> None:
         mins = elapsed // 60
@@ -429,6 +442,8 @@ async def step_simulator(
     rc, output = await _stream_subprocess(
         cmd, on_line=on_line, stop_event=stop_event, timeout_sec=1800,
         on_heartbeat=on_heartbeat_sim, heartbeat_sec=120,
+        on_process_started=(lambda pid: set_process("simulator", pid, " ".join(cmd))) if set_process else None,
+        on_process_ended=(lambda: set_process(None, None, None)) if set_process else None,
     )
 
     if rc == -1:
@@ -465,6 +480,7 @@ async def step_chapter_gen(
     upload: UploadFn,
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
+    set_process: ProcessFn = None,
     guardian_briefing_path: Path | None = None,
 ) -> Path | None:
     if stop_event and stop_event.is_set():
@@ -499,30 +515,45 @@ async def step_chapter_gen(
         cmd += ["--guardian-briefing", str(guardian_briefing_path)]
 
     scene_re = re.compile(r"scene\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+    stage_re = re.compile(r"stage\s+(\d+)", re.IGNORECASE)
+    current_scene_label: str | None = None
+    current_stage_label = "준비 중"
 
     async def on_line(line: str) -> None:
+        nonlocal current_scene_label, current_stage_label
         if not line:
             return
+        stage_match = stage_re.search(line)
+        if stage_match:
+            current_stage_label = f"Stage {stage_match.group(1)}"
+            if set_status and current_scene_label is None:
+                set_status(f"3/4 챕터 생성 {current_stage_label}")
         m = scene_re.search(line)
         if m:
             scene = int(m.group(1))
             total = max(int(m.group(2)), 1)
+            current_scene_label = f"Scene {scene}/{total}"
             if set_status:
-                set_status(f"3/4 챕터 생성 Scene {scene}/{total}")
+                set_status(f"3/4 챕터 생성 {current_scene_label}")
             if notify:
-                await notify(f"{DAILY_TAG}[CHAPTER] 📝 Scene {scene}/{total}")
+                await notify(f"{DAILY_TAG}[CHAPTER] 📝 {current_scene_label}")
             return
         if notify:
-            await notify(f"{DAILY_TAG}[CHAPTER] {line}")
+            prefix = current_scene_label or current_stage_label
+            emoji = "📝" if current_scene_label else "🧩"
+            await notify(f"{DAILY_TAG}[CHAPTER] {emoji} {prefix} | {line}")
 
     async def on_heartbeat_chapter(elapsed: int) -> None:
         mins = elapsed // 60
         if notify:
-            await notify(f"{DAILY_TAG}[CHAPTER] ⏳ 글 작성 중... ({mins}분 경과)")
+            prefix = current_scene_label or current_stage_label
+            await notify(f"{DAILY_TAG}[CHAPTER] ⏳ {prefix} | 글 작성 중... ({mins}분 경과)")
 
     rc, output = await _stream_subprocess(
         cmd, on_line=on_line, stop_event=stop_event, timeout_sec=1800,
         on_heartbeat=on_heartbeat_chapter, heartbeat_sec=120,
+        on_process_started=(lambda pid: set_process("chapter", pid, " ".join(cmd))) if set_process else None,
+        on_process_ended=(lambda: set_process(None, None, None)) if set_process else None,
     )
 
     if rc == -1:
@@ -627,7 +658,7 @@ def _build_ai_reviewer_prompt(chapter_text: str) -> str:
     )
 
 
-def _build_codex_fixer_prompt(review_json: dict, review_md_path: Path) -> str:
+def _build_codex_fixer_prompt(review_json: dict) -> str:
     issues = review_json.get("what_felt_boring_or_hard", [])
     tips = review_json.get("style_tips", [])
     comment = review_json.get("reader_comment", "")
@@ -830,7 +861,7 @@ async def step_auto_improve_loop(
         if notify:
             await notify(f"{DAILY_TAG}[AUTO] 💾 이전 버전 백업 완료 → `{backup_dir.name}/`")
 
-        fixer_prompt = _build_codex_fixer_prompt(review_json, run_dir)
+        fixer_prompt = _build_codex_fixer_prompt(review_json)
         ok, summary = await _run_codex_fixer(fixer_prompt, run_dir, fixer_cycle)
 
         if not ok:
@@ -895,7 +926,7 @@ async def wait_for_feedback(
 
     if notify:
         await notify(
-            f"{DAILY_TAG}[WAIT] ⏳ 피드백 대기 중 (최대 {timeout_hours:.0f}시간)\n"
+            f"{DAILY_TAG}[WAIT] ⏳ 피드백을 기다리고 있습니다. (최대 {timeout_hours:.0f}시간)\n"
             "읽어보시고 자유롭게 피드백 남겨주세요.\n"
             "'다음으로 가자' 또는 'next' → 다음 에피소드로 진행\n"
             "`!stop` → 파이프라인 중단"
@@ -952,6 +983,7 @@ async def run_daily_pipeline(
     no_discord: bool = False,
     stop_event: asyncio.Event | None = None,
     set_status: StatusFn = None,
+    set_process: ProcessFn = None,
     on_start_wait: Callable[[], None] | None = None,
     on_end_wait: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
@@ -983,6 +1015,7 @@ async def run_daily_pipeline(
 
     # ── Step 2: Simulator ──
     ok2 = await step_simulator(episode_key, run_dir, cycle, budget, notify, set_status, stop_event,
+                               set_process=set_process,
                                guardian_briefing_path=guardian_briefing_path)
     if not ok2:
         if set_status:
@@ -993,6 +1026,7 @@ async def run_daily_pipeline(
     chapter_path = await step_chapter_gen(
         episode_key, run_dir, cycle, target_words, budget, protagonist,
         notify, upload, set_status, stop_event,
+        set_process=set_process,
         guardian_briefing_path=guardian_briefing_path,
     )
     if chapter_path is None:
@@ -1039,6 +1073,11 @@ async def run_daily_pipeline(
     if raw_feedback is None:
         if set_status:
             set_status("완료 (피드백 없음)")
+        if notify:
+            await notify(
+                f"{DAILY_TAG}[DONE] ℹ️ 피드백이 없어 여기서 마무리했습니다.\n"
+                "원하면 나중에 다시 `!novel-daily <번호>`로 실행하거나, 새 피드백 기준으로 재시작하면 됩니다."
+            )
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
     # ── Step 6: Parse feedback + update story_state ──
@@ -1061,14 +1100,15 @@ async def run_daily_pipeline(
         if approved:
             await notify(
                 f"{DAILY_TAG}[DONE] ✅ 피드백 저장 완료. 다음 에피소드 승인됨.\n"
-                "다음 에피소드를 시작하려면: `!novel-daily <번호>`"
+                "이 에피소드는 여기서 마무리됐고, 다음엔 `!novel-daily <번호>`로 다음 화를 시작하면 됩니다."
             )
         else:
             issues = parsed.get("specific_issues", [])
             issue_str = "\n".join(f"  - {i}" for i in issues) if issues else "  (코멘트 참조)"
             await notify(
                 f"{DAILY_TAG}[DONE] 📝 피드백 저장 완료. 다음 사이클에서 `{episode_key}` 재시도.\n"
-                f"개선 포인트:\n{issue_str}"
+                f"개선 포인트:\n{issue_str}\n"
+                "지금은 여기서 멈추며, 같은 화를 다시 돌리려면 `!novel-daily <번호>`를 다시 실행하면 됩니다."
             )
 
     return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": approved, "feedback": parsed}

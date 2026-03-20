@@ -2132,11 +2132,30 @@ class ProseGenerator:
         return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _rhythm_bridge_sentence(self, idx: int, min_chars: int = 5, max_chars: int = 10) -> str:
+        # Keep diverse so no single phrase repeats more than once every ~20 bridges.
+        # BANNED from this list: "숨이 멎었다.", "짧은 침묵.", "공기가 식었다.", "시선이 모였다."
+        # — they were overused as a mechanical cycle and degraded prose quality.
         samples = [
-            "숨이 멎었다.",
-            "짧은 침묵.",
-            "공기가 식었다.",
-            "시선이 모였다.",
+            "그가 잠깐 멈췄다.",
+            "발소리가 잦아들었다.",
+            "말이 끊겼다.",
+            "잠시 정적이 흘렀다.",
+            "그의 손이 멈췄다.",
+            "누군가 숨을 골랐다.",
+            "불빛이 흔들렸다.",
+            "그녀가 입술을 다물었다.",
+            "복도 소음이 스쳤다.",
+            "그는 시선을 내렸다.",
+            "의자가 작게 삐걱였다.",
+            "잠깐의 공백이 생겼다.",
+            "그 말이 공중에 남았다.",
+            "둘 사이로 거리가 생겼다.",
+            "펜이 종이 위에 멈췄다.",
+            "그녀의 표정이 굳었다.",
+            "기계음이 낮게 울렸다.",
+            "그는 천천히 고개를 들었다.",
+            "문이 아주 조금 열려 있었다.",
+            "손끝에 힘이 들어갔다.",
         ]
         sample = samples[idx % len(samples)]
         return self._fit_char_window(sample, min_chars, max_chars)
