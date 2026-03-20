@@ -69,6 +69,7 @@ CMD_APPROVE = "!approve"
 CMD_REJECT = "!reject"
 CMD_STATUS = "!status"
 CMD_PIPELINE_STOP = "!stop"
+CMD_CHAPTER = "!chapter"
 
 PROTECTED_FIXER_RULE_FILES: dict[str, list[str]] = {
     "src/novel_writer/prose_generator.py": [
@@ -86,6 +87,8 @@ DAILY_FEEDBACK_QUEUES: dict[int, asyncio.Queue] = {}
 DAILY_STOP_EVENTS: dict[int, asyncio.Event] = {}
 DAILY_STATUS: dict[int, str] = {}           # channel_id → current status string
 DAILY_WAITING_FEEDBACK: set[int] = set()   # 스코어카드 이후 피드백 대기 중인 채널만 등록
+DAILY_PROCESS_INFO: dict[int, dict[str, Any]] = {}
+DAILY_CHAPTER_PATHS: dict[int, Path] = {}  # channel_id → 최근 생성된 챕터 파일 경로
 
 
 def _request_stop(channel_id: int) -> None:
@@ -98,6 +101,16 @@ def _clear_stop(channel_id: int) -> None:
 
 def _is_stop_requested(channel_id: int) -> bool:
     return int(channel_id) in STOP_REQUESTED_CHANNELS
+
+
+def _pid_alive(pid: int | None) -> bool:
+    if not pid or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
 
 
 def _top_level_repo_snapshot() -> str:
@@ -1117,6 +1130,30 @@ async def _send_text_with_token(
     await _send_text(channel, text)
 
 
+async def _send_text_with_token_return_message(
+    channel: discord.abc.Messageable,
+    text: str,
+    bot_token: str,
+) -> discord.Message | None:
+    if bot_token:
+        try:
+            channel_id = int(getattr(channel, "id"))
+            message_id = await _rest_send_text_return_message_id(channel_id, text, bot_token)
+            if message_id and hasattr(channel, "fetch_message"):
+                try:
+                    return await channel.fetch_message(message_id)
+                except Exception:
+                    return None
+            return None
+        except Exception:
+            pass
+    try:
+        return await channel.send(text)
+    except Exception:
+        await _send_text(channel, text)
+        return None
+
+
 async def _send_file_with_token(
     channel: discord.abc.Messageable,
     channel_id: int,
@@ -1790,7 +1827,7 @@ async def async_main() -> None:
                 message.channel.id,
                 f"중지 요청 수신: {CMD_STOP}\n"
                 "현재 실행 중인 단계가 정리되는 즉시 루프를 멈춥니다.",
-                reviewer_bot_token,
+                manager_bot_token,
             )
             return
 
@@ -1816,18 +1853,27 @@ async def async_main() -> None:
             ch_id = message.channel.id
             status = DAILY_STATUS.get(ch_id)
             if status:
+                proc_info = DAILY_PROCESS_INFO.get(ch_id, {})
+                pid = proc_info.get("pid")
+                stage = proc_info.get("stage")
+                if _pid_alive(pid):
+                    proc_line = f"\n🧠 백그라운드 프로세스: 실행 중 (`{stage}`, PID {pid})"
+                elif pid:
+                    proc_line = f"\n🧠 백그라운드 프로세스: 종료됨 (`{stage}`, PID {pid})"
+                else:
+                    proc_line = "\n🧠 백그라운드 프로세스: 없음"
                 await _send_text_with_token(
                     message.channel,
                     ch_id,
-                    f"📊 현재 파이프라인 상태: **{status}**",
-                    reviewer_bot_token,
+                    f"📊 현재 파이프라인 상태: **{status}**{proc_line}",
+                    manager_bot_token,
                 )
             else:
                 await _send_text_with_token(
                     message.channel,
                     ch_id,
                     "📊 현재 실행 중인 파이프라인 없음.",
-                    reviewer_bot_token,
+                    manager_bot_token,
                 )
             return
 
@@ -1842,14 +1888,36 @@ async def async_main() -> None:
                     message.channel,
                     ch_id,
                     "🛑 중단 요청 전송. 현재 단계가 끝나는 즉시 파이프라인을 멈춥니다.",
-                    reviewer_bot_token,
+                    manager_bot_token,
                 )
             else:
                 await _send_text_with_token(
                     message.channel,
                     ch_id,
                     "⚠️ 실행 중인 파이프라인이 없거나 이미 중단됐습니다.",
-                    reviewer_bot_token,
+                    manager_bot_token,
+                )
+            return
+
+        # ── !chapter ──────────────────────────────────────────────────────────
+        if command == CMD_CHAPTER:
+            ch_id = message.channel.id
+            chapter_path = DAILY_CHAPTER_PATHS.get(ch_id)
+            if chapter_path and chapter_path.exists():
+                word_count = len(chapter_path.read_text(encoding="utf-8", errors="replace").split())
+                try:
+                    await _send_file(message.channel, chapter_path, f"📖 최근 챕터 — {word_count}단어 (`{chapter_path.name}`)")
+                except Exception:
+                    await _send_text_with_token(
+                        message.channel, ch_id,
+                        f"📖 챕터 파일 경로: `{chapter_path.relative_to(REPO_ROOT)}` ({word_count}단어)\n파일 전송 실패 — 직접 열어보세요.",
+                        manager_bot_token,
+                    )
+            else:
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    "⚠️ 이 채널에 저장된 챕터가 없습니다. `!novel-daily <번호>`를 먼저 실행하세요.",
+                    manager_bot_token,
                 )
             return
 
@@ -1895,6 +1963,16 @@ async def async_main() -> None:
             def _set_status(s: str) -> None:
                 DAILY_STATUS[ch_id] = s
 
+            def _set_process(stage: str | None, pid: int | None, command_text: str | None) -> None:
+                if stage is None or pid is None:
+                    DAILY_PROCESS_INFO.pop(ch_id, None)
+                    return
+                DAILY_PROCESS_INFO[ch_id] = {
+                    "stage": stage,
+                    "pid": pid,
+                    "command": command_text or "",
+                }
+
             def _on_start_wait() -> None:
                 """파이프라인이 피드백 대기 상태 진입 시 호출."""
                 DAILY_WAITING_FEEDBACK.add(ch_id)
@@ -1910,6 +1988,7 @@ async def async_main() -> None:
                 "sim": None,
                 "chapter": None,
                 "review": None,
+                "auto": None,
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
                 "start": None,
@@ -1918,7 +1997,17 @@ async def async_main() -> None:
                 "sim": None,
                 "chapter": None,
                 "review": None,
+                "auto": None,
             }
+
+            def _token_for_key(key: str | None) -> str:
+                if key == "start":
+                    return manager_bot_token
+                if key in {"guardian_rules", "guardian_gpt", "review"}:
+                    return reviewer_bot_token
+                if key == "auto":
+                    return fixer_bot_token
+                return ""
 
             def _anchor_key_for_text(text: str) -> str | None:
                 if text.startswith(f"{DAILY_TAG}[START] 🎬 "):
@@ -1933,6 +2022,8 @@ async def async_main() -> None:
                     return "chapter"
                 if text.startswith(f"{DAILY_TAG}[REVIEW] 🔍 품질 자동 검수 중"):
                     return "review"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 "):
+                    return "auto"
                 return None
 
             def _thread_route_for_text(text: str) -> str | None:
@@ -1955,6 +2046,9 @@ async def async_main() -> None:
                 if text.startswith(f"{DAILY_TAG}[REVIEW] "):
                     if "품질 자동 검수 중" not in text:
                         return "review"
+                if text.startswith(f"{DAILY_TAG}[AUTO] "):
+                    if "AI 자동 개선 루프 시작" not in text:
+                        return "auto"
                 return None
 
             def _completion_keys_for_text(text: str) -> list[str]:
@@ -1976,6 +2070,13 @@ async def async_main() -> None:
                     keys.append("chapter")
                 if text.startswith(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료"):
                     keys.append("review")
+                if (
+                    text.startswith(f"{DAILY_TAG}[AUTO] ✅ 품질 통과")
+                    or text.startswith(f"{DAILY_TAG}[AUTO] ⚠️ 최대 사이클")
+                    or text.startswith(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패")
+                    or text.startswith(f"{DAILY_TAG}[AUTO] ❌ Codex Fixer 실패")
+                ):
+                    keys.append("auto")
                 return keys
 
             async def _ensure_anchor_thread(key: str, anchor_message: discord.Message) -> discord.abc.Messageable | None:
@@ -1996,9 +2097,15 @@ async def async_main() -> None:
                 sent_anchor: discord.Message | None = None
                 anchor_key = _anchor_key_for_text(text)
                 if anchor_key is not None:
-                    sent_anchor = await message.channel.send(text)
+                    sent_anchor = await _send_text_with_token_return_message(
+                        message.channel,
+                        text,
+                        _token_for_key(anchor_key),
+                    )
                     anchor_messages[anchor_key] = sent_anchor
-                    await _ensure_anchor_thread(anchor_key, sent_anchor)
+                    if sent_anchor is not None:
+                        await _ensure_anchor_thread(anchor_key, sent_anchor)
+                    return
 
                 if sent_anchor is None:
                     route_key = _thread_route_for_text(text)
@@ -2006,11 +2113,21 @@ async def async_main() -> None:
                         thread_target = anchor_threads.get(route_key)
                         anchor_message = anchor_messages.get(route_key)
                         if thread_target is not None:
-                            await _send_text_in_thread(thread_target, text)
+                            await _send_text_with_token(
+                                thread_target,
+                                int(getattr(thread_target, "id")),
+                                text,
+                                _token_for_key(route_key),
+                            )
                         elif anchor_message is not None:
                             await _send_text_reply(message.channel, anchor_message, text)
                         else:
-                            await _send_text(message.channel, text)
+                            await _send_text_with_token(
+                                message.channel,
+                                message.channel.id,
+                                text,
+                                _token_for_key(route_key),
+                            )
                     else:
                         await _send_text(message.channel, text)
 
@@ -2023,14 +2140,17 @@ async def async_main() -> None:
                 except Exception:
                     await _send_text(message.channel, f"{note} (파일 업로드 실패: `{path.name}`)")
 
-            await message.channel.send(
+            await _send_text_with_token(
+                message.channel,
+                ch_id,
                 f"▶️ `!novel-daily {episode_key}` 시작\n"
-                "진행 상황 확인: `!status` | 중단: `!stop`"
+                "진행 상황 확인: `!status` | 중단: `!stop`",
+                manager_bot_token,
             )
 
             async def _run_daily_task() -> None:
                 try:
-                    await run_daily_pipeline(
+                    result = await run_daily_pipeline(
                         episode_key=episode_key,
                         target_words=tw,
                         budget=budget_val,
@@ -2042,9 +2162,12 @@ async def async_main() -> None:
                         no_discord=False,
                         stop_event=stop_ev,
                         set_status=_set_status,
+                        set_process=_set_process,
                         on_start_wait=_on_start_wait,
                         on_end_wait=_on_end_wait,
                     )
+                    if result and result.get("chapter_path"):
+                        DAILY_CHAPTER_PATHS[ch_id] = Path(result["chapter_path"])
                 except Exception as exc:
                     DAILY_STATUS[ch_id] = f"실패 — {type(exc).__name__}"
                     await _send_text(
@@ -2053,6 +2176,7 @@ async def async_main() -> None:
                     )
                 finally:
                     DAILY_WAITING_FEEDBACK.discard(ch_id)
+                    DAILY_PROCESS_INFO.pop(ch_id, None)
                     if DAILY_FEEDBACK_QUEUES.get(ch_id) is feedback_q:
                         DAILY_FEEDBACK_QUEUES.pop(ch_id, None)
                     if DAILY_STOP_EVENTS.get(ch_id) is stop_ev:
@@ -2188,7 +2312,10 @@ async def async_main() -> None:
             if q:
                 await q.put(content)
                 DAILY_WAITING_FEEDBACK.discard(ch_id)  # 한 번만 받음
-                await message.channel.send("📝 피드백 수신 완료. 분석 중...")
+                await message.channel.send(
+                    "📝 피드백 수신 완료.\n"
+                    "이제 내용을 분석해서 상태 파일에 반영하고, 끝나면 다음에 무엇을 하면 되는지 안내하겠습니다."
+                )
             return
 
         if command == CMD_REVIEW:
