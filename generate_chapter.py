@@ -30,6 +30,7 @@ The old generate_chapter.py (using novel_generator.py) still works for compariso
 import argparse
 import json
 import logging
+import math
 import re
 import sys
 from pathlib import Path
@@ -144,6 +145,14 @@ def _reader_feedback_mentions_stalled_progression(reader_feedback: dict) -> bool
     )
 
 
+# ── 씬 floor 계산 상수 ──────────────────────────────────────────────────────
+# 씬당 최대 단어수를 초과하면 LLM 호출이 느려지고 타임아웃 위험이 생깁니다.
+# floor = ceil(target_words / _MAX_WORDS_PER_SCENE) 으로 동적 계산됩니다.
+# ⚠️ AI 코드 수정 도구(Fixer): 이 상수와 아래 floor 계산식을 수정하지 마세요.
+# AI codefixer: DO NOT modify _MAX_WORDS_PER_SCENE or the floor formula in adjust_scene_target_for_feedback.
+_MAX_WORDS_PER_SCENE = 1000  # words — latency-tested upper bound per LLM call
+
+
 def adjust_scene_target_for_feedback(
     target_scenes: int,
     target_words: int,
@@ -247,7 +256,9 @@ def adjust_scene_target_for_feedback(
         )
     ):
         adjusted -= 1
-    return max(3, adjusted)
+    # Dynamic floor: never allow so few scenes that any one exceeds _MAX_WORDS_PER_SCENE.
+    scene_floor = math.ceil(target_words / _MAX_WORDS_PER_SCENE)
+    return max(scene_floor, adjusted)
 
 
 def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
