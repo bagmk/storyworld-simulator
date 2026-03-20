@@ -621,6 +621,13 @@ class DirectorAI:
         target_turns = self.pacing.get("target_turns", self.max_turns)
         pacing_style = self.pacing.get("style", "normal")
         progress = turn / max(target_turns, 1)
+        progress_signal = self._scene_progress_signal(recent_interactions)
+
+        if progress_signal["stalled"]:
+            return (
+                "The current exchange is reiterating itself. Force a concrete shift: "
+                "decision, interruption, movement, or revelation instead of another paraphrase."
+            )
 
         if progress < 0.3 and pacing_style in ("tense", "fast"):
             return "The story should be building tension quickly. Encourage conflict or revelation."
@@ -924,6 +931,7 @@ class DirectorAI:
             for i in recent[-6:]
             if str(i.get("speaker_id", "")).strip() != "director"
         ]
+        progress_signal = self._scene_progress_signal(recent)
         recent_text = "\n".join(
             (
                 f"- T{i.get('turn', '?')} | {i.get('speaker_name', '?')} "
@@ -952,7 +960,9 @@ class DirectorAI:
             f"it is valid to keep the lecturer as next speaker repeatedly.\n"
             f"4) If end_scene=true, still provide speaker_id for who should continue after scene closure.\n\n"
             f"5) Balance speaking opportunities: avoid choosing the same speaker 3+ turns in a row "
-            f"when other active speakers are available.\n\n"
+            f"when other active speakers are available.\n"
+            f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
+            f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}\n"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -988,6 +998,20 @@ class DirectorAI:
                     end_scene = False
                     reason = (reason + "; " if reason else "") + \
                         "anti-monologue rotation after consecutive same-speaker turns"
+
+        if progress_signal["stalled"] and len(active_ids) > 1 and recent_speakers:
+            if speaker_id == recent_speakers[-1]:
+                alternates = [aid for aid in active_ids if aid != speaker_id]
+                if alternates:
+                    speaker_id = alternates[0]
+                    end_scene = False
+                    reason = (reason + "; " if reason else "") + \
+                        "scene-stall rotation to force new pressure"
+
+        if progress_signal["stalled"] and progress_signal["closure_ready"]:
+            end_scene = True
+            reason = (reason + "; " if reason else "") + \
+                "scene closure to avoid drag after recent beat landed"
 
         self._log(
             "turn_allocation",
@@ -1105,6 +1129,48 @@ class DirectorAI:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
+
+    def _scene_progress_signal(self, recent_interactions: Optional[list[dict]]) -> dict[str, bool]:
+        recent = [
+            i for i in (recent_interactions or [])
+            if str(i.get("speaker_id", "")).strip() != "director"
+        ][-5:]
+        if len(recent) < 4:
+            return {"stalled": False, "closure_ready": False}
+
+        recent_speakers = [
+            str(i.get("speaker_id", "")).strip()
+            for i in recent
+            if str(i.get("speaker_id", "")).strip()
+        ]
+        repeated_speaker = len(recent_speakers) >= 3 and len(set(recent_speakers[-3:])) == 1
+        mostly_dialogue = sum(
+            1 for i in recent if str(i.get("action_type", "")).strip() == "dialogue"
+        ) >= 3
+        fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
+        low_novelty = len({fp for fp in fingerprints if fp}) <= 2
+        closure_ready = self._has_scene_exit_cue(recent)
+        stalled = mostly_dialogue and (repeated_speaker or low_novelty)
+        return {"stalled": stalled, "closure_ready": closure_ready}
+
+    @staticmethod
+    def _content_fingerprint(text: str) -> str:
+        cleaned = re.sub(r"\[[^\]]*\]", " ", str(text or "").lower())
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        stop = {"그리고", "하지만", "그러나", "그는", "그녀는", "정말", "아주", "that", "with"}
+        tokens = [t for t in cleaned.split() if len(t) >= 2 and t not in stop]
+        return " ".join(tokens[:8])
+
+    @staticmethod
+    def _has_scene_exit_cue(recent_interactions: list[dict]) -> bool:
+        if not recent_interactions:
+            return False
+        tail = " ".join(str(i.get("content", "")) for i in recent_interactions[-2:])
+        return bool(re.search(
+            r"(고개를 끄덕|침묵이 흘렀|말을 멈췄|자리에서 일어|대화를 마무리|회의는 끝|문으로 향했|돌아서|숨을 골랐)",
+            tail,
+        ))
 
     def _conditional_fallback_cast_size(self, agents: list[Agent], world: WorldState) -> int:
         if not isinstance(self.episode_config, dict):

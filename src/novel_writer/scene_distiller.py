@@ -216,7 +216,9 @@ class SceneDistiller:
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary.\n"
             f"7. Keep technical-term onboarding compact: first clear mention only, later references summarized.\n"
             f"8. In summaries, mix short/medium sentence lengths and include concrete action cues for speaker clarity.\n"
-            f"9. Do NOT invent content not present in the log. Only compress and select.\n\n"
+            f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit when a short sentence would feel too clipped.\n"
+            f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary.\n"
+            f"11. Do NOT invent content not present in the log. Only compress and select.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -402,6 +404,11 @@ class SceneDistiller:
 
         # Keep scene order stable by timeline and re-number deterministically.
         scenes.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
+
+        merge_budget = self._scene_merge_budget(target_scenes)
+        if merge_budget > 0:
+            scenes = self._merge_low_signal_adjacent_scenes(scenes, merge_budget)
+
         for idx, sc in enumerate(scenes, start=1):
             sc.scene_number = idx
 
@@ -464,9 +471,18 @@ class SceneDistiller:
         return scenes
 
     def _reader_prefers_compact_beats(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            k in corpus for k in (
+                "기술", "용어", "약어", "약자", "전문", "jargon", "acronym",
+                "반복", "중복", "리스트", "목록", "나열", "정보 전달",
+            )
+        )
+
+    def _reader_feedback_corpus(self) -> str:
         if not self.reader_feedback:
-            return False
-        corpus = " ".join(
+            return ""
+        return " ".join(
             str(x)
             for key in ("what_felt_boring_or_hard", "style_tips", "reader_comment")
             for x in (
@@ -476,12 +492,131 @@ class SceneDistiller:
             )
             if str(x).strip()
         ).lower()
+
+    def _reader_prefers_faster_progression(self) -> bool:
+        corpus = self._reader_feedback_corpus()
         return any(
-            k in corpus for k in (
-                "기술", "용어", "약어", "약자", "전문", "jargon", "acronym",
-                "반복", "중복", "리스트", "목록", "나열", "정보 전달",
+            token in corpus for token in (
+                "전개가 느려",
+                "느려서 집중",
+                "집중력을 잃",
+                "늘어지",
+                "템포가 느려",
+                "속도감이 떨어",
             )
         )
+
+    def _reader_needs_contextual_summaries(self) -> bool:
+        corpus = self._reader_feedback_corpus()
+        return any(
+            token in corpus for token in (
+                "간결한 문장",
+                "문맥 파악",
+                "맥락 파악",
+                "따라가기 힘들",
+                "문맥이 어려",
+            )
+        )
+
+    def _scene_merge_budget(self, target_scenes: int) -> int:
+        budget = 0
+        if self._reader_prefers_faster_progression():
+            budget += 1
+        if self._reader_needs_contextual_summaries():
+            budget += 1
+        return max(0, min(budget, max(0, target_scenes - 3)))
+
+    def _merge_low_signal_adjacent_scenes(
+        self,
+        scenes: list[DistilledScene],
+        merge_budget: int,
+    ) -> list[DistilledScene]:
+        merged = list(scenes)
+        merges_left = max(0, merge_budget)
+
+        while merges_left > 0 and len(merged) > 3:
+            best_idx = -1
+            best_score = 0
+            for idx in range(len(merged) - 1):
+                score = self._adjacent_scene_merge_score(merged[idx], merged[idx + 1])
+                if score > best_score:
+                    best_idx = idx
+                    best_score = score
+            if best_idx < 0 or best_score < 4:
+                break
+            merged[best_idx: best_idx + 2] = [
+                self._merge_scene_pair(merged[best_idx], merged[best_idx + 1])
+            ]
+            merges_left -= 1
+
+        return merged
+
+    def _adjacent_scene_merge_score(self, left: DistilledScene, right: DistilledScene) -> int:
+        score = 0
+        same_location = (
+            self._norm_name_key(left.location)
+            and self._norm_name_key(left.location) == self._norm_name_key(right.location)
+        )
+        shared_chars = set(self._canonicalize_name_list(left.characters_present, {})) & set(
+            self._canonicalize_name_list(right.characters_present, {})
+        )
+        if same_location:
+            score += 3
+        elif not shared_chars:
+            return 0
+        else:
+            score += 1
+        if shared_chars:
+            score += 1
+        if left.raw_turn_count <= 4 or right.raw_turn_count <= 4:
+            score += 1
+        if (left.raw_turn_count + right.raw_turn_count) <= 10:
+            score += 1
+        if len(left.discoveries) + len(right.discoveries) <= 2:
+            score += 1
+        if len(left.key_dialogue) + len(right.key_dialogue) <= 3:
+            score += 1
+        if len((left.narrative_summary or "").strip()) <= 90 or len((right.narrative_summary or "").strip()) <= 90:
+            score += 1
+        if left.pacing == right.pacing:
+            score += 1
+        return score
+
+    def _merge_scene_pair(self, left: DistilledScene, right: DistilledScene) -> DistilledScene:
+        pacing = right.pacing if right.pacing in {"climax", "resolution"} else left.pacing
+        if left.pacing == "climax":
+            pacing = left.pacing
+        location = left.location if self._norm_name_key(left.location) == self._norm_name_key(right.location) else (
+            right.location or left.location
+        )
+        emotional_parts = [p for p in (left.emotional_arc, right.emotional_arc) if str(p).strip()]
+        summary = self._merge_scene_summaries(left.narrative_summary, right.narrative_summary)
+        return DistilledScene(
+            scene_number=left.scene_number,
+            title=left.title,
+            turn_range=(left.turn_range[0], right.turn_range[1]),
+            location=location,
+            characters_present=self._dedupe_preserve_order(left.characters_present + right.characters_present),
+            key_dialogue=(left.key_dialogue + right.key_dialogue)[:4],
+            key_actions=self._dedupe_semantic_lines(left.key_actions + right.key_actions, limit=8),
+            discoveries=self._dedupe_semantic_lines(left.discoveries + right.discoveries, limit=6),
+            emotional_arc=" -> ".join(emotional_parts[:2]),
+            beat_references=self._dedupe_preserve_order(left.beat_references + right.beat_references),
+            narrative_summary=summary,
+            pacing=pacing,
+            raw_turn_count=left.raw_turn_count + right.raw_turn_count,
+        )
+
+    @staticmethod
+    def _merge_scene_summaries(left: str, right: str) -> str:
+        parts: list[str] = []
+        for raw in (left, right):
+            for sentence in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(raw or "").strip()):
+                sent = sentence.strip()
+                if not sent or sent in parts:
+                    continue
+                parts.append(sent)
+        return " ".join(parts[:4]).strip()
 
     @staticmethod
     def _compress_beat_content(text: str, max_chars: int = 180) -> str:

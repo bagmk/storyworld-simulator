@@ -521,6 +521,27 @@ class ProseGenerator:
                 "- Add subtle per-character speech habits without caricature.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
             )
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+            prompt += (
+                "## Sentence Variety Priority\n"
+                "- Vary sentence openings and clause shapes; do not let 3 nearby sentences start with the same subject/action pattern.\n"
+                "- Mix short, medium, and longer sentences with deliberate contrast instead of repeating clipped declarative beats.\n"
+                "- When using a short sentence for tension, surround it with context-rich sentences so rhythm does not turn mechanical.\n\n"
+            )
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+            prompt += (
+                "## Context Link Priority\n"
+                "- Keep subject, place, and causal link explicit whenever a sentence becomes short.\n"
+                "- Avoid stacking multiple ultra-short sentences that omit who acted or why it matters.\n"
+                "- If a clipped sentence would feel ambiguous alone, fuse it with the neighboring sentence.\n\n"
+            )
+        if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
+            prompt += (
+                "## Story Momentum Priority\n"
+                "- Each paragraph must change something: decision, tension, discovery, or relationship pressure.\n"
+                "- Remove restatement of the same concern once it has landed.\n"
+                "- If a conversation beat explains too long, compress it and move to reaction or consequence.\n\n"
+            )
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
             prompt += (
                 "## Emotion Delivery Priority\n"
@@ -667,6 +688,18 @@ class ProseGenerator:
             prompt += (
                 "\nAt each location/focus change, include a short transition sentence to keep flow explicit."
             )
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+            prompt += (
+                "\nVary sentence openings and do not repeat the same clipped sentence pattern three times in a row."
+            )
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+            prompt += (
+                "\nIf a short sentence weakens context, merge it into a clearer cause-and-effect sentence."
+            )
+        if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
+            prompt += (
+                "\nMake sure every paragraph advances the scene instead of restating tension."
+            )
         if self._feedback_mentions("긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려"):
             prompt += (
                 "\nIf dialogue runs long, break it with short action/reaction beats to protect pacing."
@@ -782,6 +815,9 @@ class ProseGenerator:
             repeated_imagery = [t for t in repetitive_tokens if self._count_feedback_term_occurrences(text, t) >= 3]
             if repeated_imagery:
                 reasons.append("유사 감각/동작 묘사 반복: " + ", ".join(repeated_imagery[:3]))
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+            if self._has_repetitive_sentence_openings(text):
+                reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선"):
             synonym_groups = [
                 ("보정", "실시간", "드리프트"),
@@ -812,6 +848,12 @@ class ProseGenerator:
         if self._feedback_mentions("가능성", "계산", "추론", "판단", "심리", "내면", "반복", "중복", "늘어지"):
             if self._has_repetitive_cognitive_terms(text):
                 reasons.append("심리 추론 어휘가 반복되어 긴장 템포가 느려짐")
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+            if self._has_excess_clipped_sentences(text):
+                reasons.append("짧은 문장이 누적되어 문맥 연결이 자주 끊김")
+        if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
+            if self._has_low_momentum_paragraphs(text):
+                reasons.append("상황 진전 없이 같은 압박을 반복하는 문단이 있어 전개가 느림")
         if self._feedback_mentions("인물", "역할", "의도", "설명", "템포", "느려"):
             role_explain_blocks = 0
             for block in blocks:
@@ -865,6 +907,9 @@ class ProseGenerator:
             "- 약어/대문자 기술 표기는 첫 등장에만 짧게 풀고 이후 최소화\n"
             "- 가능성/계산/추론 같은 내면 분석 어휘는 반복하지 말고 행동으로 치환\n"
             "- 이미 등장한 인물의 역할/의도 재설명은 축약하고 장면 진행을 우선\n"
+            "- 같은 문장 시작 패턴이나 단문 리듬을 3회 이상 반복하지 말 것\n"
+            "- 짧은 문장은 앞뒤 문장과 인과관계가 분명할 때만 단독으로 둘 것\n"
+            "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             "- 출력은 소설 본문만\n\n"
             f"원문:\n{text}"
@@ -888,6 +933,18 @@ class ProseGenerator:
             prompt += (
                 "- 긴 대화 구간은 1-2회 발화마다 짧은 행동/환경 반응 비트를 삽입할 것\n"
                 "- 설명형 대사를 연속으로 길게 배치하지 말 것\n"
+            )
+        if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
+            prompt += (
+                "- 인접 문장에서 주어 시작과 종결 리듬을 분산해 단조로운 문장 구조 반복을 피할 것\n"
+            )
+        if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
+            prompt += (
+                "- 지나치게 짧은 문장이 이어지면 1개 이상을 연결해 누가/왜/어디서가 드러나게 만들 것\n"
+            )
+        if self._feedback_mentions("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어"):
+            prompt += (
+                "- 이미 성립한 긴장이나 정보를 반복 설명하지 말고 바로 다음 반응 또는 결정으로 넘어갈 것\n"
             )
         if self._feedback_mentions("감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사"):
             prompt += (
@@ -943,6 +1000,18 @@ class ProseGenerator:
         # Reader may phrase jargon-density complaints as checklist/list-style repetition.
         if any(k in lowered for k in ("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym")):
             if any(token in all_text for token in ("체크리스트", "나열", "리스트", "목록", "목록처럼", "긴 목록", "기술 항목", "건조", "단조롭")):
+                return True
+
+        if any(k in lowered for k in ("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루")):
+            if any(token in all_text for token in ("반복적인 문장 구조", "문장 구조가 반복", "비슷한 리듬", "같은 리듬", "단조", "지루")):
+                return True
+
+        if any(k in lowered for k in ("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들")):
+            if any(token in all_text for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "맥락이 약", "문맥이 약")):
+                return True
+
+        if any(k in lowered for k in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
+            if any(token in all_text for token in ("전개가 느려", "느려서 집중", "집중력을 잃", "집중력", "늘어지", "템포가 느려", "속도감이 떨어")):
                 return True
 
         # Speaker/context confusion can appear as "초반에 따라가기 힘들다" style comments.
@@ -1145,6 +1214,8 @@ class ProseGenerator:
 
         needs_pass = self._feedback_mentions(
             "반복", "중복", "늘어지", "긴 문장", "문장이 길", "긴 문단", "문단이 길",
+            "문장 구조", "반복적인 문장 구조", "간결한 문장", "문맥 파악", "맥락 파악",
+            "전개가 느려", "느려서 집중", "집중력을 잃",
             "기술", "기술 설명", "용어", "약어", "약자", "누가 누구", "화자", "대사 구분", "헷갈",
             "인물", "역할", "구분", "호칭", "이름",
             "심리", "내면", "설명적", "감정선", "표정", "행동", "보여", "장면 전환", "전환", "흐름",
@@ -1185,6 +1256,8 @@ class ProseGenerator:
             "- 동일 정보/표현의 반복은 삭제 또는 통합\n"
             "- 긴 문단은 1-2문장 단위로 자연 분할\n"
             f"{paragraph_cap_line}"
+            "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
+            "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 기술 용어/약어는 첫 등장만 짧게 풀고 이후는 짧은 콜백\n"
             f"- 문단당 기술 용어는 최대 {jargon_density_cap}개 내에서 유지(초과 개념은 통합/요약)\n"
             f"- 정보량이 많은 설명 문장은 최대 {dense_sentence_cap}문장으로 압축\n"
@@ -1195,6 +1268,7 @@ class ProseGenerator:
             "- 긴 회의/대화 구간은 연속 설명 대사를 줄이고 행동/환경 반응 비트를 교차 배치할 것\n"
             "- 설명적 심리문이 길면 행동/표정/반응 단서로 치환해 감정을 보여줄 것\n"
             "- 감정 강도는 단조롭게 유지하지 말고 짧은 완화 비트 후 다시 긴장을 세울 것\n"
+            "- 각 문단은 상황 변화, 압박 상승, 발견 중 하나를 분명히 남겨 전개를 전진시킬 것\n"
             "- 장소/장면 전환 지점은 한 줄 전환 문장으로 연결해 흐름을 명확히 할 것\n"
             "- 가능성/계산/추론 같은 분석 어휘는 반복하지 말고 한 번만 압축적으로 사용\n"
             "- 이미 알려진 인물을 매번 새 호칭으로 재소개하지 말 것\n"
@@ -1227,6 +1301,59 @@ class ProseGenerator:
         ]
         repeated_types = sum(1 for cue in cues if raw.count(cue) >= 2)
         return repeated_types >= 1
+
+    def _has_repetitive_sentence_openings(self, text: str) -> bool:
+        sentences = self._split_korean_sentences(text)
+        openers: list[str] = []
+        for sent in sentences:
+            cleaned = re.sub(r"^[\"“”'‘’\(\)\[\]\s]+", "", str(sent or "").strip())
+            match = re.match(r"([0-9A-Za-z가-힣]{1,8})", cleaned)
+            if not match:
+                continue
+            openers.append(match.group(1).lower())
+        if len(openers) < 5:
+            return False
+        streak = 1
+        for idx in range(1, len(openers)):
+            if openers[idx] == openers[idx - 1]:
+                streak += 1
+                if streak >= 3:
+                    return True
+            else:
+                streak = 1
+        sample = openers[:8]
+        return len(set(sample)) <= max(2, len(sample) // 3)
+
+    def _has_excess_clipped_sentences(self, text: str) -> bool:
+        sentences = self._split_korean_sentences(text)
+        if len(sentences) < 6:
+            return False
+        short_count = 0
+        short_streak = 0
+        for sent in sentences:
+            if self._sentence_word_count(sent) <= 5:
+                short_count += 1
+                short_streak += 1
+                if short_streak >= 3:
+                    return True
+            else:
+                short_streak = 0
+        return short_count >= 4 and (short_count / max(len(sentences), 1)) >= 0.35
+
+    def _has_low_momentum_paragraphs(self, text: str) -> bool:
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        static_blocks = 0
+        for block in blocks:
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                continue
+            low = block.lower()
+            change_hits = len(re.findall(r"(결국|곧|바로|그때|마침내|곧장|이어|그러자|하지만|그 순간)", block))
+            action_hits = len(re.findall(r"(움직|돌렸|건넸|밀었|열었|접었|멈췄|들었|내려놓|올려다|바뀌|흔들|숨을)", block))
+            repeat_hits = len(re.findall(r"(생각|계산|판단|설명|반복|다시)", low))
+            if change_hits == 0 and action_hits <= 1 and repeat_hits >= 2:
+                static_blocks += 1
+        return static_blocks >= 1
 
     @staticmethod
     def _has_expository_dialogue_cluster(text: str) -> bool:

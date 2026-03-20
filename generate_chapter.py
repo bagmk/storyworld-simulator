@@ -109,6 +109,39 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _reader_feedback_corpus(reader_feedback: dict) -> str:
+    if not isinstance(reader_feedback, dict) or not reader_feedback:
+        return ""
+    parts: list[str] = []
+    for key in ("what_felt_boring_or_hard", "style_tips"):
+        vals = reader_feedback.get(key, []) or []
+        if isinstance(vals, list):
+            parts.extend(str(v) for v in vals if str(v).strip())
+    parts.append(str(reader_feedback.get("reader_comment", "") or ""))
+    return " ".join(parts).lower()
+
+
+def adjust_scene_target_for_feedback(
+    target_scenes: int,
+    target_words: int,
+    reader_feedback: dict,
+) -> int:
+    corpus = _reader_feedback_corpus(reader_feedback)
+    if not corpus:
+        return target_scenes
+
+    adjusted = target_scenes
+    if any(token in corpus for token in ("전개가 느려", "느려서 집중", "집중력을 잃", "늘어지", "템포가 느려", "속도감이 떨어")):
+        adjusted -= 1
+    if (
+        target_words <= 4000
+        and adjusted >= 5
+        and any(token in corpus for token in ("간결한 문장", "문맥 파악", "맥락 파악", "따라가기 힘들", "문맥이 약"))
+    ):
+        adjusted -= 1
+    return max(3, adjusted)
+
+
 def main() -> None:
     load_project_env()
     args = parse_args()
@@ -229,6 +262,18 @@ def main() -> None:
             target_scenes = 7
         else:
             target_scenes = 8
+    feedback_adjusted_target_scenes = adjust_scene_target_for_feedback(
+        target_scenes=target_scenes,
+        target_words=target_words,
+        reader_feedback=reader_feedback,
+    )
+    if feedback_adjusted_target_scenes != target_scenes:
+        logger.info(
+            "Reader feedback adjusted target scenes: %d -> %d",
+            target_scenes,
+            feedback_adjusted_target_scenes,
+        )
+        target_scenes = feedback_adjusted_target_scenes
     target_scenes = tuned_scene_target(target_scenes, rl_policy)
 
     logger.info("Target words: %d | Target scenes: %d (%.0f words/scene avg)",
@@ -326,8 +371,15 @@ def main() -> None:
     logger.info("  Scenes: %d distilled from %d turns", len(scenes), len(interactions))
     logger.info("  Time: %.1fs (distill: %.1fs, prose: %.1fs)",
                 total_elapsed, distill_elapsed, prose_elapsed)
-    logger.info("  Budget: $%.4f / $%.2f over %d LLM calls",
-                budget["spent_usd"], budget["budget_usd"], budget["call_count"])
+    logger.info(
+        "  Budget: $%.4f / $%.2f over %d LLM calls | tokens: %d in + %d out = %d total",
+        budget["spent_usd"],
+        budget["budget_usd"],
+        budget["call_count"],
+        budget.get("prompt_tokens", 0),
+        budget.get("completion_tokens", 0),
+        budget.get("total_tokens", 0),
+    )
     logger.info("=" * 60)
 
 
