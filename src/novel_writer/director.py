@@ -440,6 +440,7 @@ class DirectorAI:
                 "- Avoid checklist-like technical listing.\n"
                 "- Keep at most one technical term in this event unless absolutely necessary.\n"
                 "- Prioritize a concrete sensory/action cue over repeated metrics.\n"
+                "- Do not add parenthetical explanation unless the clue would otherwise be unclear.\n"
             )
         prompt = (
             f"You are a story director. A required story clue hasn't surfaced naturally.\n\n"
@@ -934,9 +935,7 @@ class DirectorAI:
         progress_signal = self._scene_progress_signal(recent)
         recent_text = "\n".join(
             (
-                f"- T{i.get('turn', '?')} | {i.get('speaker_name', '?')} "
-                f"[{i.get('action_type', 'dialogue')}] "
-                f"(mode={i.get('metadata', {}).get('turn_mode', 'n/a')}): "
+                f"- T{i.get('turn', '?')} | {i.get('speaker_name', '?')}: "
                 f"{self._truncate(str(i.get('content', '')), 180)}"
             )
             for i in recent[-8:]
@@ -963,7 +962,7 @@ class DirectorAI:
             f"when other active speakers are available.\n"
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
-            f"{'8) Recent turns are repeating the same technical explanation without enough reaction or decision change; prefer a speaker who converts it into emotion, conflict, or a scene close.\\n' if progress_signal['technical_stall'] else ''}\n"
+            f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}\n"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -971,6 +970,11 @@ class DirectorAI:
             prompt += (
                 "\nReader priority: if recent turns are paraphrasing the same point or mood without new information, "
                 "prefer ending the scene over extending the exchange."
+            )
+        if self._feedback_mentions("기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "괄호", "정의", "풀어쓰기"):
+            prompt += (
+                "\nReader priority: do not spend another turn unpacking terminology unless the plot truly requires it; "
+                "prefer visible reaction, choice, or interruption."
             )
 
         result = self._safe_llm_call(

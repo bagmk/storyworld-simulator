@@ -492,14 +492,14 @@ class ProseGenerator:
             f"- Keep paragraph rhythm breathable: usually {readability['paragraph_min']}-{readability['paragraph_max']} sentences per paragraph.\n"
             f"- Keep most sentences under about {sentence_cap} words; split explanatory chains before they sprawl.\n"
             f"- Alternate inner thought and outer action to avoid continuous analytical voice.\n"
-            f"- Use short sentence beats at tension peaks for pacing contrast.\n"
+            f"- Reserve short sentence beats for genuine pressure turns; otherwise keep nearby clauses connected.\n"
             f"- Avoid repeating the same tension phrasing across nearby paragraphs.\n\n"
             f"- Avoid repeating identical numeric literals (e.g., same milliseconds/ratios) in adjacent paragraphs unless plot-critical.\n\n"
             f"- In dialogue-heavy stretches, anchor speaker identity with short action beats or name cues every 1-2 exchanges.\n"
             f"- If three or more characters are present, avoid ambiguous pronouns for consecutive lines.\n\n"
-            f"- Technical terms: first mention only gets a short plain-language gloss; later mentions must be concise callbacks.\n"
+            f"- Technical terms: explain only if the scene becomes unclear, and prefer brief inline cues over parentheses.\n"
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
-            f"- If long sentences continue for 3+ beats, insert one short sentence to reset pacing.\n"
+            f"- If explanation runs long, pivot with one concrete action or reaction sentence instead of another detached fragment.\n"
             f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
@@ -585,9 +585,9 @@ class ProseGenerator:
         if self._feedback_mentions("처음 등장", "첫 등장", "첫 언급", "괄호", "정의", "풀어쓰기", "비유", "약어", "약자"):
             prompt += (
                 "## Term Onboarding Priority\n"
-                "- On first mention of a technical term/acronym, add a very short parenthetical gloss.\n"
-                "- For English acronyms, attach a Korean 풀어쓰기 once, then keep later mentions concise.\n"
-                "- If helpful, add one short everyday analogy or metaphor and immediately return to scene action.\n\n"
+                "- On first mention of a technical term/acronym, explain it only if the scene would otherwise become unclear.\n"
+                "- Prefer a short inline Korean cue over parenthetical gloss or extended definition.\n"
+                "- Skip analogy/metaphor unless one brief comparison is truly necessary, then return immediately to scene action.\n\n"
             )
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선", "보정"):
             prompt += (
@@ -642,7 +642,7 @@ class ProseGenerator:
                 "## Jargon Watch Terms\n"
                 "- Reader reported these technical terms as hard to parse when repeated.\n"
                 f"- Terms: {', '.join(jargon_terms[:6])}\n"
-                "- On first mention only, add a short plain-language cue; later mentions should be brief callbacks.\n\n"
+                "- Only when needed for comprehension, add one short inline cue; later mentions should be brief callbacks.\n\n"
             )
         if previous_episode_context:
             prompt += f"## Cross-Episode Continuity\n{previous_episode_context}\n\n"
@@ -673,7 +673,7 @@ class ProseGenerator:
             prompt += (
                 f"## Optional Reader-Friendly Gloss (use sparingly)\n"
                 f"{term_glossary}\n\n"
-                f"Rule: If technical terms appear, add a very short sensory/plain-language gloss on first mention only.\n\n"
+                f"Rule: If technical terms appear, use at most one very short inline cue when clarity truly needs it.\n\n"
             )
         if scene_character_guide:
             prompt += (
@@ -688,8 +688,8 @@ class ProseGenerator:
             f"Keep the same story events and discoveries, but render them as immersive fiction.\n"
             f"Let dialogue emerge naturally from tension and intent; avoid uniform speaking voices.\n"
             f"Keep technical exposition lightweight: do not stack unexplained jargon in consecutive sentences.\n"
-            f"For any technical term on first mention, add a brief plain-language cue (about 3-8 Korean words) once.\n"
-            f"If a hard technical concept needs support, use one short everyday comparison and then move back to character action.\n"
+            f"Only if a technical term would block comprehension, add one brief inline plain-language cue once.\n"
+            f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
@@ -1192,29 +1192,29 @@ class ProseGenerator:
     def _feedback_short_beat_char_window(self) -> tuple[int, int]:
         constraints = self._feedback_style_constraints()
         try:
-            lo = int(constraints.get("short_beat_chars_min", 5))
+            lo = int(constraints.get("short_beat_chars_min", 14))
         except (TypeError, ValueError):
-            lo = 5
+            lo = 14
         try:
-            hi = int(constraints.get("short_beat_chars_max", 10))
+            hi = int(constraints.get("short_beat_chars_max", 28))
         except (TypeError, ValueError):
-            hi = 10
+            hi = 28
         if lo > hi:
             lo, hi = hi, lo
-        lo = max(3, min(24, lo))
-        hi = max(lo, min(36, hi))
+        lo = max(8, min(32, lo))
+        hi = max(lo, min(48, hi))
         return lo, hi
 
     def _feedback_short_beats_per_scene(self) -> tuple[int, int]:
         constraints = self._feedback_style_constraints()
         try:
-            lo = int(constraints.get("short_beats_per_scene_min", 2))
+            lo = int(constraints.get("short_beats_per_scene_min", 0))
         except (TypeError, ValueError):
-            lo = 2
+            lo = 0
         try:
-            hi = int(constraints.get("short_beats_per_scene_max", 4))
+            hi = int(constraints.get("short_beats_per_scene_max", 1))
         except (TypeError, ValueError):
-            hi = 4
+            hi = 1
         if lo > hi:
             lo, hi = hi, lo
         lo = max(0, min(8, lo))
@@ -1288,8 +1288,9 @@ class ProseGenerator:
             "- 같은 문장 구조나 문장 시작 패턴이 이어지면 하나 이상 변형해 리듬을 바꿀 것\n"
             "- 짧은 문장이 연속될 때는 누가/왜/어디서가 보이도록 연결해 문맥을 보강할 것\n"
             "- 같은 장면의 2~3개 단문이 한 박자로 이어지면 하나의 복합문으로 자연스럽게 묶을 것\n"
-            "- 기술 용어/약어는 첫 등장만 짧게 풀고 이후는 짧은 콜백\n"
-            "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
+            "- 기술 용어/약어는 꼭 필요할 때만 짧게 풀고 이후는 짧은 콜백으로 유지할 것\n"
+            "- 괄호 설명은 기본값으로 쓰지 말고, 필요하면 본문 안에 짧게 녹여 쓸 것\n"
+            "- 어려운 기술 개념은 필요할 때만 짧은 일상 비교를 한 번 붙이고 바로 장면 행동으로 돌아갈 것\n"
             f"- 문단당 기술 용어는 최대 {jargon_density_cap}개 내에서 유지(초과 개념은 통합/요약)\n"
             f"- 정보량이 많은 설명 문장은 최대 {dense_sentence_cap}문장으로 압축\n"
             f"{repeat_term_line}"
@@ -1705,12 +1706,12 @@ class ProseGenerator:
             f"- Do not repeat the same numeric literal in adjacent paragraphs unless strictly necessary\n"
             f"- If a key metric was already explained once, later mentions should be very brief callbacks\n"
             f"- Avoid repeating acronym expansions; use concise references after first explanation\n"
-            f"- On first mention of a technical term/acronym, add one short parenthetical plain-language gloss\n"
+            f"- On first mention of a technical term/acronym, use one short inline cue only if clarity truly needs it\n"
             f"- If dense technical info appears, split into short sentences or short beat-style line breaks\n"
             f"- Improve speaker clarity in dialogue passages using short action/name cues\n"
             f"- If a concept recurs (coherence/drift/latency classes), vary surface wording while keeping meaning stable\n"
             f"- If 3+ consecutive sentences use same sensory channel, switch channel (sound/touch/temperature)\n"
-            f"- If long-sentence streak grows, insert short beat sentences to recover rhythm\n"
+            f"- If explanatory rhythm grows monotonous, use one grounded action/reaction sentence instead of a detached fragment\n"
             f"- Preserve these anchor terms exactly when context allows: {anchors_text}\n"
             f"- If any anchor is missing, add it naturally without changing core events\n\n"
         )
@@ -2290,8 +2291,7 @@ class ProseGenerator:
 
     def _enforce_jargon_onboarding_and_variation(self, text: str) -> str:
         """
-        Deterministically enforce "first mention gets gloss, later mentions stay concise"
-        and lightly vary recurring technical wording to avoid repetitive surface forms.
+        Keep recurring technical wording concise without forcing parenthetical glosses.
         """
         if not text:
             return text
@@ -2299,7 +2299,6 @@ class ProseGenerator:
         out = text
         for entry in self._term_variation_catalog():
             pattern = entry["pattern"]
-            gloss = self._trim_gloss(str(entry["gloss"]), max_chars=20)
             variants = entry["variants"]
             seen = 0
 
@@ -2307,11 +2306,6 @@ class ProseGenerator:
                 nonlocal seen
                 token = match.group(0)
                 seen += 1
-                if seen == 1:
-                    tail = match.string[match.end(): match.end() + 10]
-                    if "(" in tail:
-                        return token
-                    return f"{token}({gloss})"
                 if seen >= 2 and variants and seen % 2 == 0:
                     return variants[(seen - 2) % len(variants)]
                 return token
@@ -2391,7 +2385,17 @@ class ProseGenerator:
         if not text:
             return text
         min_short, max_short = self._feedback_short_beat_char_window()
-        min_per_scene, max_per_scene = self._feedback_short_beats_per_scene()
+        _, max_per_scene = self._feedback_short_beats_per_scene()
+        if self._feedback_mentions(
+            "짧게 끊기는 문장",
+            "문장이 너무 자주 끊기",
+            "짧은 반복 문장",
+            "비슷한 리듬",
+            "같은 리듬",
+            "단조로운 리듬",
+        ):
+            long_threshold = max(long_threshold, 26)
+            streak_limit = max(streak_limit, 3)
         blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
         out_blocks: list[str] = []
         beat_idx = 0
@@ -2415,42 +2419,33 @@ class ProseGenerator:
                     beat_idx += 1
                     inserted += 1
                     streak = 0
-            if inserted < min_per_scene and sentences:
-                step = max(1, len(rebuilt) // max(1, (min_per_scene - inserted + 1)))
-                cursor = step
-                while inserted < min_per_scene and cursor <= len(rebuilt):
-                    rebuilt.insert(cursor, self._rhythm_bridge_sentence(beat_idx, min_short, max_short))
-                    beat_idx += 1
-                    inserted += 1
-                    cursor += step + 1
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _rhythm_bridge_sentence(self, idx: int, min_chars: int = 5, max_chars: int = 10) -> str:
-        # Keep diverse so no single phrase repeats more than once every ~20 bridges.
-        # BANNED from this list: "숨이 멎었다.", "짧은 침묵.", "공기가 식었다.", "시선이 모였다."
-        # — they were overused as a mechanical cycle and degraded prose quality.
+        min_chars = max(min_chars, 14)
+        max_chars = max(max_chars, 28)
         samples = [
-            "질문의 방향이 달라졌다.",
-            "의자가 작게 밀렸다.",
-            "누군가 메모를 멈추고 올려다봤다.",
-            "목 안쪽이 마르게 조여 왔다.",
-            "말끝이 한쪽으로 기울었다.",
-            "공조기 소리만 낮게 남았다.",
-            "테이블 위 그림자가 짧게 흔들렸다.",
-            "한 사람이 먼저 숨을 골랐다.",
-            "시선이 이번에는 정면으로 맞붙었다.",
-            "종이 모서리가 천천히 접혔다.",
-            "답은 아직 나오지 않았다.",
-            "손끝의 힘이 조금 더 굳었다.",
-            "누군가 의도를 감추듯 미소를 접었다.",
-            "질서 있던 호흡이 한 박자 어긋났다.",
-            "문장 하나가 분위기를 바꿨다.",
-            "테이블 위 정적 대신 마찰음이 남았다.",
-            "기계음이 짧게 박자를 끊었다.",
-            "고개를 든 사람은 한 명뿐이었다.",
-            "방 안의 온도가 한 톤 내려간 듯했다.",
-            "그제야 반응의 방향이 드러났다.",
+            "질문의 방향이 바뀌자 테이블 반대편의 시선도 함께 움직였다.",
+            "의자가 살짝 밀리는 소리 뒤로 회의장의 호흡이 한 박자 늦어졌다.",
+            "누군가 메모를 멈추고 고개를 들면서 방 안의 집중이 한곳으로 쏠렸다.",
+            "목 안쪽이 마르게 조여 오자 수민은 다음 말을 더 천천히 골랐다.",
+            "말끝이 한쪽으로 기울자 상대의 반응도 노골적으로 달라졌다.",
+            "공조기 소리만 남은 틈에서 누구도 먼저 시선을 거두지 않았다.",
+            "테이블 위 그림자가 흔들리자 분위기 역시 미세하게 균형을 잃었다.",
+            "한 사람이 먼저 숨을 고르자 다른 이들도 그 변화를 놓치지 못했다.",
+            "이번에는 시선이 정면으로 맞붙었고, 피할 구실은 더 이상 남지 않았다.",
+            "종이 모서리가 천천히 접히는 동안 아무도 성급하게 답을 내놓지 않았다.",
+            "답이 늦어지는 사이 방 안에는 계산보다 긴장이 먼저 차올랐다.",
+            "손끝에 들어간 힘이 굳어지자 질문의 무게도 분명하게 드러났다.",
+            "누군가 미소를 접는 순간, 감춰 두던 의도 역시 절반쯤 모습을 드러냈다.",
+            "질서 있던 호흡이 한 박자 어긋나면서 대화의 결도 서서히 거칠어졌다.",
+            "단어 하나가 분위기를 바꾸자 모두가 그 다음 문장을 기다렸다.",
+            "정적이 오래 끌리진 않았지만, 그 짧은 틈은 이미 충분한 의미를 남겼다.",
+            "기계음이 박자를 끊는 사이 사람들의 판단도 잠깐씩 서로를 엇갈렸다.",
+            "고개를 든 사람은 한 명뿐이었고, 그 사실이 방 안의 균형을 바꿨다.",
+            "실내의 온도가 내려간 듯한 착각과 함께 반응의 방향도 선명해졌다.",
+            "그제야 모두가, 지금부터는 말보다 선택이 더 중요해졌다는 걸 알아차렸다.",
         ]
         sample = samples[idx % len(samples)]
         return self._fit_char_window(sample, min_chars, max_chars)

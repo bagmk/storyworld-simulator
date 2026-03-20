@@ -180,6 +180,70 @@ def adjust_scene_target_for_feedback(
     return max(3, adjusted)
 
 
+def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
+    if not isinstance(reader_feedback, dict) or not reader_feedback:
+        return reader_feedback
+
+    tuned = dict(reader_feedback)
+    constraints = dict(tuned.get("style_constraints", {}) or {})
+    changed = False
+
+    if _reader_feedback_has_any(
+        tuned,
+        "짧게 끊기는 문장",
+        "문장이 너무 자주 끊기",
+        "짧은 반복 문장",
+        "비슷한 리듬",
+        "같은 리듬",
+        "단조로운 리듬",
+    ):
+        constraints["short_beats_per_scene_min"] = 0
+        try:
+            existing_max = int(constraints.get("short_beats_per_scene_max", 1))
+        except (TypeError, ValueError):
+            existing_max = 1
+        constraints["short_beats_per_scene_max"] = max(0, min(1, existing_max))
+        try:
+            short_min = int(constraints.get("short_beat_chars_min", 0))
+        except (TypeError, ValueError):
+            short_min = 0
+        try:
+            short_max = int(constraints.get("short_beat_chars_max", 0))
+        except (TypeError, ValueError):
+            short_max = 0
+        constraints["short_beat_chars_min"] = max(14, short_min)
+        constraints["short_beat_chars_max"] = max(28, short_max, constraints["short_beat_chars_min"])
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "기술 용어",
+        "기술 용어가 자주",
+        "기술 용어가 겹칠 때",
+        "영어 표현",
+        "괄호 설명",
+        "설명문",
+        "브리핑 문서",
+        "약어",
+        "약자",
+    ):
+        try:
+            jargon_cap = int(constraints.get("max_jargon_terms_per_paragraph", 2))
+        except (TypeError, ValueError):
+            jargon_cap = 2
+        constraints["max_jargon_terms_per_paragraph"] = max(1, min(2, jargon_cap))
+        try:
+            dense_cap = int(constraints.get("max_sentences_in_dense_info", 2))
+        except (TypeError, ValueError):
+            dense_cap = 2
+        constraints["max_sentences_in_dense_info"] = max(1, min(2, dense_cap))
+        changed = True
+
+    if changed:
+        tuned["style_constraints"] = constraints
+    return tuned
+
+
 def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
     raw_list = json.loads(Path(path).read_text(encoding="utf-8"))
     scenes: list[DistilledScene] = []
@@ -259,6 +323,7 @@ def main() -> None:
         reader_feedback = load_reader_review(str(review_path))
         reader_feedback = ensure_repetition_watch_terms(reader_feedback)
         reader_feedback = ensure_jargon_watch_terms(reader_feedback)
+        reader_feedback = _apply_reader_feedback_pipeline_overrides(reader_feedback)
         if reader_feedback:
             repeat_terms = reader_feedback.get("repetition_watch_terms", []) or []
             jargon_terms = reader_feedback.get("jargon_watch_terms", []) or []

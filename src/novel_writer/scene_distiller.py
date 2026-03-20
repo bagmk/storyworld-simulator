@@ -215,14 +215,14 @@ class SceneDistiller:
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary.\n"
             f"7. Keep technical-term onboarding compact: first clear mention only, later references summarized.\n"
-            f"8. In summaries, mix short/medium sentence lengths and include concrete action cues for speaker clarity.\n"
-            f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit when a short sentence would feel too clipped.\n"
+            f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure needs emphasis.\n"
+            f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit instead of stacking clipped fragments.\n"
             f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary.\n"
             f"11. Do NOT invent content not present in the log. Only compress and select.\n\n"
-            f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery.\n"
+            f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery, and keep them as complete sentences rather than fragments.\n"
             f"13. If adjacent candidate scenes share cast/location and the latter mainly restates mood or explanation, merge them.\n"
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
-            f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise convert them into action or emotional consequence.\n"
+            f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise rewrite them as action or emotional consequence in the same sentence.\n"
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
@@ -306,11 +306,11 @@ class SceneDistiller:
             )
         if any(k in feedback_corpus for k in ("비슷한 리듬", "같은 리듬", "단조", "단조롭", "속도감이 단조")):
             prompt += (
-                "Vary sentence length inside summaries (mix short and medium beats) to avoid rhythmic monotony.\n\n"
+                "Vary sentence length inside summaries, but keep the default as full natural sentences rather than repeated clipped beats.\n\n"
             )
         if any(k in feedback_corpus for k in ("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루")):
             prompt += (
-                "If two nearby moments express the same tension with similar wording, keep only the sharper one and fold the rest into consequence.\n\n"
+                "If two nearby moments express the same tension with similar wording, keep only the sharper phrasing once and turn the rest into consequence.\n\n"
             )
         if any(k in feedback_corpus for k in ("문장이 너무 길", "길고 복잡", "이해하기 어려", "이해하기 어렵")):
             prompt += (
@@ -707,7 +707,7 @@ class SceneDistiller:
                     keep.append(normalized)
                 continue
             if mood_kept == 0 and self._scene_can_keep_mood_fragment(scene):
-                normalized = self._ensure_summary_sentence(sent)
+                normalized = self._blend_mood_fragment_with_consequence(sent, scene)
                 if normalized and normalized not in keep:
                     keep.append(normalized)
                 mood_kept += 1
@@ -728,6 +728,24 @@ class SceneDistiller:
 
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(keep[:max_sentences]).strip()
+
+    def _blend_mood_fragment_with_consequence(self, sentence: str, scene: DistilledScene) -> str:
+        fragment = re.sub(r"\s+", " ", str(sentence or "")).strip()
+        if not fragment:
+            return self._summary_replacement_sentence(scene)
+        if self._summary_has_action_or_decision(fragment):
+            return self._ensure_summary_sentence(fragment)
+        replacement = self._summary_replacement_sentence(scene)
+        if not replacement:
+            return self._ensure_summary_sentence(fragment)
+        base = re.sub(r"[.!?…]+$", "", fragment).strip()
+        follow = re.sub(r"^[\"“”'‘’\s]+", "", replacement).strip()
+        follow = re.sub(r"[.!?…]+$", "", follow).strip()
+        if not base or not follow:
+            return self._ensure_summary_sentence(fragment or replacement)
+        if self._dialogue_fingerprint(base) == self._dialogue_fingerprint(follow):
+            return self._ensure_summary_sentence(base)
+        return self._ensure_summary_sentence(f"{base}, 그 여파로 {follow}")
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
         if scene.pacing in {"opening", "climax"}:
