@@ -1593,14 +1593,57 @@ async def run_manager_agent(
     if notify:
         _hist_str = f" + 과거 {len(past_reviews)}회 daily 히스토리" if past_reviews and is_deep else ""
         _trend_str = f"이터레이션 {len(fixer_history)}개 추세" if fixer_history else "첫 이터레이션"
+        _fa_str = " + Factor Analysis" if is_deep else ""
         await notify(
-            f"{DAILY_TAG}[MANAGER] 🧠 매니저 분석 ({depth_label}) — {_trend_str}{_hist_str}"
+            f"{DAILY_TAG}[MANAGER] 🧠 매니저 분석 ({depth_label}) — {_trend_str}{_hist_str}{_fa_str}"
         )
 
+    # ── 5사이클마다: Factor Analysis 보고서 생성 및 쓰레드 게시 ──
+    factor_report_text = ""
+    if is_deep:
+        try:
+            from tools.analysis.factor_analysis import run_full_analysis
+            from openai import OpenAI
+            _fa_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+            factor_report_text = await asyncio.to_thread(
+                run_full_analysis, run_dir, _fa_client
+            )
+            if notify and factor_report_text:
+                await notify(
+                    f"{DAILY_TAG}[MANAGER] 📊 Factor Analysis 보고서 "
+                    f"(누적 데이터 분석):\n{factor_report_text[:1800]}"
+                )
+        except Exception as _fa_exc:
+            logger.warning("Factor analysis skipped: %s", _fa_exc)
+            if notify:
+                await notify(f"{DAILY_TAG}[MANAGER] ⚠️ Factor Analysis 생략: {_fa_exc}")
+
+    # ── 점수 이력 보고서 쓰레드 게시 ──
+    if notify and fixer_history:
+        history_lines = ["**📈 점수 이력 (이번 실행)**"]
+        prev_avg = None
+        for h in fixer_history:
+            delta_str = ""
+            if prev_avg is not None:
+                diff_val = h["avg"] - prev_avg
+                delta_str = f" (▲{diff_val:+.1f})" if diff_val != 0 else " (변화 없음)"
+            files_str = ", ".join(h["changed_files"]) if h["changed_files"] else "변경 없음"
+            history_lines.append(
+                f"사이클 {h['cycle']}: 긴장감={h['thrill']}, 문체={h['style']}, "
+                f"평균={h['avg']}{delta_str} | 수정: {files_str}"
+            )
+            prev_avg = h["avg"]
+        await notify(f"{DAILY_TAG}[MANAGER] " + "\n".join(history_lines))
+
+    # ── GPT로 두 보고서를 합쳐 강한 최종 지시사항 생성 ──
     synthesis_prompt = _build_manager_synthesis_prompt(
         current_review, past_reviews, daily_cycle, manager_period, fixer_cycle,
         fixer_history=fixer_history,
     )
+    # Factor Analysis 결과를 프롬프트 앞에 추가
+    if factor_report_text:
+        synthesis_prompt = factor_report_text + "\n\n---\n\n" + synthesis_prompt
+
     try:
         llm = LLMClient(
             model="gpt-4o-mini",
@@ -1613,10 +1656,11 @@ async def run_manager_agent(
             [{"role": "user", "content": synthesis_prompt}],
             use_premium=_use_premium_review_tier(review_tier),
             purpose="manager_synthesis",
-            max_tokens=800,
+            max_tokens=1000 if is_deep else 800,
         )
         if notify:
-            await notify(f"{DAILY_TAG}[MANAGER] 📋 매니저 지시사항:\n{manager_instructions}")
+            prefix = "🔴 통합 강한 지시사항" if is_deep else "📋 매니저 지시사항"
+            await notify(f"{DAILY_TAG}[MANAGER] {prefix}:\n{manager_instructions}")
         return manager_instructions
     except Exception as exc:
         if notify:
