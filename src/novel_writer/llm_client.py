@@ -117,13 +117,25 @@ class LLMClient:
         return list(self._usage_log)
 
     def budget_summary(self) -> dict:
+        prompt_tokens = sum(r.prompt_tokens for r in self._usage_log)
+        completion_tokens = sum(r.completion_tokens for r in self._usage_log)
         return {
             "budget_usd": self.budget_usd,
             "spent_usd": round(self._spent_usd, 6),
             "remaining_usd": round(self.remaining_budget, 6),
             "call_count": len(self._usage_log),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
             "breakdown": [
-                {"purpose": r.purpose, "model": r.model, "cost": round(r.cost_usd, 6)}
+                {
+                    "purpose": r.purpose,
+                    "model": r.model,
+                    "cost": round(r.cost_usd, 6),
+                    "prompt_tokens": r.prompt_tokens,
+                    "completion_tokens": r.completion_tokens,
+                    "total_tokens": r.prompt_tokens + r.completion_tokens,
+                }
                 for r in self._usage_log
             ],
         }

@@ -271,6 +271,7 @@ def build_llm_scorecard(
     chapter_text: str,
     auto_results: dict[str, tuple[bool, list[str]]],
     llm: LLMClient,
+    review_tier: str = "premium",
 ) -> str:
     review_context = _extract_episode_review_context(episode_data)
     auto_context = _format_auto_results_for_prompt(auto_results)
@@ -316,7 +317,7 @@ def build_llm_scorecard(
     return llm.chat(
         [{"role": "user", "content": prompt}],
         system=system,
-        use_premium=True,
+        use_premium=(str(review_tier).strip().lower() == "premium"),
         purpose="quality_reviewer_llm_review",
         temperature=0.4,
         max_tokens=1400,
@@ -418,7 +419,8 @@ def run_quality_review(
     chapter_path: Path | None = None,
     run_output_dir: Path | None = None,
     dry_run: bool = False,
-) -> tuple[str, dict[str, tuple[bool, list[str]]]]:
+    review_tier: str = "premium",
+) -> tuple[str, dict[str, tuple[bool, list[str]]], dict[str, Any]]:
     """
     Run all auto-checks. Returns (scorecard_text, auto_results_dict).
     """
@@ -471,10 +473,21 @@ def run_quality_review(
             chapter_text=chapter_text,
             auto_results=auto_results,
             llm=llm,
+            review_tier=review_tier,
         )
+        review_meta = llm.budget_summary()
+        review_meta["fallback"] = False
     except Exception:
         scorecard = build_scorecard(episode_key, auto_results)
-    return scorecard, auto_results
+        review_meta = {
+            "spent_usd": 0.0,
+            "budget_usd": llm.budget_usd,
+            "remaining_usd": llm.budget_usd,
+            "call_count": 0,
+            "breakdown": [],
+            "fallback": True,
+        }
+    return scorecard, auto_results, review_meta
 
 
 def main() -> None:
@@ -488,7 +501,7 @@ def main() -> None:
     chapter_path = Path(args.chapter) if args.chapter else None
     run_dir = Path(args.run_dir) if args.run_dir else None
 
-    scorecard, auto_results = run_quality_review(
+    scorecard, auto_results, review_meta = run_quality_review(
         episode_key=args.episode,
         chapter_path=chapter_path,
         run_output_dir=run_dir,
@@ -502,6 +515,7 @@ def main() -> None:
         print("✅ 자동 검수 이상 없음")
     else:
         print(f"⚠️ 자동 검수 이슈 {total_issues}건 발견")
+    print(f"LLM review spent: ${review_meta.get('spent_usd', 0.0):.4f}")
 
 
 if __name__ == "__main__":

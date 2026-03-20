@@ -21,10 +21,13 @@ status_fn:  callback(str) — called to update a shared status string (for !dail
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
+import difflib
 import json
 import os
 import re
+import shutil
 import sys
 import yaml
 from datetime import datetime
@@ -53,10 +56,14 @@ OUTPUT_DIR = REPO_ROOT / "output"
 DAILY_TAG = "[DAILY]"
 
 # Auto-improve loop settings
-AUTO_IMPROVE_MAX_CYCLES = 3       # Codex fixer 최대 반복 횟수
+AUTO_IMPROVE_MAX_CYCLES = 20      # Codex fixer 최대 반복 횟수
 AUTO_IMPROVE_SCORE_THRESHOLD = 8.5  # thrill+style 평균 이 점수 이상이면 통과 (10점 만점)
 # 근거: novel-loop 실측 데이터상 좋은 챕터 평균 8.0, 최솟값 7.5.
 # 7.0 기준은 사이클1에서 바로 통과되어 Codex가 실행되지 않음.
+
+# Manager agent settings (novel-loop 구조 이식)
+MANAGER_PERIOD = 5          # N번 daily 사이클마다 심층 회고 (novel-loop의 manager_period와 동일)
+MANAGER_HISTORY_MAX = 5     # 히스토리에서 최대 불러올 과거 리뷰 개수
 
 # Fixer: config/episodes는 건드리지 않음. 이 파일들만 수정 대상.
 FIXER_TARGET_FILES = [
@@ -68,10 +75,207 @@ FIXER_TARGET_FILES = [
     "simulate.py",
 ]
 
+SIMULATION_RELEVANT_FIXER_FILES = {
+    "simulate.py",
+    "src/novel_writer/director.py",
+    "src/novel_writer/orchestrator.py",
+}
+
+SCENE_CACHE_SAFE_FIXER_FILES = {
+    "src/novel_writer/prose_generator.py",
+    "generate_chapter.py",
+}
+
 NotifyFn = Callable[[str], Awaitable[None]] | None
 UploadFn = Callable[[Path, str], Awaitable[None]] | None
 StatusFn = Callable[[str], None] | None      # sync callback to update shared status string
 ProcessFn = Callable[[str | None, int | None, str | None], None] | None
+MetricsFn = Callable[[dict[str, Any]], None] | None
+
+
+def _use_premium_review_tier(review_tier: str) -> bool:
+    return str(review_tier).strip().lower() == "premium"
+
+
+def _parse_budget_from_output(output: str) -> dict[str, Any]:
+    patterns = [
+        re.compile(
+            r"Budget used:\s*\$([0-9.]+)\s*/\s*\$([0-9.]+).+?over\s+(\d+)\s+LLM calls(?:\s*\|\s*tokens:\s*(\d+)\s*in\s*\+\s*(\d+)\s*out\s*=\s*(\d+)\s*total)?",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"Budget:\s*\$([0-9.]+)\s*/\s*\$([0-9.]+)\s+over\s+(\d+)\s+LLM calls(?:\s*\|\s*tokens:\s*(\d+)\s*in\s*\+\s*(\d+)\s*out\s*=\s*(\d+)\s*total)?",
+            re.IGNORECASE,
+        ),
+    ]
+    for line in reversed(output.splitlines()):
+        for pattern in patterns:
+            m = pattern.search(line)
+            if m:
+                return {
+                    "spent_usd": float(m.group(1)),
+                    "budget_usd": float(m.group(2)),
+                    "call_count": int(m.group(3)),
+                    "prompt_tokens": int(m.group(4) or 0),
+                    "completion_tokens": int(m.group(5) or 0),
+                    "total_tokens": int(m.group(6) or 0),
+                }
+    return {
+        "spent_usd": 0.0,
+        "budget_usd": 0.0,
+        "call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _format_budget_line(label: str, budget: dict[str, Any]) -> str:
+    return (
+        f"{label}: ${float(budget.get('spent_usd', 0.0)):.4f}"
+        f" / ${float(budget.get('budget_usd', 0.0)):.2f}"
+        f" ({int(budget.get('call_count', 0))} calls, "
+        f"{int(budget.get('total_tokens', 0))} tokens)"
+    )
+
+
+def _generate_quality_chart(
+    episode_key: str,
+    run_dir: Path,
+    cost_tracker: dict[str, float] | None,
+) -> Path | None:
+    """
+    이번 파이프라인 실행 결과를 matplotlib 차트로 생성.
+    - 상단: AUTO 루프 사이클별 thrill/style 점수 추세
+    - 하단: LLM 비용 파이 차트
+    PNG 파일 경로 반환. matplotlib 미설치 시 None.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+        import numpy as np
+    except ImportError:
+        return None
+
+    # 한글 폰트 설정 (macOS AppleGothic → 없으면 기본 유지)
+    _korean_fonts = ["AppleGothic", "NanumGothic", "Malgun Gothic", "Noto Sans CJK KR"]
+    _available = {f.name for f in fm.fontManager.ttflist}
+    for _kf in _korean_fonts:
+        if _kf in _available:
+            plt.rcParams["font.family"] = _kf
+            plt.rcParams["axes.unicode_minus"] = False
+            break
+
+    review_files = sorted(run_dir.glob("auto_review_cycle*.json"))
+    cycles, thrill_scores, style_scores, avg_scores = [], [], [], []
+    for rf in review_files:
+        try:
+            data = json.loads(rf.read_text(encoding="utf-8"))
+            m = re.search(r"cycle(\d+)", rf.stem)
+            if not m:
+                continue
+            c = int(m.group(1))
+            t = int(data.get("thrill_score_10", 0))
+            s = int(data.get("style_score_10", 0))
+            cycles.append(c)
+            thrill_scores.append(t)
+            style_scores.append(s)
+            avg_scores.append((t + s) / 2)
+        except Exception:
+            pass
+
+    tracker = cost_tracker or {}
+    cost_labels = ["시뮬", "챕터", "AUTO리뷰", "최종리뷰", "피드백"]
+    cost_keys = ["simulation", "chapter", "auto_review", "final_review", "feedback_parse"]
+    cost_vals_nonzero = [
+        (l, float(tracker.get(k, 0.0)))
+        for l, k in zip(cost_labels, cost_keys)
+        if float(tracker.get(k, 0.0)) > 0.0001
+    ]
+
+    has_scores = len(cycles) > 0
+    has_costs = len(cost_vals_nonzero) > 0
+    n_rows = (1 if has_scores else 0) + (1 if has_costs else 0)
+    if n_rows == 0:
+        return None
+
+    fig, axes = plt.subplots(n_rows, 1, figsize=(9, 4 * n_rows))
+    if n_rows == 1:
+        axes = [axes]
+
+    fig.suptitle(f"[{episode_key}] 파이프라인 품질 리포트", fontsize=13, fontweight="bold")
+
+    ax_idx = 0
+
+    if has_scores:
+        ax = axes[ax_idx]; ax_idx += 1
+        x = list(range(len(cycles)))
+        ax.plot(x, thrill_scores, "o-", color="#e74c3c", label="긴장감", linewidth=2, markersize=7)
+        ax.plot(x, style_scores, "s-", color="#3498db", label="문체", linewidth=2, markersize=7)
+        ax.plot(x, avg_scores, "^--", color="#2ecc71", label="평균", linewidth=1.5, markersize=6, alpha=0.8)
+        ax.axhline(y=AUTO_IMPROVE_SCORE_THRESHOLD, color="#e67e22", linestyle=":",
+                   linewidth=1.5, label=f"목표 {AUTO_IMPROVE_SCORE_THRESHOLD}")
+        ax.set_ylim(0, 10.5)
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"사이클{c}" for c in cycles], fontsize=8)
+        ax.set_ylabel("점수 (/ 10)", fontsize=10)
+        ax.set_title("AI 리뷰 점수 추세", fontsize=11)
+        ax.legend(loc="lower right", fontsize=9)
+        ax.grid(True, alpha=0.3)
+        for xi, yi in zip(x, avg_scores):
+            ax.annotate(f"{yi:.1f}", (xi, yi), textcoords="offset points",
+                        xytext=(0, 8), ha="center", fontsize=8)
+
+    if has_costs:
+        ax = axes[ax_idx]; ax_idx += 1
+        labels_nz = [l for l, _ in cost_vals_nonzero]
+        vals_nz = [v for _, v in cost_vals_nonzero]
+        total_cost = sum(vals_nz)
+        colors = ["#3498db", "#2ecc71", "#e74c3c", "#9b59b6", "#f39c12"][:len(vals_nz)]
+        wedges, texts, autotexts = ax.pie(
+            vals_nz, labels=labels_nz, autopct="%1.1f%%",
+            colors=colors, startangle=140, pctdistance=0.75,
+        )
+        for t in texts:
+            t.set_fontsize(9)
+        for at in autotexts:
+            at.set_fontsize(8)
+        ax.set_title(f"LLM 비용 구성 (총 ${total_cost:.4f}, Codex CLI 제외)", fontsize=11)
+
+    plt.tight_layout()
+    chart_path = run_dir / "pipeline_report.png"
+    fig.savefig(str(chart_path), dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def _total_cost_line(cost_tracker: dict[str, float] | None) -> str:
+    tracker = cost_tracker or {}
+    total = (
+        float(tracker.get("simulation", 0.0))
+        + float(tracker.get("chapter", 0.0))
+        + float(tracker.get("auto_review", 0.0))
+        + float(tracker.get("final_review", 0.0))
+        + float(tracker.get("feedback_parse", 0.0))
+    )
+    return (
+        f"집계된 LLM 비용(Codex CLI 제외): ${total:.4f} "
+        f"(시뮬 {float(tracker.get('simulation', 0.0)):.4f} + "
+        f"챕터 {float(tracker.get('chapter', 0.0)):.4f} + "
+        f"AUTO 리뷰 {float(tracker.get('auto_review', 0.0)):.4f} + "
+        f"최종 리뷰 {float(tracker.get('final_review', 0.0)):.4f} + "
+        f"피드백 분석 {float(tracker.get('feedback_parse', 0.0)):.4f})"
+    )
+
+
+def _accumulate_usage_totals(metrics: dict[str, Any] | None, budget: dict[str, Any]) -> None:
+    if metrics is None:
+        return
+    metrics["prompt_tokens"] = int(metrics.get("prompt_tokens", 0)) + int(budget.get("prompt_tokens", 0) or 0)
+    metrics["completion_tokens"] = int(metrics.get("completion_tokens", 0)) + int(budget.get("completion_tokens", 0) or 0)
+    metrics["total_tokens"] = int(metrics.get("total_tokens", 0)) + int(budget.get("total_tokens", 0) or 0)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -288,6 +492,7 @@ async def step_guardian(
     upload: UploadFn,
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
+    review_tier: str = "premium",
 ) -> tuple[bool, Path | None]:
     """Returns (success, guardian_briefing_path). briefing_path is None if GPT analysis failed."""
     if stop_event and stop_event.is_set():
@@ -343,7 +548,7 @@ async def step_guardian(
         gpt_report = await asyncio.to_thread(
             llm.chat,
             [{"role": "user", "content": prompt}],
-            use_premium=True,
+            use_premium=_use_premium_review_tier(review_tier),
             purpose="guardian_context_analysis",
             max_tokens=1500,
         )
@@ -380,6 +585,8 @@ async def step_simulator(
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
     set_process: ProcessFn = None,
+    cost_tracker: dict[str, float] | None = None,
+    metrics: dict[str, Any] | None = None,
     guardian_briefing_path: Path | None = None,
 ) -> bool:
     if stop_event and stop_event.is_set():
@@ -464,6 +671,18 @@ async def step_simulator(
         set_status("2/4 시뮬레이션 완료")
     if notify:
         await notify(f"{DAILY_TAG}[SIM] ✅ 시뮬레이션 완료")
+        budget = {"spent_usd": 0.0, "budget_usd": 0.0, "call_count": 0}
+        sim_files = sorted(run_dir.glob("*_simulation.json"), key=lambda p: p.stat().st_mtime)
+        if sim_files:
+            try:
+                sim_data = json.loads(sim_files[-1].read_text(encoding="utf-8"))
+                budget = sim_data.get("budget", budget) or budget
+            except Exception:
+                pass
+        if cost_tracker is not None:
+            cost_tracker["simulation"] = float(budget.get("spent_usd", 0.0))
+        _accumulate_usage_totals(metrics, budget)
+        await notify(f"{DAILY_TAG}[SIM] 💸 {_format_budget_line('시뮬레이션 비용', budget)}")
     return True
 
 
@@ -481,6 +700,10 @@ async def step_chapter_gen(
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
     set_process: ProcessFn = None,
+    cost_tracker: dict[str, float] | None = None,
+    metrics: dict[str, Any] | None = None,
+    upload_version_label: str | None = None,
+    precomputed_scenes_path: Path | None = None,
     guardian_briefing_path: Path | None = None,
 ) -> Path | None:
     if stop_event and stop_event.is_set():
@@ -511,6 +734,8 @@ async def step_chapter_gen(
     ]
     if prev_review:
         cmd += ["--reader-review-md", str(prev_review)]
+    if precomputed_scenes_path and precomputed_scenes_path.exists():
+        cmd += ["--precomputed-scenes", str(precomputed_scenes_path)]
     if guardian_briefing_path and guardian_briefing_path.exists():
         cmd += ["--guardian-briefing", str(guardian_briefing_path)]
 
@@ -587,11 +812,30 @@ async def step_chapter_gen(
     word_count = len(chapter_out.read_text(encoding="utf-8", errors="replace").split())
     if set_status:
         set_status(f"3/4 챕터 완성 ({word_count}단어)")
+    budget = _parse_budget_from_output(output)
+    if cost_tracker is not None:
+        cost_tracker["chapter"] = cost_tracker.get("chapter", 0.0) + float(budget.get("spent_usd", 0.0))
+    _accumulate_usage_totals(metrics, budget)
+    upload_path = chapter_out
+    if upload_version_label:
+        safe_label = re.sub(r"[^a-zA-Z0-9_-]+", "_", upload_version_label).strip("_")
+        if safe_label:
+            versioned_path = chapter_out.with_name(f"{chapter_out.stem}_{safe_label}{chapter_out.suffix}")
+            shutil.copy2(chapter_out, versioned_path)
+            upload_path = versioned_path
     # 챕터 본문은 txt 파일로 전송
     if upload:
-        await upload(chapter_out, f"📖 {ep_file.stem} — {word_count}단어")
+        note = f"📖 {ep_file.stem} — {word_count}단어"
+        if upload_version_label:
+            note = f"{note} ({upload_version_label})"
+        await upload(upload_path, note)
+        if notify:
+            await notify(f"{DAILY_TAG}[CHAPTER] 💸 {_format_budget_line('챕터 생성 비용', budget)}")
     elif notify:
-        await notify(f"{DAILY_TAG}[CHAPTER] ✅ 챕터 완성 ({word_count}단어) — `{chapter_out.name}`")
+        await notify(
+            f"{DAILY_TAG}[CHAPTER] ✅ 챕터 완성 ({word_count}단어) — `{upload_path.name}`\n"
+            f"{_format_budget_line('챕터 생성 비용', budget)}"
+        )
 
     return chapter_out
 
@@ -607,6 +851,9 @@ async def step_quality_review(
     upload: UploadFn,
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
+    review_tier: str = "premium",
+    cost_tracker: dict[str, float] | None = None,
+    metrics: dict[str, Any] | None = None,
 ) -> str | None:
     if stop_event and stop_event.is_set():
         return None
@@ -617,8 +864,8 @@ async def step_quality_review(
         await notify(f"{DAILY_TAG}[REVIEW] 🔍 품질 자동 검수 중...")
 
     try:
-        scorecard, auto_results = await asyncio.to_thread(
-            run_quality_review, episode_key, chapter_path, run_dir, False,
+        scorecard, auto_results, review_meta = await asyncio.to_thread(
+            run_quality_review, episode_key, chapter_path, run_dir, False, review_tier,
         )
     except Exception as exc:
         if notify:
@@ -630,8 +877,14 @@ async def step_quality_review(
 
     if set_status:
         set_status("피드백 대기 중...")
+    if cost_tracker is not None:
+        cost_tracker["final_review"] = float(review_meta.get("spent_usd", 0.0))
+    _accumulate_usage_totals(metrics, review_meta)
     if notify:
-        await notify(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료\n\n{scorecard}")
+        await notify(
+            f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료\n\n{scorecard}\n\n"
+            f"{_format_budget_line('최종 리뷰 비용', review_meta)}"
+        )
 
     return scorecard
 
@@ -658,18 +911,102 @@ def _build_ai_reviewer_prompt(chapter_text: str) -> str:
     )
 
 
-def _build_codex_fixer_prompt(review_json: dict) -> str:
+async def _run_codex_review(
+    chapter_path: Path,
+    run_dir: Path,
+    fixer_cycle: int,
+    set_process: ProcessFn = None,
+) -> dict | None:
+    """
+    Codex CLI를 사용해 챕터를 리뷰.
+    OpenAI API 호출 없이 Codex가 직접 챕터를 읽고 JSON 리뷰 반환.
+    실패 시 None 반환.
+    """
+    review_out = run_dir / f"codex_review_cycle{fixer_cycle}.json"
+    prompt = (
+        f"다음 경로의 한국어 소설 챕터를 읽고 고등학생 독자 관점에서 리뷰하라.\n"
+        f"파일 경로: {chapter_path}\n\n"
+        "가독성, 문장 흐름, 몰입감, 재미 위주로 평가하라. 줄거리 구조는 평가하지 마라.\n"
+        "반드시 아래 JSON 형식으로만 응답하라 (다른 텍스트 없이):\n"
+        "{\n"
+        '  "thrill_score_10": <0~10 정수>,\n'
+        '  "style_score_10": <0~10 정수>,\n'
+        '  "one_line_verdict": "<한줄평>",\n'
+        '  "what_felt_good": ["<좋았던 점1>", "<좋았던 점2>", "<좋았던 점3>"],\n'
+        '  "what_felt_boring_or_hard": ["<지루/어려운 점1>", "<점2>", "<점3>"],\n'
+        '  "style_tips": ["<개선팁1>", "<팁2>", "<팁3>"],\n'
+        '  "reader_comment": "<4~6문장 독자 코멘트>"\n'
+        "}\n"
+        f"결과를 다음 경로에 저장하라: {review_out}"
+    )
+
+    cmd = [
+        "codex", "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd", str(REPO_ROOT),
+        prompt,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(REPO_ROOT),
+    )
+    if set_process:
+        set_process("codex_review", proc.pid, " ".join(cmd))
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
+    except asyncio.TimeoutError:
+        proc.terminate()
+        await proc.wait()
+        return None
+    finally:
+        if set_process:
+            set_process(None, None, None)
+
+    if proc.returncode != 0:
+        return None
+
+    # Codex가 review_out 파일에 저장했으면 읽기, 아니면 stdout에서 추출
+    if review_out.exists():
+        try:
+            raw = review_out.read_text(encoding="utf-8")
+            cleaned = re.sub(r"```(?:json)?\n?", "", raw).strip().rstrip("`")
+            return json.loads(cleaned)
+        except Exception:
+            pass
+
+    # fallback: stdout에서 JSON 블록 추출
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    json_match = re.search(r"\{[\s\S]*\"thrill_score_10\"[\s\S]*\}", output)
+    if json_match:
+        try:
+            result = json.loads(json_match.group())
+            review_out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            return result
+        except Exception:
+            pass
+
+    return None
+
+
+def _build_codex_fixer_prompt(review_json: dict, manager_instructions: str = "") -> str:
     issues = review_json.get("what_felt_boring_or_hard", [])
     tips = review_json.get("style_tips", [])
     comment = review_json.get("reader_comment", "")
     thrill = review_json.get("thrill_score_10", "?")
     style = review_json.get("style_score_10", "?")
+    manager_block = (
+        f"\n## 매니저 분석 지시사항 (우선 적용)\n{manager_instructions}\n"
+        if manager_instructions else ""
+    )
     return (
         f"독자 AI 리뷰 결과: 긴장감={thrill}/10, 문체={style}/10\n\n"
         f"문제점:\n" + "\n".join(f"- {i}" for i in issues) + "\n\n"
         f"개선 팁:\n" + "\n".join(f"- {t}" for t in tips) + "\n\n"
-        f"리뷰 전문: {comment}\n\n"
-        "위 독자 리뷰를 바탕으로, 소설 생성 코드의 품질을 개선하라.\n"
+        f"리뷰 전문: {comment}\n"
+        + manager_block +
+        "\n위 독자 리뷰를 바탕으로, 소설 생성 코드의 품질을 개선하라.\n"
         "수정 대상 파일:\n"
         "- src/novel_writer/prose_generator.py (씬 프롬프트, 가독성 규칙)\n"
         "- src/novel_writer/scene_distiller.py (씬 압축 로직)\n"
@@ -685,6 +1022,128 @@ def _build_codex_fixer_prompt(review_json: dict) -> str:
     )
 
 
+def _load_past_reviews(episode_key: str, current_run_dir: Path, max_entries: int = MANAGER_HISTORY_MAX) -> list[dict]:
+    """이전 daily 실행들의 auto_review JSON을 수집. 최신 순으로 max_entries개 반환."""
+    daily_base = OUTPUT_DIR / "daily"
+    past_reviews: list[dict] = []
+    current_date_dir = current_run_dir.parent  # e.g. output/daily/20260319_ep01_...
+
+    for date_dir in sorted(daily_base.glob(f"*_{episode_key}"), reverse=True):
+        if date_dir == current_date_dir:
+            continue  # 현재 실행은 제외
+        # 해당 date_dir의 가장 최근 time_dir
+        time_dirs = sorted(date_dir.iterdir(), reverse=True)
+        for time_dir in time_dirs:
+            review_files = sorted(time_dir.glob("auto_review_cycle*.json"), reverse=True)
+            for rf in review_files:
+                try:
+                    data = json.loads(rf.read_text(encoding="utf-8"))
+                    past_reviews.append(data)
+                except Exception:
+                    pass
+            if review_files:
+                break  # 해당 날짜의 가장 최근 실행 하나만
+        if len(past_reviews) >= max_entries:
+            break
+
+    return past_reviews[:max_entries]
+
+
+def _build_manager_synthesis_prompt(
+    current_review: dict,
+    past_reviews: list[dict],
+    daily_cycle: int,
+    manager_period: int,
+    fixer_cycle: int,
+) -> str:
+    """현재 + 과거 리뷰를 종합해 Codex에게 줄 타겟 지시를 생성하는 매니저 프롬프트."""
+    def _review_summary(rev: dict, label: str) -> str:
+        return (
+            f"### {label}\n"
+            f"긴장감={rev.get('thrill_score_10','?')}/10, 문체={rev.get('style_score_10','?')}/10\n"
+            f"문제점: {rev.get('what_felt_boring_or_hard', [])}\n"
+            f"팁: {rev.get('style_tips', [])}\n"
+            f"한줄평: {rev.get('one_line_verdict', '')}\n"
+        )
+
+    is_deep = manager_period > 0 and daily_cycle % manager_period == 0
+    current_block = _review_summary(current_review, "현재 사이클 리뷰")
+
+    history_block = ""
+    if past_reviews and is_deep:
+        history_block = f"\n## 과거 {len(past_reviews)}회 리뷰 히스토리 (심층 진단)\n"
+        for i, rev in enumerate(past_reviews, 1):
+            history_block += _review_summary(rev, f"{i}회 전")
+
+    depth_label = "심층 진단 (5사이클 회고)" if is_deep else "일반 종합"
+    return (
+        f"당신은 소설 생성 AI의 수석 매니저입니다.\n"
+        f"현재 상황: 일일 사이클 {daily_cycle}, 픽서 내부 사이클 {fixer_cycle}, {depth_label}\n\n"
+        f"## {current_block}\n"
+        f"{history_block}\n"
+        "---\n"
+        "위 리뷰 데이터를 종합하여, Codex가 코드를 수정할 구체적인 지시사항을 한국어로 작성하라.\n"
+        + ("반복적으로 나타나는 문제 패턴이 있다면 특별히 강조하라.\n" if is_deep else "")
+        + "수정 대상: prose_generator.py, scene_distiller.py, director.py\n"
+        "형식: 번호 매긴 액션 아이템 (최대 5개, 구체적으로)\n"
+        "확인 질문 없이 지시사항만 작성하라."
+    )
+
+
+async def run_manager_agent(
+    episode_key: str,
+    run_dir: Path,
+    current_review: dict,
+    daily_cycle: int,
+    fixer_cycle: int,
+    notify: NotifyFn,
+    review_tier: str = "premium",
+    manager_period: int = MANAGER_PERIOD,
+) -> str:
+    """
+    novel-loop 매니저 에이전트 이식판.
+    현재 리뷰 + 과거 daily 리뷰 히스토리를 GPT로 종합 →
+    Codex fixer에게 줄 타겟 지시사항 반환.
+    manager_period 사이클마다 심층 회고 수행.
+    """
+    past_reviews = await asyncio.to_thread(
+        _load_past_reviews, episode_key, run_dir, MANAGER_HISTORY_MAX
+    )
+    is_deep = manager_period > 0 and daily_cycle % manager_period == 0
+    depth_label = "심층 진단" if is_deep else "일반 종합"
+
+    if notify:
+        await notify(
+            f"{DAILY_TAG}[MANAGER] 🧠 매니저 분석 ({depth_label}) "
+            f"— 현재 리뷰 + 과거 {len(past_reviews)}회 히스토리"
+        )
+
+    synthesis_prompt = _build_manager_synthesis_prompt(
+        current_review, past_reviews, daily_cycle, manager_period, fixer_cycle
+    )
+    try:
+        llm = LLMClient(
+            model="gpt-4o-mini",
+            premium_model="gpt-4o",
+            budget_usd=1.0,
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+        )
+        manager_instructions = await asyncio.to_thread(
+            llm.chat,
+            [{"role": "user", "content": synthesis_prompt}],
+            use_premium=_use_premium_review_tier(review_tier),
+            purpose="manager_synthesis",
+            max_tokens=800,
+        )
+        if notify:
+            await notify(f"{DAILY_TAG}[MANAGER] 📋 매니저 지시사항:\n{manager_instructions}")
+        return manager_instructions
+    except Exception as exc:
+        if notify:
+            await notify(f"{DAILY_TAG}[MANAGER] ⚠️ 매니저 분석 실패 ({exc}), 기본 리뷰 사용")
+        return ""
+
+
 def _backup_target_files(run_dir: Path, fixer_cycle: int) -> Path:
     """Codex 실행 전 수정 대상 파일을 백업. 백업 디렉토리 경로 반환."""
     backup_dir = run_dir / f"backup_before_fixer_cycle{fixer_cycle}"
@@ -695,6 +1154,138 @@ def _backup_target_files(run_dir: Path, fixer_cycle: int) -> Path:
             dst = backup_dir / src.name
             dst.write_bytes(src.read_bytes())
     return backup_dir
+
+
+def _rollback_from_backup(backup_dir: Path) -> list[str]:
+    """백업 디렉토리에서 원본 파일을 복원. 복원된 파일 목록 반환."""
+    restored = []
+    for rel_path in FIXER_TARGET_FILES:
+        src = REPO_ROOT / rel_path
+        backup_file = backup_dir / Path(rel_path).name
+        if backup_file.exists():
+            src.write_bytes(backup_file.read_bytes())
+            restored.append(rel_path)
+    return restored
+
+
+def _syntax_check_target_files() -> list[str]:
+    """FIXER_TARGET_FILES 중 Python 파일의 문법을 검사. 오류 목록 반환."""
+    errors = []
+    for rel_path in FIXER_TARGET_FILES:
+        if not rel_path.endswith(".py"):
+            continue
+        src = REPO_ROOT / rel_path
+        if not src.exists():
+            continue
+        try:
+            ast.parse(src.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            errors.append(f"{rel_path}: 문법 오류 line {e.lineno} — {e.msg}")
+    return errors
+
+
+def _build_gpt_code_review_prompt(backup_dir: Path, summary: str) -> str:
+    """Codex가 수정한 diff를 기반으로 GPT 코드리뷰 프롬프트 생성."""
+    diff_blocks = []
+    for rel_path in FIXER_TARGET_FILES:
+        src = REPO_ROOT / rel_path
+        backup = backup_dir / Path(rel_path).name
+        if not (src.exists() and backup.exists()):
+            continue
+        old_text = backup.read_text(encoding="utf-8", errors="replace")
+        new_text = src.read_text(encoding="utf-8", errors="replace")
+        if old_text == new_text:
+            continue
+        diff_lines = list(difflib.unified_diff(
+            old_text.splitlines(), new_text.splitlines(),
+            fromfile=f"a/{rel_path}", tofile=f"b/{rel_path}", n=3,
+        ))
+        if diff_lines:
+            # diff 최대 120줄로 제한
+            diff_blocks.append(f"### {rel_path}\n```diff\n" + "\n".join(diff_lines[:120]) + "\n```")
+
+    if not diff_blocks:
+        return ""
+
+    return (
+        "다음 코드 변경사항을 검토하라. 소설 생성 파이프라인의 품질을 개선하는 변경인지 판단하라.\n\n"
+        "Codex 수정 요약:\n" + summary[:500] + "\n\n"
+        + "\n\n".join(diff_blocks[:3]) +  # 최대 3개 파일
+        "\n\n---\n"
+        "JSON으로만 응답하라 (다른 텍스트 금지):\n"
+        '{"verdict": "approve" or "reject", "reason": "한국어로 한 문장"}\n\n'
+        "approve 기준: 코드가 문법적으로 올바르고 소설 생성 품질을 개선할 가능성이 있을 때\n"
+        "reject 기준: 문법 오류, 기존 핵심 기능 제거, 논리적으로 위험한 변경이 있을 때"
+    )
+
+
+async def _run_gpt_code_review(
+    backup_dir: Path,
+    summary: str,
+    run_dir: Path,
+    fixer_cycle: int,
+) -> tuple[bool, str]:
+    """
+    Codex 수정 후 GPT Agent 코드리뷰.
+    (approved: bool, reason: str) 반환.
+    문법 오류 발견 시 즉시 reject.
+    GPT 분석 실패 시 approve로 fallback (파이프라인 중단 방지).
+    """
+    # 1단계: 문법 체크 (빠른 로컬 검사)
+    syntax_errors = _syntax_check_target_files()
+    if syntax_errors:
+        return False, "문법 오류: " + " | ".join(syntax_errors)
+
+    # 2단계: GPT diff 리뷰
+    prompt = _build_gpt_code_review_prompt(backup_dir, summary)
+    if not prompt:
+        return True, "변경된 파일 없음"
+
+    try:
+        llm = LLMClient(
+            model="gpt-4o-mini",
+            premium_model="gpt-4o",
+            budget_usd=0.5,
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+        )
+        raw = await asyncio.to_thread(
+            llm.chat,
+            [{"role": "user", "content": prompt}],
+            use_premium=False,  # gpt-4o-mini로 충분
+            purpose="code_review",
+            max_tokens=200,
+        )
+        cleaned = re.sub(r"```(?:json)?\n?", "", raw).strip().rstrip("`")
+        result = json.loads(cleaned)
+        verdict = result.get("verdict", "approve")
+        reason = result.get("reason", "")
+
+        # 리뷰 결과 저장
+        review_out = run_dir / f"code_review_cycle{fixer_cycle}.json"
+        review_out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        return verdict == "approve", reason
+    except Exception as exc:
+        # GPT 실패 시 approve fallback (파이프라인 중단 방지)
+        return True, f"GPT 코드리뷰 실패 ({exc}) — approve fallback"
+
+
+def _detect_changed_target_files(backup_dir: Path) -> list[str]:
+    changed: list[str] = []
+    for rel_path in FIXER_TARGET_FILES:
+        current = REPO_ROOT / rel_path
+        backup = backup_dir / current.name
+        if not backup.exists():
+            continue
+        if not current.exists():
+            changed.append(rel_path)
+            continue
+        try:
+            if current.read_bytes() != backup.read_bytes():
+                changed.append(rel_path)
+        except Exception:
+            changed.append(rel_path)
+    return changed
 
 
 async def _git_commit_fixer_changes(fixer_cycle: int, episode_key: str, summary: str) -> tuple[bool, str]:
@@ -734,7 +1325,12 @@ async def _git_commit_fixer_changes(fixer_cycle: int, episode_key: str, summary:
     return True, out
 
 
-async def _run_codex_fixer(prompt: str, run_dir: Path, fixer_cycle: int) -> tuple[bool, str]:
+async def _run_codex_fixer(
+    prompt: str,
+    run_dir: Path,
+    fixer_cycle: int,
+    set_process: ProcessFn = None,
+) -> tuple[bool, str]:
     """Codex CLI로 코드를 직접 수정. 성공 여부와 요약 반환."""
     summary_path = run_dir / f"fixer_cycle{fixer_cycle}_summary.md"
     cmd = [
@@ -751,11 +1347,17 @@ async def _run_codex_fixer(prompt: str, run_dir: Path, fixer_cycle: int) -> tupl
         stderr=asyncio.subprocess.STDOUT,
         cwd=str(REPO_ROOT),
     )
+    if set_process:
+        set_process("codex_fixer", proc.pid, " ".join(cmd))
     try:
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=1200)
     except asyncio.TimeoutError:
         proc.terminate()
-        return False, "Codex fixer 타임아웃 (15분)"
+        await proc.wait()
+        return False, "Codex fixer 타임아웃 (20분)"
+    finally:
+        if set_process:
+            set_process(None, None, None)
 
     output = stdout.decode("utf-8", errors="replace") if stdout else ""
     if proc.returncode != 0:
@@ -774,10 +1376,17 @@ async def step_auto_improve_loop(
     protagonist: str,
     guardian_briefing_path: Path | None,
     notify: NotifyFn,
+    upload: UploadFn,
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
+    set_process: ProcessFn = None,
+    review_tier: str = "premium",
+    cost_tracker: dict[str, float] | None = None,
+    metrics: dict[str, Any] | None = None,
     max_cycles: int = AUTO_IMPROVE_MAX_CYCLES,
     score_threshold: int = AUTO_IMPROVE_SCORE_THRESHOLD,
+    daily_cycle: int = 1,
+    manager_period: int = MANAGER_PERIOD,
 ) -> Path:
     """
     AI 리뷰 → Codex Fixer → 챕터 재생성 루프.
@@ -795,42 +1404,72 @@ async def step_auto_improve_loop(
             await notify(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프 {fixer_cycle}/{max_cycles} 시작")
 
         # ── AI 리뷰 ──
-        chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
-        try:
-            llm = LLMClient(
-                model="gpt-4o-mini",
-                premium_model="gpt-4o",
-                budget_usd=2.0,
-                api_key=os.environ.get("OPENAI_API_KEY", ""),
-            )
-            review_raw = await asyncio.to_thread(
-                llm.chat,
-                [{"role": "user", "content": _build_ai_reviewer_prompt(chapter_text)}],
-                use_premium=True,
-                purpose="auto_improve_reviewer",
-                max_tokens=1200,
-            )
-            cleaned = re.sub(r"```(?:json)?\n?", "", review_raw).strip().rstrip("`")
-            review_json = json.loads(cleaned)
-        except Exception as exc:
+        if review_tier == "codex":
+            # Codex CLI 리뷰 (OpenAI 비용 없음)
             if notify:
-                await notify(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패 ({exc}), 루프 종료")
-            break
+                await notify(f"{DAILY_TAG}[AUTO] 🤖 Codex 리뷰 중...")
+            review_json = await _run_codex_review(
+                chapter_path=current_chapter,
+                run_dir=run_dir,
+                fixer_cycle=fixer_cycle,
+                set_process=set_process,
+            )
+            if review_json is None:
+                if notify:
+                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ Codex 리뷰 실패, 루프 종료")
+                break
+            review_budget = {"spent_usd": 0.0, "budget_usd": 0.0, "call_count": 0,
+                             "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        else:
+            chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
+            try:
+                llm = LLMClient(
+                    model="gpt-4o-mini",
+                    premium_model="gpt-4o",
+                    budget_usd=2.0,
+                    api_key=os.environ.get("OPENAI_API_KEY", ""),
+                )
+                review_raw = await asyncio.to_thread(
+                    llm.chat,
+                    [{"role": "user", "content": _build_ai_reviewer_prompt(chapter_text)}],
+                    use_premium=_use_premium_review_tier(review_tier),
+                    purpose="auto_improve_reviewer",
+                    max_tokens=1200,
+                )
+                cleaned = re.sub(r"```(?:json)?\n?", "", review_raw).strip().rstrip("`")
+                review_json = json.loads(cleaned)
+                review_budget = llm.budget_summary()
+            except Exception as exc:
+                if notify:
+                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ 리뷰 실패 ({exc}), 루프 종료")
+                break
 
         thrill = int(review_json.get("thrill_score_10", 0))
         style = int(review_json.get("style_score_10", 0))
         avg = (thrill + style) / 2
         verdict = review_json.get("one_line_verdict", "")
 
-        # 리뷰 저장
+        # 리뷰 저장 (codex 경로는 _run_codex_review에서 이미 저장하므로 GPT 경로만 덮어쓰기)
         review_path = run_dir / f"auto_review_cycle{fixer_cycle}.json"
         review_path.write_text(json.dumps(review_json, ensure_ascii=False, indent=2), encoding="utf-8")
+        if cost_tracker is not None:
+            cost_tracker["auto_review"] = cost_tracker.get("auto_review", 0.0) + float(review_budget.get("spent_usd", 0.0))
+        _accumulate_usage_totals(metrics, review_budget)
 
         if notify:
             await notify(
                 f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과 (사이클 {fixer_cycle})\n"
-                f"긴장감: {thrill}/10 | 문체: {style}/10 | 평균: {avg:.1f}/10\n"
-                f"한줄평: {verdict}"
+                f"긴장감: {thrill}/10 | 문체: {style}/10 | 평균: {avg:.1f}/10 | 목표: {score_threshold:.1f}/10\n"
+                f"한줄평: {verdict}\n"
+                f"좋았던 점:\n- " + "\n- ".join(review_json.get("what_felt_good", [])) + "\n"
+                f"지루하거나 어려웠던 점:\n- " + "\n- ".join(review_json.get("what_felt_boring_or_hard", [])) + "\n"
+                f"개선 팁:\n- " + "\n- ".join(review_json.get("style_tips", [])) + "\n"
+                f"독자 코멘트: {review_json.get('reader_comment', '')}\n"
+                + (
+                    "AI 리뷰 비용: $0.00 (Codex CLI — OpenAI 비용 없음)"
+                    if review_tier == "codex"
+                    else _format_budget_line("AI 리뷰 비용", review_budget)
+                )
             )
 
         # ── 점수 통과 확인 ──
@@ -850,6 +1489,20 @@ async def step_auto_improve_loop(
                 )
             break
 
+        # ── Manager Agent (novel-loop 구조 이식) ──
+        if set_status:
+            set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — 매니저 분석 중...")
+        manager_instructions = await run_manager_agent(
+            episode_key=episode_key,
+            run_dir=run_dir,
+            current_review=review_json,
+            daily_cycle=daily_cycle,
+            fixer_cycle=fixer_cycle,
+            notify=notify,
+            review_tier=review_tier,
+            manager_period=manager_period,
+        )
+
         # ── Codex Fixer ──
         if set_status:
             set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — Codex 코드 수정 중...")
@@ -861,16 +1514,53 @@ async def step_auto_improve_loop(
         if notify:
             await notify(f"{DAILY_TAG}[AUTO] 💾 이전 버전 백업 완료 → `{backup_dir.name}/`")
 
-        fixer_prompt = _build_codex_fixer_prompt(review_json)
-        ok, summary = await _run_codex_fixer(fixer_prompt, run_dir, fixer_cycle)
+        fixer_prompt = _build_codex_fixer_prompt(review_json, manager_instructions=manager_instructions)
+        ok, summary = await _run_codex_fixer(
+            fixer_prompt,
+            run_dir,
+            fixer_cycle,
+            set_process=set_process,
+        )
 
         if not ok:
             if notify:
                 await notify(f"{DAILY_TAG}[AUTO] ❌ Codex Fixer 실패: {summary}")
             break
 
+        changed_files = await asyncio.to_thread(_detect_changed_target_files, backup_dir)
         if notify:
-            await notify(f"{DAILY_TAG}[AUTO] ✅ 코드 수정 완료:\n{summary[:800]}")
+            changed_lines = "\n".join(f"- {path}" for path in changed_files) if changed_files else "- (감지된 변경 파일 없음)"
+            await notify(
+                f"{DAILY_TAG}[AUTO] ✅ 코드 수정 완료:\n{summary[:600]}\n\n"
+                f"이번 사이클 변경 파일:\n{changed_lines}"
+            )
+
+        # ── GPT 코드리뷰 + 롤백 ──
+        if set_status:
+            set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — GPT 코드리뷰 중...")
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] 🕵️ GPT 코드리뷰 중...")
+
+        code_approved, review_reason = await _run_gpt_code_review(
+            backup_dir=backup_dir,
+            summary=summary,
+            run_dir=run_dir,
+            fixer_cycle=fixer_cycle,
+        )
+
+        if not code_approved:
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[AUTO] ⏪ GPT 코드리뷰 reject → 롤백\n"
+                    f"사유: {review_reason}"
+                )
+            restored = await asyncio.to_thread(_rollback_from_backup, backup_dir)
+            if notify:
+                await notify(f"{DAILY_TAG}[AUTO] ↩️ 롤백 완료: {', '.join(restored)}")
+            break  # 롤백 후 루프 종료, 현재 챕터 유지
+
+        if notify:
+            await notify(f"{DAILY_TAG}[AUTO] ✅ GPT 코드리뷰 통과: {review_reason}")
 
         # 수정 후 자동 git commit
         committed, commit_msg = await _git_commit_fixer_changes(fixer_cycle, episode_key, summary)
@@ -880,25 +1570,97 @@ async def step_auto_improve_loop(
             else:
                 await notify(f"{DAILY_TAG}[AUTO] ℹ️ git commit 스킵: {commit_msg}")
 
+        if any(path in SIMULATION_RELEVANT_FIXER_FILES for path in changed_files):
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[AUTO] 🔁 시뮬레이션 관련 코드 변경 감지 "
+                    f"({fixer_cycle}/{max_cycles}) — 시뮬레이션부터 다시 검증합니다."
+                )
+            sim_ok = await step_simulator(
+                episode_key=episode_key,
+                run_dir=run_dir,
+                cycle=daily_cycle,
+                budget=budget,
+                notify=notify,
+                set_status=set_status,
+                stop_event=stop_event,
+                set_process=set_process,
+                cost_tracker=cost_tracker,
+                metrics=metrics,
+                guardian_briefing_path=guardian_briefing_path,
+            )
+            if not sim_ok:
+                if notify:
+                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ 재시뮬레이션 실패 — AUTO 루프 종료")
+                break
+
+        cached_scenes_path: Path | None = None
+        if changed_files and set(changed_files).issubset(SCENE_CACHE_SAFE_FIXER_FILES):
+            candidate = run_dir / f"{resolve_episode_file(episode_key).stem}_scenes.json"
+            if candidate.exists():
+                cached_scenes_path = candidate
+                if notify:
+                    await notify(
+                        f"{DAILY_TAG}[AUTO] ⚡ scene distill 캐시 재사용 — "
+                        f"`{candidate.name}`로 장면 압축 단계를 건너뜁니다."
+                    )
+
         # ── 챕터 재생성 ──
         if set_status:
             set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — 챕터 재생성 중...")
         if notify:
-            await notify(f"{DAILY_TAG}[AUTO] 📖 수정된 코드로 챕터 재생성 중...")
+            await notify(f"{DAILY_TAG}[AUTO] 📖 수정된 코드로 챕터를 다시 생성합니다.")
 
         new_chapter = await step_chapter_gen(
-            episode_key, run_dir, fixer_cycle, target_words, budget, protagonist,
-            notify=None,  # 재생성은 조용히
-            upload=None,
-            set_status=None,
+            episode_key, run_dir, daily_cycle, target_words, budget, protagonist,
+            notify=notify,
+            upload=upload,
+            set_status=set_status,
             stop_event=stop_event,
+            set_process=set_process,
+            cost_tracker=cost_tracker,
+            metrics=metrics,
+            upload_version_label=f"auto_cycle{fixer_cycle}",
+            precomputed_scenes_path=cached_scenes_path,
             guardian_briefing_path=guardian_briefing_path,
         )
         if new_chapter:
-            current_chapter = new_chapter
-            if notify:
-                wc = len(current_chapter.read_text(encoding="utf-8").split())
-                await notify(f"{DAILY_TAG}[AUTO] 📝 재생성 완료 ({wc}단어)")
+            # ── 재생성 후 점수 비교 → 하락 시 롤백 ──
+            new_chapter_text = new_chapter.read_text(encoding="utf-8", errors="replace")
+            try:
+                llm_check = LLMClient(
+                    model="gpt-4o-mini", premium_model="gpt-4o", budget_usd=1.0,
+                    api_key=os.environ.get("OPENAI_API_KEY", ""),
+                )
+                check_raw = await asyncio.to_thread(
+                    llm_check.chat,
+                    [{"role": "user", "content": _build_ai_reviewer_prompt(new_chapter_text)}],
+                    use_premium=False,
+                    purpose="regen_score_check",
+                    max_tokens=600,
+                )
+                check_cleaned = re.sub(r"```(?:json)?\n?", "", check_raw).strip().rstrip("`")
+                check_json = json.loads(check_cleaned)
+                new_avg = (int(check_json.get("thrill_score_10", 0)) + int(check_json.get("style_score_10", 0))) / 2
+            except Exception:
+                new_avg = avg  # 체크 실패 시 현재 점수로 간주
+
+            if new_avg < avg - 0.5:
+                # 점수 하락 → 코드 롤백 + 이전 챕터 유지
+                if notify:
+                    await notify(
+                        f"{DAILY_TAG}[AUTO] ⏪ 재생성 후 점수 하락 ({avg:.1f} → {new_avg:.1f}) → 롤백"
+                    )
+                restored = await asyncio.to_thread(_rollback_from_backup, backup_dir)
+                if notify:
+                    await notify(f"{DAILY_TAG}[AUTO] ↩️ 코드 롤백 완료: {', '.join(restored)}")
+                break
+            else:
+                current_chapter = new_chapter
+                avg = new_avg  # 다음 사이클 비교를 위해 업데이트
+                if notify:
+                    wc = len(new_chapter_text.split())
+                    await notify(f"{DAILY_TAG}[AUTO] 📝 재생성 완료 ({wc}단어, 점수 {avg:.1f}/10)")
         else:
             if notify:
                 await notify(f"{DAILY_TAG}[AUTO] ⚠️ 챕터 재생성 실패 — 이전 버전 유지")
@@ -936,7 +1698,13 @@ def _build_story_fixer_prompt(episode_key: str, user_feedback: str) -> str:
     )
 
 
-async def _run_story_fixer(episode_key: str, user_feedback: str, run_dir: Path, fixer_cycle: int) -> tuple[bool, str]:
+async def _run_story_fixer(
+    episode_key: str,
+    user_feedback: str,
+    run_dir: Path,
+    fixer_cycle: int,
+    set_process: ProcessFn = None,
+) -> tuple[bool, str]:
     """Codex로 에피소드 YAML 수정. 성공 여부와 요약 반환."""
     summary_path = run_dir / f"story_fixer_cycle{fixer_cycle}_summary.md"
     prompt = _build_story_fixer_prompt(episode_key, user_feedback)
@@ -951,11 +1719,17 @@ async def _run_story_fixer(episode_key: str, user_feedback: str, run_dir: Path, 
         *cmd, cwd=str(REPO_ROOT),
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
     )
+    if set_process:
+        set_process("codex_story_fixer", proc.pid, " ".join(cmd))
     try:
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=1200)
     except asyncio.TimeoutError:
         proc.terminate()
-        return False, "Story fixer 타임아웃 (10분)"
+        await proc.wait()
+        return False, "Story fixer 타임아웃 (20분)"
+    finally:
+        if set_process:
+            set_process(None, None, None)
     output = stdout.decode("utf-8", errors="replace") if stdout else ""
     if proc.returncode != 0:
         return False, f"Codex 실패 (rc={proc.returncode})\n{output[-800:]}"
@@ -1010,6 +1784,14 @@ async def wait_for_feedback(
     if on_start_wait:
         on_start_wait()
 
+    if notify:
+        await notify(
+            f"{DAILY_TAG}[WAIT] ⏳ 피드백을 기다리고 있습니다. (최대 {timeout_hours:.0f}시간)\n"
+            "이제 읽어보시고 자유롭게 피드백 남겨주세요.\n"
+            "'다음으로 가자' 또는 'next' → 다음 에피소드로 진행\n"
+            "`!stop` → 파이프라인 중단"
+        )
+
     timeout_sec = timeout_hours * 3600
 
     # Wait for either feedback or stop signal
@@ -1054,6 +1836,7 @@ async def run_daily_pipeline(
     target_words: int = 3500,
     budget: float = 4.0,
     protagonist: str = "kim_sumin",
+    review_tier: str = "premium",
     feedback_queue: asyncio.Queue | None = None,
     feedback_timeout_hours: float = 24.0,
     notify: NotifyFn = None,
@@ -1062,6 +1845,7 @@ async def run_daily_pipeline(
     stop_event: asyncio.Event | None = None,
     set_status: StatusFn = None,
     set_process: ProcessFn = None,
+    set_metrics: MetricsFn = None,
     on_start_wait: Callable[[], None] | None = None,
     on_end_wait: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
@@ -1074,6 +1858,18 @@ async def run_daily_pipeline(
 
     cycle = _get_cycle_number(episode_key)
     run_dir = _allocate_daily_output_dir(episode_key)
+    cost_tracker = {
+        "simulation": 0.0,
+        "chapter": 0.0,
+        "auto_review": 0.0,
+        "final_review": 0.0,
+        "feedback_parse": 0.0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
 
     if set_status:
         set_status(f"시작 — {episode_key} 사이클 {cycle}")
@@ -1081,11 +1877,14 @@ async def run_daily_pipeline(
         await notify(f"{DAILY_TAG}[START] 🎬 `{episode_key}` 파이프라인 시작 (사이클 {cycle})")
         await notify(
             f"{DAILY_TAG}[START] run: `{run_dir.relative_to(REPO_ROOT)}`\n"
+            f"리뷰 등급: `{review_tier}`\n"
             "진행 상황: `!status` | 중단: `!stop`"
         )
 
     # ── Step 1: Config Guardian ──
-    ok1, guardian_briefing_path = await step_guardian(episode_key, run_dir, cycle, notify, upload, set_status, stop_event)
+    ok1, guardian_briefing_path = await step_guardian(
+        episode_key, run_dir, cycle, notify, upload, set_status, stop_event, review_tier
+    )
     if not ok1:
         if set_status:
             set_status("중단됨 (Guardian 단계)")
@@ -1094,7 +1893,11 @@ async def run_daily_pipeline(
     # ── Step 2: Simulator ──
     ok2 = await step_simulator(episode_key, run_dir, cycle, budget, notify, set_status, stop_event,
                                set_process=set_process,
+                               cost_tracker=cost_tracker,
+                               metrics=cost_tracker,
                                guardian_briefing_path=guardian_briefing_path)
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
     if not ok2:
         if set_status:
             set_status("중단됨 (Simulator 단계)")
@@ -1105,8 +1908,12 @@ async def run_daily_pipeline(
         episode_key, run_dir, cycle, target_words, budget, protagonist,
         notify, upload, set_status, stop_event,
         set_process=set_process,
+        cost_tracker=cost_tracker,
+        metrics=cost_tracker,
         guardian_briefing_path=guardian_briefing_path,
     )
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
     if chapter_path is None:
         if set_status:
             set_status("중단됨 (Chapter Gen 단계)")
@@ -1122,16 +1929,42 @@ async def run_daily_pipeline(
         episode_key, run_dir, chapter_path, target_words, budget, protagonist,
         guardian_briefing_path=guardian_briefing_path,
         notify=notify,
+        upload=upload,
         set_status=set_status,
         stop_event=stop_event,
+        set_process=set_process,
+        review_tier=review_tier,
+        cost_tracker=cost_tracker,
+        metrics=cost_tracker,
+        daily_cycle=cycle,
     )
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
 
     # ── Step 4: Final quality review → user ──
     scorecard = await step_quality_review(
         episode_key, chapter_path, run_dir, cycle, notify, upload, set_status, stop_event,
+        review_tier=review_tier,
+        cost_tracker=cost_tracker,
+        metrics=cost_tracker,
     )
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
 
     _increment_cycle(episode_key)
+
+    # ── 품질 차트 생성 + Discord 전송 ──
+    chart_path = await asyncio.to_thread(_generate_quality_chart, episode_key, run_dir, cost_tracker)
+    if chart_path and upload:
+        try:
+            await upload(chart_path, f"📊 [{episode_key}] 사이클 {cycle} 품질 리포트")
+        except Exception:
+            pass
+    elif chart_path and notify:
+        try:
+            await notify(f"{DAILY_TAG}[REPORT] 📊 품질 리포트 저장 → `{chart_path.relative_to(REPO_ROOT)}`")
+        except Exception:
+            pass
 
     if no_discord or feedback_queue is None:
         if set_status:
@@ -1139,7 +1972,8 @@ async def run_daily_pipeline(
         if notify:
             await notify(
                 f"{DAILY_TAG}[DONE] ✅ 파이프라인 완료 (no-discord 모드)\n"
-                f"- chapter: `{chapter_path.relative_to(REPO_ROOT)}`"
+                f"- chapter: `{chapter_path.relative_to(REPO_ROOT)}`\n"
+                f"{_total_cost_line(cost_tracker)}"
             )
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
@@ -1172,7 +2006,8 @@ async def run_daily_pipeline(
         if notify:
             await notify(
                 f"{DAILY_TAG}[DONE] ℹ️ 응답이 없어 여기서 마무리했습니다.\n"
-                "다시 실행하려면 `!novel-daily <번호>`"
+                "다시 실행하려면 `!novel-daily <번호>`\n"
+                f"{_total_cost_line(cost_tracker)}"
             )
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
@@ -1200,10 +2035,15 @@ async def run_daily_pipeline(
                 "style_score_10": "?",
             })
         )
-        ok, summary = await _run_codex_fixer(fixer_prompt, run_dir, cycle)
+        ok, summary = await _run_codex_fixer(
+            fixer_prompt,
+            run_dir,
+            cycle,
+            set_process=set_process,
+        )
         if ok:
             if notify:
-                await notify(f"{DAILY_TAG}[CHOICE] ✅ 코드 수정 완료:\n{summary[:600]}")
+                await notify(f"{DAILY_TAG}[CHOICE] ✅ 코드 수정 완료:\n{summary}")
             committed, _ = await _git_commit_fixer_changes(cycle, episode_key, summary)
             if committed and notify:
                 await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료")
@@ -1213,10 +2053,14 @@ async def run_daily_pipeline(
             new_chapter = await step_chapter_gen(
                 episode_key, run_dir, cycle, target_words, budget, protagonist,
                 notify=notify, upload=upload, set_status=set_status,
-                stop_event=stop_event, guardian_briefing_path=guardian_briefing_path,
+                stop_event=stop_event, set_process=set_process, cost_tracker=cost_tracker,
+                upload_version_label=f"choice_code_cycle{cycle}",
+                guardian_briefing_path=guardian_briefing_path,
             )
             if new_chapter:
                 chapter_path = new_chapter
+                if set_metrics:
+                    set_metrics(dict(cost_tracker))
         else:
             if notify:
                 await notify(f"{DAILY_TAG}[CHOICE] ❌ 코드 수정 실패: {summary}")
@@ -1228,10 +2072,16 @@ async def run_daily_pipeline(
         if notify:
             await notify(f"{DAILY_TAG}[CHOICE] 2️⃣ 스토리 수정 선택 — 에피소드 YAML 수정 중...")
 
-        ok, summary = await _run_story_fixer(episode_key, raw_feedback, run_dir, cycle)
+        ok, summary = await _run_story_fixer(
+            episode_key,
+            raw_feedback,
+            run_dir,
+            cycle,
+            set_process=set_process,
+        )
         if ok:
             if notify:
-                await notify(f"{DAILY_TAG}[CHOICE] ✅ 스토리 수정 완료:\n{summary[:600]}")
+                await notify(f"{DAILY_TAG}[CHOICE] ✅ 스토리 수정 완료:\n{summary}")
             committed, _ = await _git_commit_story_fix(episode_key, summary)
             if committed and notify:
                 await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료 — 다음 `!novel-daily`에 반영됩니다")
@@ -1254,6 +2104,10 @@ async def run_daily_pipeline(
         episode_data = (yaml.safe_load(f) or {}).get("episode", {})
 
     parsed = parse_feedback_with_llm(raw_feedback, episode_key, llm)
+    cost_tracker["feedback_parse"] = float(llm.budget_summary().get("spent_usd", 0.0))
+    _accumulate_usage_totals(cost_tracker, llm.budget_summary())
+    if set_metrics:
+        set_metrics(dict(cost_tracker))
     if choice == "next":
         parsed["approved_next_episode"] = True
     elif choice in ("code", "story"):
@@ -1267,14 +2121,16 @@ async def run_daily_pipeline(
         choice_label = {"code": "코드 수정", "story": "스토리 수정", "next": "다음으로", "other": "피드백 저장"}.get(choice, "완료")
         if approved:
             await notify(
-                f"{DAILY_TAG}[DONE] ✅ {choice_label} 완료. 다음 에피소드로 이동하려면: `!novel-daily <번호>`"
+                f"{DAILY_TAG}[DONE] ✅ {choice_label} 완료. 다음 에피소드로 이동하려면: `!novel-daily <번호>`\n"
+                f"{_total_cost_line(cost_tracker)}"
             )
         else:
             issues = parsed.get("specific_issues", [])
             issue_str = "\n".join(f"  - {i}" for i in issues) if issues else "  (코멘트 참조)"
             await notify(
                 f"{DAILY_TAG}[DONE] 📝 {choice_label} 완료. 같은 화 재시도: `!novel-daily {episode_key}`\n"
-                f"개선 포인트:\n{issue_str}"
+                f"개선 포인트:\n{issue_str}\n"
+                f"{_total_cost_line(cost_tracker)}"
             )
 
     return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": approved, "feedback": parsed, "choice": choice}

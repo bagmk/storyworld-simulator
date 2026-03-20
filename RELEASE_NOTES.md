@@ -80,3 +80,33 @@
 
 5. Generation entrypoint updates
 - Updated `generate_chapter.py` and related generation wiring for the latest loop/review flow.
+
+# Release Notes (2026-03-19)
+
+- Branch: `main`
+- Scope: Daily pipeline UX refinement, Codex fixer automation, chapter regeneration efficiency, and review cost visibility
+
+## Highlights
+
+1. Daily pipeline interaction upgrades
+- Added interactive review-tier selection for `!novel-daily` with `mini`, `premium`, and `codex` paths.
+- Expanded Discord status reporting to include running process info, accumulated token usage, and tracked LLM cost.
+- Improved chapter resend flow so `!chapter` can recover the most recent generated chapter from daily output folders.
+
+2. Codex-driven auto-fix loop improvements
+- Strengthened the daily auto-improve loop with higher cycle limits, manager-style retrospection settings, and richer review/fix orchestration.
+- Added automatic backup and git-commit flow for Codex fixer improvements during daily cycles.
+- Added interactive post-review choice handling so the pipeline can wait for user direction after quality review.
+
+3. Generation and review efficiency changes
+- Updated `generate_chapter.py` to accept precomputed scene input and skip redundant scene distillation when cached scenes are available.
+- Updated `tools/quality_reviewer.py` so review tier selection affects LLM review behavior and cost metadata is returned with the scorecard.
+- Updated `src/novel_writer/llm_client.py` budget summaries to include prompt, completion, and total token counts.
+
+4. Discord bot simplification and command refresh
+- Simplified `tools/discord_loop_bot.py` around the daily pipeline flow and removed older standalone review/fix loop handling.
+- Added `!chapter` support for resending the latest generated chapter.
+- Improved daily command messaging, routing, and channel-level state tracking for multi-step review flows.
+
+5. Story-state tracking refresh
+- Updated `data/story_state.json` to record the latest ep01 cycle outcome, user feedback state, and cumulative cycle count for ongoing daily iterations.

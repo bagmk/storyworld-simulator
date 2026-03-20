@@ -37,6 +37,7 @@ from datetime import datetime
 from src.novel_writer.config_loader import load_episode, load_characters
 from src.novel_writer.llm_client import LLMClient
 from src.novel_writer.scene_distiller import SceneDistiller
+from src.novel_writer.scene_distiller import DistilledScene
 from src.novel_writer.prose_generator import ProseGenerator
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
@@ -106,6 +107,8 @@ def parse_args() -> argparse.Namespace:
                    help="Optional reader review markdown for readability/style steering")
     p.add_argument("--guardian-briefing", default="",
                    help="Optional guardian GPT analysis text file for story continuity steering")
+    p.add_argument("--precomputed-scenes", default="",
+                   help="Optional precomputed scenes JSON path to skip scene distillation")
     return p.parse_args()
 
 
@@ -160,6 +163,33 @@ def adjust_scene_target_for_feedback(
     ):
         adjusted -= 1
     return max(3, adjusted)
+
+
+def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
+    raw_list = json.loads(Path(path).read_text(encoding="utf-8"))
+    scenes: list[DistilledScene] = []
+    for item in raw_list:
+        turn_range = list(item.get("turn_range", [0, 0]))[:2]
+        if len(turn_range) < 2:
+            turn_range = (turn_range + [0, 0])[:2]
+        scenes.append(
+            DistilledScene(
+                scene_number=int(item.get("scene_number", 0)),
+                title=str(item.get("title", "")),
+                turn_range=(int(turn_range[0]), int(turn_range[1])),
+                location=str(item.get("location", "")),
+                characters_present=list(item.get("characters_present", []) or []),
+                key_dialogue=list(item.get("key_dialogue", []) or []),
+                key_actions=list(item.get("key_actions", []) or []),
+                discoveries=list(item.get("discoveries", []) or []),
+                emotional_arc=str(item.get("emotional_arc", "")),
+                beat_references=list(item.get("beat_references", []) or []),
+                narrative_summary=str(item.get("narrative_summary", "")),
+                pacing=str(item.get("pacing", "")),
+                raw_turn_count=int(item.get("raw_turn_count", 0)),
+            )
+        )
+    return scenes
 
 
 def main() -> None:
@@ -319,25 +349,34 @@ def main() -> None:
 
     # === Stage 1: Scene Distillation ===
     logger.info("─── Stage 1: Scene Distillation ───")
-    distiller = SceneDistiller(
-        llm=llm,
-        episode_config=episode_config,
-        runtime_policy=rl_policy,
-        reader_feedback=reader_feedback,
-    )
+    if args.precomputed_scenes:
+        scenes = _load_precomputed_scenes(args.precomputed_scenes)
+        distill_elapsed = 0.0
+        logger.info(
+            "Reused %d precomputed scenes from %s (distill skipped)",
+            len(scenes),
+            args.precomputed_scenes,
+        )
+    else:
+        distiller = SceneDistiller(
+            llm=llm,
+            episode_config=episode_config,
+            runtime_policy=rl_policy,
+            reader_feedback=reader_feedback,
+        )
 
-    distill_start = datetime.utcnow()
-    scenes = distiller.distill(
-        episode_id=episode_id,
-        protagonist_id=args.protagonist,
-        target_scenes=target_scenes,
-    )
-    distill_elapsed = (datetime.utcnow() - distill_start).total_seconds()
+        distill_start = datetime.utcnow()
+        scenes = distiller.distill(
+            episode_id=episode_id,
+            protagonist_id=args.protagonist,
+            target_scenes=target_scenes,
+        )
+        distill_elapsed = (datetime.utcnow() - distill_start).total_seconds()
 
-    logger.info(
-        "Distilled %d turns into %d scenes (%.1fs)",
-        len(interactions), len(scenes), distill_elapsed,
-    )
+        logger.info(
+            "Distilled %d turns into %d scenes (%.1fs)",
+            len(interactions), len(scenes), distill_elapsed,
+        )
     for s in scenes:
         logger.info(
             "  Scene %d: '%s' [T%d-%d] %s — %s",
