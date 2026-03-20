@@ -1490,30 +1490,79 @@ def _build_manager_synthesis_prompt(
             history_block += _review_summary(rev, f"{i}회 전")
 
     depth_label = "심층 진단 (5사이클 회고)" if is_deep else "일반 종합"
+
+    # 점수 정체 여부 계산
+    stagnation_block = ""
+    if fixer_history and len(fixer_history) >= 2:
+        recent = fixer_history[-3:]
+        avgs = [h["avg"] for h in recent]
+        if max(avgs) - min(avgs) < 0.3:
+            stagnation_block = (
+                f"\n⚠️ 경고: 최근 {len(recent)}사이클 동안 평균 점수가 {avgs[0]:.1f}~{avgs[-1]:.1f}로 "
+                f"사실상 제자리다. 지금까지와 같은 방식의 수정은 효과가 없다는 증거다.\n"
+            )
+
+    # 효과 없었던 파일 목록
+    ineffective_block = ""
+    if fixer_history and len(fixer_history) >= 2:
+        worsening_files: set[str] = set()
+        no_effect_files: set[str] = set()
+        for i, h in enumerate(fixer_history[1:], 1):
+            if h["avg"] <= fixer_history[i - 1]["avg"] and h["changed_files"]:
+                if h["avg"] < fixer_history[i - 1]["avg"]:
+                    worsening_files.update(h["changed_files"])
+                else:
+                    no_effect_files.update(h["changed_files"])
+        if worsening_files:
+            ineffective_block += f"❌ 수정 후 점수가 하락한 파일: {', '.join(worsening_files)} — 이 파일을 같은 방식으로 수정하는 것을 금지한다.\n"
+        if no_effect_files:
+            ineffective_block += f"⚠️ 수정했지만 점수 변화 없었던 파일: {', '.join(no_effect_files)} — 다른 접근이 필요하다.\n"
+
+    deep_mandate = ""
+    if is_deep:
+        deep_mandate = (
+            "\n## ⚡ 5사이클 심층 회고 — 강제 전략 재검토\n"
+            "지금까지의 수정 패턴을 냉정하게 평가하라.\n"
+            "- 같은 파일을 계속 건드렸는가? 그렇다면 근본 원인이 다른 파일에 있을 수 있다.\n"
+            "- 점수가 올랐다가 내려갔다면 회귀 위험이 있는 수정이 있다는 뜻이다. 그 수정을 되돌려라.\n"
+            "- 이번 지시사항에서는 이전에 한 번도 건드리지 않은 파일 또는 함수를 반드시 1개 이상 포함시켜라.\n"
+            "- 과거 히스토리에서 반복적으로 등장하는 문제가 있다면 그것이 진짜 병목이다. 이번에 끝내라.\n"
+        )
+
     return (
-        f"당신은 소설 생성 AI의 수석 매니저입니다.\n"
+        f"당신은 소설 생성 AI의 수석 매니저다. 목표는 챕터 품질 점수를 8.5 이상으로 끌어올리는 것이다.\n"
         f"현재 상황: 일일 사이클 {daily_cycle}, 픽서 내부 사이클 {fixer_cycle}, {depth_label}\n\n"
         f"## {current_block}\n"
         f"{trend_block}"
+        f"{stagnation_block}"
+        f"{ineffective_block}"
         f"\n## 시작점 힌트 (휴리스틱)\n{heuristic_hints}\n"
-        f"{history_block}\n"
+        f"{history_block}"
+        f"{deep_mandate}\n"
         "---\n"
-        "위 데이터를 바탕으로, 어떤 코드 변경이 점수에 긍정/부정적 영향을 줬는지 분석하고\n"
-        "Codex가 코드를 수정할 구체적인 지시사항을 한국어로 작성하라.\n"
-        + ("반복적으로 나타나는 문제 패턴이 있다면 특별히 강조하라.\n" if is_deep else "")
+        "다음 Codex 수정 사이클에 줄 지시사항을 한국어로 작성하라.\n"
+        "요구사항:\n"
+        "1. 점수가 낮은 구체적 원인을 진단하라 — '개선 필요'가 아니라 '어떤 함수/로직이 문제인지' 지목하라.\n"
+        "2. 효과 없었던 접근법은 반복하지 마라. 다른 파일, 다른 함수, 다른 전략을 제시하라.\n"
+        "3. 지시사항은 Codex가 즉시 실행할 수 있을 만큼 구체적으로 — 함수명, 수정 방향, 예상 효과까지.\n"
+        + ("4. 반복 패턴이 보이면 그것을 명시적으로 차단하라.\n" if is_deep else "")
         + "수정 대상: prose_generator.py, scene_distiller.py, director.py, generate_chapter.py\n"
         "형식:\n"
+        "진단:\n"
+        "- 현재 점수가 낮은 핵심 원인: <원인>\n"
+        "- 이전 수정 중 효과 없었던 것: <파일/접근법>\n"
         "시작점:\n"
-        "- 1차 파일: <가장 먼저 볼 파일 1개>\n"
-        "- 1차 함수/메서드: <가장 먼저 볼 함수 1~3개>\n"
+        "- 1차 파일: <파일명>\n"
+        "- 1차 함수: <함수명 1~3개>\n"
         "- 이유: <왜 여기서 시작하는지>\n"
         "실행 항목:\n"
-        "1. <구체적 액션>\n"
+        "1. <구체적 액션 — 함수명과 수정 방향 포함>\n"
         "2. <구체적 액션>\n"
         "3. <선택적 액션>\n"
-        "주의:\n"
-        "- <건드리지 말아야 할 범위나 회귀 위험>\n"
-        "- <검증 시 꼭 볼 포인트>\n"
+        "금지 항목:\n"
+        "- <이번 사이클에서 하지 말아야 할 것>\n"
+        "검증:\n"
+        "- <수정 후 확인할 포인트>\n"
         "확인 질문 없이 지시사항만 작성하라."
     )
 
