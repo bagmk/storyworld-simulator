@@ -441,6 +441,8 @@ class DirectorAI:
                 "- Keep at most one technical term in this event unless absolutely necessary.\n"
                 "- Prioritize a concrete sensory/action cue over repeated metrics.\n"
                 "- Do not add parenthetical explanation unless the clue would otherwise be unclear.\n"
+                "- If a technical term or English keyword appears, follow it immediately with a visible human reaction or consequence.\n"
+                "- Keep each sentence short and direct; split comma-heavy chains.\n"
             )
         prompt = (
             f"You are a story director. A required story clue hasn't surfaced naturally.\n\n"
@@ -970,6 +972,14 @@ class DirectorAI:
         active_text = "\n".join(
             f"- {aid}: {agent_map[aid].name}" for aid in active_ids
         )
+        jargon_reaction_rule = ""
+        if progress_signal["technical_stall"] or self._feedback_mentions(
+            "기술", "기술 설명", "용어", "약자", "약어", "전문", "jargon", "acronym", "영어", "영어 키워드"
+        ):
+            jargon_reaction_rule = (
+                "10) If the next turn keeps a technical or English term, it must be followed by "
+                "an immediate human reaction, emotion, or choice in the same turn.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -990,6 +1000,7 @@ class DirectorAI:
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
             f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
             f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}\n"
+            f"{jargon_reaction_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1002,6 +1013,7 @@ class DirectorAI:
             prompt += (
                 "\nReader priority: do not spend another turn unpacking terminology unless the plot truly requires it; "
                 "prefer visible reaction, choice, or interruption."
+                "\nIf terminology still appears, the turn should translate it into plain consequence and immediate human response."
             )
         if self._feedback_mentions("짧게 끊기", "비슷한 리듬", "같은 리듬", "긴장 연출", "반복되는 표현"):
             prompt += (
@@ -1300,6 +1312,12 @@ class DirectorAI:
             return set()
         tokens = set(re.findall(r"\b[A-Z]{2,8}(?:-\d+)?\b", raw))
         low = raw.lower()
+        english_tokens = {
+            token
+            for token in re.findall(r"\b[a-z]{4,}(?:-\d+)?\b", low)
+            if token not in {"there", "where", "which", "while", "about", "after", "before", "their"}
+        }
+        tokens.update(english_tokens)
         for term in (
             "latency", "coherence", "drift", "protocol", "fail-safe",
             "보정", "지연", "드리프트", "결맞음", "위상", "알고리즘", "프로토콜",

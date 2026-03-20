@@ -157,6 +157,8 @@ class ProseGenerator:
         final = self._enforce_pov_timeline_guards(final, style, protagonist_name)
         final = self._enforce_jargon_onboarding_and_variation(final)
         final = self._reduce_local_repetition(final)
+        final = self._trim_redundant_sensory_sentences(final)
+        final = self._trim_redundant_emotion_sentences(final)
         final = self._diversify_transition_openers(final)
         final = self._merge_clipped_sentence_runs(final)
         final = self._stagger_sentence_rhythm(final)
@@ -449,6 +451,8 @@ class ProseGenerator:
 
         readability = self._readability_controls()
         sentence_cap = self._feedback_sentence_word_cap(default=25)
+        sensory_cap = self._feedback_sensory_channel_cap(default=2)
+        emotion_repeat_cap = self._feedback_emotion_repeat_cap(default=1)
         term_glossary = self._build_scene_term_glossary(scene, matched_beats, blocked_terms=established)
 
         system = (
@@ -459,7 +463,7 @@ class ProseGenerator:
             "prefer action beats, gaze shifts, silence, interruption, and sentence rhythm to track speakers.\n"
             "Do not turn stage directions or narration into quoted speech.\n"
             "Use signature verbal tics only when context clearly demands it; avoid catchphrase repetition.\n"
-            "Use concrete sensory details, but do not over-explain.\n"
+            "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "Keep all content in Korean.\n"
         )
         pov_and_time = (
@@ -506,6 +510,9 @@ class ProseGenerator:
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
             f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
+            f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
+            f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
+            f"- If an English keyword or technical term appears, attach an immediate human reaction or feeling within the next sentence.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
@@ -559,6 +566,13 @@ class ProseGenerator:
                 "- If a paragraph repeats a situation already established, convert it into one short consequence sentence instead.\n"
                 "- Do not reuse the same emotional paraphrase across adjacent paragraphs.\n\n"
             )
+        if self._feedback_mentions("비슷한 감각 묘사", "감각 묘사", "심리 표현", "읽는 속도", "속도가 조금 처지"):
+            prompt += (
+                "## Sensory Compression Priority\n"
+                "- Cut repeated sensory and inner-response description aggressively.\n"
+                "- Keep one sharp sensory image for the beat that truly changes pressure; compress the rest into action or consequence.\n"
+                "- If a technical or English phrase appears, show the character's immediate feeling or body reaction right away.\n\n"
+            )
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
             prompt += (
                 "## Emotion Delivery Priority\n"
@@ -592,6 +606,12 @@ class ProseGenerator:
                 "- On first mention of a technical term/acronym, explain it only if the scene would otherwise become unclear.\n"
                 "- Prefer a short inline Korean cue over parenthetical gloss or extended definition.\n"
                 "- Skip analogy/metaphor unless one brief comparison is truly necessary, then return immediately to scene action.\n\n"
+            )
+        if self._feedback_mentions("영어 키워드", "기술 용어", "영어 표현", "해석 부담", "의미를 놓치지"):
+            prompt += (
+                "## Immediate Reaction After Terms\n"
+                "- After any English keyword or technical term, quickly show what the character understood, feared, or physically felt.\n"
+                "- Do not leave jargon hanging at sentence end without a human consequence.\n\n"
             )
         if self._feedback_mentions("동의어", "통일", "의미 중복", "혼선", "보정"):
             prompt += (
@@ -696,6 +716,8 @@ class ProseGenerator:
             f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
+            f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
+            f"When a technical or English term appears, make the next line an immediate reaction, emotion, or decision.\n"
             f"Do not output labels, bullets, or metadata. Output only narrative prose."
         )
         prompt += (
@@ -841,6 +863,9 @@ class ProseGenerator:
             repeated_imagery = [t for t in repetitive_tokens if self._count_feedback_term_occurrences(text, t) >= 3]
             if repeated_imagery:
                 reasons.append("유사 감각/동작 묘사 반복: " + ", ".join(repeated_imagery[:3]))
+        if self._feedback_mentions("심리 표현", "비슷한 감정", "감정 표현", "내면", "반복", "중복"):
+            if self._has_repetitive_emotion_phrases(text):
+                reasons.append("비슷한 감정/심리 표현이 반복되어 장면 추진력이 약해짐")
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
             if self._has_repetitive_sentence_openings(text):
                 reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
@@ -943,8 +968,10 @@ class ProseGenerator:
             "- 같은 박자의 단문이 2개 이상 이어지면 1개의 자연스러운 복합문으로 묶을 것\n"
             "- 강하게 압박하는 문장과 담백하게 상황을 잇는 문장을 섞어 리듬 고저를 만들 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
+            "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
+            "- 영어 키워드나 기술 용어 뒤에는 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             "- 출력은 소설 본문만\n\n"
             f"원문:\n{text}"
@@ -1185,6 +1212,24 @@ class ProseGenerator:
             cap = default
         return max(1, min(8, cap))
 
+    def _feedback_sensory_channel_cap(self, default: int = 2) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_sensory_channels_per_paragraph", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(3, cap))
+
+    def _feedback_emotion_repeat_cap(self, default: int = 1) -> int:
+        constraints = self._feedback_style_constraints()
+        raw = constraints.get("max_emotion_repeats_per_scene", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(1, min(3, cap))
+
     def _feedback_transition_char_window(self) -> tuple[int, int]:
         constraints = self._feedback_style_constraints()
         try:
@@ -1288,10 +1333,11 @@ class ProseGenerator:
             "전개가 느려", "느려서 집중", "집중력을 잃",
             "기술", "기술 설명", "용어", "약어", "약자", "누가 누구", "화자", "대사 구분", "헷갈",
             "인물", "역할", "구분", "호칭", "이름",
-            "심리", "내면", "설명적", "감정선", "표정", "행동", "보여", "장면 전환", "전환", "흐름",
+            "심리", "심리 표현", "내면", "설명적", "감정선", "감정 표현", "표정", "행동", "보여", "장면 전환", "전환", "흐름",
             "체크리스트", "나열", "초반", "따라가기 힘들",
             "긴 회의", "회의·대화", "대화 장면", "속도감이 떨어", "템포가 느려",
             "감정의 고저", "감정 고저", "감정의 파고", "긴장 완화", "유머", "친근한 묘사",
+            "비슷한 감각 묘사", "감각 묘사", "영어 키워드", "영어 표현", "해석 부담",
         )
         if not needs_pass:
             return text
@@ -1344,12 +1390,14 @@ class ProseGenerator:
             "- 정보 전달형 대사는 짧게 압축하고, 바로 행동/표정/침묵 반응을 붙여 임팩트를 살릴 것\n"
             "- 긴 회의/대화 구간은 연속 설명 대사를 줄이고 행동/환경 반응 비트를 교차 배치할 것\n"
             "- 설명적 심리문이 길면 행동/표정/반응 단서로 치환해 감정을 보여줄 것\n"
+            "- 비슷한 감각 묘사와 심리 표현은 같은 문단/인접 문단에서 반복하지 말 것\n"
             "- 감정 강도는 단조롭게 유지하지 말고 짧은 완화 비트 후 다시 긴장을 세울 것\n"
             "- 각 문단은 상황 변화, 압박 상승, 발견 중 하나를 분명히 남겨 전개를 전진시킬 것\n"
             "- 장소/장면 전환 지점은 한 줄 전환 문장으로 연결해 흐름을 명확히 할 것\n"
             "- 가능성/계산/추론 같은 분석 어휘는 반복하지 말고 한 번만 압축적으로 사용\n"
             "- 이미 알려진 인물을 매번 새 호칭으로 재소개하지 말 것\n"
             "- 인물의 역할/의도는 장면상 필요할 때만 짧게 제시하고 중복 설명은 삭제\n"
+            "- 영어 키워드/기술 용어 뒤에는 바로 인물의 이해, 당혹, 긴장, 행동 반응을 붙일 것\n"
             f"- 가능한 맥락에서 다음 앵커를 보존: {anchors_text}\n"
             "- 출력은 소설 본문만\n\n"
             "독자 피드백:\n"
@@ -1378,6 +1426,25 @@ class ProseGenerator:
         ]
         repeated_types = sum(1 for cue in cues if raw.count(cue) >= 2)
         return repeated_types >= 1
+
+    def _has_repetitive_emotion_phrases(self, text: str) -> bool:
+        sentences = self._split_korean_sentences(text)
+        if len(sentences) < 4:
+            return False
+        prev_sig = ""
+        streak = 0
+        for sent in sentences:
+            sig = self._emotion_signature(sent)
+            if not sig:
+                continue
+            if sig == prev_sig:
+                streak += 1
+                if streak >= max(1, self._feedback_emotion_repeat_cap(default=1)):
+                    return True
+            else:
+                prev_sig = sig
+                streak = 0
+        return False
 
     def _has_repetitive_sentence_openings(self, text: str) -> bool:
         sentences = self._split_korean_sentences(text)
@@ -2046,6 +2113,107 @@ class ProseGenerator:
                 out_blocks.append(" ".join(keep))
 
         return "\n\n".join(out_blocks)
+
+    def _trim_redundant_sensory_sentences(self, text: str) -> str:
+        if not text:
+            return text
+
+        channel_cap = self._feedback_sensory_channel_cap(default=2)
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            kept: list[str] = []
+            channel_counts: dict[str, int] = {}
+            prev_fp = ""
+            for sent in sentences:
+                channel = self._dominant_sensory_channel(sent)
+                fp = self._sentence_fingerprint(sent)
+                if (
+                    channel
+                    and self._is_sensory_heavy_sentence(sent)
+                    and channel_counts.get(channel, 0) >= channel_cap
+                    and (fp == prev_fp or not self._sentence_has_action_or_decision(sent))
+                ):
+                    continue
+                kept.append(sent)
+                if channel and self._is_sensory_heavy_sentence(sent):
+                    channel_counts[channel] = channel_counts.get(channel, 0) + 1
+                if fp:
+                    prev_fp = fp
+            out_blocks.append(" ".join(kept).strip() if kept else block)
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _trim_redundant_emotion_sentences(self, text: str) -> str:
+        if not text:
+            return text
+
+        repeat_cap = self._feedback_emotion_repeat_cap(default=1)
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            kept: list[str] = []
+            emotion_counts: dict[str, int] = {}
+            prev_fp = ""
+            for sent in sentences:
+                sig = self._emotion_signature(sent)
+                fp = self._sentence_fingerprint(sent)
+                if (
+                    sig
+                    and emotion_counts.get(sig, 0) >= repeat_cap
+                    and (fp == prev_fp or not self._sentence_has_action_or_decision(sent))
+                ):
+                    continue
+                kept.append(sent)
+                if sig:
+                    emotion_counts[sig] = emotion_counts.get(sig, 0) + 1
+                if fp:
+                    prev_fp = fp
+            out_blocks.append(" ".join(kept).strip() if kept else block)
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _is_sensory_heavy_sentence(self, sentence: str) -> bool:
+        low = str(sentence or "").lower()
+        return bool(self._dominant_sensory_channel(sentence)) and bool(
+            re.search(r"(빛|시선|공기|차갑|냉기|열기|손끝|숨|침묵|기계음|울림|그림자|소리)", low)
+        )
+
+    @staticmethod
+    def _sentence_has_action_or_decision(sentence: str) -> bool:
+        return bool(re.search(
+            r"(건넸|밀었|열었|접었|돌렸|움직였|받았|붙잡|꺼냈|멈추|확인|드러났|알아차렸|결정|선택|반응|질문|대답|응답|설득|거절|고개를 들었|숨을 골랐)",
+            str(sentence or ""),
+        ))
+
+    @staticmethod
+    def _emotion_signature(sentence: str) -> str:
+        low = str(sentence or "").lower()
+        groups = {
+            "tension": r"(긴장|불안|초조|압박|조여|굳었|버텼|날카로웠)",
+            "confusion": r"(망설|당황|혼란|멈칫|주저|흔들렸)",
+            "relief": r"(안도|숨을 골랐|어깨 힘|진정|누그러졌)",
+            "anger": r"(분노|짜증|쏘아붙|날을 세웠|턱선이 굳)",
+            "resolve": r"(결정|선택|다짐|버텨|받아치)",
+        }
+        for name, pattern in groups.items():
+            if re.search(pattern, low):
+                return name
+        return ""
 
     def _diversify_transition_openers(self, text: str) -> str:
         if not text:

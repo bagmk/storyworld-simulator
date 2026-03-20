@@ -224,7 +224,9 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
         "기술 용어",
         "기술 용어가 자주",
         "기술 용어가 겹칠 때",
+        "기술 용어가 연달아",
         "영어 표현",
+        "영어 키워드",
         "괄호 설명",
         "설명문",
         "브리핑 문서",
@@ -245,11 +247,15 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
             1,
             int(constraints.get("jargon_buffer_sentences", 1) or 1),
         )
+        constraints["force_reaction_after_jargon"] = 1
         constraints["summary_easy_metaphor_once"] = 1
         changed = True
 
     if _reader_feedback_has_any(
         tuned,
+        "비슷한 감각 묘사",
+        "감각 묘사",
+        "심리 표현",
         "비슷한 정보",
         "비슷한 감정",
         "같은 장면을 맴도",
@@ -259,6 +265,25 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     ):
         constraints["max_term_repeats_per_scene"] = 1
         constraints["tension_phrase_cap"] = 1
+        constraints["max_sensory_channels_per_paragraph"] = 2
+        constraints["max_emotion_repeats_per_scene"] = 1
+        changed = True
+
+    if _reader_feedback_has_any(
+        tuned,
+        "쉼표",
+        "연결어",
+        "문장이 너무 길",
+        "길고 복잡",
+        "읽는 속도",
+        "가독성",
+    ):
+        try:
+            sentence_chars_max = int(constraints.get("sentence_chars_max", 60))
+        except (TypeError, ValueError):
+            sentence_chars_max = 60
+        constraints["sentence_chars_max"] = max(54, min(60, sentence_chars_max))
+        constraints["scene_summary_sentence_words_max"] = 15
         changed = True
 
     if _reader_feedback_has_any(

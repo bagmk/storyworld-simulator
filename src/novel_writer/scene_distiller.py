@@ -194,6 +194,7 @@ class SceneDistiller:
         ep_summary = self.episode_config.get("summary", "")
         ep_location = self.episode_config.get("location", "")
         ep_pacing = self.episode_config.get("pacing", "normal")
+        summary_word_cap = self._summary_sentence_word_cap(default=18)
 
         prompt = (
             f"You are a narrative editor distilling a raw simulation log into "
@@ -226,6 +227,7 @@ class SceneDistiller:
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
             f"17. If a technical term or acronym survives in the summary, bracket it with easy Korean: add one short plain-language sentence right before or right after it, then show an immediate human reaction or consequence.\n"
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n\n"
+            f"19. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n\n"
         )
         review_guidance = build_feedback_prompt_block(self.reader_feedback, max_items=5)
         if review_guidance:
@@ -278,12 +280,15 @@ class SceneDistiller:
             para_sent_cap = constraints.get("max_sentences_per_paragraph")
             jargon_cap = constraints.get("max_jargon_terms_per_paragraph")
             dense_cap = constraints.get("max_sentences_in_dense_info")
+            summary_word_cap_cfg = constraints.get("scene_summary_sentence_words_max")
             if isinstance(para_sent_cap, int):
                 lines.append(f"- Keep scene summary paragraphs under about {para_sent_cap} sentence(s).")
             if isinstance(jargon_cap, int):
                 lines.append(f"- Keep technical/jargon concepts to about {jargon_cap} per paragraph.")
             if isinstance(dense_cap, int):
                 lines.append(f"- Compress dense explanatory runs into <= {dense_cap} sentence chunks.")
+            if isinstance(summary_word_cap_cfg, int):
+                lines.append(f"- Keep each scene-summary sentence to about {summary_word_cap_cfg} words or less.")
             if lines:
                 prompt += "## Numeric Style Constraints\n" + "\n".join(lines) + "\n\n"
         feedback_corpus = " ".join(
@@ -406,6 +411,8 @@ class SceneDistiller:
             scene.narrative_summary = self._rebalance_narrative_summary(scene)
             scene.narrative_summary = self._soften_technical_summary(scene)
             scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
+            scene.narrative_summary = self._enforce_summary_sentence_word_cap(scene.narrative_summary)
+            scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
             scene.characters_present = self._canonicalize_name_list(
                 scene.characters_present,
                 canonical_speakers,
@@ -578,7 +585,8 @@ class SceneDistiller:
                 if score > best_score:
                     best_idx = idx
                     best_score = score
-            if best_idx < 0 or best_score < 4:
+            merge_threshold = 3 if self._reader_prefers_stronger_scene_compaction() else 4
+            if best_idx < 0 or best_score < merge_threshold:
                 break
             merged[best_idx: best_idx + 2] = [
                 self._merge_scene_pair(merged[best_idx], merged[best_idx + 1])
@@ -808,6 +816,28 @@ class SceneDistiller:
             return self._ensure_summary_sentence(f"{subject}의 감정선은 {emotional}으로 기울었다")
         return self._ensure_summary_sentence(scene.narrative_summary)
 
+    def _summary_sentence_word_cap(self, default: int = 18) -> int:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return default
+        raw = constraints.get("scene_summary_sentence_words_max", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(10, min(20, cap))
+
+    def _force_reaction_after_jargon(self) -> bool:
+        constraints = self.reader_feedback.get("style_constraints", {}) if self.reader_feedback else {}
+        if not isinstance(constraints, dict):
+            return False
+        raw = constraints.get("force_reaction_after_jargon", 0)
+        try:
+            enabled = int(raw)
+        except (TypeError, ValueError):
+            enabled = 0
+        return enabled >= 1
+
     def _soften_technical_summary(self, scene: DistilledScene) -> str:
         sentences = [
             s.strip()
@@ -834,7 +864,7 @@ class SceneDistiller:
 
             rebuilt.append(normalized)
 
-            if not added_reaction:
+            if self._force_reaction_after_jargon() or not added_reaction:
                 reaction = self._summary_reaction_tail(scene)
                 if reaction:
                     rebuilt.append(reaction)
@@ -882,6 +912,13 @@ class SceneDistiller:
             return False
         low = raw.lower()
         hits = len(re.findall(r"\b[A-Z]{2,8}(?:-\d+)?\b", raw))
+        english_tokens = [
+            token
+            for token in re.findall(r"\b[a-z]{4,}(?:-\d+)?\b", low)
+            if token not in {"there", "where", "which", "while", "about", "after", "before", "their"}
+        ]
+        if english_tokens:
+            hits += min(2, len(english_tokens))
         for token in (
             "latency", "coherence", "drift", "protocol", "qpu",
             "지연", "결맞음", "드리프트", "편차", "프로토콜", "양자", "보정", "오차",
@@ -969,6 +1006,59 @@ class SceneDistiller:
 
         max_sentences = 3 if len(rebuilt) >= 3 else len(rebuilt)
         return " ".join(rebuilt[:max_sentences]).strip()
+
+    def _enforce_summary_sentence_word_cap(self, summary: str) -> str:
+        cap = self._summary_sentence_word_cap(default=18)
+        sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(summary or "").strip())
+            if s.strip()
+        ]
+        if not sentences:
+            return summary
+
+        rebuilt: list[str] = []
+        for sent in sentences:
+            rebuilt.extend(self._split_summary_sentence_by_word_cap(sent, max_words=cap))
+        max_sentences = 3 if self._reader_prefers_stronger_scene_compaction() else 4
+        return " ".join(self._ensure_summary_sentence(s) for s in rebuilt[:max_sentences] if s.strip()).strip()
+
+    @staticmethod
+    def _split_summary_sentence_by_word_cap(sentence: str, max_words: int = 15) -> list[str]:
+        sent = re.sub(r"\s+", " ", str(sentence or "")).strip()
+        if not sent:
+            return []
+        if len(re.findall(r"[0-9A-Za-z가-힣]+", sent)) <= max_words:
+            return [re.sub(r"[.!?…]+$", "", sent).strip()]
+
+        clauses = re.split(
+            r"(?<=[,，;])\s+|(?<=다)\s+(?=그리고|그러나|하지만|다만|또는|또|한편|그래서|그러자|그때)",
+            sent,
+        )
+        clauses = [re.sub(r"[.!?…]+$", "", clause).strip() for clause in clauses if clause.strip()]
+        if len(clauses) <= 1:
+            words = sent.split()
+            out: list[str] = []
+            for idx in range(0, len(words), max_words):
+                chunk = " ".join(words[idx:idx + max_words]).strip()
+                if chunk:
+                    out.append(re.sub(r"[.!?…]+$", "", chunk).strip())
+            return out or [re.sub(r"[.!?…]+$", "", sent).strip()]
+
+        out: list[str] = []
+        buf: list[str] = []
+        buf_words = 0
+        for clause in clauses:
+            clause_words = len(re.findall(r"[0-9A-Za-z가-힣]+", clause))
+            if buf and (buf_words + clause_words > max_words):
+                out.append(" ".join(buf).strip())
+                buf = []
+                buf_words = 0
+            buf.append(clause)
+            buf_words += clause_words
+        if buf:
+            out.append(" ".join(buf).strip())
+        return out or [re.sub(r"[.!?…]+$", "", sent).strip()]
 
     @staticmethod
     def _summary_word_count(sentence: str) -> int:
