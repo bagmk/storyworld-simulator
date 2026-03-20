@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import ast
 import asyncio
+import copy
 import difflib
 import json
 import logging
@@ -111,11 +112,38 @@ MetricsFn = Callable[[dict[str, Any]], None] | None
 def _use_premium_review_tier(review_tier: str) -> bool:
     return str(review_tier).strip().lower() == "premium"
 
+def _use_mini_review_tier(review_tier: str) -> bool:
+    return str(review_tier).strip().lower() == "mini"
+
+def _llm_model_for_tier(review_tier: str) -> str:
+    """mini 티어이면 gpt-4o-mini, 그 외엔 gpt-4o-mini (base). premium은 premium_model로 승격."""
+    return "gpt-4o-mini"
+
+def _llm_premium_model_for_tier(review_tier: str) -> str:
+    """mini 티어이면 premium도 gpt-4o-mini. 그 외엔 gpt-4o."""
+    return "gpt-4o-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
+
+def _codex_model_for_tier(review_tier: str) -> str | None:
+    """mini 티어이면 o4-mini, 그 외엔 None (config.toml 기본값 사용)."""
+    return "o4-mini" if _use_mini_review_tier(review_tier) else None
+
 
 def _format_auto_progress_label(auto_cycle_index: int | None, auto_max_cycles: int | None) -> str:
     if auto_cycle_index is None or auto_max_cycles is None or auto_max_cycles <= 0:
         return ""
     return f" (AUTO {auto_cycle_index}/{auto_max_cycles})"
+
+
+def _empty_budget_summary(budget_usd: float = 0.0) -> dict[str, Any]:
+    return {
+        "spent_usd": 0.0,
+        "budget_usd": float(budget_usd or 0.0),
+        "call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "breakdown": [],
+    }
 
 
 def _parse_budget_from_output(output: str) -> dict[str, Any]:
@@ -140,15 +168,9 @@ def _parse_budget_from_output(output: str) -> dict[str, Any]:
                     "prompt_tokens": int(m.group(4) or 0),
                     "completion_tokens": int(m.group(5) or 0),
                     "total_tokens": int(m.group(6) or 0),
+                    "breakdown": [],
                 }
-    return {
-        "spent_usd": 0.0,
-        "budget_usd": 0.0,
-        "call_count": 0,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
-    }
+    return _empty_budget_summary()
 
 
 def _format_budget_line(label: str, budget: dict[str, Any]) -> str:
@@ -160,10 +182,36 @@ def _format_budget_line(label: str, budget: dict[str, Any]) -> str:
     )
 
 
+def _load_chapter_budget_meta(run_dir: Path, episode_id: str, chapter_path: Path | None = None) -> dict[str, Any] | None:
+    candidates: list[Path] = []
+    if chapter_path is not None:
+        candidates.append(chapter_path.with_name(f"{chapter_path.stem}_meta.json"))
+    candidates.extend(
+        [
+            run_dir / f"{episode_id}_chapter_meta.json",
+            run_dir / "chapter_meta.json",
+        ]
+    )
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            meta = json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(meta, dict):
+            budget = meta.get("budget")
+            if isinstance(budget, dict):
+                return budget
+            if "spent_usd" in meta and "total_tokens" in meta:
+                return meta
+    return None
+
+
 def _generate_quality_chart(
     episode_key: str,
     run_dir: Path,
-    cost_tracker: dict[str, float] | None,
+    cost_tracker: dict[str, Any] | None,
     time_tracker: dict[str, float] | None = None,
     review_tier: str = "premium",
 ) -> Path | None:
@@ -222,7 +270,15 @@ def _generate_quality_chart(
     cat_cost = {
         "시뮬레이션": float(tracker.get("simulation", 0.0)),
         "챕터생성":   float(tracker.get("chapter", 0.0)) + float(tracker.get("auto_chapter", 0.0)),
-        "리뷰":       float(tracker.get("auto_review", 0.0)) + float(tracker.get("final_review", 0.0)) + float(tracker.get("feedback_parse", 0.0)),
+        "리뷰":       (
+            float(tracker.get("guardian", 0.0))
+            + float(tracker.get("manager", 0.0))
+            + float(tracker.get("auto_review", 0.0))
+            + float(tracker.get("code_review", 0.0))
+            + float(tracker.get("regen_check", 0.0))
+            + float(tracker.get("final_review", 0.0))
+            + float(tracker.get("feedback_parse", 0.0))
+        ),
     }
     cost_vals_nonzero = [(l, v) for l, v in cat_cost.items() if v > 0.0001]
 
@@ -267,25 +323,41 @@ def _generate_quality_chart(
     _mt_add("gpt-4o" if _is_premium else "gpt-4o-mini", _ai * 0.20)  # 사이클 리뷰
 
     model_time_nonzero = [(m, t) for m, t in _mt.items() if t > 0.5]
+    model_token_totals = tracker.get("model_token_totals", {})
+    model_token_nonzero: list[tuple[str, int]] = []
+    if isinstance(model_token_totals, dict):
+        for model, total_tokens in model_token_totals.items():
+            try:
+                total_value = int(total_tokens or 0)
+            except (TypeError, ValueError):
+                total_value = 0
+            if total_value > 0:
+                model_token_nonzero.append((str(model), total_value))
+        model_token_nonzero.sort(key=lambda item: item[1], reverse=True)
 
     has_scores  = len(cycles) > 0
     has_costs   = len(cost_vals_nonzero) > 0
     has_times   = len(time_vals_nonzero) > 0
-    has_models  = len(model_time_nonzero) > 0
-    n_rows = (1 if has_scores else 0) + (1 if has_costs else 0) + (1 if has_times else 0) + (1 if has_models else 0)
+    has_model_times = len(model_time_nonzero) > 0
+    has_model_tokens = len(model_token_nonzero) > 0
+    has_model_row = has_model_times or has_model_tokens
+    n_rows = (
+        (1 if has_scores else 0)
+        + (1 if has_costs else 0)
+        + (1 if has_times else 0)
+        + (1 if has_model_row else 0)
+    )
     if n_rows == 0:
         return None
 
-    fig, axes = plt.subplots(n_rows, 1, figsize=(9, 4 * n_rows))
-    if n_rows == 1:
-        axes = [axes]
-
+    fig = plt.figure(figsize=(12 if has_model_times and has_model_tokens else 9, 4 * n_rows))
+    grid = fig.add_gridspec(n_rows, 1)
     fig.suptitle(f"[{episode_key}] 파이프라인 품질 리포트", fontsize=13, fontweight="bold")
 
     ax_idx = 0
 
     if has_scores:
-        ax = axes[ax_idx]; ax_idx += 1
+        ax = fig.add_subplot(grid[ax_idx]); ax_idx += 1
         x = list(range(len(cycles)))
         for k, label, color in SCORE_DEFS:
             ax.plot(x, score_data[k], "o-", color=color, label=label, linewidth=2, markersize=6)
@@ -305,7 +377,7 @@ def _generate_quality_chart(
                         xytext=(0, 8), ha="center", fontsize=8, fontweight="bold", color="#000000")
 
     if has_costs:
-        ax = axes[ax_idx]; ax_idx += 1
+        ax = fig.add_subplot(grid[ax_idx]); ax_idx += 1
         labels_nz = [l for l, _ in cost_vals_nonzero]
         vals_nz = [v for _, v in cost_vals_nonzero]
         total_cost = sum(vals_nz)
@@ -322,7 +394,7 @@ def _generate_quality_chart(
         ax.set_title(f"LLM 비용 구성 (총 ${total_cost:.4f}, Codex CLI 제외)", fontsize=11)
 
     if has_times:
-        ax = axes[ax_idx]; ax_idx += 1
+        ax = fig.add_subplot(grid[ax_idx]); ax_idx += 1
         t_labels = [l for l, _ in time_vals_nonzero]
         t_vals   = [v for _, v in time_vals_nonzero]
         total_sec = sum(t_vals)
@@ -342,44 +414,78 @@ def _generate_quality_chart(
         ax.grid(True, axis="x", alpha=0.3)
         ax.set_xlim(0, max(v / 60 for v in t_vals) * 1.25)
 
-    if has_models:
-        ax = axes[ax_idx]; ax_idx += 1
+    if has_model_row:
+        model_cols = (1 if has_model_times else 0) + (1 if has_model_tokens else 0)
+        model_grid = grid[ax_idx].subgridspec(1, model_cols)
+        model_ax_idx = 0
         model_colors = {
             "gpt-4o-mini": "#3498db",
             "gpt-4o":      "#e74c3c",
             "gpt-5-mini":  "#9b59b6",
             "Codex CLI":   "#2ecc71",
         }
-        m_labels = [m for m, _ in model_time_nonzero]
-        m_vals   = [t for _, t in model_time_nonzero]
-        total_model_sec = sum(m_vals)
-        m_colors = [model_colors.get(m, "#f39c12") for m in m_labels]
-        wedges, texts, autotexts = ax.pie(
-            m_vals, labels=m_labels, autopct="%1.1f%%",
-            colors=m_colors, startangle=140, pctdistance=0.75,
-        )
-        for t in texts:
-            t.set_fontsize(10)
-        for at in autotexts:
-            at.set_fontsize(9)
-        total_model_min = int(total_model_sec // 60)
-        total_model_s   = int(total_model_sec % 60)
-        ax.set_title(
-            f"모델별 사용 시간 비율 (총 {total_model_min}분 {total_model_s:02d}초, 근사치)",
-            fontsize=11,
-        )
+        if has_model_times:
+            ax = fig.add_subplot(model_grid[0, model_ax_idx]); model_ax_idx += 1
+            m_labels = [m for m, _ in model_time_nonzero]
+            m_vals   = [t for _, t in model_time_nonzero]
+            total_model_sec = sum(m_vals)
+            m_colors = [model_colors.get(m, "#f39c12") for m in m_labels]
+            wedges, texts, autotexts = ax.pie(
+                m_vals, labels=m_labels, autopct="%1.1f%%",
+                colors=m_colors, startangle=140, pctdistance=0.75,
+            )
+            for t in texts:
+                t.set_fontsize(10)
+            for at in autotexts:
+                at.set_fontsize(9)
+            total_model_min = int(total_model_sec // 60)
+            total_model_s   = int(total_model_sec % 60)
+            ax.set_title(
+                f"모델별 사용 시간 비율 (총 {total_model_min}분 {total_model_s:02d}초, 근사치)",
+                fontsize=11,
+            )
 
-    plt.tight_layout()
+        if has_model_tokens:
+            ax = fig.add_subplot(model_grid[0, model_ax_idx]); model_ax_idx += 1
+            tok_labels = [m for m, _ in model_token_nonzero]
+            tok_vals = [t for _, t in model_token_nonzero]
+            total_model_tokens = sum(tok_vals)
+            tok_colors = [model_colors.get(m, "#f39c12") for m in tok_labels]
+            wedges, texts, autotexts = ax.pie(
+                tok_vals, labels=tok_labels, autopct="%1.1f%%",
+                colors=tok_colors, startangle=140, pctdistance=0.75,
+            )
+            for t in texts:
+                t.set_fontsize(10)
+            for at in autotexts:
+                at.set_fontsize(9)
+            ax.set_title(
+                f"모델별 사용 토큰 비율 (총 {total_model_tokens:,} 토큰, 실제 API 집계)",
+                fontsize=11,
+            )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
     chart_path = run_dir / "pipeline_report.png"
     fig.savefig(str(chart_path), dpi=130, bbox_inches="tight")
     plt.close(fig)
     return chart_path
 
 
-def _total_cost_line(cost_tracker: dict[str, float] | None) -> str:
+def _total_cost_line(cost_tracker: dict[str, Any] | None) -> str:
     tracker = cost_tracker or {}
-    keys = ["simulation", "chapter", "auto_chapter", "auto_review", "final_review", "feedback_parse"]
-    labels = ["시뮬", "초기챕터", "AUTO챕터", "AUTO리뷰", "최종리뷰", "피드백"]
+    keys = [
+        "guardian",
+        "simulation",
+        "chapter",
+        "auto_chapter",
+        "manager",
+        "auto_review",
+        "code_review",
+        "regen_check",
+        "final_review",
+        "feedback_parse",
+    ]
+    labels = ["가디언", "시뮬", "초기챕터", "AUTO챕터", "매니저", "AUTO리뷰", "코드리뷰", "재점검", "최종리뷰", "피드백"]
     total = sum(float(tracker.get(k, 0.0)) for k in keys)
     parts = " + ".join(
         f"{l} {float(tracker.get(k, 0.0)):.4f}"
@@ -389,12 +495,49 @@ def _total_cost_line(cost_tracker: dict[str, float] | None) -> str:
     return f"💰 LLM 비용(Codex CLI 제외): ${total:.4f} ({parts})"
 
 
+def _record_budget_usage(
+    cost_tracker: dict[str, Any] | None,
+    metrics: dict[str, Any] | None,
+    budget: dict[str, Any] | None,
+    *,
+    cost_key: str | None = None,
+) -> None:
+    if not isinstance(budget, dict):
+        return
+    if cost_tracker is not None and cost_key:
+        cost_tracker[cost_key] = float(cost_tracker.get(cost_key, 0.0)) + float(budget.get("spent_usd", 0.0) or 0.0)
+    _accumulate_usage_totals(metrics, budget)
+
+
 def _accumulate_usage_totals(metrics: dict[str, Any] | None, budget: dict[str, Any]) -> None:
     if metrics is None:
         return
     metrics["prompt_tokens"] = int(metrics.get("prompt_tokens", 0)) + int(budget.get("prompt_tokens", 0) or 0)
     metrics["completion_tokens"] = int(metrics.get("completion_tokens", 0)) + int(budget.get("completion_tokens", 0) or 0)
     metrics["total_tokens"] = int(metrics.get("total_tokens", 0)) + int(budget.get("total_tokens", 0) or 0)
+    breakdown = budget.get("breakdown", [])
+    if not isinstance(breakdown, list):
+        return
+    model_token_totals = metrics.get("model_token_totals")
+    if not isinstance(model_token_totals, dict):
+        model_token_totals = {}
+        metrics["model_token_totals"] = model_token_totals
+    for row in breakdown:
+        if not isinstance(row, dict):
+            continue
+        model = str(row.get("model", "") or "").strip()
+        if not model:
+            continue
+        total_tokens = row.get("total_tokens")
+        if total_tokens is None:
+            total_tokens = int(row.get("prompt_tokens", 0) or 0) + int(row.get("completion_tokens", 0) or 0)
+        try:
+            token_value = int(total_tokens or 0)
+        except (TypeError, ValueError):
+            token_value = 0
+        if token_value <= 0:
+            continue
+        model_token_totals[model] = int(model_token_totals.get(model, 0)) + token_value
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -823,6 +966,8 @@ async def step_guardian(
     set_status: StatusFn,
     stop_event: asyncio.Event | None,
     review_tier: str = "premium",
+    cost_tracker: dict[str, Any] | None = None,
+    metrics: dict[str, Any] | None = None,
 ) -> tuple[bool, Path | None]:
     """Returns (success, guardian_briefing_path). briefing_path is None if GPT analysis failed."""
     if stop_event and stop_event.is_set():
@@ -882,12 +1027,15 @@ async def step_guardian(
             purpose="guardian_context_analysis",
             max_tokens=1500,
         )
+        guardian_budget = llm.budget_summary()
+        _record_budget_usage(cost_tracker, metrics, guardian_budget, cost_key="guardian")
 
         briefing_path = run_dir / "guardian_gpt_report.txt"
         briefing_path.write_text(gpt_report, encoding="utf-8")
 
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:\n{gpt_report}")
+            await notify(f"{DAILY_TAG}[GUARDIAN] 💸 {_format_budget_line('Guardian 분석 비용', guardian_budget)}")
 
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료 — 브리핑이 챕터 생성에 사용됩니다")
@@ -1029,19 +1177,17 @@ async def step_simulator(
 
     if set_status:
         set_status("2/4 시뮬레이션 완료")
+    budget = _empty_budget_summary()
+    sim_files = sorted(run_dir.glob("*_simulation.json"), key=lambda p: p.stat().st_mtime)
+    if sim_files:
+        try:
+            sim_data = json.loads(sim_files[-1].read_text(encoding="utf-8"))
+            budget = sim_data.get("budget", budget) or budget
+        except Exception:
+            pass
+    _record_budget_usage(cost_tracker, metrics, budget, cost_key="simulation")
     if notify:
         await notify(f"{DAILY_TAG}[SIM] ✅ 시뮬레이션 완료")
-        budget = {"spent_usd": 0.0, "budget_usd": 0.0, "call_count": 0}
-        sim_files = sorted(run_dir.glob("*_simulation.json"), key=lambda p: p.stat().st_mtime)
-        if sim_files:
-            try:
-                sim_data = json.loads(sim_files[-1].read_text(encoding="utf-8"))
-                budget = sim_data.get("budget", budget) or budget
-            except Exception:
-                pass
-        if cost_tracker is not None:
-            cost_tracker["simulation"] = float(budget.get("spent_usd", 0.0))
-        _accumulate_usage_totals(metrics, budget)
         await notify(f"{DAILY_TAG}[SIM] 💸 {_format_budget_line('시뮬레이션 비용', budget)}")
     return True
 
@@ -1095,6 +1241,8 @@ async def step_chapter_gen(
         "--words", str(target_words),
         "--budget", str(budget * 0.5),
     ]
+    if _use_mini_review_tier(review_tier):
+        cmd += ["--model", "gpt-4o-mini", "--premium", "gpt-4o-mini"]
     if prev_review:
         cmd += ["--reader-review-md", str(prev_review)]
     if precomputed_scenes_path and precomputed_scenes_path.exists():
@@ -1181,10 +1329,8 @@ async def step_chapter_gen(
     word_count = len(chapter_out.read_text(encoding="utf-8", errors="replace").split())
     if set_status:
         set_status(f"3/4 챕터 완성 ({word_count}단어)")
-    budget = _parse_budget_from_output(output)
-    if cost_tracker is not None:
-        cost_tracker["chapter"] = cost_tracker.get("chapter", 0.0) + float(budget.get("spent_usd", 0.0))
-    _accumulate_usage_totals(metrics, budget)
+    budget = _load_chapter_budget_meta(run_dir, episode_id, chapter_out) or _parse_budget_from_output(output)
+    _record_budget_usage(cost_tracker, metrics, budget, cost_key="chapter")
     upload_path = chapter_out
     if upload_version_label:
         safe_label = re.sub(r"[^a-zA-Z0-9_-]+", "_", upload_version_label).strip("_")
@@ -1246,9 +1392,7 @@ async def step_quality_review(
 
     if set_status:
         set_status("피드백 대기 중...")
-    if cost_tracker is not None:
-        cost_tracker["final_review"] = float(review_meta.get("spent_usd", 0.0))
-    _accumulate_usage_totals(metrics, review_meta)
+    _record_budget_usage(cost_tracker, metrics, review_meta, cost_key="final_review")
     if notify:
         await notify(
             f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료\n\n{scorecard}\n\n"
@@ -1805,6 +1949,8 @@ async def run_manager_agent(
     notify: NotifyFn,
     review_tier: str = "premium",
     manager_period: int = MANAGER_PERIOD,
+    cost_tracker: dict[str, Any] | None = None,
+    metrics: dict[str, Any] | None = None,
 ) -> str:
     """
     novel-loop 매니저 에이전트 이식판.
@@ -1887,6 +2033,7 @@ async def run_manager_agent(
             purpose="manager_synthesis",
             max_tokens=1000 if is_deep else 800,
         )
+        _record_budget_usage(cost_tracker, metrics, llm.budget_summary(), cost_key="manager")
         if notify:
             prefix = "🔴 통합 강한 지시사항" if is_deep else "📋 매니저 지시사항"
             await notify(f"{DAILY_TAG}[MANAGER] {prefix}:\n{manager_instructions}")
@@ -2096,6 +2243,8 @@ async def _run_gpt_code_review(
     fixer_cycle: int,
     changed_files: list[str] | None = None,
     validation_summary: str = "",
+    cost_tracker: dict[str, Any] | None = None,
+    metrics: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     """
     Codex 수정 후 GPT Agent 코드리뷰.
@@ -2132,6 +2281,7 @@ async def _run_gpt_code_review(
             purpose="code_review",
             max_tokens=200,
         )
+        _record_budget_usage(cost_tracker, metrics, llm.budget_summary(), cost_key="code_review")
         cleaned = re.sub(r"```(?:json)?\n?", "", raw).strip().rstrip("`")
         result = json.loads(cleaned)
         verdict = result.get("verdict", "approve")
@@ -2209,15 +2359,18 @@ async def _run_codex_fixer(
     set_process: ProcessFn = None,
     notify: NotifyFn = None,
     stop_event: asyncio.Event | None = None,
+    codex_model: str | None = None,
 ) -> tuple[bool, str]:
     """Codex CLI로 코드를 직접 수정. 성공 여부와 요약 반환."""
     if notify:
-        await notify(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작 (사이클 {fixer_cycle})")
+        model_label = f" [{codex_model}]" if codex_model else ""
+        await notify(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작 (사이클 {fixer_cycle}){model_label}")
     summary_path = run_dir / f"fixer_cycle{fixer_cycle}_summary.md"
     output_log_path = run_dir / f"fixer_cycle{fixer_cycle}_stdout.log"
-    cmd = [
-        "codex",
-        "exec",
+    cmd = ["codex", "exec"]
+    if codex_model:
+        cmd += ["-m", codex_model]
+    cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
         "-o", str(summary_path),
@@ -2315,7 +2468,7 @@ async def step_auto_improve_loop(
             break
 
         # 롤백 시 비용 복원을 위해 사이클 시작 시점 스냅샷
-        _cost_snapshot = {k: v for k, v in (cost_tracker or {}).items()}
+        _cost_snapshot = copy.deepcopy(cost_tracker or {})
 
         if set_status:
             set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — 리뷰 중...")
@@ -2442,6 +2595,8 @@ async def step_auto_improve_loop(
             notify=notify,
             review_tier=review_tier,
             manager_period=manager_period,
+            cost_tracker=cost_tracker,
+            metrics=metrics,
         )
 
         # ── Codex Fixer ──
@@ -2478,6 +2633,7 @@ async def step_auto_improve_loop(
             set_process=set_process,
             notify=notify,
             stop_event=stop_event,
+            codex_model=_codex_model_for_tier(review_tier),
         )
 
         if not ok:
@@ -2534,6 +2690,8 @@ async def step_auto_improve_loop(
             fixer_cycle=fixer_cycle,
             changed_files=changed_files,
             validation_summary=validation_reason,
+            cost_tracker=cost_tracker,
+            metrics=metrics,
         )
 
         if not code_approved:
@@ -2637,7 +2795,7 @@ async def step_auto_improve_loop(
             new_chapter_text = new_chapter.read_text(encoding="utf-8", errors="replace")
             try:
                 llm_check = LLMClient(
-                    model="gpt-4o-mini", premium_model="gpt-4o", budget_usd=1.0,
+                    model="gpt-4o-mini", premium_model=_llm_premium_model_for_tier(review_tier), budget_usd=1.0,
                     api_key=os.environ.get("OPENAI_API_KEY", ""),
                 )
                 _story_ctx_check = await asyncio.to_thread(_load_story_context_for_review)
@@ -2653,7 +2811,10 @@ async def step_auto_improve_loop(
                 _ck_keys = ["thrill_score_10", "style_score_10", "causality_score_10",
                             "character_score_10", "scene_function_score_10"]
                 new_avg = sum(int(check_json.get(k, 0)) for k in _ck_keys) / len(_ck_keys)
+                _record_budget_usage(cost_tracker, metrics, llm_check.budget_summary(), cost_key="regen_check")
             except Exception as _check_exc:
+                if "llm_check" in locals():
+                    _record_budget_usage(cost_tracker, metrics, llm_check.budget_summary(), cost_key="regen_check")
                 if notify:
                     await notify(
                         f"{DAILY_TAG}[AUTO] ⚠️ 재생성 점수 체크 실패 ({type(_check_exc).__name__}: {_check_exc}) "
@@ -2774,12 +2935,15 @@ async def _run_story_fixer(
     run_dir: Path,
     fixer_cycle: int,
     set_process: ProcessFn = None,
+    codex_model: str | None = None,
 ) -> tuple[bool, str]:
     """Codex로 에피소드 YAML 수정. 성공 여부와 요약 반환."""
     summary_path = run_dir / f"story_fixer_cycle{fixer_cycle}_summary.md"
     prompt = _build_story_fixer_prompt(episode_key, user_feedback)
-    cmd = [
-        "codex", "exec",
+    cmd = ["codex", "exec"]
+    if codex_model:
+        cmd += ["-m", codex_model]
+    cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
         "-o", str(summary_path),
@@ -2933,15 +3097,20 @@ async def run_daily_pipeline(
     run_dir = _allocate_daily_output_dir(episode_key)
     pipeline_start = time.monotonic()
     cost_tracker = {
+        "guardian": 0.0,
         "simulation": 0.0,
         "chapter": 0.0,
         "auto_chapter": 0.0,
+        "manager": 0.0,
         "auto_review": 0.0,
+        "code_review": 0.0,
+        "regen_check": 0.0,
         "final_review": 0.0,
         "feedback_parse": 0.0,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
+        "model_token_totals": {},
     }
     time_tracker: dict[str, float] = {}
     if set_metrics:
@@ -2976,7 +3145,9 @@ async def run_daily_pipeline(
     # ── Step 1: Config Guardian ──
     _t0 = time.monotonic()
     ok1, guardian_briefing_path = await step_guardian(
-        episode_key, run_dir, cycle, notify, upload, set_status, stop_event, review_tier
+        episode_key, run_dir, cycle, notify, upload, set_status, stop_event, review_tier,
+        cost_tracker=cost_tracker,
+        metrics=cost_tracker,
     )
     time_tracker["guardian"] = time.monotonic() - _t0
     if not ok1:
@@ -3209,6 +3380,7 @@ async def run_daily_pipeline(
             set_process=set_process,
             notify=notify,
             stop_event=stop_event,
+            codex_model=_codex_model_for_tier(review_tier),
         )
         if ok:
             if notify:
@@ -3247,6 +3419,7 @@ async def run_daily_pipeline(
             run_dir,
             cycle,
             set_process=set_process,
+            codex_model=_codex_model_for_tier(review_tier),
         )
         if ok:
             if notify:
@@ -3296,15 +3469,14 @@ async def run_daily_pipeline(
     if set_status:
         set_status("피드백 분석 중...")
     llm = LLMClient(
-        model="gpt-4o-mini", premium_model="gpt-4o", budget_usd=1.0,
+        model="gpt-4o-mini", premium_model=_llm_premium_model_for_tier(review_tier), budget_usd=1.0,
         api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
     with ep_file.open(encoding="utf-8") as f:
         episode_data = (yaml.safe_load(f) or {}).get("episode", {})
 
     parsed = parse_feedback_with_llm(raw_feedback, episode_key, llm)
-    cost_tracker["feedback_parse"] = float(llm.budget_summary().get("spent_usd", 0.0))
-    _accumulate_usage_totals(cost_tracker, llm.budget_summary())
+    _record_budget_usage(cost_tracker, cost_tracker, llm.budget_summary(), cost_key="feedback_parse")
     if set_metrics:
         set_metrics(dict(cost_tracker))
     if choice == "next":

@@ -280,6 +280,16 @@ def _find_latest(base_dir: Path, path_pattern: str) -> Path | None:
     return files[-1] if files else None
 
 
+def _configure_korean_matplotlib_font(plt: Any, fm: Any) -> None:
+    """Pick an installed Hangul-capable font for matplotlib charts."""
+    available = {f.name for f in fm.fontManager.ttflist}
+    for font_name in ["AppleGothic", "NanumGothic", "Malgun Gothic", "Noto Sans CJK KR"]:
+        if font_name in available:
+            plt.rcParams["font.family"] = font_name
+            plt.rcParams["axes.unicode_minus"] = False
+            return
+
+
 def _make_stop_chart(episode_key: str) -> Path | None:
     """
     !stop 시 현재까지의 사이클별 5개 점수를 matplotlib 차트로 생성.
@@ -339,12 +349,7 @@ def _make_stop_chart(episode_key: str) -> Path | None:
         return None
 
     # 한글 폰트
-    _available = {f.name for f in fm.fontManager.ttflist}
-    for _kf in ["AppleGothic", "NanumGothic", "Malgun Gothic", "Noto Sans CJK KR"]:
-        if _kf in _available:
-            plt.rcParams["font.family"] = _kf
-            plt.rcParams["axes.unicode_minus"] = False
-            break
+    _configure_korean_matplotlib_font(plt, fm)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     x = list(range(len(cycles)))
@@ -683,6 +688,7 @@ def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
         import matplotlib.ticker as mticker
         import numpy as np
     except ImportError:
@@ -690,6 +696,8 @@ def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
 
     if not rows:
         return None
+
+    _configure_korean_matplotlib_font(plt, fm)
 
     xs = list(range(1, len(rows) + 1))
     labels = [f"#{i}\n{r['date']}\n{r['time']}" for i, r in enumerate(rows, 1)]
@@ -702,7 +710,7 @@ def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
     avg_v       = [r["avg"]       for r in rows]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle(f"📊 Benchmark — {ep_key}  (총 {len(rows)}회)", fontsize=13, fontweight="bold")
+    fig.suptitle(f"Benchmark — {ep_key}  (총 {len(rows)}회)", fontsize=13, fontweight="bold")
 
     # Left: score trend lines
     ax = axes[0]
@@ -853,7 +861,7 @@ async def async_main() -> None:
                     f" ({int(metrics.get('prompt_tokens', 0)):,} in + {int(metrics.get('completion_tokens', 0)):,} out)"
                 )
                 cost_line = (
-                    f"\n💸 세션 누적 비용(Codex CLI 제외): ${float(metrics.get('simulation', 0.0)) + float(metrics.get('chapter', 0.0)) + float(metrics.get('auto_chapter', 0.0)) + float(metrics.get('auto_review', 0.0)) + float(metrics.get('final_review', 0.0)) + float(metrics.get('feedback_parse', 0.0)):.4f}"
+                    f"\n💸 세션 누적 비용(Codex CLI 제외): ${float(metrics.get('guardian', 0.0)) + float(metrics.get('simulation', 0.0)) + float(metrics.get('chapter', 0.0)) + float(metrics.get('auto_chapter', 0.0)) + float(metrics.get('manager', 0.0)) + float(metrics.get('auto_review', 0.0)) + float(metrics.get('code_review', 0.0)) + float(metrics.get('regen_check', 0.0)) + float(metrics.get('final_review', 0.0)) + float(metrics.get('feedback_parse', 0.0)):.4f}"
                 )
                 start_t = DAILY_START_TIMES.get(ch_id)
                 if start_t is not None:
@@ -1081,15 +1089,20 @@ async def async_main() -> None:
             DAILY_EPISODE_KEYS[ch_id] = episode_key  # for stop chart
             DAILY_START_TIMES[ch_id] = time.monotonic()
             DAILY_SESSION_METRICS[ch_id] = {
+                "guardian": 0.0,
                 "simulation": 0.0,
                 "chapter": 0.0,
                 "auto_chapter": 0.0,
+                "manager": 0.0,
                 "auto_review": 0.0,
+                "code_review": 0.0,
+                "regen_check": 0.0,
                 "final_review": 0.0,
                 "feedback_parse": 0.0,
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "total_tokens": 0,
+                "model_token_totals": {},
             }
 
             def _set_status(s: str) -> None:
@@ -1197,6 +1210,8 @@ async def async_main() -> None:
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     return "guardian_gpt"
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 💸"):
+                    return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[MANAGER] "):
                     if "🧠 매니저 분석" not in text:
                         return "manager"
@@ -1243,6 +1258,10 @@ async def async_main() -> None:
 
             def _completion_keys_for_text(text: str) -> list[str]:
                 keys: list[str] = []
+                if text.startswith(f"{DAILY_TAG}[START] run:"):
+                    keys.append("start")
+                if text.startswith(f"{DAILY_TAG}[RESET] 🗂️ "):
+                    keys.append("reset")
                 if (
                     text.startswith(f"{DAILY_TAG}[WAIT] ")
                     or text.startswith(f"{DAILY_TAG}[DONE] ")
