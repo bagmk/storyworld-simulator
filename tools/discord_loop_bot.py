@@ -1180,8 +1180,6 @@ async def async_main() -> None:
                     return "auto"  # 사이클마다 새 뜨레드 생성
                 if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
                     return "auto_review"
-                if text.startswith(f"{DAILY_TAG}[AUTO] 📋 Codex 수정 진단"):
-                    return "auto_review"  # Reviewer 봇 스레드에 진단 내용 게시
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
                     return "fixer"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 YAML 검수 시작"):
@@ -1284,6 +1282,9 @@ async def async_main() -> None:
                     or text.startswith(f"{DAILY_TAG}[AUTO] ❌ Codex Fixer 실패")
                 ):
                     keys.append("auto")
+                    keys.append("auto_review")
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프") or text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
+                    keys.append("auto_review")
                 if (
                     text.startswith(f"{DAILY_TAG}[FIXER] ✅ Codex 수정 완료")
                     or text.startswith(f"{DAILY_TAG}[FIXER] ❌ Codex 수정 실패")
