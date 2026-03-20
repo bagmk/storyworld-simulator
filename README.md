@@ -1,61 +1,711 @@
-# Storyworld Simulator
+# Novel Writer
 
-YAML 기반 세계관/인물/에피소드를 바탕으로 시뮬레이션 로그를 만들고, 이를 소설 챕터로 변환하는 프로젝트입니다.
+이 프로젝트는 "에피소드 설정 파일"을 "읽을 수 있는 소설 챕터"로 바꾸고, 그 결과를 Discord에서 계속 개선해 나가는 시스템입니다.
 
-## What This Does
+이 저장소에서 가장 중요한 진입점은 `!novel-daily`입니다.  
+처음 쓰는 사람은 다른 스크립트보다 이 명령부터 이해하면 됩니다.
 
-- `config/*.yaml`로 스토리/세계관/인물 정의
-- `simulate.py` 또는 `trial_simulate.py`로 턴 기반 상호작용 생성
-- `generate_chapter.py`로 DB 로그를 장면 압축 후 prose 챕터 생성
-- `tools/*`로 품질 점검/개선 루프 실행
+![Sample pipeline report](docs/assets/readme-pipeline-report.png)
 
-## Project Layout
+## 먼저 보여드릴게요
 
-```text
-simulate.py                 # 단일 에피소드 실행 CLI
-trial_simulate.py           # Trial-and-Learn 실행 CLI
-generate_chapter.py         # 챕터 생성 CLI
+이 프로젝트는 이런 식의 에피소드 설정을 입력으로 받습니다.
 
-src/novel_writer/           # 코어 엔진 패키지
-  config_loader.py
-  database.py
-  director.py
-  llm_client.py
-  models.py
-  orchestrator.py
-  prose_generator.py
-  scene_distiller.py
-  trial_runner.py
-
-tools/                      # 품질 도구
-  quality_analyzer.py
-  quality_adaptive_generator.py
-  compare_quality.py
-  run_quality_pipeline.sh
-
-tests/                      # 테스트/검증 스크립트
-config/                     # YAML 설정
-output/                     # 생성 산출물
-reports/                    # 분석/리포트 문서
-examples/Good_example/      # 레퍼런스 챕터
+```yaml
+episode:
+  id: ep01_conference_shadow
+  summary: >
+    제네바 컨퍼런스 센터에서 모레노 교수의 초전도 큐비트 발표가 열린다.
+    수민은 발표를 들으며 자신의 보상 회로 아이디어가 실제 시스템 수준에서
+    통할 수 있다는 가능성을 처음으로 실감한다.
+    발표장 곳곳에는 이 연구를 단순한 학문적 성과가 아니라 전략 자산으로
+    평가하는 듯한 인물들이 보인다.
 ```
 
-## Requirements
+그리고 실제 실행 후에는 이런 식의 소설 문장으로 변환됩니다.
 
-- Python 3.10+
-- OpenAI API Key
+> 2041년 5월 21일, 수민은 그날의 공기가 바뀌는 순간을 또렷하게 감지했다.
+>
+> 모레노의 목소리가 높은 슬라이드와 함께 잔향처럼 흘러나왔다. 수민은 통로 쪽에 비스듬히 기대어 서서 화면을 훑었다. 숫자 하나가 아니었다. 발표가 건드린 문제의 결이 그가 지난 몇 해 붙들고 있던 것과 정확히 맞닿아 있었다.
+>
+> 청중 가운데 어떤 이들의 시선이 달랐다. 박수 대신 계산표를 보는 눈이었다. 표준적 경외가 아니라 적용 가능성을 재는 얼굴들이었다.
+
+즉, 이 프로젝트가 하는 일은 단순한 요약이나 텍스트 확장이 아닙니다.
+
+- 에피소드 설정을 읽고
+- 캐릭터들이 실제로 상호작용하도록 시뮬레이션한 뒤
+- 장면을 압축하고
+- 한국어 소설 문체로 챕터를 만들고
+- 리뷰와 피드백을 받아
+- 코드 또는 스토리 설정까지 다시 고치는 루프를 돌립니다
+
+처음 README를 읽는 사람이 느껴야 하는 핵심은 이것입니다.
+
+> "아, 이건 설정 파일 하나를 넣으면 소설 초고를 만들고, Discord 안에서 계속 다듬어가는 시스템이구나."
+
+## `!novel-daily`는 왜 흥미로운가
+
+보통은 아래 작업을 사람이 따로따로 해야 합니다.
+
+1. 설정 파일 확인
+2. 시뮬레이션 실행
+3. 챕터 생성
+4. 품질 검사
+5. 피드백 정리
+6. 코드나 설정 수정
+7. 다시 실행
+
+`!novel-daily`는 이 과정을 하나의 루프로 묶습니다.
+
+```text
+episode.yaml
+  -> 시뮬레이션
+  -> 챕터 생성
+  -> 자동 리뷰
+  -> 리포트 이미지 생성
+  -> Discord에서 사용자 피드백 수집
+  -> 코드 수정 또는 스토리 수정
+  -> 자동 재실행
+```
+
+그래서 사용자는 Discord에서 이렇게 느끼게 됩니다.
+
+- "실행이 어떻게 진행되는지 실시간으로 보인다"
+- "생성된 챕터를 바로 읽을 수 있다"
+- "마음에 안 들면 코드 수정이나 스토리 수정을 바로 요청할 수 있다"
+- "수정 후 다시 돌려보는 루프까지 연결된다"
+
+## 실제 Discord 데모 예시
+
+아래는 처음 사용하는 사람이 가장 빠르게 감을 잡을 수 있는 예시입니다.  
+실제 메시지는 더 길 수 있지만, 흐름은 대체로 이렇게 흘러갑니다.
+
+```text
+User
+!novel-daily 1
+
+Bot
+리뷰 등급을 골라주세요.
+1 또는 mini      — GPT-4o-mini
+2 또는 premium   — GPT-4o
+3 또는 codex     — Codex CLI
+
+User
+2
+
+Bot
+▶️ !novel-daily ep01_academic_presentation 시작
+리뷰 등급: premium
+진행 상황 확인: !status | 중단: !stop
+
+Bot
+[GUARDIAN] Config 검수 시작
+
+Bot
+[SIM] 시뮬레이션 시작
+
+Bot
+[SIM] Turn 7/28
+
+Bot
+[CHAPTER] 챕터 생성 중
+
+Bot
+[AUTO] AI 자동 개선 루프 1/20 시작
+
+Bot
+[REVIEW] 자동 검수 완료
+긴장감: 8/10
+문체: 8/10
+인과성: 7/10
+
+Bot
+개선 방향을 선택해주세요.
+1 코드 수정
+2 스토리 수정
+3 다음으로
+
+User
+1 초반 대사가 조금 딱딱하고 설명투야. 긴장감을 더 빨리 올려줘.
+
+Bot
+[CHOICE] 코드 수정 선택 — Codex Fixer 실행 중...
+
+Bot
+[CHAPTER] 수정된 코드로 챕터 재생성 중...
+
+Bot
+[DONE] 코드 수정 완료. 같은 화 재시도: !novel-daily ep01_academic_presentation
+```
+
+이 예시에서 중요한 포인트는 세 가지입니다.
+
+- 사용자는 Discord에서 명령만 입력하면 됩니다.
+- 봇은 실행, 리뷰, 개선, 재실행까지 한 흐름으로 이어갑니다.
+- 마지막에는 "다음 화로 갈지", "코드를 고칠지", "스토리를 고칠지"를 다시 선택할 수 있습니다.
+
+중간에 현재 상태가 궁금하면 이렇게 확인할 수 있습니다.
+
+```text
+User
+!status
+
+Bot
+현재 파이프라인 상태: 챕터 생성 중
+경과 시간: 6분 12초
+세션 누적 토큰: ...
+세션 누적 비용: ...
+```
+
+## 먼저 이해하면 좋은 한 줄 요약
+
+`!novel-daily`는 아래 일을 한 번에 처리합니다.
+
+1. 에피소드 설정 검사
+2. 캐릭터 시뮬레이션 실행
+3. 챕터 생성
+4. 품질 리뷰와 자동 개선
+5. 사용자 피드백 반영
+6. 다음 실행을 위한 상태 저장
+
+즉, "에피소드 하나를 돌려서 읽고, 고치고, 다음 화로 넘길지 결정하는 전체 작업 흐름"이 Discord 안에서 돌아갑니다.
+
+## 처음 설치하는 사람용 빠른 안내
+
+정말 처음이라면 이 순서만 따라오면 됩니다.
+
+1. Python 환경을 준비합니다.
+2. OpenAI API 키를 발급받습니다.
+3. Discord Developer Portal에서 봇을 만듭니다.
+4. 봇을 서버에 초대하고 권한을 줍니다.
+5. `.env` 파일에 키와 토큰을 넣습니다.
+6. `python tools/discord_loop_bot.py`로 봇을 실행합니다.
+7. Discord 채널에서 `!novel-daily 1`을 입력합니다.
+
+아래부터는 이 과정을 아주 자세히 설명합니다.
+
+## `!novel-daily`가 실제로 하는 일
+
+`!novel-daily ep01_academic_presentation`을 실행하면 대략 아래 순서로 움직입니다.
+
+```text
+episode config
+  -> Config Guardian
+  -> Simulator
+  -> Chapter Generator
+  -> Auto Review / Auto Improve Loop
+  -> Final Review
+  -> 사용자 선택:
+       1 코드 수정
+       2 스토리 수정
+       3 다음으로 진행
+  -> story_state.json 업데이트
+```
+
+실행 중에는 Discord에서 진행 메시지가 계속 올라오고, 끝나면 챕터 파일과 리포트 이미지도 받을 수 있습니다.
+
+## 준비물
+
+이 프로젝트를 처음 실행하려면 아래가 필요합니다.
+
+- Python 3.10 이상
+- OpenAI API 키
+- Discord 서버 하나
+- Discord 봇 토큰 1개 이상
+
+중요:
+
+- `OPENAI_API_KEY`는 반드시 필요합니다.
+- `--review-tier codex`를 써도 OpenAI API 키는 여전히 필요합니다.
+  이유: 리뷰 일부를 Codex CLI로 돌릴 수는 있어도, 시뮬레이션과 챕터 생성 자체는 OpenAI API를 사용하기 때문입니다.
+
+## 1. Python 설치와 프로젝트 준비
+
+### 1-1. 저장소로 이동
+
+```bash
+cd "/Users/saesunkim/Documents/Novel Writter - 2026"
+```
+
+### 1-2. 가상환경 생성
+
+권장 방식입니다.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows라면:
+
+```bash
+.venv\Scripts\activate
+```
+
+### 1-3. 패키지 설치
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-# then edit .env and set your real key
 ```
 
-CLI scripts (`simulate.py`, `trial_simulate.py`, `generate_chapter.py`) auto-load `.env` from the project root.
+설치가 끝나면 최소한 `discord.py`, `aiohttp`, `PyYAML`, 그리고 프로젝트 실행에 필요한 라이브러리가 준비됩니다.
 
-## Quick Start
+## 2. OpenAI API 키 준비
 
-### 1) Single Episode Simulation
+이 프로젝트는 내부적으로 OpenAI API를 사용합니다.  
+그래서 ChatGPT 웹 로그인만으로는 부족하고, **API 키**가 필요합니다.
+
+### 2-1. API 키를 왜 넣어야 하나
+
+이 저장소에서 OpenAI API는 주로 아래 작업에 쓰입니다.
+
+- 시뮬레이션 중 캐릭터 행동 생성
+- 챕터 본문 생성
+- 품질 리뷰 일부
+- 피드백 분석
+
+### 2-2. 어디에 넣나
+
+루트에 `.env` 파일을 만들고 아래처럼 넣습니다.
+
+```bash
+cp .env.example .env
+```
+
+그다음 `.env`를 열어 수정합니다.
+
+```env
+OPENAI_API_KEY="sk-..."
+DISCORD_BOT_TOKEN="your-main-bot-token"
+DISCORD_BOT_TOKEN2=""
+DISCORD_BOT_TOKEN3=""
+DISCORD_BOT_TOKEN4=""
+```
+
+설명:
+
+- `OPENAI_API_KEY`: 필수
+- `DISCORD_BOT_TOKEN`: 필수
+- `DISCORD_BOT_TOKEN2/3/4`: 선택
+
+## 3. Discord 봇 설정 아주 자세히
+
+이 단계가 가장 중요합니다.  
+여기서 한 가지라도 빠지면 봇이 "켜지긴 켜졌는데 명령을 못 읽는" 상태가 되기 쉽습니다.
+
+공식 참고 링크:
+
+- Developer Portal: https://discord.com/developers/applications
+- Discord Bot Guide: https://docs.discord.com/developers/guides/bots
+
+### 3-1. Discord Application 만들기
+
+1. 브라우저에서 `https://discord.com/developers/applications`를 엽니다.
+2. Discord 계정으로 로그인합니다.
+3. `New Application`을 누릅니다.
+4. 예를 들어 `Novel Writer Daily` 같은 이름을 넣고 생성합니다.
+
+여기서 만든 "Application"이 봇의 껍데기입니다.
+
+### 3-2. Bot 사용자 만들기
+
+1. 왼쪽 메뉴에서 `Bot`을 엽니다.
+2. `Add Bot` 버튼이 보이면 눌러서 봇 사용자를 생성합니다.
+3. 생성 후 이 Application 안에 실제 봇 계정이 생깁니다.
+
+### 3-3. 토큰 발급받기
+
+1. 같은 `Bot` 화면에서 토큰 관련 영역을 찾습니다.
+2. `Reset Token` 또는 토큰 표시 기능을 이용해 토큰을 확인합니다.
+3. 이 값을 `.env`의 `DISCORD_BOT_TOKEN`에 넣습니다.
+
+중요:
+
+- 토큰은 비밀번호처럼 취급해야 합니다.
+- Git에 올리면 안 됩니다.
+- 유출되면 Developer Portal에서 새 토큰으로 다시 발급해야 합니다.
+
+### 3-4. Message Content Intent 켜기
+
+이 프로젝트는 슬래시 커맨드가 아니라 **일반 메시지 명령**을 읽습니다.
+
+예를 들면:
+
+- `!novel-daily 1`
+- `!status`
+- `!stop`
+
+코드에서 실제로 `message.content`를 읽기 때문에, **Message Content Intent**가 꺼져 있으면 봇이 명령을 못 읽습니다.
+
+설정 방법:
+
+1. `Bot` 메뉴로 갑니다.
+2. `Privileged Gateway Intents` 섹션을 찾습니다.
+3. `MESSAGE CONTENT INTENT`를 켭니다.
+4. 저장합니다.
+
+이걸 빼먹으면 흔히 발생하는 증상:
+
+- 터미널에는 `Discord bot connected as ...`가 뜸
+- 그런데 Discord에서 `!novel-daily`를 입력해도 아무 반응이 없음
+
+### 3-5. 봇을 서버에 초대하기
+
+1. 왼쪽 메뉴에서 `OAuth2` -> `URL Generator`로 갑니다.
+2. Scopes에서 `bot`을 선택합니다.
+3. Bot Permissions에서 아래 권한을 체크하는 것을 권장합니다.
+
+권장 권한:
+
+- View Channels
+- Send Messages
+- Read Message History
+- Add Reactions
+- Attach Files
+- Create Public Threads
+- Send Messages in Threads
+
+왜 필요한가:
+
+- 메시지를 읽고 답장해야 하므로 `View Channels`, `Send Messages`
+- 이전 메시지와 진행 상태를 다루므로 `Read Message History`
+- 완료 반응 체크를 달 수 있도록 `Add Reactions`
+- 챕터 파일과 리포트 이미지를 업로드하려면 `Attach Files`
+- 단계별 앵커 메시지에서 쓰레드를 만들고 그 안에 로그를 보내려면 `Create Public Threads`, `Send Messages in Threads`
+
+3. 아래에 생성된 초대 URL을 복사합니다.
+4. 브라우저에 붙여넣고, 원하는 서버에 봇을 초대합니다.
+
+팁:
+
+- 권한이 너무 적으면 봇은 접속해도 파일 업로드나 쓰레드 생성을 못할 수 있습니다.
+- 서버 관리 권한이 없는 계정이면 초대 자체가 안 될 수 있습니다.
+
+### 3-6. 선택 사항: 단계별 봇을 따로 쓰고 싶다면
+
+이 저장소는 토큰을 최대 4개까지 받을 수 있습니다.
+
+- `DISCORD_BOT_TOKEN`: 메인 봇
+- `DISCORD_BOT_TOKEN2`: reviewer 단계용
+- `DISCORD_BOT_TOKEN3`: fixer 단계용
+- `DISCORD_BOT_TOKEN4`: manager 단계용
+
+이건 필수가 아닙니다.
+
+초보자에게는 먼저 이렇게 권장합니다.
+
+- 처음에는 `DISCORD_BOT_TOKEN` 하나만 사용
+- `DISCORD_BOT_TOKEN2/3/4`는 비워두기
+
+이 경우 코드가 자동으로 메인 봇 토큰을 재사용합니다.
+
+반대로 "단계별로 서로 다른 봇 프로필 사진과 이름으로 말하게 만들고 싶다"면:
+
+1. Discord Application을 추가로 더 만듭니다.
+2. 각각 Bot을 생성합니다.
+3. 각 토큰을 `.env`의 `DISCORD_BOT_TOKEN2/3/4`에 넣습니다.
+4. **모든 봇을 같은 서버에 초대하고, 같은 채널 권한을 주어야 합니다.**
+
+즉, 토큰만 넣고 초대를 안 하면 작동하지 않습니다.
+
+### 3-7. 채널 운영 방식도 중요합니다
+
+이 봇은 **채널 단위로 상태를 기억**합니다.
+
+쉽게 말하면:
+
+- 채널 A에서 돌리는 파이프라인 1개
+- 채널 B에서 돌리는 파이프라인 1개
+
+처럼 생각하는 게 안전합니다.
+
+권장 운영 방식:
+
+- 에피소드 실험용 채널을 따로 하나 만듭니다.
+- 동시에 여러 개 돌리고 싶으면 채널을 나눕니다.
+
+같은 채널에서 서로 다른 사람이 동시에 다른 에피소드를 막 섞어 돌리면 혼란스러워질 수 있습니다.
+
+## 4. `.env` 파일 설정 예시
+
+초심자용 권장 예시는 아래입니다.
+
+```env
+OPENAI_API_KEY="sk-your-real-openai-api-key"
+DISCORD_BOT_TOKEN="your-main-bot-token"
+
+# 처음에는 비워둬도 됩니다.
+DISCORD_BOT_TOKEN2=""
+DISCORD_BOT_TOKEN3=""
+DISCORD_BOT_TOKEN4=""
+
+# 예전 이름도 호환되지만 새 이름을 권장합니다.
+TOKEN2=""
+TOKEN3=""
+TOKEN4=""
+```
+
+### 어떤 값이 꼭 필요한가
+
+필수:
+
+- `OPENAI_API_KEY`
+- `DISCORD_BOT_TOKEN`
+
+선택:
+
+- `DISCORD_BOT_TOKEN2`
+- `DISCORD_BOT_TOKEN3`
+- `DISCORD_BOT_TOKEN4`
+
+## 5. 봇 실행하기
+
+루트 디렉터리에서 실행합니다.
+
+```bash
+python tools/discord_loop_bot.py
+```
+
+정상 실행되면 터미널에 비슷한 로그가 뜹니다.
+
+```text
+Discord bot connected as <봇이름>
+```
+
+이 문장이 안 뜨면:
+
+- 토큰이 잘못됐거나
+- 네트워크 문제이거나
+- 패키지 설치가 안 되었을 가능성이 큽니다.
+
+## 6. 첫 실행: 정말 처음이라면 이렇게 하세요
+
+### 6-1. 가장 쉬운 첫 명령
+
+Discord 채널에서 아래처럼 입력합니다.
+
+```text
+!novel-daily 1
+```
+
+또는 에피소드 키를 알고 있으면:
+
+```text
+!novel-daily ep01_academic_presentation
+```
+
+숫자를 넣으면 내부에서 해당 번호에 맞는 에피소드 파일을 찾아 실행합니다.
+
+### 6-2. 옵션을 같이 주는 방식
+
+```text
+!novel-daily ep01_academic_presentation --target-words 3500 --budget 4.0 --protagonist kim_sumin --review-tier premium
+```
+
+자주 쓰는 옵션:
+
+- `--target-words 3500`: 목표 분량
+- `--budget 4.0`: 실행 예산
+- `--protagonist kim_sumin`: 주인공 ID
+- `--review-tier mini|premium|codex`: 리뷰 방식
+
+### 6-3. `--review-tier`를 안 넣으면 어떻게 되나
+
+봇이 먼저 물어봅니다.
+
+```text
+1 또는 mini      -> 빠르고 저렴
+2 또는 premium   -> 더 정밀
+3 또는 codex     -> Codex CLI 활용
+```
+
+초보자에게는 보통 아래처럼 시작하는 걸 권장합니다.
+
+- 빠르게 테스트: `mini`
+- 좀 더 정밀하게: `premium`
+
+주의:
+
+- `codex`를 선택해도 프로젝트 전체에서 OpenAI API 키가 없어도 되는 것은 아닙니다.
+- 리뷰 일부 비용만 줄어드는 방식으로 이해하는 게 맞습니다.
+
+## 7. 실행 중에 Discord에서 보게 되는 것
+
+`!novel-daily`를 실행하면 채널에 대략 이런 흐름이 보입니다.
+
+1. 시작 안내
+2. Config Guardian 검사
+3. 시뮬레이션 Turn 진행
+4. 챕터 생성 진행
+5. 자동 리뷰 결과
+6. 자동 개선 루프 진행 상황
+7. 최종 품질 검수
+8. 선택지 안내
+
+또한 아래 같은 정보도 확인할 수 있습니다.
+
+- 경과 시간
+- 누적 토큰
+- 누적 비용
+- 현재 실행 중인 프로세스
+
+## 8. 결과를 보고 나서 어떻게 답하면 되는가
+
+최종 리뷰가 끝나면 봇이 선택지를 줍니다.
+
+### 8-1. `1` 또는 코드 수정
+
+예:
+
+```text
+1 대사가 너무 딱딱해. 문장이 자주 끊겨.
+```
+
+이 경우:
+
+- Codex가 코드 쪽을 수정합니다.
+- 챕터를 다시 생성합니다.
+- 필요하면 자동 재시작도 이어집니다.
+
+### 8-2. `2` 또는 스토리 수정
+
+예:
+
+```text
+2 수민이 너무 수동적이야. 초반부터 더 적극적으로 움직였으면 좋겠어.
+```
+
+이 경우:
+
+- 에피소드 YAML을 직접 수정합니다.
+- 다음 실행 때 수정된 설정이 반영됩니다.
+
+### 8-3. `3` 또는 다음으로
+
+예:
+
+```text
+3
+```
+
+이 경우:
+
+- 현재 결과를 승인합니다.
+- 다음 에피소드로 넘어갈 준비를 합니다.
+
+### 8-4. 자동 재시작도 있다
+
+코드 수정이나 스토리 수정을 선택한 경우, 봇은 수정된 상태로 파이프라인을 다시 실행할 수 있습니다.
+
+즉:
+
+- 피드백 주기
+- 수정
+- 재실행
+- 다시 확인
+
+의 흐름이 Discord 안에서 이어집니다.
+
+## 9. 꼭 알아둘 명령어
+
+### `!novel-daily`
+
+메인 명령입니다.
+
+예:
+
+```text
+!novel-daily 1
+!novel-daily ep01_academic_presentation
+!novel-daily ep01_academic_presentation --target-words 3200 --budget 4.0 --review-tier premium
+```
+
+### `!status`
+
+현재 파이프라인 상태를 봅니다.
+
+확인 가능한 정보:
+
+- 현재 단계
+- 경과 시간
+- 누적 토큰
+- 누적 비용
+- 백그라운드 프로세스 상태
+
+### `!stop`
+
+현재 파이프라인 중단 요청을 보냅니다.
+
+즉시 모든 게 사라지는 방식이라기보다, 현재 단계가 정리되는 시점에 맞춰 멈추는 흐름으로 이해하면 됩니다.
+
+### `!chapter`
+
+이 채널에서 가장 최근 생성된 챕터 파일을 다시 받아옵니다.
+
+### `!meitner <질문>`
+
+저장소 구조를 질문하는 도우미 명령입니다.
+
+예:
+
+```text
+!meitner daily pipeline이 어디서 시작돼?
+```
+
+### `!approve <req_id>` / `!reject <req_id>`
+
+이건 고급 기능입니다.
+
+`data/pending_config_changes.json`에 쌓인 설정 변경 요청을 승인하거나 거절할 때 씁니다.  
+처음 쓰는 단계에서는 몰라도 됩니다.
+
+## 10. 실행 후 어떤 파일이 생기나
+
+`!novel-daily`를 돌리면 보통 아래 경로에 실행 결과가 쌓입니다.
+
+```text
+output/daily/YYYYMMDD_<episode_key>/HHMMSS/
+```
+
+예를 들면:
+
+```text
+output/daily/20260320_ep01_academic_presentation/013820/
+```
+
+이 안에는 이런 파일들이 생길 수 있습니다.
+
+- `config_check.md`
+- `*_simulation.json`
+- `*_debug.log`
+- `*_chapter.txt`
+- `scorecard.txt`
+- `auto_review_cycle*.json`
+- `pipeline_report.png`
+
+그리고 프로젝트 전체 상태 파일도 갱신됩니다.
+
+- `data/story_state.json`: 사용자 피드백, 점수, 요약, 사이클 상태
+- `data/pending_config_changes.json`: 승인 대기 중인 설정 변경 요청
+
+## 11. 리포트 이미지가 왜 있는가
+
+이 프로젝트는 텍스트만 던져주지 않고, 실행 결과를 요약한 이미지도 만들 수 있습니다.
+
+예를 들어 `pipeline_report.png`에는 다음이 들어갈 수 있습니다.
+
+- 사이클별 품질 점수 추이
+- 단계별 비용
+- 단계별 소요 시간
+
+그래서 README에도 실제 예시 이미지를 넣었습니다.  
+초심자가 "아, 이 봇이 단순 채팅이 아니라 실행 결과를 시각적으로도 보여주는구나"를 바로 이해할 수 있게 하려는 목적입니다.
+
+## 12. Discord 없이 직접 실행하고 싶다면
+
+Discord를 붙이기 전에 로컬에서만 테스트할 수도 있습니다.
+
+### 단일 시뮬레이션
 
 ```bash
 python simulate.py \
@@ -66,7 +716,7 @@ python simulate.py \
   --budget 5.0
 ```
 
-### 2) Generate Chapter
+### 챕터 생성
 
 ```bash
 python generate_chapter.py \
@@ -77,132 +727,107 @@ python generate_chapter.py \
   --words 2000
 ```
 
-### 3) Trial-and-Learn (Optional)
+### Daily pipeline을 Discord 없이 실행
 
 ```bash
-python trial_simulate.py \
-  --episode config/episodes/ep05_unexpected_visitors.yaml \
-  --characters config/characters.yaml \
-  --world config/world_facts.yaml \
-  --storyline config/storyline.yaml \
-  --max-trials 5 \
-  --budget 15.0
+python tools/daily_pipeline.py --episode ep01_academic_presentation --no-discord
 ```
 
-### 4) Quality Pipeline (Optional)
+이 방식은 Discord 봇 설정 전에 내부 로직이 도는지 점검할 때 유용합니다.
 
-```bash
-bash tools/run_quality_pipeline.sh ep05_unexpected_visitors
-```
-
-## Typical Flow
-
-1. `simulate.py` 또는 `trial_simulate.py` 실행
-2. `output/<episode_id>_simulation.json`, `output/<episode_id>_debug.log` 생성
-3. `generate_chapter.py` 실행
-4. `output/<episode_id>_scenes.json`, `output/<episode_id>_chapter.md` 생성
-5. 필요 시 `tools/quality_analyzer.py`로 품질 분석
-
-## Key Concepts
-
-### Director Guardrails
-
-`src/novel_writer/director.py`에서 매 턴 다음을 검사합니다.
-
-- 캐릭터 invariant 위반
-- knowledge leak
-- storyline/milestone alignment
-- clue injection 필요 여부
-- episode 종료 조건 충족 여부
-
-### Casting Priority
-
-1. `episode.characters` 명시값
-2. 에피소드 텍스트에서 명시적으로 언급된 인물
-3. 이전 에피소드 캐스팅 승계
-4. 최소 fallback cast
-
-## CLI Reference
-
-### `simulate.py`
-
-- 목적: 단일 에피소드 실행
-- 주요 인자:
-  - `--episode` `--characters` (필수)
-  - `--world` `--storyline`
-  - `--model` `--premium`
-  - `--budget` `--output` `--db`
-
-### `trial_simulate.py`
-
-- 목적: 실패 원인 학습 + 재시도
-- 주요 인자:
-  - `--max-trials`
-  - `--success-threshold`
-- 산출물:
-  - `output/<episode_id>_trial_summary.json`
-  - `output/<episode_id>_trialN_simulation.json`
-  - `output/<episode_id>_trialN_debug.log`
-
-### `generate_chapter.py`
-
-- 목적: DB 상호작용 로그 -> 장면 압축 -> 챕터 생성
-- 주요 인자:
-  - `--episode` `--episode-config`
-  - `--protagonist` `--protagonist-name`
-  - `--words` `--scenes` `--style`
-
-## Output Files
-
-- `output/<episode_id>_simulation.json`
-- `output/<episode_id>_debug.log`
-- `output/<episode_id>_scenes.json`
-- `output/<episode_id>_chapter.md`
-- `output/<episode_id>_trial_summary.json` (trial 사용 시)
-
-## Notes
-
-- 스토리 데이터는 코드가 아니라 `config/*.yaml`에서 관리됩니다.
-- 품질 실험 스크립트는 `tools/`에 모아두었습니다.
-- 코어 로직은 `src/novel_writer` 패키지에 통합되어 있습니다.
-
-## Discord 3-Agent Loop (MVP)
-
-Discord에서 아래 3단계를 자동 반복하는 루프 봇입니다.
-
-1. Simulator Agent: `simulate.py` + `generate_chapter.py` 실행, 산출물 업로드
-2. Reviewer Agent: 품질분석 + LLM 리뷰(스토리 내용 비판 / 글 자체 비판)
-3. Fixer Agent: 리뷰를 기반으로 에피소드 YAML(`episode.pacing/max_turns/recommended_length/summary`) 자동 수정
-
-### 준비
-
-```bash
-pip install -r requirements.txt
-cp .env.example .env
-# .env에 DISCORD_BOT_TOKEN 설정
-# 선택: 단계별 디스코드 봇을 분리하려면 DISCORD_BOT_TOKEN2 / 3 / 4 또는 TOKEN2 / 3 / 4 설정
-# 미설정 시 reviewer / fixer / manager 단계는 메인 DISCORD_BOT_TOKEN을 재사용
-```
-
-Discord Developer Portal에서 Bot을 생성하고 서버에 초대한 뒤,
-Message Content Intent를 켜야 합니다.
-
-메시지 커맨드:
-- `!novel-loop`
-- `!novel-loop-reset`
-- `!meitner <질문>`: 저장소 구조/파일 위치/흐름을 질의응답
-
-### 실행
-
-```bash
-python tools/discord_loop_bot.py
-```
-
-Discord 채널에서:
+## 13. 저장소 구조 간단 지도
 
 ```text
-!novel-loop ep01_academic_presentation --max-cycles 3 --target-words 2200 --scenes 6 --budget 4.0
+simulate.py                 # 단일 에피소드 시뮬레이션
+generate_chapter.py         # 챕터 생성
+trial_simulate.py           # 반복 실험용 실행기
+
+config/                     # 세계관, 캐릭터, 에피소드 설정
+src/novel_writer/           # 코어 로직
+tools/daily_pipeline.py     # !novel-daily 핵심 파이프라인
+tools/discord_loop_bot.py   # Discord 봇 엔트리포인트
+tests/                      # 테스트
+output/                     # 실행 산출물
+data/                       # 상태 파일
 ```
 
-상태 파일:
-- `data/discord_loop_state.json`
+처음 보는 사람은 아래 세 파일만 먼저 보면 흐름을 파악하기 쉽습니다.
+
+- `tools/discord_loop_bot.py`
+- `tools/daily_pipeline.py`
+- `simulate.py`
+
+## 14. 자주 막히는 문제와 해결법
+
+### 봇은 켜졌는데 `!novel-daily`에 반응이 없다
+
+가장 흔한 원인:
+
+- `MESSAGE CONTENT INTENT`를 켜지 않음
+- 봇이 채널 메시지를 볼 권한이 없음
+- 잘못된 채널에서 테스트 중
+
+### `Set DISCORD_BOT_TOKEN in .env` 오류가 난다
+
+원인:
+
+- `.env` 파일이 없거나
+- `DISCORD_BOT_TOKEN` 값이 비어 있음
+
+해결:
+
+```bash
+cp .env.example .env
+```
+
+후에 토큰을 정확히 넣습니다.
+
+### `Set OPENAI_API_KEY in .env` 오류가 난다
+
+원인:
+
+- API 키가 없거나
+- `OPENAI_API_KEY`가 비어 있음
+
+해결:
+
+- OpenAI API 키를 발급받아 `.env`에 넣습니다.
+
+### 봇이 메시지는 보내는데 파일 업로드가 안 된다
+
+가능성:
+
+- `Attach Files` 권한이 없음
+
+### 쓰레드 생성이 안 된다
+
+가능성:
+
+- `Create Public Threads`
+- `Send Messages in Threads`
+
+권한 중 하나 이상이 없음
+
+### 같은 채널에서 뭔가 꼬이는 것 같다
+
+이유:
+
+- 이 봇은 채널 단위로 상태를 관리합니다.
+
+권장:
+
+- 실험을 분리하려면 채널도 분리하세요.
+
+## 15. 마지막으로: 처음에는 이렇게 시작하는 걸 권장
+
+정말 처음이라면 아래 순서가 가장 무난합니다.
+
+1. `.env`에 `OPENAI_API_KEY`와 `DISCORD_BOT_TOKEN`만 먼저 넣기
+2. 봇 한 개만 만들어서 서버에 초대하기
+3. `MESSAGE CONTENT INTENT` 켜기
+4. `python tools/discord_loop_bot.py` 실행하기
+5. Discord에서 `!novel-daily 1` 입력하기
+6. 잘 돌면 그다음에 `--review-tier premium`, 다중 봇 토큰, 세부 운영 방식으로 확장하기
+
+처음부터 reviewer/fixer/manager 봇을 모두 분리하려고 하면 설정 포인트가 많아집니다.  
+처음에는 단일 봇으로 성공 경험을 만든 다음 확장하는 편이 훨씬 쉽습니다.
