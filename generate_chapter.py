@@ -180,6 +180,9 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
     if profile.prefers_stronger_scene_compaction():
         policy["prefer_concrete_offer_detail"] = 1
         policy["prefer_concrete_threat_detail"] = 1
+    if profile.prefers_dialogue_compaction():
+        policy["prefer_concrete_offer_detail"] = 1
+        policy["prefer_concrete_threat_detail"] = 1
     if profile.prefers_explicit_transition_cues():
         policy["prefer_concrete_transition_cue"] = 1
     return policy

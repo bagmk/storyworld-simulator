@@ -336,6 +336,7 @@ async def run_inline_optimize(
     premium_model: str,
     notify_fn=None,
     quality_focus: dict | None = None,
+    final_upgrade_model: str | None = None,
 ) -> tuple[Path, dict, float, list[float]]:
     """
     Run 5-trial mini-Optuna loop (Phase 1: 2 parallel, Phase 2: 3 parallel).
@@ -496,6 +497,52 @@ async def run_inline_optimize(
             f"best detail: det {float(best_meta.get('det', 0.0)):.2f} / llm {float(best_meta.get('llm', 0.0)):.2f}, "
             f"scenes {int(best_meta.get('scene_count', 0))}/{int(best_meta.get('target_scenes', 0))}, turns {int(best_meta.get('raw_turn_total', 0))}"
         )
+
+    # ── Final one-pass upgrade generation (optional) ────────────────────────
+    if final_upgrade_model:
+        try:
+            if notify_fn:
+                await notify_fn(
+                    f"[OPTIMIZE] ✨ 최종 1회 업그레이드 생성 시작 (model {final_upgrade_model})"
+                )
+            final_llm = LLMClient(
+                model=base_model,
+                premium_model=final_upgrade_model,
+                budget_usd=trial_budget,
+            )
+            final_score, final_path, final_meta = await _run_single_trial(
+                trial_idx=best_idx,
+                trial_params=best_params,
+                episode_id=episode_id,
+                episode_config=episode_config,
+                trial_dir=opt_dir / "final_upgrade",
+                llm=final_llm,
+                protagonist_id=protagonist_id,
+                protagonist_name=protagonist_name,
+                target_words=target_words,
+                character_profiles=character_profiles,
+                reader_feedback=reader_feedback,
+                guardian_briefing=guardian_briefing,
+                base_policy=effective_base_policy,
+                quality_focus=quality_focus,
+            )
+            if notify_fn:
+                await notify_fn(
+                    f"[OPTIMIZE] ✨ 최종 1회 업그레이드 완료 | score {final_score:.2f} | "
+                    f"`{final_meta.get('chapter_file', final_path.name)}` "
+                    f"({int(final_meta.get('word_count', 0))}단어)"
+                )
+            if final_path.exists() and final_path.stat().st_size > 0 and final_score >= best_score:
+                best_src = final_path
+                best_score = final_score
+                if notify_fn:
+                    await notify_fn("[OPTIMIZE] ✨ 업그레이드 결과 채택 (점수 유지/상승)")
+            elif notify_fn:
+                await notify_fn("[OPTIMIZE] ℹ️ 업그레이드 결과 미채택 (기존 best 유지)")
+        except Exception as exc:
+            logger.warning("Final upgrade generation failed: %s", exc)
+            if notify_fn:
+                await notify_fn(f"[OPTIMIZE] ⚠️ 최종 업그레이드 생성 실패: {exc}")
 
     # Copy best chapter to run_dir
     best_chapter_path = run_dir / f"{episode_id}_chapter.md"

@@ -972,6 +972,10 @@ class SceneDistiller:
         score = 0
         score += min(2, len(scene.discoveries or []))
         score += min(1, len(scene.key_dialogue or []))
+        if self._scene_has_inner_conflict(text):
+            score += 1
+        if self._scene_has_concrete_risk(text):
+            score += 1
         if re.search(r"(드러났|밝혀졌|확인됐|폭로|반전|결정|선택|거절|수락|중단|경고|위험|충돌|대치)", low):
             score += 2
         if re.search(r"(긴장|압박|불안|초조|경계|결심|분노|공포|당황|침묵|정적|날카롭)", low):
@@ -1163,63 +1167,12 @@ class SceneDistiller:
             return self._ensure_summary_sentence(base)
         return self._ensure_summary_sentence(f"{base}, 그래서 {follow}")
 
-    def _scene_mentions_miller(self, scene: DistilledScene) -> bool:
-        text = " ".join(
-            [
-                str(scene.narrative_summary or ""),
-                " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
-                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
-                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
-                str(scene.emotional_arc or ""),
-                str(scene.location or ""),
-            ]
-        ).lower()
-        return bool(re.search(r"(miller|밀러)", text))
-
     def _observable_emotion_reaction(self, scene: DistilledScene) -> str:
+        # Return the emotional arc as a structural signal — prose_generator handles expression.
         emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
-        subject = scene.characters_present[0] if scene.characters_present else "인물"
-        if re.search(r"(불안|긴장|초조|압박|경계)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 숨을 짧게 들이쉬고 손끝에 힘을 줬다")
-        if re.search(r"(안도|진정|안정)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 길게 숨을 내쉬며 어깨를 조금 내렸다")
-        if re.search(r"(분노|짜증|격앙)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 턱선을 굳히고 손가락을 한 번 세게 말아쥐었다")
-        if re.search(r"(혼란|당황|망설임)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 시선을 한 번 비키고 답을 늦췄다")
-        if re.search(r"(결심|선택|각오)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 숨을 고르고 자세를 바로 세웠다")
-        return self._ensure_summary_sentence(f"{subject}은 주변의 반응을 먼저 살폈다")
-
-    def _miller_risk_clause(self, scene: DistilledScene) -> str:
-        if not self._scene_mentions_miller(scene):
+        if not emotional:
             return ""
-
-        text = " ".join(
-            [
-                str(scene.narrative_summary or ""),
-                " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
-                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
-                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
-                str(scene.emotional_arc or ""),
-            ]
-        ).lower()
-        risk_bits: list[str] = []
-        if re.search(r"(외부 지원|지원|후원|자원|예산)", text):
-            risk_bits.append("외부 지원이 흔들릴 수 있었다")
-        if re.search(r"(통제권|주도권|권한|control|authority)", text):
-            risk_bits.append("통제권을 넘겨야 할 수 있었다")
-        if re.search(r"(책임|책임질|oversight|liability)", text):
-            risk_bits.append("책임이 수민 쪽으로 남을 수 있었다")
-        if re.search(r"(계약|조항|서류|시설|보안|경비|배지|명함|출입|access|security|contract|clause)", text):
-            risk_bits.append("계약과 보안 조건이 따라붙을 수 있었다")
-        if re.search(r"(실시간|latency|지연|보정|real-time)", text):
-            risk_bits.append("실시간 대응 부담이 더 커질 수 있었다")
-
-        if not risk_bits:
-            risk_bits.append("대가가 분명하지 않은 제안은 아니었다")
-        joined = " 그리고 ".join(risk_bits[:2])
-        return self._ensure_summary_sentence(f"밀러의 제안 뒤에는 {joined}")
+        return self._ensure_summary_sentence(emotional)
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
         if scene.pacing in {"opening", "climax"}:
@@ -1240,7 +1193,7 @@ class SceneDistiller:
     @staticmethod
     def _summary_has_action_or_decision(sentence: str) -> bool:
         return bool(re.search(
-            r"(건넸|밀었|열었|접었|돌렸|움직였|받았|붙잡|꺼냈|멈추|확인|드러났|알아차렸|결정|선택|반응|질문|대답|응답|설득|거절|숨을 골랐|고개를 들었)",
+            r"(건넸|밀었|열었|접었|돌렸|움직였|받았|붙잡|꺼냈|멈추|확인|드러났|알아차렸|결정|선택|반응|질문|대답|응답|설득|거절|숨을 골랐|고개를 들었|물러섰|물러났|뒤로 물러|반걸음)",
             str(sentence or ""),
         ))
 
@@ -1260,18 +1213,20 @@ class SceneDistiller:
         return token_count <= 9
 
     def _summary_replacement_sentence(self, scene: DistilledScene) -> str:
-        risk_clause = self._miller_risk_clause(scene)
+        summary_sentences = [
+            s.strip()
+            for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip())
+            if s.strip()
+        ]
+        for sent in summary_sentences:
+            if self._summary_has_action_or_decision(sent):
+                continue
+            if self._summary_has_concrete_risk(sent):
+                return self._ensure_summary_sentence(sent)
         for action in scene.key_actions or []:
             cleaned = self._clean_action_text(action)
             if cleaned:
-                if risk_clause and self._scene_mentions_miller(scene):
-                    base = re.sub(r"[.!?…]+$", "", cleaned).strip()
-                    risk = re.sub(r"[.!?…]+$", "", risk_clause).strip()
-                    if base and risk:
-                        return self._ensure_summary_sentence(f"{base}, {risk}")
                 return self._ensure_summary_sentence(cleaned)
-        if risk_clause:
-            return risk_clause
         for item in scene.discoveries or []:
             cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
             if not cleaned:
@@ -1286,6 +1241,27 @@ class SceneDistiller:
             if reaction:
                 return reaction
         return self._ensure_summary_sentence(scene.narrative_summary)
+
+    @staticmethod
+    def _summary_has_concrete_risk(sentence: str) -> bool:
+        return bool(re.search(
+            r"(대가|조건|한계|지원|출입|배지|명함|계약|조항|책임|허가|시설|deadline|limit|access|security|support|clause|대안|제안|비밀|보안(?:\s*(?:조건|규정|절차|한도|통제|시스템|문|배지|출입|팀)))",
+            str(sentence or "").lower(),
+        ))
+
+    @staticmethod
+    def _scene_has_inner_conflict(text: str) -> bool:
+        return bool(re.search(
+            r"(하지만|그러나|그런데|그치만|원하지만|원하긴 하지만|해야 하지만|하면서도|망설|주저|흔들|양가|둘 중|어느 쪽|선택을 못|결정하지 못|미루|꺼려)",
+            str(text or "").lower(),
+        ))
+
+    @staticmethod
+    def _scene_has_concrete_risk(text: str) -> bool:
+        return bool(re.search(
+            r"(대가|조건|한계|지원|출입|배지|명함|계약|조항|책임|허가|시설|deadline|limit|access|security|support|clause|대안|제안|비밀|보안(?:\s*(?:조건|규정|절차|한도|통제|시스템|문|배지|출입|팀)))",
+            str(text or "").lower(),
+        ))
 
     def _summary_sentence_word_cap(self, default: int = 18) -> int:
         return self.reader_profile.summary_sentence_word_cap(default=default)

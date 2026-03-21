@@ -452,6 +452,7 @@ class ProseGenerator:
             "Use signature verbal tics only when context clearly demands it; avoid catchphrase repetition.\n"
             "Let each character's speed, hesitation, and directness feel distinct when they speak.\n"
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
+            "When a pressure beat already has one bodily reaction, do not add another near-identical reaction in the next sentence; move to choice, consequence, or dialogue instead.\n"
             "Keep all content in Korean.\n"
         )
         pov_and_time = (
@@ -499,6 +500,7 @@ class ProseGenerator:
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
             f"- Once a fact, threat, or decision lands, the next sentence should show consequence, reaction, or movement instead of paraphrasing it.\n"
+            f"- For any pressure beat, keep at most one bodily or emotional reaction sentence before the scene changes state.\n"
             f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
             f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
             f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
@@ -545,18 +547,19 @@ class ProseGenerator:
                 "- If a line starts sounding like exposition, attach it to a tactic, dodge, interruption, or reaction beat so it still feels spoken.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
             )
-        if self._feedback_flag_enabled("dialogue_agenda_contrast") or self._feedback_mentions("이해관계", "말버릇", "모레노", "밀러"):
+        if self._feedback_flag_enabled("dialogue_agenda_contrast") or self._feedback_mentions("이해관계", "말버릇"):
             prompt += (
                 "## Dialogue Agenda Contrast Priority\n"
                 "- Let each major speaker push a concrete immediate agenda rather than restating theme.\n"
                 "- Differentiate voices through directness, evasiveness, brevity, and favored wording.\n"
                 "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
-        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항", "밀러"):
+        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항"):
             prompt += (
                 "## Pressure Cash-Out Priority\n"
-                "- When Miller's proposal or a similar coercive offer appears, do not leave the cost abstract.\n"
+                "- When a coercive offer or pressure tactic appears, do not leave the cost abstract.\n"
                 "- Show the price through concrete scene details: clause wording, access restriction, security, badge, facility rule, room placement, deadline, a one-line usage instruction, or a visible handoff.\n"
+                "- If the scene already includes one body reaction, do not add another mirrored body beat; let the next sentence carry the consequence or forced choice.\n"
                 "- If the source material only implies danger, keep the implication concrete and physical; do not explain the threat in summary language.\n"
                 "- After the offer lands, the next beat should be consequence, refusal, or a forced choice, not another paraphrase of the warning.\n\n"
             )
@@ -848,6 +851,7 @@ class ProseGenerator:
             f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
             f"After that explanation, move straight to reaction, emotion, or decision.\n"
+            f"If a scene turn already carried one body cue or inner beat, the follow-up sentence should switch to consequence, movement, or dialogue instead of repeating the same feeling.\n"
             f"If the scene already moved from question to response to approach, keep that order and do not restart the earlier stage.\n"
             f"Once a room change or exit movement lands, continue from the new physical position instead of replaying the prior beat.\n"
             f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
@@ -865,6 +869,7 @@ class ProseGenerator:
         if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
             prompt += (
                 "\nAt each location/focus change, include a short transition sentence to keep flow explicit."
+                "\nIf the previous scene ended on a risk or offer, carry one concrete consequence cue into the transition instead of repeating the same warning."
             )
         if self._feedback_flag_enabled("clarify_event_transitions"):
             prompt += (

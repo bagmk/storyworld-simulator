@@ -500,11 +500,6 @@ class DirectorAI:
         trigger: str,
         world: WorldState,
     ) -> str:
-        miller_rule = ""
-        if "miller" in str(clue_content or "").lower() or "밀러" in str(clue_content or ""):
-            miller_rule = (
-                "- If the entrant is Miller, name him clearly on first appearance; do not leave him as only '정장 남자'.\n"
-            )
         prompt = (
             "You are staging a named entrance or offer beat by a new actor.\n\n"
             f"{self._scene_event_context(world)}"
@@ -516,7 +511,7 @@ class DirectorAI:
             "- Sentence 1 must say from which doorway, corridor, row, or edge of the room the person appears.\n"
             "- Sentence 2 must say where the protagonist is when the newcomer stops or speaks.\n"
             "- Keep the entrance, stop, and pressure shift in a clear sequence.\n"
-            f"{miller_rule}"
+            "- Name any named actor clearly on first appearance; do not leave them as only a generic descriptor.\n"
             "- If this entrance resolves an earlier unnamed observer, make that link explicit once.\n"
         )
         return self._render_injection_event(prompt, purpose="director_clue_npc_offer")
@@ -839,8 +834,8 @@ class DirectorAI:
         if progress_signal.get("pressure_peak"):
             return (
                 "The scene is at a pressure peak. Keep it open and cash the pressure out through a concrete move, "
-                "reveal, or counteroffer instead of ending on atmosphere alone. If Miller or another negotiator is present, "
-                "name the price explicitly: access, security, responsibility, contract, or deadline."
+                "reveal, or counteroffer instead of ending on atmosphere alone. "
+                "Name the price explicitly: access, security, responsibility, contract, or deadline."
             )
         if progress_signal["repeated_concern"]:
             if self._reader_wants_repeated_confrontation_merge():
@@ -1261,6 +1256,17 @@ class DirectorAI:
                 "16) The scene is at a pressure peak. Keep it open until a concrete consequence, reveal, or exit cue lands; "
                 "do not end it on atmosphere alone. If a proposal is on the table, make the cost concrete instead of abstract.\n"
             )
+        inner_conflict_rule = ""
+        if progress_signal.get("inner_conflict"):
+            inner_conflict_rule = (
+                "17) The protagonist's next useful beat is the split itself: hesitation, self-correction, or a choice that resolves the split. "
+                "Do not flatten it into neutral explanation.\n"
+            )
+        concrete_risk_rule = ""
+        if progress_signal.get("concrete_risk"):
+            concrete_risk_rule = (
+                "18) A risk is in play. Name it through a specific limit, clause, deadline, access rule, or visible consequence instead of repeating an abstract warning.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1291,6 +1297,8 @@ class DirectorAI:
             f"{repeated_concern_rule}"
             f"{confrontation_axis_rule}"
             f"{pressure_peak_rule}"
+            f"{inner_conflict_rule}"
+            f"{concrete_risk_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1324,6 +1332,14 @@ class DirectorAI:
         if self._reader_reports_stalled_progression():
             prompt += (
                 "\nReader priority: if the core beat has already landed, end the scene early instead of extending another diagnostic turn."
+            )
+        if progress_signal.get("inner_conflict"):
+            prompt += (
+                "\nReader priority: prefer the speaker who can expose the protagonist's hesitation or split motive instead of another neutral explanation."
+            )
+        if progress_signal.get("concrete_risk"):
+            prompt += (
+                "\nReader priority: prefer the speaker who can state the concrete cost, limit, or consequence in one line."
             )
 
         result = self._safe_llm_call(
@@ -1369,6 +1385,18 @@ class DirectorAI:
             speaker_id = protagonist_id
             reason = (reason + "; " if reason else "") + \
                 "protagonist reaction turn after technical onboarding"
+
+        if (
+            not end_scene
+            and progress_signal.get("inner_conflict")
+            and protagonist_id in active_ids
+            and speaker_id != protagonist_id
+            and recent_speakers
+            and recent_speakers[-1] != protagonist_id
+        ):
+            speaker_id = protagonist_id
+            reason = (reason + "; " if reason else "") + \
+                "protagonist turn to surface the internal split"
 
         if (
             not end_scene
@@ -1584,6 +1612,8 @@ class DirectorAI:
                 "frustration_pressure": False,
                 "confidence_pressure": False,
                 "emotional_conflict": False,
+                "inner_conflict": False,
+                "concrete_risk": False,
             }
 
         recent_speakers = [
@@ -1613,6 +1643,13 @@ class DirectorAI:
             for i in recent[-2:]
         )
         emotional_flags = self._current_emotional_pressure_flags(recent_speakers, agents)
+        protagonist_ids = {
+            agent.id
+            for agent in (agents or [])
+            if str(getattr(agent, "role", "")).strip() == "protagonist"
+        }
+        inner_conflict = self._has_inner_conflict_signal(recent, protagonist_ids)
+        concrete_risk = self._has_concrete_risk_signal(recent)
         decisive_shift = any(
             re.search(
                 r"(결정|선택|거절|수락|걸음을 옮|문으로 향|자료를 건넸|자리를 정리|돌아서|떠났|막아섰|고개를 끄덕|반걸음|물러섰|손을 내밀)",
@@ -1630,6 +1667,8 @@ class DirectorAI:
         ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
         if emotional_flags["emotional_conflict"]:
             stalled = False
+        if inner_conflict:
+            stalled = False
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
@@ -1641,6 +1680,8 @@ class DirectorAI:
             "emotional_shift": emotional_shift,
             "decisive_shift": decisive_shift,
             "pressure_peak": pressure_peak,
+            "inner_conflict": inner_conflict,
+            "concrete_risk": concrete_risk,
             **emotional_flags,
         }
 
@@ -1713,6 +1754,39 @@ class DirectorAI:
         flags["emotional_conflict"] = len(strong_families) >= 2
         return flags
 
+    @staticmethod
+    def _has_inner_conflict_marker(text: str) -> bool:
+        low = str(text or "").lower()
+        return bool(re.search(
+            r"(하지만|그러나|그런데|그치만|원하지만|원하긴 하지만|해야 하지만|하면서도|망설|주저|흔들|양가|둘 중|어느 쪽|선택을 못|결정하지 못|미루|꺼려)",
+            low,
+        ))
+
+    @staticmethod
+    def _has_concrete_risk_marker(text: str) -> bool:
+        low = str(text or "").lower()
+        return bool(re.search(
+            r"(대가|조건|한계|지원|보안|출입|배지|명함|계약|조항|책임|허가|시설|deadline|limit|access|security|support|clause)",
+            low,
+        ))
+
+    def _has_inner_conflict_signal(self, recent: list[dict], protagonist_ids: set[str]) -> bool:
+        if not protagonist_ids:
+            return False
+        for row in recent[-4:]:
+            speaker_id = str(row.get("speaker_id", "")).strip()
+            if speaker_id not in protagonist_ids:
+                continue
+            if self._has_inner_conflict_marker(str(row.get("content", ""))):
+                return True
+        return False
+
+    def _has_concrete_risk_signal(self, recent: list[dict]) -> bool:
+        return any(
+            self._has_concrete_risk_marker(str(row.get("content", "")))
+            for row in recent[-4:]
+        )
+
     def _speaker_response_hint(
         self,
         emotion_family: str,
@@ -1730,6 +1804,10 @@ class DirectorAI:
             hint += "; translate any jargon into consequence instead of repeating it"
         if progress_signal.get("repeated_concern") and emotion_family in {"confident", "frustrated"}:
             hint += "; turn the repeated concern into a consequence, not a recap"
+        if progress_signal.get("inner_conflict"):
+            hint += "; expose a split motive or hesitation before the next choice"
+        if progress_signal.get("concrete_risk"):
+            hint += "; name the cost as a specific limit, clause, deadline, or access restriction"
         if intensity >= 0.6:
             hint += "; the emotion is strong enough to color the line"
         return hint
@@ -1758,13 +1836,21 @@ class DirectorAI:
                 if lexicon_bits:
                     voice_bits.append(f"lexicon={', '.join(lexicon_bits)}")
             tics = speech.get("signature_tics", [])
+            tic_bits: list[str] = []
             if isinstance(tics, list):
                 tic_bits = [str(item).strip() for item in tics[:2] if str(item).strip()]
-                if tic_bits:
-                    voice_bits.append(f"tics={', '.join(tic_bits)}")
+            if tic_bits:
+                voice_bits.append(f"tics={', '.join(tic_bits)}")
             if not voice_bits:
                 voice_bits.append("voice=default")
             hint = self._speaker_response_hint(emotion_family, emotion_level, progress_signal)
+            focus_bits: list[str] = []
+            if progress_signal.get("inner_conflict") and agent.role == "protagonist":
+                focus_bits.append("protagonist: surface hesitation, then choose")
+            if progress_signal.get("concrete_risk"):
+                focus_bits.append("risk: make the cost concrete, not abstract")
+            if focus_bits:
+                voice_bits.append(f"focus={'; '.join(focus_bits)}")
             if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:
                 hint += "; avoid another identical follow-up"
             lines.append(
