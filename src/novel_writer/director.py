@@ -1441,6 +1441,21 @@ class DirectorAI:
             concrete_risk_rule = (
                 "19) A risk is in play. Name it through a specific limit, clause, deadline, access rule, or visible consequence instead of repeating an abstract warning.\n"
             )
+        scene_focus_rule = ""
+        scene_conflict_note = str(progress_signal.get("scene_conflict_note", "")).strip()
+        scene_external_cue = str(progress_signal.get("scene_external_cue", "")).strip()
+        if scene_conflict_note:
+            scene_focus_rule += (
+                f"21) Core scene conflict hint: {scene_conflict_note}. Choose the speaker whose next line can visibly change the room.\n"
+            )
+        if scene_external_cue:
+            scene_focus_rule += (
+                f"22) Concrete external cue already on page: {scene_external_cue}. Use it as the next turn's target instead of repeating the abstract concern.\n"
+            )
+        if progress_signal.get("concrete_risk"):
+            scene_focus_rule += (
+                "23) If the scene is about support, authority, access, or cost, prefer the speaker who can state the offer, limit, or price in one move.\n"
+            )
         speaker_choice_rule = ""
         if preferred_speaker_id and preferred_speaker_id in active_ids:
             preferred_name = agent_map[preferred_speaker_id].name
@@ -1481,6 +1496,7 @@ class DirectorAI:
             f"{scene_boundary_rule}"
             f"{inner_conflict_rule}"
             f"{concrete_risk_rule}"
+            f"{scene_focus_rule}"
             f"{speaker_choice_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
@@ -1763,7 +1779,7 @@ class DirectorAI:
         self,
         recent_interactions: Optional[list[dict]],
         agents: Optional[list[Agent]] = None,
-    ) -> dict[str, bool]:
+    ) -> dict[str, bool | str]:
         min_window = 3 if self._reader_wants_repeated_confrontation_merge() else 4
         recent = [
             i for i in (recent_interactions or [])
@@ -1875,6 +1891,34 @@ class DirectorAI:
         alert_pending_reaction = alert_signal and not (
             decisive_shift or consequence_shift or motion_shift or emotional_shift
         )
+        scene_conflict_note = ""
+        if repeated_concern:
+            scene_conflict_note = "same concern keeps repeating; advance leverage, cost, or a scene exit"
+        elif technical_stall:
+            scene_conflict_note = "technical loop detected; shift from explanation to reaction or choice"
+        elif alert_pending_reaction:
+            scene_conflict_note = "alert has landed; a visible reaction is still pending"
+        elif concrete_risk:
+            scene_conflict_note = "concrete risk is active; name the limit, clause, access rule, or cost"
+        elif emotional_shift and consequence_shift:
+            scene_conflict_note = "emotion is moving with consequence; cash it out through decision or motion"
+        elif pressure_peak:
+            scene_conflict_note = "pressure is peaking; keep the beat open until it changes state"
+
+        scene_external_cue = ""
+        recent_text = " ".join(str(item.get("content", "")) for item in recent)
+        for pattern in (
+            r"(경보|알림|warning|alert|메모|문서|배지|명함|계약|조항|출입|접근|보안|허가|지원|대가|책임)",
+            r"(문|문턱|복도|엘리베이터|계단|포디엄|무대|좌석|카드|파일|클립|모니터)",
+        ):
+            match = re.search(pattern, recent_text, re.IGNORECASE)
+            if match:
+                scene_external_cue = match.group(0)
+                break
+        if not scene_external_cue and repeated_alert_signal:
+            scene_external_cue = "alert cue"
+        if not scene_external_cue and concrete_risk:
+            scene_external_cue = "specific risk cue"
         concrete_turn = decisive_shift or consequence_shift or motion_shift
         repetition_pressure = (
             repeated_concern
@@ -1934,6 +1978,8 @@ class DirectorAI:
             "scene_boundary_ready": scene_boundary_ready,
             "alert_signal": alert_signal,
             "alert_pending_reaction": alert_pending_reaction,
+            "scene_conflict_note": scene_conflict_note,
+            "scene_external_cue": scene_external_cue,
             **emotional_flags,
         }
 
@@ -1942,7 +1988,7 @@ class DirectorAI:
         active_ids: list[str],
         agent_map: dict[str, Agent],
         recent_speakers: list[str],
-        progress_signal: dict[str, bool],
+        progress_signal: dict[str, bool | str],
         protagonist_id: Optional[str] = None,
     ) -> str:
         if not active_ids:

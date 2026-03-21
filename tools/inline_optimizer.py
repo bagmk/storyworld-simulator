@@ -666,3 +666,406 @@ def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> N
     }
     policy_path.write_text(json.dumps(policy, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("rl_policy.json updated → version %s score=%.3f", policy["version"], best_score)
+
+
+# ── Cycle score logging ────────────────────────────────────────────────────────
+
+CYCLE_SCORE_LOG = _REPO_ROOT / "data" / "cycle_score_log.jsonl"
+
+
+def log_cycle_score(
+    episode_id: str,
+    cycle_idx: int,
+    current_params: dict,
+    ai_review_scores: dict,
+    subtrial_data: list[dict],
+    log_path: Path | None = None,
+) -> None:
+    """Log one AUTO cycle's data: params, AI review scores, and subtrial results.
+
+    ai_review_scores: {thrill, style, causality, character, scene_fn, avg}
+    subtrial_data:    [{trial_idx, score, det, llm, params}, ...]
+    """
+    log_path = log_path or CYCLE_SCORE_LOG
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "date": str(date.today()),
+        "episode_id": episode_id,
+        "cycle_idx": cycle_idx,
+        "ai_review": ai_review_scores,
+        "cycle_params": current_params,
+        "subtrials": subtrial_data,
+    }
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    logger.info("Logged cycle score for %s cycle %d → %s", episode_id, cycle_idx, log_path)
+
+
+# ── Narrow param space for per-cycle mini re-optimize ─────────────────────────
+
+# Full search ranges mirroring _param_space()
+_PARAM_FULL_RANGES: dict[str, tuple] = {
+    "distiller_temperature":         ("float", 0.05, 0.45),
+    "target_scenes":                 ("int",   2,    6),
+    "dialogue_compaction_strength":  ("float", 0.5,  1.0),
+    "prose_scene_temperature":       ("float", 0.55, 0.85),
+    "prose_paragraph_min_sentences": ("int",   2,    4),
+    "prose_paragraph_max_sentences": ("int",   3,    5),
+    "prose_transition_temperature":  ("float", 0.3,  0.7),
+    "prose_polish_temperature":      ("float", 0.2,  0.6),
+    "hold_pressure_peak":            ("cat",   [0, 1]),
+    "scene_closure_aggressiveness":  ("float", 0.05, 0.5),
+}
+
+
+def _narrow_width_from_n_trials(n_past_trials: int) -> float:
+    """Compute search width_ratio based on accumulated trial count.
+
+    Starts at 0.30 (wide) and shrinks toward 0.12 as evidence accumulates.
+    Schedule: shrinks 15% every 10 trials, floor at 0.12.
+
+    Examples:
+      0  trials → 0.30 (full narrow band, TPE barely started)
+     10  trials → 0.255
+     20  trials → 0.217
+     30  trials → 0.184
+     50  trials → 0.133
+    100+ trials → ~0.12 (floor)
+    """
+    return max(0.12, 0.30 * (0.85 ** (n_past_trials // 10)))
+
+
+def _param_space_narrow(trial, base_policy: dict, width_ratio: float = 0.30) -> dict:
+    """Sample params in a narrow band around base_policy values.
+
+    width_ratio controls band size: 0.30 → ±15% of total range per side.
+    Falls back to full range when current value is not in base_policy.
+    Use _narrow_width_from_n_trials() to get a dynamic width_ratio.
+    """
+    params: dict = {}
+    for name, spec in _PARAM_FULL_RANGES.items():
+        kind = spec[0]
+        current = base_policy.get(name)
+        if kind == "float":
+            lo, hi = float(spec[1]), float(spec[2])
+            if current is not None:
+                # Clamp current to valid range before computing narrow band
+                cur = max(lo, min(hi, float(current)))
+                half = (hi - lo) * width_ratio / 2.0
+                c_lo = max(lo, cur - half)
+                c_hi = min(hi, cur + half)
+                if c_lo >= c_hi:           # degenerate range → center on valid midpoint
+                    c_lo = max(lo, cur - (hi - lo) * 0.1)
+                    c_hi = min(hi, cur + (hi - lo) * 0.1)
+                    if c_lo >= c_hi:       # still degenerate → full range
+                        c_lo, c_hi = lo, hi
+            else:
+                c_lo, c_hi = lo, hi
+            params[name] = trial.suggest_float(name, c_lo, c_hi)
+        elif kind == "int":
+            lo, hi = int(spec[1]), int(spec[2])
+            if current is not None:
+                c_lo = max(lo, int(current) - 1)
+                c_hi = min(hi, int(current) + 1)
+            else:
+                c_lo, c_hi = lo, hi
+            params[name] = trial.suggest_int(name, c_lo, c_hi)
+        elif kind == "cat":
+            choices: list = list(spec[1])
+            if current is not None and current in choices:
+                # Pin to current value — no exploration for categoricals in narrow mode
+                params[name] = trial.suggest_categorical(name, [current])
+            else:
+                params[name] = trial.suggest_categorical(name, choices)
+    return params
+
+
+# ── Per-cycle mini re-optimizer ───────────────────────────────────────────────
+
+async def run_mini_reoptimize(
+    episode_id: str,
+    episode_config: dict,
+    run_dir: Path,
+    protagonist_id: str,
+    protagonist_name: str,
+    target_words: int,
+    budget: float,
+    character_profiles,
+    reader_feedback: dict | None,
+    guardian_briefing: str | None,
+    current_params: dict,
+    base_model: str,
+    premium_model: str,
+    notify_fn=None,
+    quality_focus: dict | None = None,
+    cycle_idx: int = 0,
+    n_trials: int = 5,
+    group_size: int = 5,
+) -> tuple[Path | None, dict, float, list[dict]]:
+    """Narrow-range param re-optimize using a persistent SQLite Optuna study.
+
+    Runs n_trials total, in parallel groups of group_size.
+    e.g. n_trials=25, group_size=5 → 5 groups of 5 parallel chapter generations.
+
+    TPE learns across groups within a call AND across outer cycles (SQLite persistence).
+    Search width narrows automatically as trial count accumulates.
+
+    Returns:
+        (best_chapter_path | None, best_params, best_score, subtrial_data_list)
+        subtrial_data_list: [{trial_idx, score, det, llm, params}, ...]
+    """
+    try:
+        import optuna
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+    except ImportError:
+        logger.warning("optuna not installed — mini-reoptimize skipped")
+        return None, current_params, 0.0, []
+
+    from src.novel_writer.llm_client import LLMClient
+
+    opt_dir = run_dir / f"mini_opt_cycle{cycle_idx}"
+    opt_dir.mkdir(parents=True, exist_ok=True)
+    trial_budget = budget / max(n_trials, 1)
+
+    # ── Persistent SQLite study — accumulates across ALL outer cycles ─────────
+    db_path = _REPO_ROOT / "data" / f"optuna_mini_{episode_id}.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    storage = f"sqlite:///{db_path}"
+
+    study = optuna.create_study(
+        study_name=f"mini_{episode_id}",
+        storage=storage,
+        load_if_exists=True,
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(n_startup_trials=5, seed=42),
+    )
+    n_past = len(study.trials)
+    logger.info(
+        "[MINI-OPT] episode=%s cycle=%d n_trials=%d group_size=%d past_trials=%d",
+        episode_id, cycle_idx, n_trials, group_size, n_past,
+    )
+
+    trial_scores: list[float] = []
+    trial_paths: list[Path] = []
+    trial_meta_by_idx: dict[int, dict] = {}
+    all_trial_params: list[dict] = []
+    global_trial_idx = 0
+
+    # ── Run trials in parallel groups, TPE learns between groups ─────────────
+    n_groups = (n_trials + group_size - 1) // group_size
+    for group_i in range(n_groups):
+        group_n = min(group_size, n_trials - global_trial_idx)
+        # Width narrows as evidence accumulates (past + already-done-this-call)
+        width = _narrow_width_from_n_trials(n_past + global_trial_idx)
+
+        if notify_fn:
+            await notify_fn(
+                f"[MINI-OPT] outer {cycle_idx} — group {group_i + 1}/{n_groups} "
+                f"({group_n} trials parallel, 탐색 폭 ±{width * 50:.0f}%)"
+            )
+
+        g_optuna_trials = [study.ask() for _ in range(group_n)]
+        g_params = [
+            _param_space_narrow(t, current_params, width_ratio=width)
+            for t in g_optuna_trials
+        ]
+        g_llms = [
+            LLMClient(model=base_model, premium_model=premium_model, budget_usd=trial_budget)
+            for _ in range(group_n)
+        ]
+
+        g_results = await asyncio.gather(
+            *[
+                _run_single_trial(
+                    trial_idx=global_trial_idx + i,
+                    trial_params=g_params[i],
+                    episode_id=episode_id,
+                    episode_config=episode_config,
+                    trial_dir=opt_dir / f"trial_{global_trial_idx + i}",
+                    llm=g_llms[i],
+                    protagonist_id=protagonist_id,
+                    protagonist_name=protagonist_name,
+                    target_words=target_words,
+                    character_profiles=character_profiles,
+                    reader_feedback=reader_feedback,
+                    guardian_briefing=guardian_briefing,
+                    base_policy=current_params,
+                    quality_focus=quality_focus,
+                )
+                for i in range(group_n)
+            ],
+            return_exceptions=False,
+        )
+
+        for i, (score, path, meta) in enumerate(g_results):
+            tidx = global_trial_idx + i
+            study.tell(g_optuna_trials[i], score)
+            trial_scores.append(score)
+            trial_paths.append(path)
+            trial_meta_by_idx[tidx] = meta
+            all_trial_params.append(g_params[i])
+
+        if notify_fn:
+            g_scores = trial_scores[global_trial_idx: global_trial_idx + group_n]
+            g_lines = []
+            for i, sc in enumerate(g_scores):
+                meta = trial_meta_by_idx.get(global_trial_idx + i, {})
+                g_lines.append(
+                    f"  t{global_trial_idx + i}: {sc:.2f} "
+                    f"(det {float(meta.get('det', 0)):.2f} / llm {float(meta.get('llm', 0)):.2f})"
+                )
+            await notify_fn(
+                f"[MINI-OPT] group {group_i + 1} 결과:\n" + "\n".join(g_lines)
+            )
+
+        global_trial_idx += group_n
+
+    # ── Pick best ─────────────────────────────────────────────────────────────
+    best_idx = max(range(len(trial_scores)), key=lambda i: trial_scores[i])
+    best_score = trial_scores[best_idx]
+    best_params = all_trial_params[best_idx]
+    best_path = trial_paths[best_idx]
+
+    # ── Build subtrial data for logging ──────────────────────────────────────
+    subtrial_data: list[dict] = []
+    for i, (score, params) in enumerate(zip(trial_scores, all_trial_params)):
+        meta = trial_meta_by_idx.get(i, {})
+        subtrial_data.append({
+            "trial_idx": i,
+            "score": round(score, 4),
+            "det": round(float(meta.get("det", 0.0)), 3),
+            "llm": round(float(meta.get("llm", 0.0)), 3),
+            "params": dict(params),
+        })
+
+    if notify_fn:
+        sorted_scores = sorted(enumerate(trial_scores), key=lambda x: x[1], reverse=True)
+        ranking = " | ".join(f"t{idx}:{sc:.2f}" for idx, sc in sorted_scores[:5])
+        await notify_fn(
+            f"[MINI-OPT] outer {cycle_idx} 전체 완료 | {n_trials} trials\n"
+            f"best={best_score:.2f} (trial {best_idx}) | top5: {ranking}\n"
+            f"누적 study trials: {n_past + n_trials}"
+        )
+
+    # ── Persist best params → rl_policy.json ─────────────────────────────────
+    update_rl_policy(best_params, best_score, episode_id)
+
+    resolved_path: Path | None = best_path if (best_path and best_path.exists()) else None
+    return resolved_path, best_params, best_score, subtrial_data
+
+
+# ── Param factor analysis (hyperparameter X → quality Y) ─────────────────────
+
+def param_factor_analysis(
+    n_datapoints: int | None = None,
+    log_path: Path | None = None,
+) -> str:
+    """Ridge regression: param vector X → quality dimension Y.
+
+    Reads subtrial entries from cycle_score_log.jsonl.
+    Each entry is one subtrial (trial_idx, params, score).
+    AI review scores (thrill/style/etc.) are taken from the parent cycle record.
+
+    n_datapoints=None uses ALL accumulated data (default).
+    Pass an integer to limit to the most recent N datapoints.
+
+    Returns a formatted text report suitable for inclusion in manager prompt.
+    """
+    log_path = log_path or CYCLE_SCORE_LOG
+    if not log_path.exists():
+        return "cycle_score_log.jsonl 없음 — 파라미터 분석 데이터 없음."
+
+    # ── Load flat subtrial rows ──────────────────────────────────────────────
+    rows: list[dict] = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        ai = rec.get("ai_review", {})
+        for st in rec.get("subtrials", []):
+            params = st.get("params", {})
+            if not params:
+                continue
+            rows.append({
+                "subtrial_score": float(st.get("score", 0.0)),
+                "thrill":   float(ai.get("thrill", 0)),
+                "style":    float(ai.get("style", 0)),
+                "causality":float(ai.get("causality", 0)),
+                "character":float(ai.get("character", 0)),
+                "scene_fn": float(ai.get("scene_fn", 0)),
+                **{k: float(v) for k, v in params.items() if isinstance(v, (int, float))},
+            })
+
+    if len(rows) < 5:
+        return (
+            f"파라미터 분석 데이터 부족 ({len(rows)}개 서브트라이얼, 최소 5개 필요).\n"
+            f"데이터 축적 중입니다."
+        )
+
+    # Use all data by default; optionally cap to most recent n_datapoints
+    if n_datapoints is not None:
+        rows = rows[-n_datapoints:]
+    param_keys = [k for k in _PARAM_FULL_RANGES if k in rows[0]]
+    if not param_keys:
+        return "cycle_score_log에 numeric 파라미터 컬럼 없음."
+
+    try:
+        import numpy as np
+    except ImportError:
+        return "numpy 미설치 — 파라미터 분석 생략."
+
+    X = np.array([[r.get(k, 0.0) for k in param_keys] for r in rows])
+    X_mean = X.mean(axis=0)
+    X_std = X.std(axis=0) + 1e-8
+    X_norm = (X - X_mean) / X_std
+
+    y_dims = {
+        "subtrial_score": np.array([r["subtrial_score"] for r in rows]),
+        "thrill":         np.array([r["thrill"]   for r in rows]),
+        "style":          np.array([r["style"]    for r in rows]),
+        "causality":      np.array([r["causality"] for r in rows]),
+        "character":      np.array([r["character"] for r in rows]),
+        "scene_fn":       np.array([r["scene_fn"]  for r in rows]),
+    }
+
+    report_lines = [
+        f"## 파라미터 Factor Analysis ({len(rows)}개 서브트라이얼 전체 누적)",
+        f"분석 파라미터: {', '.join(param_keys)}",
+        "",
+    ]
+
+    try:
+        from sklearn.linear_model import Ridge
+        for dim_name, y in y_dims.items():
+            if float(y.std()) < 0.01:
+                report_lines.append(f"{dim_name}: 분산 없음 (점수 고정)")
+                continue
+            model = Ridge(alpha=1.0)
+            model.fit(X_norm, y)
+            coefs = dict(zip(param_keys, model.coef_))
+            top = sorted(coefs.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+            top_str = ", ".join(f"{k}:{v:+.3f}" for k, v in top)
+            report_lines.append(f"{dim_name}: {top_str}")
+    except ImportError:
+        # Fallback: Pearson correlation on subtrial_score
+        report_lines.append("(sklearn 미설치 → Pearson 상관계수 fallback)")
+        y = y_dims["subtrial_score"]
+        cors: list[tuple[str, float]] = []
+        for i, k in enumerate(param_keys):
+            xi = X_norm[:, i]
+            if float(xi.std()) < 1e-6:
+                cors.append((k, 0.0))
+                continue
+            cor = float(np.corrcoef(xi, y)[0, 1])
+            cors.append((k, cor))
+        cors.sort(key=lambda x: abs(x[1]), reverse=True)
+        report_lines.append(
+            "subtrial_score 상관계수: "
+            + ", ".join(f"{k}:{v:+.3f}" for k, v in cors[:8])
+        )
+
+    return "\n".join(report_lines)

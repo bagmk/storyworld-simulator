@@ -383,6 +383,12 @@ class SceneDistiller:
                 "## Concrete Threat/Offer Priority\n"
                 "When the scene contains a coercive offer or threat, preserve one concrete detail such as a badge, clause, deadline, document line, access rule, visible room reaction, or the observer who noticed it. Do not compress it into abstract danger language.\n"
             )
+        if self.runtime_policy.get("prefer_concrete_transition_cue") or self._reader_prefers_explicit_transition_cues():
+            sections.append(
+                "## Transition and Cue Priority\n"
+                "When a scene turns because of an alert, memo, badge, doorway, or room reaction, keep the noticing subject and the cue in the same summary sentence.\n"
+                "If support, authority, or responsibility is being offered or withheld, keep who provides it and what changes because of it explicit.\n"
+            )
 
         if self._reader_wants_repeated_confrontation_merge():
             sections.append(
@@ -1251,6 +1257,9 @@ class SceneDistiller:
 
     def _scene_tension_anchor(self, scene: DistilledScene) -> str:
         candidates: list[str] = []
+        dialogue_anchor = self._dialogue_pressure_anchor(scene)
+        if dialogue_anchor:
+            return re.sub(r"[.!?…]+$", "", dialogue_anchor).strip()
         for source in (scene.key_actions or [], scene.discoveries or []):
             for item in source:
                 cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
@@ -1279,8 +1288,42 @@ class SceneDistiller:
             return self._ensure_summary_sentence(f"{anchor} 때문에 {base}")
         return self._ensure_summary_sentence(base)
 
+    @staticmethod
+    def _dialogue_has_concrete_pressure(line: str) -> bool:
+        low = re.sub(r"\s+", " ", str(line or "")).strip().lower()
+        if not low:
+            return False
+        return bool(re.search(
+            r"(지원|대가|조건|책임|권한|허가|접근|배지|명함|계약|조항|보안|경보|알림|warning|alert|memo|문서|offer|cost|deadline|limit|support|control|access)",
+            low,
+        ))
+
+    @staticmethod
+    def _truncate_text(text: str, limit: int) -> str:
+        sent = re.sub(r"\s+", " ", str(text or "")).strip()
+        if len(sent) <= limit:
+            return sent
+        return sent[: max(0, limit - 3)].rstrip() + "..."
+
+    def _dialogue_pressure_anchor(self, scene: DistilledScene) -> str:
+        for row in scene.key_dialogue or []:
+            if not isinstance(row, dict):
+                continue
+            speaker = str(row.get("speaker", "")).strip()
+            line = re.sub(r"\s+", " ", str(row.get("line", "") or "")).strip()
+            if not line or not self._dialogue_has_concrete_pressure(line):
+                continue
+            snippet = self._truncate_text(re.sub(r"[\"“”'‘’]", "", line), 72)
+            if speaker and speaker != "Unknown":
+                return self._ensure_summary_sentence(f"{speaker}의 말은 {snippet}")
+            return self._ensure_summary_sentence(snippet)
+        return ""
+
     def _refine_character_reactions(self, scene: DistilledScene) -> str:
         subject = scene.characters_present[0] if scene.characters_present else "인물들"
+        dialogue_anchor = self._dialogue_pressure_anchor(scene)
+        if dialogue_anchor:
+            return dialogue_anchor
         for action in scene.key_actions or []:
             cleaned = self._clean_action_text(action)
             if cleaned:
@@ -1360,6 +1403,9 @@ class SceneDistiller:
         return True
 
     def _summary_replacement_sentence(self, scene: DistilledScene) -> str:
+        dialogue_anchor = self._dialogue_pressure_anchor(scene)
+        if dialogue_anchor:
+            return dialogue_anchor
         summary_sentences = [
             s.strip()
             for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip())

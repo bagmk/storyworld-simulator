@@ -400,6 +400,19 @@ def main() -> None:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
     normalized_reader_feedback = _apply_reader_feedback_pipeline_overrides(reader_feedback)
     chapter_runtime_policy = _chapter_runtime_policy(rl_policy, normalized_reader_feedback)
+    steering_flags = [
+        key for key in (
+            "hold_pressure_peak",
+            "prefer_scene_exit_on_stall",
+            "prefer_concrete_offer_detail",
+            "prefer_concrete_threat_detail",
+            "prefer_concrete_transition_cue",
+            "prose_enable_term_gloss",
+        )
+        if chapter_runtime_policy.get(key)
+    ]
+    if steering_flags:
+        logger.info("Runtime steering flags enabled: %s", ", ".join(sorted(set(steering_flags))))
     episode_config["_rl_runtime"] = episode_runtime_policy(chapter_runtime_policy)
 
     # Load guardian briefing for story continuity steering.
