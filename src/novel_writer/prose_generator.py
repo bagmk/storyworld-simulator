@@ -454,6 +454,7 @@ class ProseGenerator:
             "When multiple speakers press the same issue, make each line do a different job: one opens leverage, one counters, one narrows the choice.\n"
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "When a pressure beat already has one bodily reaction, do not add another near-identical reaction in the next sentence; move to choice, consequence, or dialogue instead.\n"
+            "If the pressure has already landed, do not keep narrating the same hesitation; cash it out through a concrete action or scene boundary.\n"
             "Keep all content in Korean.\n"
         )
         pov_and_time = (
@@ -500,6 +501,7 @@ class ProseGenerator:
             f"- If explanation runs long, pivot with one concrete action or reaction sentence instead of another detached fragment.\n"
             f"- If 2-3 short narrative sentences describe one beat, fuse them into one flowing sentence with clear cause/effect.\n"
             f"- Let only one strong interior realization carry a local beat; after that, pivot into action, reaction, or verbal collision.\n"
+            f"- If a worry, explanation, or inner question already landed once, do not restate it in the next sentence; move to consequence, movement, or dialogue.\n"
             f"- Do not restate the same situation, emotion, or image in consecutive paragraphs unless new stakes changed it.\n"
             f"- When tension is already established, advance with one new choice, discovery, or reaction instead of repeating the same pressure line.\n"
             f"- Once a fact, threat, or decision lands, the next sentence should show consequence, reaction, or movement instead of paraphrasing it.\n"
@@ -517,6 +519,7 @@ class ProseGenerator:
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
             f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
             f"- Terms like latency or real-time should get only one short onboarding explanation in the chapter; later mentions should shift quickly into {protagonist_short}의 판단, 감정, 또는 선택.\n"
+            f"- Do not explain the same technical idea in two adjacent sentences; one plain-language cue is enough.\n"
             f"- If commas or connectives start chaining clauses, cut the sentence into shorter direct beats.\n\n"
             f"- Keep one dominant axis per sentence: action, perception, or emotion. If two axes matter, split them into explicit cause/effect.\n"
             f"- If you use one metaphor or comparison, do not spend the next sentence unpacking it again; move straight to reaction or the next action.\n"
@@ -919,6 +922,10 @@ class ProseGenerator:
         if self._feedback_reports_stalled_progression():
             prompt += (
                 "\nIf the same pressure already landed, jump to changed consequence in the very next sentence."
+            )
+        if self.runtime_policy.get("prefer_scene_exit_on_stall"):
+            prompt += (
+                "\nReader priority: once a beat lands, prefer a concrete follow-up or scene exit over another analysis sentence."
             )
         if self._feedback_mentions("반복되는 표현", "비슷한 상황", "비슷한 상황과 묘사", "묘사가 반복", "지루"):
             prompt += (

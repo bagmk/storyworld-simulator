@@ -984,6 +984,11 @@ class DirectorAI:
                 "reveal, or counteroffer instead of ending on atmosphere alone. "
                 "Name the price explicitly: access, security, responsibility, contract, or deadline."
             )
+        if progress_signal.get("scene_boundary_ready"):
+            return (
+                "A concrete scene boundary has already landed. Close the beat or move to the next turn "
+                "instead of reopening the same pressure."
+            )
         if progress_signal["repeated_concern"]:
             if self._reader_wants_repeated_confrontation_merge():
                 return (
@@ -1404,16 +1409,22 @@ class DirectorAI:
                 "16) The scene is at a pressure peak. Keep it open until a concrete consequence, reveal, or exit cue lands; "
                 "do not end it on atmosphere alone. If a proposal is on the table, make the cost concrete instead of abstract.\n"
             )
+        scene_boundary_rule = ""
+        if progress_signal.get("scene_boundary_ready"):
+            scene_boundary_rule = (
+                "17) A concrete scene boundary has already landed. Prefer ending the scene or moving to the next beat "
+                "instead of reopening the same pressure.\n"
+            )
         inner_conflict_rule = ""
         if progress_signal.get("inner_conflict"):
             inner_conflict_rule = (
-                "17) The protagonist's next useful beat is the split itself: hesitation, self-correction, or a choice that resolves the split. "
+                "18) The protagonist's next useful beat is the split itself: hesitation, self-correction, or a choice that resolves the split. "
                 "Do not flatten it into neutral explanation.\n"
             )
         concrete_risk_rule = ""
         if progress_signal.get("concrete_risk"):
             concrete_risk_rule = (
-                "18) A risk is in play. Name it through a specific limit, clause, deadline, access rule, or visible consequence instead of repeating an abstract warning.\n"
+                "19) A risk is in play. Name it through a specific limit, clause, deadline, access rule, or visible consequence instead of repeating an abstract warning.\n"
             )
 
         prompt = (
@@ -1445,6 +1456,7 @@ class DirectorAI:
             f"{repeated_concern_rule}"
             f"{confrontation_axis_rule}"
             f"{pressure_peak_rule}"
+            f"{scene_boundary_rule}"
             f"{inner_conflict_rule}"
             f"{concrete_risk_rule}"
             f"Reply JSON only:\n"
@@ -1770,6 +1782,17 @@ class DirectorAI:
             self._has_emotional_or_decisive_shift(str(i.get("content", "")))
             for i in recent[-2:]
         )
+        consequence_shift = any(
+            self._has_consequence_shift(str(i.get("content", "")))
+            for i in recent[-2:]
+        )
+        motion_shift = any(
+            re.search(
+                r"(움직이|옮기|다가서|물러서|돌아서|떠나|나가|들어오|정리하|걸음|고개를 들|몸을 기울|손을 내밀|펜을 내려놓|종이를 건네|반걸음|한걸음)",
+                str(i.get("content", "")),
+            )
+            for i in recent[-2:]
+        )
         emotional_flags = self._current_emotional_pressure_flags(recent_speakers, agents)
         protagonist_ids = {
             agent.id
@@ -1790,6 +1813,11 @@ class DirectorAI:
             (repeated_concern or signal_stack or technical_stall or flat_tension or explanation_loop)
             and (decisive_shift or emotional_shift)
         ) or bool(tension_curve.get("peak"))
+        scene_boundary_ready = (
+            (closure_ready and (decisive_shift or consequence_shift or motion_shift))
+            or (emotional_shift and consequence_shift)
+            or (pressure_peak and (consequence_shift or motion_shift))
+        )
         stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
         ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
@@ -1810,6 +1838,9 @@ class DirectorAI:
             "pressure_peak": pressure_peak,
             "inner_conflict": inner_conflict,
             "concrete_risk": concrete_risk,
+            "consequence_shift": consequence_shift,
+            "motion_shift": motion_shift,
+            "scene_boundary_ready": scene_boundary_ready,
             **emotional_flags,
         }
 
@@ -1828,11 +1859,17 @@ class DirectorAI:
             or progress_signal.get("inner_conflict")
             or progress_signal.get("emotional_conflict")
         )
-        if high_pressure and not progress_signal.get("decisive_shift"):
+        if high_pressure and not (
+            progress_signal.get("decisive_shift")
+            or progress_signal.get("consequence_shift")
+            or progress_signal.get("motion_shift")
+        ):
             if current_end_scene:
                 return False, "pressure is still active; hold the scene open until it cashes out"
             return False, ""
 
+        if progress_signal.get("scene_boundary_ready"):
+            return True, "scene boundary landed on a concrete shift; move to the next beat"
         if progress_signal["stalled"] and progress_signal["closure_ready"]:
             return True, "scene closure to avoid drag after recent beat landed"
         if progress_signal["explanation_loop"] and len(recent) >= 4:

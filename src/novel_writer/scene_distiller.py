@@ -1181,6 +1181,13 @@ class SceneDistiller:
         return self._ensure_summary_sentence(emotional)
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
+        if (
+            self.runtime_policy.get("prefer_scene_exit_on_stall")
+            or self._reader_reports_stalled_progression()
+        ) and (scene.key_actions or scene.discoveries):
+            return False
+        if self._reader_prefers_stronger_scene_compaction() and (scene.key_actions or scene.discoveries):
+            return False
         if scene.pacing in {"opening", "climax"} and not scene.key_actions and not scene.discoveries:
             return True
         if not scene.key_actions and not scene.discoveries:
@@ -1210,13 +1217,15 @@ class SceneDistiller:
         if self._summary_has_action_or_decision(sent):
             return False
         mood_hits = len(re.findall(
-            r"(정적|침묵|공기|소음|복도|불빛|시선|손|표정|숨|기계음|발소리|거리|문|그 말이 공중에 남)",
+            r"(정적|침묵|공기|소음|복도|불빛|시선|손|표정|숨|기계음|발소리|거리|문|그 말이 공중에 남|고민|생각|망설|주저|흔들|의심|판단|정리)",
             sent,
         ))
         if mood_hits == 0:
             return False
         token_count = len(re.findall(r"[0-9A-Za-z가-힣]+", sent))
-        return token_count <= 9
+        if token_count > 12:
+            return False
+        return True
 
     def _summary_replacement_sentence(self, scene: DistilledScene) -> str:
         summary_sentences = [
