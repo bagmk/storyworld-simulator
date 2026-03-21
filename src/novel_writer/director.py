@@ -1468,6 +1468,7 @@ class DirectorAI:
             f"{'8) Recent turns are circling the same explanation or bridge opener without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
             f"{'9) Recent turns keep landing on the same pressure note or opening phrase; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}"
             f"{'10) The scene is stacking warning cues; do not add another memo/alert/watcher beat. Cash out the sharpest cue through reaction, confrontation, movement, or a scene close.\\n' if progress_signal['signal_stack'] else ''}\n"
+            f"{'11) A warning or access denial just landed. The next turn should be a visible reaction, movement, or decision, not another explanation.\\n' if progress_signal.get('alert_pending_reaction') else ''}"
             f"{protagonist_focus_rule}"
             f"{jargon_reaction_rule}"
             f"{emotional_pressure_rule}"
@@ -1781,6 +1782,8 @@ class DirectorAI:
                 "emotional_conflict": False,
                 "inner_conflict": False,
                 "concrete_risk": False,
+                "alert_signal": False,
+                "alert_pending_reaction": False,
             }
 
         tension_curve = self._build_tension_curve(recent, agents)
@@ -1824,6 +1827,10 @@ class DirectorAI:
             self._has_consequence_shift(str(i.get("content", "")))
             for i in recent[-2:]
         )
+        alert_signal = any(
+            "alert" in self._threat_signal_signature(str(i.get("content", "")))
+            for i in recent
+        )
         motion_shift = any(
             re.search(
                 r"(움직이|옮기|다가서|물러서|돌아서|떠나|나가|들어오|정리하|걸음|고개를 들|몸을 기울|손을 내밀|펜을 내려놓|종이를 건네|반걸음|한걸음)",
@@ -1831,6 +1838,7 @@ class DirectorAI:
             )
             for i in recent[-2:]
         )
+        alert_pending_reaction = False
         emotional_flags = self._current_emotional_pressure_flags(recent_speakers, agents)
         protagonist_ids = {
             agent.id
@@ -1847,6 +1855,9 @@ class DirectorAI:
             or self._has_confrontation_resolution_shift(str(i.get("content", "")))
             for i in recent[-2:]
         )
+        alert_pending_reaction = alert_signal and not (
+            decisive_shift or consequence_shift or motion_shift or emotional_shift
+        )
         concrete_turn = decisive_shift or consequence_shift or motion_shift
         repetition_pressure = (
             repeated_concern
@@ -1859,6 +1870,8 @@ class DirectorAI:
             repetition_pressure
             and (decisive_shift or emotional_shift)
         ) or bool(tension_curve.get("peak"))
+        if alert_pending_reaction:
+            pressure_peak = True
         scene_boundary_ready = (
             (closure_ready and concrete_turn)
             or (repeated_concern and concrete_turn and len(recent) >= min_window)
@@ -1899,6 +1912,8 @@ class DirectorAI:
             "consequence_shift": consequence_shift,
             "motion_shift": motion_shift,
             "scene_boundary_ready": scene_boundary_ready,
+            "alert_signal": alert_signal,
+            "alert_pending_reaction": alert_pending_reaction,
             **emotional_flags,
         }
 
@@ -1957,7 +1972,18 @@ class DirectorAI:
             elif progress_signal.get("pressure_peak"):
                 if emotion_family in {"confident", "frustrated", "anxious"}:
                     value += 1.0
-            elif progress_signal.get("closure_ready"):
+            if progress_signal.get("alert_pending_reaction"):
+                if aid == protagonist_id:
+                    value += 1.0
+                if emotion_family in {"anxious", "frustrated", "confident"}:
+                    value += 2.5
+                elif emotion_family == "curious":
+                    value += 1.0
+                elif emotion_family == "relieved":
+                    value -= 1.0
+                if intensity >= 0.5:
+                    value += 0.5
+            if progress_signal.get("closure_ready"):
                 if emotion_family in {"confident", "relieved"}:
                     value += 1.5
             if progress_signal.get("stalled") and emotion_family in {"confident", "frustrated"}:
@@ -1989,6 +2015,8 @@ class DirectorAI:
         prefers_scene_compaction: bool,
         current_end_scene: bool,
     ) -> tuple[bool, str]:
+        if progress_signal.get("alert_pending_reaction"):
+            return False, "alert just landed; keep the scene open for an immediate reaction or move"
         high_pressure = (
             progress_signal.get("pressure_peak")
             or progress_signal.get("signal_stack")
@@ -2167,6 +2195,8 @@ class DirectorAI:
             hint += "; expose a split motive or hesitation before the next choice"
         if progress_signal.get("concrete_risk"):
             hint += "; name the cost as a specific limit, clause, deadline, or access restriction"
+        if progress_signal.get("alert_pending_reaction"):
+            hint += "; react to the alert with one visible move before explaining anything"
         if intensity >= 0.6:
             hint += "; the emotion is strong enough to color the line"
         return hint
@@ -2214,6 +2244,8 @@ class DirectorAI:
                 focus_bits.append("repeat concern: move to consequence, not recap")
             if progress_signal.get("technical_stall"):
                 focus_bits.append("technical stall: show one visible effect or next step")
+            if progress_signal.get("alert_pending_reaction"):
+                focus_bits.append("alert: answer the warning with immediate motion or reaction")
             if focus_bits:
                 voice_bits.append(f"focus={'; '.join(focus_bits)}")
             if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:

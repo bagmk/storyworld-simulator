@@ -870,13 +870,15 @@ class ProseGenerator:
             f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
+            f"If a condition or responsibility point repeats, compress it into one concrete sentence and keep only the version that changes leverage or consequence.\n"
             f"Each paragraph should add one fresh observation, decision, or emotional turn instead of circling the same tension.\n"
             f"After an important statement lands, move immediately to visible consequence, reaction, or movement instead of a second paraphrase.\n"
-            f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow.\n"
+            f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow, then return to action or reaction.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
             f"After that explanation, move straight to reaction, emotion, or decision.\n"
             f"If a scene turn already carried one body cue or inner beat, the follow-up sentence should switch to consequence, movement, or dialogue instead of repeating the same feeling.\n"
             f"If a threat, offer, or realization already landed earlier in the scene, do not restate it in new words; cash it out through consequence, interruption, or movement.\n"
+            f"If a warning, alert, or denial lands, the next sentence should show a visible reaction or move instead of another explanation.\n"
             f"If the scene already moved from question to response to approach, keep that order and do not restart the earlier stage.\n"
             f"Once a room change or exit movement lands, continue from the new physical position instead of replaying the prior beat.\n"
             f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
@@ -1071,6 +1073,9 @@ class ProseGenerator:
         if self._feedback_mentions("심리 표현", "비슷한 감정", "감정 표현", "내면", "반복", "중복"):
             if self._has_repetitive_emotion_phrases(text):
                 reasons.append("비슷한 감정/심리 표현이 반복되어 장면 추진력이 약해짐")
+        if self._feedback_mentions("조건", "책임", "통제권", "외부 지원", "대가", "의무", "권한", "계약"):
+            if self._has_repeated_condition_responsibility_clauses(text):
+                reasons.append("조건/책임 설명이 반복되어 장면 호흡이 늘어짐")
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루"):
             if self._has_repetitive_sentence_openings(text):
                 reasons.append("인접 문장의 시작 패턴이 반복되어 리듬이 단조로움")
@@ -1119,6 +1124,9 @@ class ProseGenerator:
         if self._feedback_mentions("가능성", "계산", "추론", "판단", "심리", "내면", "반복", "중복", "늘어지"):
             if self._has_repetitive_cognitive_terms(text):
                 reasons.append("심리 추론 어휘가 반복되어 긴장 템포가 느려짐")
+        if self._feedback_mentions("조건", "책임", "통제권", "외부 지원", "대가", "의무", "권한", "계약"):
+            if self._has_repeated_condition_responsibility_clauses(text):
+                reasons.append("조건/책임 설명이 반복되어 장면 호흡이 늘어짐")
         if self._feedback_mentions("간결한 문장", "문맥 파악", "맥락 파악", "문맥", "맥락", "따라가기 힘들"):
             if self._has_excess_clipped_sentences(text):
                 reasons.append("짧은 문장이 누적되어 문맥 연결이 자주 끊김")
@@ -1212,6 +1220,7 @@ class ProseGenerator:
             "- 강하게 압박하는 문장과 담백하게 상황을 잇는 문장을 섞어 리듬 고저를 만들 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
+            "- 조건, 책임, 통제권, 대가 같은 말이 반복되면 하나의 구체적 문장으로 묶고 나머지는 결과로 넘길 것\n"
             "- 위협이 추상적이면 사람, 물건, 규정, 공간 반응 중 하나로 한 번만 고정하고 같은 불안을 반복 설명하지 말 것\n"
             "- 이름이 없는 중요한 인물은 한 번만 중립적 역할 단서로 고정하고 이후에는 같은 단서를 일관되게 사용할 것\n"
             "- 한 문장에는 동작, 감정, 판단 가운데 한 축만 남기고 둘 이상이면 인과관계가 보이게 분리할 것\n"
@@ -1220,6 +1229,7 @@ class ProseGenerator:
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
             "- 영어 키워드나 기술 용어 뒤에는 다음 문장으로 쉬운 풀어쓰기를 한 번 붙인 뒤, 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
+            "- 경보, 접근 거부, 알림이 나오면 다음 문장은 해석이 아니라 바로 보이는 반응이나 움직임으로 넘길 것\n"
             "- 쉼표와 접속으로 절이 길게 이어지면 짧고 분명한 두 문장으로 나눌 것\n"
             "- 사건, 발견, 감정선의 순서는 바꾸지 말 것\n"
             f"{first_person_cleanup_line}"
@@ -1413,6 +1423,28 @@ class ProseGenerator:
         ]
         repeated_types = sum(1 for cue in cues if raw.count(cue) >= 2)
         return repeated_types >= 1
+
+    @staticmethod
+    def _has_repeated_condition_responsibility_clauses(text: str) -> bool:
+        sentences = [
+            re.sub(r"\s+", " ", sent).strip()
+            for sent in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(text or ""))
+            if sent and str(sent).strip()
+        ]
+        if len(sentences) < 2:
+            return False
+        pattern = re.compile(r"(조건|책임|통제권|외부 지원|대가|의무|권한|계약|부담)")
+        hits = [sent for sent in sentences if pattern.search(sent)]
+        if len(hits) < 2:
+            return False
+        overlap = 0
+        prev_terms: set[str] = set()
+        for sent in hits:
+            terms = set(pattern.findall(sent))
+            if prev_terms & terms:
+                overlap += 1
+            prev_terms = terms
+        return overlap >= 1 or len(hits) >= 3
 
     def _has_repetitive_emotion_phrases(self, text: str) -> bool:
         sentences = self._split_korean_sentences(text)
