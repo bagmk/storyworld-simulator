@@ -1002,6 +1002,11 @@ class DirectorAI:
                 "Keep only two or three core conditions, then cash out the next beat through a new consequence, "
                 "choice, interruption, movement, or one concrete leverage detail such as affiliation, card, number, or room reaction."
             )
+        if progress_signal.get("concrete_risk"):
+            return (
+                "A concrete risk is already in play. Name the cost, limit, or access rule once, then push the scene forward "
+                "through a choice, interruption, movement, or visible consequence."
+            )
         if progress_signal["flat_tension"]:
             return (
                 "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "

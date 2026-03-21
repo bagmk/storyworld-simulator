@@ -876,6 +876,7 @@ class ProseGenerator:
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
             f"After that explanation, move straight to reaction, emotion, or decision.\n"
             f"If a scene turn already carried one body cue or inner beat, the follow-up sentence should switch to consequence, movement, or dialogue instead of repeating the same feeling.\n"
+            f"If a threat, offer, or realization already landed earlier in the scene, do not restate it in new words; cash it out through consequence, interruption, or movement.\n"
             f"If the scene already moved from question to response to approach, keep that order and do not restart the earlier stage.\n"
             f"Once a room change or exit movement lands, continue from the new physical position instead of replaying the prior beat.\n"
             f"Prefer short, direct sentences over comma-heavy chains when the beat turns sharp or explanatory.\n"
@@ -1215,6 +1216,7 @@ class ProseGenerator:
             "- 이름이 없는 중요한 인물은 한 번만 중립적 역할 단서로 고정하고 이후에는 같은 단서를 일관되게 사용할 것\n"
             "- 한 문장에는 동작, 감정, 판단 가운데 한 축만 남기고 둘 이상이면 인과관계가 보이게 분리할 것\n"
             "- 비유나 비교를 쓴 직후 그 의미를 다음 문장으로 다시 해설하지 말 것\n"
+            "- 이미 장면에 깔린 위협, 제안, 깨달음은 새 말로 되풀이하지 말고 결과, 끼어듦, 이동으로 처리할 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
             "- 어려운 기술 개념은 필요할 때만 짧은 일상 비유나 은유를 붙이고 바로 행동으로 돌아갈 것\n"
             "- 영어 키워드나 기술 용어 뒤에는 다음 문장으로 쉬운 풀어쓰기를 한 번 붙인 뒤, 곧바로 인물의 즉각적 반응, 감정, 판단을 붙일 것\n"
@@ -2115,12 +2117,20 @@ class ProseGenerator:
                 continue
 
             rebuilt: list[str] = []
+            seen_fp: set[str] = set()
             for sent in sentences:
                 current = sent.strip()
+                if not current:
+                    continue
+                fp = self._sentence_fingerprint(current)
+                if fp and fp in seen_fp and not self._sentence_has_action_or_decision(current):
+                    continue
                 if rebuilt and self._is_redundant_tension_restatement(rebuilt[-1], current):
                     rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
-                    continue
-                rebuilt.append(current)
+                else:
+                    rebuilt.append(current)
+                if fp:
+                    seen_fp.add(fp)
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
 
@@ -2152,9 +2162,13 @@ class ProseGenerator:
                 out_blocks.append(cleaned_block)
                 continue
             kept: list[str] = []
+            explanation_taken = False
             idx = 0
             while idx < len(sentences):
                 current = sentences[idx].strip()
+                if not current:
+                    idx += 1
+                    continue
                 if (
                     trim_metaphor_explanations
                     and self._is_explanation_like_sentence(current)
@@ -2165,12 +2179,14 @@ class ProseGenerator:
                         or self._is_explanation_like_sentence(kept[-1])
                     )
                 ):
-                    if self._sentence_has_concrete_anchor(current):
+                    if not explanation_taken and self._sentence_has_concrete_anchor(current):
                         kept.append(current)
+                        explanation_taken = True
                     idx += 1
                     continue
                 if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
                     kept.append(current)
+                    explanation_taken = True
                     idx += 1
                     while idx < len(sentences):
                         nxt = sentences[idx].strip()
@@ -2178,21 +2194,25 @@ class ProseGenerator:
                             self._is_explanation_like_sentence(nxt)
                             and not self._sentence_has_action_or_decision(nxt)
                         ):
-                            if self._sentence_has_concrete_anchor(nxt):
+                            if not explanation_taken and self._sentence_has_concrete_anchor(nxt):
                                 kept.append(nxt)
+                                explanation_taken = True
                             idx += 1
                             continue
                         if (
                             self._is_pressure_heavy_sentence(nxt)
                             and not self._sentence_has_action_or_decision(nxt)
                         ):
-                            if self._sentence_has_concrete_anchor(nxt):
+                            if not explanation_taken and self._sentence_has_concrete_anchor(nxt):
                                 kept.append(nxt)
+                                explanation_taken = True
                             idx += 1
                             continue
                         break
                     continue
                 kept.append(current)
+                if self._is_explanation_like_sentence(current):
+                    explanation_taken = True
                 idx += 1
             out_blocks.append(" ".join(s for s in kept if s).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
@@ -3450,7 +3470,7 @@ class ProseGenerator:
                     if tone == "plain":
                         return self._fit_char_window(f"{lead}가 먼저 멈췄다.", min_chars, max_chars)
                     return self._fit_char_window(f"{lead}가 다음 반응을 불렀다.", min_chars, max_chars)
-        fallback = "대답이 멎자, 다음 움직임이 바로 이어졌다." if tone == "plain" else "압박은 한 박자 더 또렷해졌다."
+        fallback = "수민은 다음 반응을 기다렸다." if tone == "plain" else "압박은 한 박자 더 또렷해졌다."
         return self._fit_char_window(fallback, min_chars, max_chars)
 
     @staticmethod

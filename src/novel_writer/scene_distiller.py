@@ -317,6 +317,7 @@ class SceneDistiller:
             f"22. If two candidate lines restate the same pressure or explanation, keep the line with clearer action/reaction and drop the other.\n"
             f"23. When scene count is limited, preserve higher-tension beats first: reveal, interruption, exposed contradiction, forced decision, or visible stress reaction.\n"
             f"24. If external support, real-time control, resources, authority, or responsibility repeat across late turns, keep the clearest first mention and compress later restatements into changed consequence only.\n"
+            f"24a. When the same pressure note repeats, prefer the version with a concrete action, cost, or room reaction and drop the later paraphrase.\n"
             f"25. Treat transition-making beats one at a time: memo discovery, warning sound, and named arrival should each land in their own clear sentence with who noticed it and where they were.\n"
             f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between a vague role label and a proper name without clarification.\n\n"
             f"27. If the threat source is still vague, keep one concrete anchor in the summary - a person, institution, badge, document, or room reaction - instead of repeating abstract danger language.\n"
@@ -1568,6 +1569,10 @@ class SceneDistiller:
             seen_signals.update(signals)
             if not has_shift:
                 static_signal_sentences += 1
+        kept = self._prioritize_concrete_summary_sentences(
+            kept,
+            limit=2 if self._reader_prefers_stronger_scene_compaction() else 3,
+        )
         return " ".join(kept).strip() or summary
 
     def _compress_threat_signal_lines(self, values: list[str], limit: int) -> list[str]:
@@ -1603,7 +1608,7 @@ class SceneDistiller:
             kept.append(line)
             if len(kept) >= max(1, limit):
                 break
-        return kept
+        return self._prioritize_concrete_summary_sentences(kept, limit=max(1, limit))
 
     def _scene_is_low_motion(self, scene: DistilledScene) -> bool:
         summary_sentences = [
@@ -1863,9 +1868,12 @@ class SceneDistiller:
         if len(sentences) < 2:
             return summary
 
-        return " ".join(
-            self._compress_signature_entries(sentences, rule_key="core_concern")
-        ).strip()
+        kept = self._compress_signature_entries(sentences, rule_key="core_concern")
+        kept = self._prioritize_concrete_summary_sentences(
+            kept,
+            limit=2 if self._reader_prefers_stronger_scene_compaction() else 3,
+        )
+        return " ".join(kept).strip()
 
     @staticmethod
     def _summary_has_consequence_shift(sentence: str) -> bool:
@@ -1892,7 +1900,23 @@ class SceneDistiller:
 
         kept = self._compress_signature_entries(sentences, rule_key="confrontation")
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
+        kept = self._prioritize_concrete_summary_sentences(kept, limit=max_sentences)
         return " ".join(kept[:max_sentences]).strip()
+
+    def _prioritize_concrete_summary_sentences(self, sentences: list[str], limit: int = 3) -> list[str]:
+        if not sentences:
+            return []
+        concrete = [
+            sent for sent in sentences
+            if self._summary_has_action_or_decision(sent)
+            or self._summary_has_consequence_shift(sent)
+            or self._summary_has_concrete_risk(sent)
+        ]
+        if not concrete:
+            return sentences[:max(1, limit)]
+        abstract = [sent for sent in sentences if sent not in concrete]
+        prioritized = concrete + abstract[:1]
+        return prioritized[:max(1, limit)]
 
     def _summary_progress_score(self, text: str) -> int:
         score = 0
