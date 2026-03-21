@@ -451,6 +451,7 @@ class ProseGenerator:
             "Do not turn stage directions or narration into quoted speech.\n"
             "Use signature verbal tics only when context clearly demands it; avoid catchphrase repetition.\n"
             "Let each character's speed, hesitation, and directness feel distinct when they speak.\n"
+            "When multiple speakers press the same issue, make each line do a different job: one opens leverage, one counters, one narrows the choice.\n"
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "When a pressure beat already has one bodily reaction, do not add another near-identical reaction in the next sentence; move to choice, consequence, or dialogue instead.\n"
             "Keep all content in Korean.\n"
@@ -492,6 +493,7 @@ class ProseGenerator:
             f"- If a reaction has already been shown, do not restate it with the same emotional wording; switch to a different visible cue such as gaze, hand movement, posture, breath, or room reaction.\n"
             f"- Avoid repeating identical numeric literals (e.g., same milliseconds/ratios) in adjacent paragraphs unless plot-critical.\n\n"
             f"- In dialogue-heavy stretches, anchor speaker identity with short action beats or name cues every 1-2 exchanges.\n"
+            f"- When two speakers make similar warnings or proposals, keep their roles distinct by shifting one into leverage, one into resistance, and one into consequence.\n"
             f"- If three or more characters are present, avoid ambiguous pronouns for consecutive lines.\n\n"
             f"- Technical terms: explain only if the scene becomes unclear, and prefer brief inline cues over parentheses.\n"
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
@@ -524,6 +526,7 @@ class ProseGenerator:
             f"- If a bridge phrase has already carried the beat, replace the next one with a concrete action, gaze, object, or room-state cue.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"- Let character agendas and speech habits differentiate dialogue; theme should emerge from friction, not repeated explanation.\n"
+            f"- If two speakers sound alike, make one line carry the offer or warning and the other carry the reply or cost instead of repeating the same psychological point.\n"
             f"- Use the character guide's cadence, formality, lexicon, and optional tics as real voice cues, not decoration.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
             f"## Essential Content (from simulation)\n"
@@ -547,6 +550,7 @@ class ProseGenerator:
                 "- Different characters should not sound identical in sentence ending and lexical rhythm.\n"
                 "- Add subtle per-character speech habits without caricature.\n"
                 "- Let one speaker be clipped, another more hesitant, and another more direct when the scene pressure changes.\n"
+                "- When several speakers address the same issue, vary the function of each line so the same concern is not repeated in different words.\n"
                 "- If a line starts sounding like exposition, attach it to a tactic, dodge, interruption, or reaction beat so it still feels spoken.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
             )
@@ -908,6 +912,10 @@ class ProseGenerator:
             prompt += (
                 "\nMake sure every paragraph advances the scene instead of restating tension."
             )
+        if self._feedback_mentions("말투", "어투", "톤", "대화 톤", "고유한 말투", "이해관계"):
+            prompt += (
+                "\nIf two speakers sound too similar, keep one line as the offer/warning and the next as the response/cost instead of repeating the same psychological point."
+            )
         if self._feedback_reports_stalled_progression():
             prompt += (
                 "\nIf the same pressure already landed, jump to changed consequence in the very next sentence."
@@ -1127,6 +1135,8 @@ class ProseGenerator:
                 reasons.append("화자 단서 부족한 대사 라인이 연속됨")
             if self._dialogue_voice_is_monotone(text):
                 reasons.append("대사 말투/문장 종결 패턴이 단조로워 화자 구분이 약함")
+            if self._dialogue_function_is_blurred(text):
+                reasons.append("서로 다른 화자의 제안/경고 기능이 겹쳐 역할 구분이 흐려짐")
         if self._feedback_mentions("정보 전달형 대사", "정보 전달", "설명 위주", "감정적 임팩트", "임팩트"):
             if self._has_expository_dialogue_cluster(text):
                 reasons.append("정보 전달형 대사가 길어 감정 임팩트가 약해짐")
@@ -1258,6 +1268,23 @@ class ProseGenerator:
             return False
         unique = len(set(endings))
         return unique <= 2
+
+    @staticmethod
+    def _dialogue_function_is_blurred(text: str) -> bool:
+        quoted = re.findall(r"[\"“]([^\"”\n]{3,140})[\"”]", text or "")
+        if len(quoted) < 4:
+            return False
+        normalized: list[str] = []
+        for q in quoted[:8]:
+            q = re.sub(r"\s+", " ", q).strip()
+            if not q:
+                continue
+            q = re.sub(r"^(?:나는|우리는|저는|그는|그녀는|수민은|밀러는|모레노는)\s+", "", q)
+            q = re.sub(r"(?:라고|하며|물으며|답하며|덧붙이며).*$", "", q)
+            normalized.append(q[:40].lower())
+        if len(normalized) < 4:
+            return False
+        return len(set(normalized)) <= max(2, len(normalized) - 2)
 
     def _feedback_mentions(self, *keywords: str) -> bool:
         return self.reader_profile.mentions(*keywords)

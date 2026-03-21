@@ -294,7 +294,7 @@ class SceneDistiller:
             f"3. **Keep** only the most impactful dialogue lines (2-4 per scene)\n"
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
-            f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary.\n"
+            f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary, and preserve only the line that changes leverage or motive.\n"
             f"7. Keep technical-term onboarding compact: first clear mention only, later references summarized.\n"
             f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure needs emphasis.\n"
             f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit instead of stacking clipped fragments.\n"
@@ -309,7 +309,7 @@ class SceneDistiller:
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
             f"18a. Make emotional shifts visible: use a breath change, hand movement, gaze change, or posture shift instead of abstract feeling words alone.\n"
             f"18b. If a reaction repeats, rewrite it as a fresh observable cue rather than reusing the same feeling phrase or stock connective.\n"
-            f"18c. If Miller appears, keep the cost concrete in the same summary: access, security, contract, deadline, responsibility, or another visible leverage point.\n"
+            f"18c. If two speakers are making similar proposals or warnings, keep the difference in purpose obvious so their roles do not blur.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
             f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
@@ -325,7 +325,7 @@ class SceneDistiller:
             f"31. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
             f"32. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
             f"33. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
-            f"34. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
+            f"34. If a negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
             f"35. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
             f"36. When a threat or offer is on the table, keep one concrete detail in view - a document line, badge, deadline, access rule, or room reaction - and do not leave the danger abstract.\n"
             f"37. Avoid reusing the same framing clause at the start of adjacent summaries, especially stock phrases like '답이 바로 나오지 않는 사이'; vary with action, reaction, or consequence.\n\n"
@@ -366,7 +366,7 @@ class SceneDistiller:
                 "If technical explanations repeat, keep only the clearest first mention.\n"
                 "Prefer concise summaries over long duplicate emotional narration.\n"
                 "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
-                "from the same speaker.\n"
+                "from the same speaker, and preserve contrasting motives when two speakers sound similar.\n"
                 f"{review_guidance}\n"
             )
         if self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail"):
@@ -378,7 +378,7 @@ class SceneDistiller:
         if self._reader_wants_repeated_confrontation_merge():
             sections.append(
                 "33. If presentation, Moreno contact, and Miller intervention all appear, keep that chain once in chronological order.\n"
-                "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation.\n"
+                "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation and the clearer role difference.\n"
             )
 
         repeat_terms = list(self.reader_profile.term_preferences.repetition_watch_terms[:6])
@@ -1681,6 +1681,7 @@ class SceneDistiller:
         compact: list[dict] = []
         extra_actions: list[str] = []
         explain_pattern = re.compile(r"(왜냐하면|즉|다시 말해|정리하면|요약하면|핵심은|결론은|설명하자면)")
+        seen_signatures: set[tuple[str, str]] = set()
         for row in scene.key_dialogue or []:
             if not isinstance(row, dict):
                 continue
@@ -1688,6 +1689,13 @@ class SceneDistiller:
             line = re.sub(r"\s+", " ", str(row.get("line", "") or "")).strip()
             if not line:
                 continue
+            speaker_fp = self._dialogue_fingerprint(speaker)
+            line_fp = self._dialogue_fingerprint(line)
+            signature = (speaker_fp, line_fp)
+            if signature in seen_signatures:
+                extra_actions.append(f"{speaker}는 같은 설명을 반복하지 않고 반응을 살폈다.")
+                continue
+            seen_signatures.add(signature)
             if len(line) > 90 and explain_pattern.search(line):
                 cut = re.split(r"[,;]|(?:\s+그리고\s+)|(?:\s+하지만\s+)", line, maxsplit=1)[0].strip()
                 if cut and cut != line:

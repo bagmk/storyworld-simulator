@@ -637,6 +637,152 @@ class DirectorAI:
     def _feedback_static_threat_signal_cap(self, default: int = 2) -> int:
         return self.reader_profile.static_threat_signal_cap(default=default)
 
+    def _build_tension_curve(
+        self,
+        recent_interactions: list[dict],
+        agents: Optional[list[Agent]] = None,
+    ) -> dict[str, object]:
+        """
+        Summarize how pressure changes across the recent beat window.
+
+        This keeps the turn allocator focused on progression rather than
+        repeated surface wording.
+        """
+        recent = [
+            row for row in (recent_interactions or [])
+            if isinstance(row, dict) and str(row.get("speaker_id", "")).strip() != "director"
+        ][-5:]
+        curve: list[dict[str, object]] = []
+        previous_fp = ""
+        for row in recent:
+            text = str(row.get("content", "") or "")
+            fingerprint = self._content_fingerprint(text)
+            pressure = 0
+            if self._has_emotional_or_decisive_shift(text):
+                pressure += 1
+            if self._has_concrete_risk_marker(text):
+                pressure += 1
+            if self._has_inner_conflict_marker(text):
+                pressure += 1
+            if self._has_confrontation_resolution_shift(text):
+                pressure += 1
+            if self._technical_term_signature(text):
+                pressure += 1
+            if fingerprint and fingerprint == previous_fp:
+                pressure += 1
+            curve.append(
+                {
+                    "speaker_id": str(row.get("speaker_id", "")).strip(),
+                    "speaker_name": str(row.get("speaker_name", "")).strip(),
+                    "pressure": pressure,
+                    "fingerprint": fingerprint,
+                    "has_shift": bool(
+                        self._has_emotional_or_decisive_shift(text)
+                        or self._has_confrontation_resolution_shift(text)
+                    ),
+                }
+            )
+            previous_fp = fingerprint
+
+        pressure_values = [int(item.get("pressure", 0) or 0) for item in curve]
+        rising = any(
+            pressure_values[idx] > pressure_values[idx - 1]
+            for idx in range(1, len(pressure_values))
+        )
+        flat = bool(pressure_values) and max(pressure_values) > 0 and len(set(pressure_values)) <= 2 and not rising
+        peak = bool(pressure_values) and max(pressure_values) >= 3 and (
+            curve[-1].get("has_shift") if curve else False
+        )
+        decisive_shift = any(bool(item.get("has_shift")) for item in curve[-2:])
+        emotional_mix = False
+        if agents:
+            emotional_mix = self._current_emotional_pressure_flags(
+                [str(item.get("speaker_id", "")).strip() for item in recent],
+                agents,
+            ).get("emotional_conflict", False)
+
+        return {
+            "curve": curve,
+            "rising": rising,
+            "flat": flat,
+            "peak": peak,
+            "decisive_shift": decisive_shift,
+            "emotional_mix": emotional_mix,
+        }
+
+    def _enhance_character_interaction(
+        self,
+        agent: Agent,
+        emotion_family: str,
+        intensity: float,
+        progress_signal: dict[str, bool],
+        tension_curve: dict[str, object],
+        recent_speakers: list[str],
+    ) -> str:
+        """
+        Shape the next-turn hint around contrast, not repeated paraphrase.
+        """
+        hints: list[str] = []
+        curve_points = tension_curve.get("curve", []) if isinstance(tension_curve, dict) else []
+        plateau = bool(tension_curve.get("flat")) if isinstance(tension_curve, dict) else False
+        if agent.role == "protagonist":
+            hints.append("surface hesitation, then choose")
+        elif agent.id in recent_speakers[-2:]:
+            hints.append("change leverage instead of restating the same concern")
+        if emotion_family == "anxious":
+            hints.append("ask for one concrete check or visible proof")
+        elif emotion_family == "frustrated":
+            hints.append("interrupt, counter, or refuse bluntly")
+        elif emotion_family == "confident":
+            hints.append("state terms or push the scene forward")
+        elif emotion_family == "relieved":
+            hints.append("soften the exchange and close the beat")
+        if progress_signal.get("repeated_concern") or progress_signal.get("technical_stall"):
+            hints.append("translate the repeated point into consequence")
+        if progress_signal.get("concrete_risk"):
+            hints.append("name the cost as a limit, clause, deadline, or access rule")
+        if plateau and curve_points:
+            hints.append("break the plateau with a visible change of stance")
+        if intensity >= 0.6:
+            hints.append("let the emotion color the line")
+        return "; ".join(hints) if hints else "react to the visible pressure"
+
+    def _refine_dialogue_structure(
+        self,
+        progress_signal: dict[str, bool],
+        recent_interactions: list[dict],
+    ) -> str:
+        """
+        Turn repeated dialogue into a clearer pressure arc.
+        """
+        tension_curve = self._build_tension_curve(recent_interactions)
+        lines: list[str] = []
+        if progress_signal.get("repeated_concern"):
+            lines.append(
+                "Do not paraphrase the same concern again; let the next line change leverage, cost, or choice."
+            )
+        if progress_signal.get("technical_stall"):
+            lines.append(
+                "If terminology appears again, turn it into consequence and immediate human response instead of another explanation."
+            )
+        if progress_signal.get("pressure_peak"):
+            lines.append(
+                "Hold the exchange open until a concrete consequence, reveal, or exit cue lands."
+            )
+        if progress_signal.get("concrete_risk"):
+            lines.append(
+                "Name the cost as a limit, clause, deadline, or access rule rather than repeating an abstract warning."
+            )
+        if tension_curve.get("flat"):
+            lines.append(
+                "Let one speaker press, one counter, and one decide; avoid another same-pressure reset."
+            )
+        if tension_curve.get("rising"):
+            lines.append(
+                "Escalate step by step so each response sharpens the conflict instead of repeating it."
+            )
+        return " ".join(lines).strip()
+
     # ------------------------------------------------------------------ #
     # 5. Resolution Validation
     # ------------------------------------------------------------------ #
@@ -1183,6 +1329,7 @@ class DirectorAI:
             agent_map,
             active_ids,
             recent_speakers,
+            recent,
             progress_signal,
         )
         jargon_onboarded = self._recent_jargon_already_onboarded(recent)
@@ -1586,6 +1733,7 @@ class DirectorAI:
                 "concrete_risk": False,
             }
 
+        tension_curve = self._build_tension_curve(recent, agents)
         recent_speakers = [
             str(i.get("speaker_id", "")).strip()
             for i in recent
@@ -1609,7 +1757,11 @@ class DirectorAI:
             1 if self._reader_wants_repeated_confrontation_merge() and len(recent) <= 3 else 2
         )
         technical_stall = self._has_repetitive_technical_exchange(recent)
-        flat_tension = self._has_flat_tension_plateau(recent) or repeated_openers >= 1
+        flat_tension = (
+            self._has_flat_tension_plateau(recent)
+            or repeated_openers >= 1
+            or bool(tension_curve.get("flat"))
+        )
         explanation_loop = self._has_explanatory_loop(recent) or repeated_openers >= 1
         repeated_concern = self._has_repeated_core_concern_exchange(recent)
         signal_stack = self._has_overloaded_threat_signal_stack(recent)
@@ -1637,7 +1789,7 @@ class DirectorAI:
         pressure_peak = (
             (repeated_concern or signal_stack or technical_stall or flat_tension or explanation_loop)
             and (decisive_shift or emotional_shift)
-        )
+        ) or bool(tension_curve.get("peak"))
         stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
         ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
@@ -1837,10 +1989,12 @@ class DirectorAI:
         agent_map: dict[str, Agent],
         active_ids: list[str],
         recent_speakers: list[str],
+        recent_interactions: list[dict],
         progress_signal: dict[str, bool],
     ) -> str:
         lines: list[str] = []
         tail_recent = recent_speakers[-2:] if recent_speakers else []
+        tension_curve = self._build_tension_curve(recent_interactions)
         for aid in active_ids:
             agent = agent_map[aid]
             emotion_family, emotion_level = self._dominant_emotion_family(agent.memory.emotional_state)
@@ -1873,6 +2027,16 @@ class DirectorAI:
                 voice_bits.append(f"focus={'; '.join(focus_bits)}")
             if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:
                 hint += "; avoid another identical follow-up"
+            interaction_hint = self._enhance_character_interaction(
+                agent=agent,
+                emotion_family=emotion_family,
+                intensity=emotion_level,
+                progress_signal=progress_signal,
+                tension_curve=tension_curve,
+                recent_speakers=recent_speakers,
+            )
+            if interaction_hint:
+                voice_bits.append(f"interaction={interaction_hint}")
             lines.append(
                 f"- {agent.name} ({aid}): emotional posture={emotion_family} ({emotion_level:.2f}); "
                 f"{' | '.join(voice_bits)}; likely next move={hint}"

@@ -376,7 +376,8 @@ def main() -> None:
             )
         else:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
-    chapter_runtime_policy = _chapter_runtime_policy(rl_policy, reader_feedback)
+    normalized_reader_feedback = _apply_reader_feedback_pipeline_overrides(reader_feedback)
+    chapter_runtime_policy = _chapter_runtime_policy(rl_policy, normalized_reader_feedback)
     episode_config["_rl_runtime"] = episode_runtime_policy(chapter_runtime_policy)
 
     # Load guardian briefing for story continuity steering.
@@ -411,7 +412,7 @@ def main() -> None:
 
     # Determine target words
     target_words = args.words or episode_config.get("recommended_length", 3500)
-    resolved_style = _resolve_generation_style(args.style, reader_feedback)
+    resolved_style = _resolve_generation_style(args.style, normalized_reader_feedback)
     if resolved_style != args.style:
         logger.info(
             "Reader feedback adjusted prose POV style: %s -> %s",
@@ -439,7 +440,7 @@ def main() -> None:
     feedback_adjusted_target_scenes = adjust_scene_target_for_feedback(
         target_scenes=target_scenes,
         target_words=target_words,
-        reader_feedback=reader_feedback,
+        reader_feedback=normalized_reader_feedback,
     )
     if feedback_adjusted_target_scenes != target_scenes:
         logger.info(
@@ -478,7 +479,7 @@ def main() -> None:
         llm=llm,
         episode_config=episode_config,
         runtime_policy=chapter_runtime_policy,
-        reader_feedback=reader_feedback,
+        reader_feedback=normalized_reader_feedback,
     )
     if args.precomputed_scenes:
         scenes = _load_precomputed_scenes(args.precomputed_scenes)
@@ -549,7 +550,7 @@ def main() -> None:
         character_profiles=character_profiles,
         max_history_episodes=int(chapter_runtime_policy.get("prose_history_max_episodes", 12) or 12),
         runtime_policy=chapter_runtime_policy,
-        reader_feedback=reader_feedback,
+        reader_feedback=normalized_reader_feedback,
         guardian_briefing=guardian_briefing,
     )
 
@@ -564,7 +565,7 @@ def main() -> None:
 
     # === Report ===
     chapter_text = Path(chapter_path).read_text(encoding="utf-8")
-    cleaned_chapter_text = _sanitize_chapter_draft_artifacts(chapter_text, reader_feedback)
+    cleaned_chapter_text = _sanitize_chapter_draft_artifacts(chapter_text, normalized_reader_feedback)
     if cleaned_chapter_text != chapter_text:
         Path(chapter_path).write_text(cleaned_chapter_text, encoding="utf-8")
         chapter_text = cleaned_chapter_text
