@@ -519,14 +519,14 @@ class ProseGenerator:
             f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
             f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
-            f"- Expository dialogue should be compressed; prioritize action/reaction beats after factual lines.\n\n"
+            f"- Expository dialogue should be compressed; let one factual line land, then follow with a micro-action, reaction, or room cue instead of repeating the explanation.\n\n"
             f"- If two nearby paragraphs perform the same job (restating a question, explaining the same fact, lingering on the same pressure), compress them into one sharper paragraph.\n"
             f"- Keep local event axis linear: question -> response -> approach/offer should appear once in that order, not as repeated resets.\n"
             f"- Avoid stock time bridges like '그 직후' or '잠시 뒤'; prefer gaze shift, footsteps, door movement, microphone lowering, or location cue.\n\n"
             f"- Do not stack multiple warning-style signals in one short span unless one directly triggers the next; keep the sharpest cue and cash it out through reaction.\n"
             f"- Keep sensory description to about {sensory_cap} channels per paragraph, and save the sharpest image for the most important beat.\n"
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
-            f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
+            f"- If an English keyword or technical term appears, use at most one short plain Korean cue when comprehension needs it, then move to reaction, action, or decision instead of repeating the explanation.\n"
             f"- Terms like latency or real-time should get only one short onboarding explanation in the chapter; later mentions should shift quickly into {protagonist_short}의 판단, 감정, 또는 선택.\n"
             f"- If technical wording starts to crowd out the beat, collapse it into one visible action, object cue, or body reaction instead of another explanatory paraphrase.\n"
             f"- Do not explain the same technical idea in two adjacent sentences; one plain-language cue is enough.\n"
@@ -2163,6 +2163,19 @@ class ProseGenerator:
                 fp = self._sentence_fingerprint(current)
                 if fp and fp in seen_fp and not self._sentence_has_action_or_decision(current):
                     continue
+                current_emotion = self._emotion_signature(current)
+                last_emotion = self._emotion_signature(rebuilt[-1]) if rebuilt else ""
+                if (
+                    rebuilt
+                    and current_emotion
+                    and current_emotion == last_emotion
+                    and not self._sentence_has_action_or_decision(current)
+                    and not self._sentence_has_action_or_decision(rebuilt[-1])
+                ):
+                    rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
+                    if fp:
+                        seen_fp.add(fp)
+                    continue
                 if rebuilt and self._is_redundant_tension_restatement(rebuilt[-1], current):
                     rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
                 else:
@@ -2197,6 +2210,16 @@ class ProseGenerator:
                 if not sentences:
                     continue
             if len(sentences) < 2:
+                if trim_metaphor_explanations and sentences:
+                    single = sentences[0].strip()
+                    if (
+                        self._is_explanation_like_sentence(single)
+                        and not self._sentence_has_action_or_decision(single)
+                    ):
+                        shortened_single = self._shorten_explanatory_sentence(single)
+                        if shortened_single:
+                            out_blocks.append(shortened_single)
+                            continue
                 out_blocks.append(cleaned_block)
                 continue
             kept: list[str] = []
@@ -2209,18 +2232,48 @@ class ProseGenerator:
                     continue
                 if (
                     trim_metaphor_explanations
+                    and idx > 0
+                    and self._is_metaphor_like_sentence(sentences[idx - 1])
                     and self._is_explanation_like_sentence(current)
+                    and not self._sentence_has_action_or_decision(current)
+                ):
+                    shortened = self._shorten_explanatory_sentence(current)
+                    if shortened and not explanation_taken:
+                        kept.append(shortened)
+                        explanation_taken = True
+                    idx += 1
+                    continue
+                if (
+                    trim_metaphor_explanations
+                    and self._is_explanation_like_sentence(current)
+                    and not self._is_metaphor_like_sentence(current)
                     and not self._sentence_has_action_or_decision(current)
                     and kept
                     and (
                         self._is_metaphor_like_sentence(kept[-1])
                         or self._is_explanation_like_sentence(kept[-1])
                     )
+                    and not (idx > 0 and self._is_metaphor_like_sentence(sentences[idx - 1]))
                 ):
                     shortened = self._shorten_explanatory_sentence(current)
                     if not explanation_taken and shortened:
                         kept.append(shortened)
                         explanation_taken = True
+                    idx += 1
+                    continue
+                if (
+                    trim_metaphor_explanations
+                    and self._is_explanation_like_sentence(current)
+                    and not self._is_metaphor_like_sentence(current)
+                    and not self._sentence_has_action_or_decision(current)
+                    and not (idx > 0 and self._is_metaphor_like_sentence(sentences[idx - 1]))
+                ):
+                    shortened = self._shorten_explanatory_sentence(current)
+                    if shortened and not explanation_taken:
+                        kept.append(shortened)
+                        explanation_taken = True
+                    elif shortened and self._is_static_inner_monologue_sentence(shortened) and kept:
+                        kept.append(shortened)
                     idx += 1
                     continue
                 if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
@@ -3539,6 +3592,9 @@ class ProseGenerator:
             sensory = self._contextual_sensory_bridge(recent, tone=tone)
             if sensory:
                 return self._fit_char_window(sensory, min_chars, max_chars)
+            micro_action = self._contextual_micro_action_bridge(recent, tone=tone)
+            if micro_action:
+                return self._fit_char_window(micro_action, min_chars, max_chars)
             for sent in reversed(recent):
                 fragment = self._derive_clipped_bridge_fragment([sent])
                 if fragment:
@@ -3550,10 +3606,29 @@ class ProseGenerator:
                 lead = re.split(r"[,，;—~]\s*", source, maxsplit=1)[0].strip()
                 if len(re.findall(r"[0-9A-Za-z가-힣]+", lead)) >= 2:
                     if tone == "plain":
-                        return self._fit_char_window(f"{lead}가 먼저 멈췄다.", min_chars, max_chars)
-                    return self._fit_char_window(f"{lead}가 다음 반응을 불렀다.", min_chars, max_chars)
-        fallback = "수민은 다음 반응을 기다렸다." if tone == "plain" else "압박은 한 박자 더 또렷해졌다."
+                        return self._fit_char_window(f"{lead}, 답이 바로 이어지지 않았다.", min_chars, max_chars)
+                    return self._fit_char_window(f"{lead}, 손이 잠깐 멈췄다.", min_chars, max_chars)
+        fallback = "답이 바로 이어지지 않았다." if tone == "plain" else "손이 잠깐 멈췄다."
         return self._fit_char_window(fallback, min_chars, max_chars)
+
+    @staticmethod
+    def _contextual_micro_action_bridge(sentences: list[str], tone: str = "strong") -> str:
+        joined = " ".join(str(sent or "") for sent in sentences).lower()
+        if not joined.strip():
+            return ""
+        if re.search(r"(질문|대답|응답|제안|조건|책임|통제|설명|협상|허가|대가)", joined):
+            return "답이 바로 이어지지 않았다."
+        if re.search(r"(경보|알림|alert|warning|monitor|비프)", joined):
+            return "경보음에 손이 잠깐 멈췄다."
+        if re.search(r"(문|복도|발소리|다가서|걸음|출입)", joined):
+            return "시선이 문 쪽으로 옮겨갔다."
+        if re.search(r"(시선|눈빛|응시)", joined):
+            return "시선이 잠깐 흔들렸다."
+        if re.search(r"(숨|호흡|정적|침묵|압박|긴장|불안|초조)", joined):
+            return "숨이 짧게 멎었다."
+        if re.search(r"(latency|coherence|drift|qpu|보정|오차|프로토콜|protocol)", joined):
+            return "설명 대신 결과를 먼저 보게 됐다."
+        return ""
 
     @staticmethod
     def _contextual_sensory_bridge(sentences: list[str], tone: str = "strong") -> str:

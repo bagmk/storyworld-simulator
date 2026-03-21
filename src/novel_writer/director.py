@@ -1895,7 +1895,7 @@ class DirectorAI:
         if repeated_concern:
             scene_conflict_note = "same concern keeps repeating; advance leverage, cost, or a scene exit"
         elif technical_stall:
-            scene_conflict_note = "technical loop detected; shift from explanation to reaction or choice"
+            scene_conflict_note = "technical loop detected; shift from explanation to visible reaction, gesture, or choice"
         elif alert_pending_reaction:
             scene_conflict_note = "alert has landed; a visible reaction is still pending"
         elif concrete_risk:
@@ -2254,7 +2254,7 @@ class DirectorAI:
             "relieved": "soften the exchange and close the beat",
         }.get(emotion_family, "react to the visible pressure")
         if progress_signal.get("technical_stall"):
-            hint += "; translate any jargon into one visible consequence instead of repeating it"
+            hint += "; replace repeated explanation with one visible consequence, object cue, or next step"
         if progress_signal.get("repeated_concern") and emotion_family in {"confident", "frustrated"}:
             hint += "; turn the repeated concern into a consequence, not a recap"
         if progress_signal.get("flat_tension"):

@@ -295,7 +295,7 @@ class SceneDistiller:
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary, and preserve only the line that changes leverage or motive.\n"
-            f"6a. Keep each named character's reaction distinct: who hesitated, who escalated, who kept control, and who had to answer.\n"
+            f"6a. Keep each named character's reaction distinct: who hesitated, who escalated, who kept control, and who had to answer. Show the difference through a visible beat, not a second paraphrase.\n"
             f"6b. If a later turn repeats the same pressure, keep the version that changes leverage and convert the other into a concrete consequence or reaction.\n"
             f"6c. For supporting characters, preserve one concrete motive, threat, or offer per scene instead of repeating the same abstract support/control tension.\n"
             f"7. If the same conflict repeats later, keep the version that moves the argument or consequence forward instead of re-stating the setup.\n"
@@ -373,6 +373,7 @@ class SceneDistiller:
                 "Favor readability when selecting what survives compression.\n"
                 "If technical explanations repeat, keep only the clearest first mention.\n"
                 "If condition or responsibility language repeats, keep one concrete version and collapse the rest into consequence.\n"
+                "If dialogue feels explanatory, keep the shortest decisive line and move the follow-up into a visible action or reaction beat.\n"
                 "Prefer concise summaries over long duplicate emotional narration.\n"
                 "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
                 "from the same speaker, and preserve contrasting motives when two speakers sound similar.\n"
@@ -461,7 +462,7 @@ class SceneDistiller:
             )
         if self._reader_prefers_dialogue_compaction():
             adaptive_lines.append(
-                "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction. This prevents mid-scene pacing drops."
+                "When dialogue stretches long, keep only one decisive quote and summarize the rest as action/reaction. If a line repeats the same explanation, compress it into one short cue plus a visible reaction."
             )
         if self._reader_reports_stalled_progression():
             adaptive_lines.append(
@@ -1899,14 +1900,14 @@ class SceneDistiller:
             line_fp = self._dialogue_fingerprint(line)
             signature = (speaker_fp, line_fp)
             if signature in seen_signatures:
-                extra_actions.append(f"{speaker}는 같은 설명을 반복하지 않고 주변 반응을 살폈다.")
+                extra_actions.append(f"{speaker}는 같은 설명을 반복하지 않고 바로 반응을 살폈다.")
                 continue
             seen_signatures.add(signature)
             if len(line) > 90 and explain_pattern.search(line):
                 cut = self._shorten_expository_dialogue_line(line)
                 if cut and cut != line:
                     line = cut
-                extra_actions.append(f"{speaker}는 설명을 짧게 끊고 시선을 반응 쪽으로 돌렸다.")
+                extra_actions.append(f"{speaker}는 설명을 짧게 끊고 손을 멈췄다.")
             compact.append({"speaker": speaker, "line": line})
         scene.key_dialogue = compact[:4]
         if extra_actions:
