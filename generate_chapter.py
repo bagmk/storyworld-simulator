@@ -175,6 +175,8 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
     if profile.reports_stalled_progression():
         policy["hold_pressure_peak"] = 1
         policy["prefer_scene_exit_on_stall"] = 1
+        policy["prefer_concrete_offer_detail"] = 1
+        policy["prefer_concrete_threat_detail"] = 1
     if profile.prefers_stronger_scene_compaction():
         policy["prefer_concrete_offer_detail"] = 1
         policy["prefer_concrete_threat_detail"] = 1

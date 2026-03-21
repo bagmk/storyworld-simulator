@@ -324,6 +324,8 @@ class SceneDistiller:
             f"33. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
             f"34. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
             f"35. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
+            f"36. When a threat or offer is on the table, keep one concrete detail in view - a document line, badge, deadline, access rule, or room reaction - and do not leave the danger abstract.\n"
+            f"37. Avoid reusing the same framing clause at the start of adjacent summaries, especially stock phrases like '답이 바로 나오지 않는 사이'; vary with action, reaction, or consequence.\n\n"
         )
         prompt += self._build_distill_feedback_guidance()
         prompt += (
@@ -362,6 +364,11 @@ class SceneDistiller:
                 "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
                 "from the same speaker.\n"
                 f"{review_guidance}\n"
+            )
+        if self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail"):
+            sections.append(
+                "## Concrete Threat/Offer Priority\n"
+                "When the scene contains a coercive offer or threat, preserve one concrete detail such as a badge, clause, deadline, document line, access rule, or visible room reaction. Do not compress it into abstract danger language.\n"
             )
 
         if self._reader_wants_repeated_confrontation_merge():
@@ -984,7 +991,7 @@ class SceneDistiller:
         seen_fp: set[str] = set()
         for sent in sentences:
             cleaned = re.sub(
-                r"^(그리고|그러자|다만|또한|한편|이어서|그 순간|그 직후|잠시 뒤|잠시 후|곧이어|이윽고)\s+",
+                r"^(그리고|그러자|다만|또한|한편|이어서|그 순간|그 직후|잠시 뒤|잠시 후|곧이어|이윽고|답이 바로 나오지 않는 사이|답이 늦는 사이)\s+",
                 "",
                 sent,
             ).strip()
@@ -1006,7 +1013,7 @@ class SceneDistiller:
         if not self._reader_flags_stock_bridge_phrases():
             return cleaned
         cleaned = re.sub(
-            r"(^|(?<=[.!?…]\s))(짧은 숨이 스친 뒤|답이 바로 나오지 않는 사이|말끝이 가라앉자|짧은 정적 끝에|그 말이 끝나자|시선이 옮겨가자|고개를 들자|의자가 밀리자|정면을 버틴 채)\s*,?\s*",
+            r"(^|(?<=[.!?…]\s))(짧은 숨이 스친 뒤|답이 바로 나오지 않는 사이|답이 늦는 사이|말끝이 가라앉자|짧은 정적 끝에|그 말이 끝나자|시선이 옮겨가자|고개를 들자|의자가 밀리자|정면을 버틴 채)\s*,?\s*",
             r"\1",
             cleaned,
         )

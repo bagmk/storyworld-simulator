@@ -29,6 +29,39 @@ logger = logging.getLogger("inline_optimizer")
 REVIEWER_MODEL = "gpt-4o-mini"
 POLICY_SCORE_LOG = _REPO_ROOT / "data" / "policy_score_log.jsonl"
 
+# ── Quality review → LLM scorer weight mapping ───────────────────────────────
+
+# Maps quality review dimension keys → which LLM scoring criteria they relate to
+_QUALITY_TO_LLM: dict[str, list[str]] = {
+    "thrill":         ["emotional_tension", "pacing_tension_balance"],
+    "style":          ["literary_quality", "readability", "sentence_diversity"],
+    "causality":      ["pacing_tension_balance"],
+    "character":      ["dialogue_effectiveness"],
+    "scene_function": ["paragraph_rhythm", "prose_vividness"],
+}
+
+_ALL_LLM_CRITERIA = [
+    "literary_quality", "emotional_tension", "readability", "sentence_diversity",
+    "paragraph_rhythm", "prose_vividness", "dialogue_effectiveness", "pacing_tension_balance",
+]
+
+
+def _build_criterion_weights(quality_focus: dict | None) -> dict[str, float]:
+    """Return per-LLM-criterion weight multipliers.
+    Criteria mapped to low-scoring quality dimensions get higher weight.
+    Default=1.0; boost = 1.0 + (7-score)/7 for score < 7."""
+    weights = {k: 1.0 for k in _ALL_LLM_CRITERIA}
+    if not quality_focus:
+        return weights
+    for q_dim, llm_keys in _QUALITY_TO_LLM.items():
+        score = float(quality_focus.get(q_dim, 10.0))
+        if score < 7.0:
+            boost = 1.0 + (7.0 - score) / 7.0  # range: 1.0 (score=7) → 2.0 (score=0)
+            for k in llm_keys:
+                weights[k] = max(weights.get(k, 1.0), boost)
+    return weights
+
+
 # ── LLM scorer constants (reused from optuna_prose_test.py) ──────────────────
 
 _LLM_SCORER_SYSTEM = (
@@ -71,7 +104,7 @@ def _param_space(trial, base_policy: dict) -> dict:
         "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.05, 0.45),
         "target_scenes":                 trial.suggest_int("target_scenes", 2, 6),
         "dialogue_compaction_strength":  trial.suggest_float("dialogue_compaction_strength", 0.5, 1.0),
-        "prose_scene_temperature":       trial.suggest_float("prose_scene_temperature", 0.75, 1.0),
+        "prose_scene_temperature":       trial.suggest_float("prose_scene_temperature", 0.55, 0.85),
         "prose_paragraph_min_sentences": trial.suggest_int("prose_paragraph_min_sentences", 2, 4),
         "prose_paragraph_max_sentences": trial.suggest_int("prose_paragraph_max_sentences", 3, 5),
         "prose_transition_temperature":  trial.suggest_float("prose_transition_temperature", 0.3, 0.7),
@@ -90,7 +123,7 @@ def _score_deterministic(chapter_text: str, episode_id: str) -> float:
     return round(qa.analyze().get("overall_score", 0.0) * 10, 3)
 
 
-def _score_llm(chapter_text: str) -> float:
+def _score_llm(chapter_text: str, criterion_weights: dict[str, float] | None = None) -> float:
     from openai import OpenAI
     client = OpenAI()
 
@@ -117,18 +150,27 @@ def _score_llm(chapter_text: str) -> float:
         raw = re.sub(r"\n?```$", "", raw).strip()
         scores = json.loads(raw)
         numeric = {k: float(v) for k, v in scores.items() if isinstance(v, (int, float))}
-        return round(sum(numeric.values()) / len(numeric), 3) if numeric else 0.0
+        if not numeric:
+            return 0.0
+        if criterion_weights:
+            total_w = sum(criterion_weights.get(k, 1.0) for k in numeric)
+            return round(sum(v * criterion_weights.get(k, 1.0) for k, v in numeric.items()) / total_w, 3)
+        return round(sum(numeric.values()) / len(numeric), 3)
     except Exception as exc:
         logger.warning("LLM scorer error: %s", exc)
         return 0.0
 
 
-def _score_chapter(chapter_text: str, episode_id: str) -> float:
+def _score_chapter(
+    chapter_text: str, episode_id: str, quality_focus: dict | None = None
+) -> tuple[float, float, float]:
     det = _score_deterministic(chapter_text, episode_id)
-    llm = _score_llm(chapter_text)
+    weights = _build_criterion_weights(quality_focus)
+    llm = _score_llm(chapter_text, criterion_weights=weights)
     combined = round(0.4 * det + 0.6 * llm, 3)
-    logger.info("[SCORE] det=%.2f llm=%.2f combined=%.3f", det, llm, combined)
-    return combined
+    logger.info("[SCORE] det=%.2f llm=%.2f combined=%.3f focus=%s",
+                det, llm, combined, list(quality_focus.keys()) if quality_focus else None)
+    return combined, det, llm
 
 
 # ── Single trial runner ───────────────────────────────────────────────────────
@@ -147,8 +189,9 @@ def _sync_run_trial(
     reader_feedback: dict | None,
     guardian_briefing: str | None,
     base_policy: dict,
-) -> tuple[float, Path]:
-    """Synchronous trial: distill → prose. Returns (score, chapter_path)."""
+    quality_focus: dict | None = None,
+) -> tuple[float, Path, dict]:
+    """Synchronous trial: distill → prose. Returns (score, chapter_path, meta)."""
     from src.novel_writer.scene_distiller import SceneDistiller
     from src.novel_writer.prose_generator import ProseGenerator
 
@@ -170,10 +213,22 @@ def _sync_run_trial(
         scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
         if not scenes:
             logger.warning("Trial %d: distill returned no scenes", trial_idx)
-            return 0.0, trial_dir / "empty.md"
+            return 0.0, trial_dir / "empty.md", {
+                "det": 0.0,
+                "llm": 0.0,
+                "scene_count": 0,
+                "raw_turn_total": 0,
+                "target_scenes": int(trial_params.get("target_scenes", 0) or 0),
+            }
     except Exception as exc:
         logger.warning("Trial %d: distill failed: %s", trial_idx, exc)
-        return 0.0, trial_dir / "empty.md"
+        return 0.0, trial_dir / "empty.md", {
+            "det": 0.0,
+            "llm": 0.0,
+            "scene_count": 0,
+            "raw_turn_total": 0,
+            "target_scenes": int(trial_params.get("target_scenes", 0) or 0),
+        }
 
     trial_dir.mkdir(parents=True, exist_ok=True)
 
@@ -196,17 +251,35 @@ def _sync_run_trial(
         )
     except Exception as exc:
         logger.warning("Trial %d: prose generation failed: %s", trial_idx, exc)
-        return 0.0, trial_dir / "empty.md"
+        return 0.0, trial_dir / "empty.md", {
+            "det": 0.0,
+            "llm": 0.0,
+            "scene_count": len(scenes),
+            "raw_turn_total": int(sum(max(0, int(s.raw_turn_count or 0)) for s in scenes)),
+            "target_scenes": int(trial_params.get("target_scenes", 0) or 0),
+        }
 
+    det = 0.0
+    llm = 0.0
+    word_count = 0
     try:
         chapter_text = Path(chapter_path).read_text(encoding="utf-8")
-        score = _score_chapter(chapter_text, episode_id)
+        word_count = len(chapter_text.split())
+        score, det, llm = _score_chapter(chapter_text, episode_id, quality_focus=quality_focus)
     except Exception as exc:
         logger.warning("Trial %d: scoring failed: %s", trial_idx, exc)
         score = 0.0
 
     logger.info("Trial %d | score=%.3f | path=%s", trial_idx, score, chapter_path)
-    return score, Path(chapter_path)
+    return score, Path(chapter_path), {
+        "det": round(det, 3),
+        "llm": round(llm, 3),
+        "scene_count": len(scenes),
+        "raw_turn_total": int(sum(max(0, int(s.raw_turn_count or 0)) for s in scenes)),
+        "target_scenes": int(trial_params.get("target_scenes", 0) or 0),
+        "chapter_file": Path(chapter_path).name,
+        "word_count": int(word_count),
+    }
 
 
 async def _run_single_trial(
@@ -223,7 +296,8 @@ async def _run_single_trial(
     reader_feedback: dict | None,
     guardian_briefing: str | None,
     base_policy: dict,
-) -> tuple[float, Path]:
+    quality_focus: dict | None = None,
+) -> tuple[float, Path, dict]:
     """Async wrapper around _sync_run_trial using asyncio.to_thread."""
     return await asyncio.to_thread(
         _sync_run_trial,
@@ -240,6 +314,7 @@ async def _run_single_trial(
         reader_feedback,
         guardian_briefing,
         base_policy,
+        quality_focus,
     )
 
 
@@ -260,6 +335,7 @@ async def run_inline_optimize(
     base_model: str,
     premium_model: str,
     notify_fn=None,
+    quality_focus: dict | None = None,
 ) -> tuple[Path, dict, float, list[float]]:
     """
     Run 5-trial mini-Optuna loop (Phase 1: 2 parallel, Phase 2: 3 parallel).
@@ -286,10 +362,12 @@ async def run_inline_optimize(
 
     trial_scores: list[float] = []
     trial_paths: list[Path] = []
+    trial_meta_by_idx: dict[int, dict] = {}
 
     # ── Phase 1: trials 0,1 (exploratory) ───────────────────────────────────
     if notify_fn:
         await notify_fn("[OPTIMIZE] 🔬 Trial 0,1 시작... (Phase 1/2)")
+        await notify_fn("[OPTIMIZE] 📝 챕터 생성 시작: trial 0, trial 1")
 
     p1_trials = [study.ask() for _ in range(2)]
     effective_base_policy = dict(base_policy or {})
@@ -316,21 +394,38 @@ async def run_inline_optimize(
                 reader_feedback=reader_feedback,
                 guardian_briefing=guardian_briefing,
                 base_policy=effective_base_policy,
+                quality_focus=quality_focus,
             )
             for i in range(2)
         ],
         return_exceptions=False,
     )
 
-    for i, (score, path) in enumerate(p1_results):
+    for i, (score, path, meta) in enumerate(p1_results):
         study.tell(p1_trials[i], score)
         trial_scores.append(score)
         trial_paths.append(path)
+        trial_meta_by_idx[i] = meta
         logger.info("Phase 1 trial %d → score=%.3f", i, score)
+        if notify_fn:
+            await notify_fn(
+                f"[OPTIMIZE] 📝 trial {i} 챕터 생성 완료 | `{meta.get('chapter_file', path.name)}` "
+                f"({int(meta.get('word_count', 0))}단어) | score {score:.2f}"
+            )
+    if notify_fn:
+        p1_lines = []
+        for i, score in enumerate(trial_scores[:2]):
+            meta = trial_meta_by_idx.get(i, {})
+            p1_lines.append(
+                f"- trial {i}: {score:.2f} (det {float(meta.get('det', 0.0)):.2f} / llm {float(meta.get('llm', 0.0)):.2f}, "
+                f"scenes {int(meta.get('scene_count', 0))}/{int(meta.get('target_scenes', 0))}, turns {int(meta.get('raw_turn_total', 0))})"
+            )
+        await notify_fn("[OPTIMIZE] 📊 Phase 1 결과\n" + "\n".join(p1_lines))
 
     # ── Phase 2: trials 2,3,4 (TPE-guided) ──────────────────────────────────
     if notify_fn:
         await notify_fn("[OPTIMIZE] 🔬 Trial 2,3,4 시작... (Phase 2/2)")
+        await notify_fn("[OPTIMIZE] 📝 챕터 생성 시작: trial 2, trial 3, trial 4")
 
     p2_trials = [study.ask() for _ in range(3)]
     p2_params = [_param_space(t, effective_base_policy) for t in p2_trials]
@@ -356,17 +451,34 @@ async def run_inline_optimize(
                 reader_feedback=reader_feedback,
                 guardian_briefing=guardian_briefing,
                 base_policy=effective_base_policy,
+                quality_focus=quality_focus,
             )
             for i in range(3)
         ],
         return_exceptions=False,
     )
 
-    for i, (score, path) in enumerate(p2_results):
+    for i, (score, path, meta) in enumerate(p2_results):
         study.tell(p2_trials[i], score)
         trial_scores.append(score)
         trial_paths.append(path)
+        trial_meta_by_idx[2 + i] = meta
         logger.info("Phase 2 trial %d → score=%.3f", 2 + i, score)
+        if notify_fn:
+            trial_idx = 2 + i
+            await notify_fn(
+                f"[OPTIMIZE] 📝 trial {trial_idx} 챕터 생성 완료 | `{meta.get('chapter_file', path.name)}` "
+                f"({int(meta.get('word_count', 0))}단어) | score {score:.2f}"
+            )
+    if notify_fn:
+        p2_lines = []
+        for i, score in enumerate(trial_scores[2:], start=2):
+            meta = trial_meta_by_idx.get(i, {})
+            p2_lines.append(
+                f"- trial {i}: {score:.2f} (det {float(meta.get('det', 0.0)):.2f} / llm {float(meta.get('llm', 0.0)):.2f}, "
+                f"scenes {int(meta.get('scene_count', 0))}/{int(meta.get('target_scenes', 0))}, turns {int(meta.get('raw_turn_total', 0))})"
+            )
+        await notify_fn("[OPTIMIZE] 📊 Phase 2 결과\n" + "\n".join(p2_lines))
 
     # ── Pick best ────────────────────────────────────────────────────────────
     best_idx = int(max(range(len(trial_scores)), key=lambda i: trial_scores[i]))
@@ -375,8 +487,14 @@ async def run_inline_optimize(
     best_src = trial_paths[best_idx]
 
     if notify_fn:
+        sorted_scores = sorted(enumerate(trial_scores), key=lambda item: item[1], reverse=True)
+        ranking = " | ".join(f"t{idx}:{score:.2f}" for idx, score in sorted_scores)
+        best_meta = trial_meta_by_idx.get(best_idx, {})
         await notify_fn(
-            f"[OPTIMIZE] ✅ 5트라이얼 완료 | best={best_score:.2f} (trial {best_idx})"
+            f"[OPTIMIZE] ✅ 5트라이얼 완료 | best={best_score:.2f} (trial {best_idx})\n"
+            f"순위: {ranking}\n"
+            f"best detail: det {float(best_meta.get('det', 0.0)):.2f} / llm {float(best_meta.get('llm', 0.0)):.2f}, "
+            f"scenes {int(best_meta.get('scene_count', 0))}/{int(best_meta.get('target_scenes', 0))}, turns {int(best_meta.get('raw_turn_total', 0))}"
         )
 
     # Copy best chapter to run_dir
@@ -401,6 +519,7 @@ def log_policy_score(
     best_score: float,
     all_trial_scores: list[float],
     log_path: Path | None = None,
+    quality_review_scores: dict | None = None,
 ) -> None:
     log_path = log_path or POLICY_SCORE_LOG
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -411,9 +530,32 @@ def log_policy_score(
         "best_params": best_params,
         "trial_scores": [round(s, 4) for s in all_trial_scores],
     }
+    if quality_review_scores:
+        record["quality_review_scores"] = quality_review_scores
     with log_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     logger.info("Logged policy score for %s → %s", episode_id, log_path)
+
+
+def update_policy_log_quality_scores(
+    quality_scores: dict,
+    log_path: Path | None = None,
+) -> None:
+    """Update the most recent policy_score_log entry with quality review scores."""
+    log_path = log_path or POLICY_SCORE_LOG
+    if not log_path.exists():
+        return
+    lines = [ln for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return
+    try:
+        last = json.loads(lines[-1])
+        last["quality_review_scores"] = quality_scores
+        lines[-1] = json.dumps(last, ensure_ascii=False)
+        log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info("Updated last policy log entry with quality_review_scores")
+    except Exception as exc:
+        logger.warning("Failed to update quality scores in policy log: %s", exc)
 
 
 def should_trigger_full_optuna(log_path: Path | None = None) -> bool:
@@ -434,6 +576,10 @@ def trigger_full_optuna_background(repo_root: Path, trials: int = 30) -> None:
         "--trials", str(trials),
         "--study", "distiller", "orchestrator", "polisher",
     ]
+    warmup_log = POLICY_SCORE_LOG
+    if warmup_log.exists():
+        cmd += ["--warmup-log", str(warmup_log)]
+
     with log_file.open("w") as lf:
         subprocess.Popen(
             ["nohup"] + cmd,

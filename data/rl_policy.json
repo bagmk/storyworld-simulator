@@ -1,33 +1,28 @@
 {
-  "version": 3,
-
+  "version": 4,
   "scene_target_bias": 0,
   "scene_target_min": 3,
   "scene_target_max": 10,
   "prose_history_max_episodes": 999,
-
-  "distiller_temperature": 0.135,
+  "distiller_temperature": 0.1127185378650038,
   "distiller_max_tokens": 3000,
-  "confrontation_merge_strength": 0.790,
-  "dialogue_compaction_strength": 0.905,
+  "confrontation_merge_strength": 0.79,
+  "dialogue_compaction_strength": 0.957818985389437,
   "role_cue_strength": 0.793,
-
-  "prose_scene_temperature": 0.9849549260809971,
-  "prose_transition_temperature": 0.5274034664069657,
+  "prose_scene_temperature": 0.8171620089607149,
+  "prose_transition_temperature": 0.304329892073091,
   "prose_scene_readability_temperature": 0.6162213204002108,
-  "prose_paragraph_min_sentences": 3,
-  "prose_paragraph_max_sentences": 4,
+  "prose_paragraph_min_sentences": 2,
+  "prose_paragraph_max_sentences": 3,
   "prose_enable_term_gloss": false,
   "prefer_concrete_offer_detail": 1,
-
-  "prose_polish_temperature": 0.349,
-  "prose_anchor_fix_temperature": 0.380,
+  "prose_polish_temperature": 0.5992233911155415,
+  "prose_anchor_fix_temperature": 0.38,
   "clue_injection_timing": 0,
   "director_fallback_cast_size": 4,
-  "scene_closure_aggressiveness": 0.185,
-  "hold_pressure_peak": 1,
+  "scene_closure_aggressiveness": 0.4522605373640549,
+  "hold_pressure_peak": 0,
   "repeated_concern_loop_reduction": 0,
-
   "reader_style_constraints": {
     "action_cap": 70,
     "dialogue_cap": 40,
@@ -39,21 +34,30 @@
   "reader_prefers_dialogue_compaction": true,
   "reader_prefers_analytical_wording_reduction": true,
   "repetition_jaccard_threshold": 0.639,
-
   "_optuna_prose_best": {
-    "trial": 1, "score": 8.436,
+    "trial": 1,
+    "score": 8.436,
     "source": "tools/optuna_prose_test.py — 50 trials"
   },
   "_optuna_distiller_best": {
-    "trial": 6, "score": 9.200,
+    "trial": 6,
+    "score": 9.2,
     "source": "tools/optuna_multi_study.py — 50 trials"
   },
   "_optuna_orchestrator_best": {
-    "trial": 25, "score": 8.333,
+    "trial": 25,
+    "score": 8.333,
     "source": "tools/optuna_multi_study.py — 50 trials"
   },
   "_optuna_polisher_best": {
-    "trial": 0, "score": 8.436,
+    "trial": 0,
+    "score": 8.436,
     "source": "tools/optuna_multi_study.py — 50 trials (det only, llm не дифференцировал)"
+  },
+  "target_scenes": 5,
+  "_last_inline_opt": {
+    "date": "2026-03-21",
+    "episode_id": "ep01_conference_shadow",
+    "score": 8.132
   }
 }

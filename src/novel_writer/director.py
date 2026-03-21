@@ -813,6 +813,24 @@ class DirectorAI:
                 "or choice. If a technical point remains, translate it into one plain consequence and force "
                 "a decision, interruption, or movement."
             )
+        if progress_signal.get("anxious_pressure"):
+            return (
+                "The cast is emotionally keyed up. Let the next beat show hesitation, a question, a check-in, "
+                "or a small bodily reaction instead of another neutral explanation."
+            )
+        if progress_signal.get("frustration_pressure"):
+            return (
+                "Frustration is rising. Use a blunt refusal, interruption, or sharper response to change the scene."
+            )
+        if progress_signal.get("confidence_pressure"):
+            return (
+                "A decisive posture is available. Let the next beat commit, set terms, or force a concrete choice."
+            )
+        if progress_signal.get("emotional_conflict"):
+            return (
+                "The cast's emotional state is split. Pick the next speaker who exposes that split with a reaction, "
+                "refusal, or decision rather than another neutral summary."
+            )
         if progress_signal["signal_stack"]:
             return (
                 "The scene is stacking warning cues without cashing them out. Do not add another omen. "
@@ -1152,7 +1170,7 @@ class DirectorAI:
             for i in recent[-6:]
             if str(i.get("speaker_id", "")).strip() != "director"
         ]
-        progress_signal = self._scene_progress_signal(recent)
+        progress_signal = self._scene_progress_signal(recent, agents=agents)
         recent_text = "\n".join(
             (
                 f"- T{i.get('turn', '?')} | {i.get('speaker_name', '?')}: "
@@ -1163,6 +1181,12 @@ class DirectorAI:
 
         active_text = "\n".join(
             f"- {aid}: {agent_map[aid].name}" for aid in active_ids
+        )
+        speaker_signature_block = self._build_speaker_turn_signatures(
+            agent_map,
+            active_ids,
+            recent_speakers,
+            progress_signal,
         )
         jargon_onboarded = self._recent_jargon_already_onboarded(recent)
         prefers_technical_restraint = self.reader_profile.prefers_technical_term_restraint()
@@ -1183,6 +1207,27 @@ class DirectorAI:
                 "11) If the next turn keeps a technical or English term, it must be followed by "
                 "an immediate human reaction, emotion, or choice in the same turn. "
                 "If the term already landed once, do not define it again.\n"
+            )
+        emotional_pressure_rule = ""
+        if progress_signal.get("anxious_pressure"):
+            emotional_pressure_rule += (
+                "- The cast reads anxious or guarded. Prefer hesitation, probing, or a concrete check-in "
+                "instead of another neutral explanation.\n"
+            )
+        if progress_signal.get("frustration_pressure"):
+            emotional_pressure_rule += (
+                "- Frustration is visible. Let the next turn sharpen the exchange with a blunt challenge, "
+                "interruption, or refusal.\n"
+            )
+        if progress_signal.get("confidence_pressure"):
+            emotional_pressure_rule += (
+                "- A decisive posture is available. Use it to advance the scene with a choice, boundary, "
+                "or direct offer.\n"
+            )
+        if progress_signal.get("emotional_conflict"):
+            emotional_pressure_rule += (
+                "- The cast's emotional state is split. Choose the speaker whose reaction would visibly "
+                "change the room, not the one who merely explains it.\n"
             )
         brevity_rule = ""
         if progress_signal["explanation_loop"] or prefers_sentence_simplification:
@@ -1223,6 +1268,7 @@ class DirectorAI:
             f"Current location: {self.episode_config.get('location', world.location)}\n"
             f"Active cast (ONLY choose from these IDs):\n{active_text}\n\n"
             f"Recent interactions:\n{recent_text}\n\n"
+            f"Character turn signatures:\n{speaker_signature_block}\n\n"
             f"Task:\n"
             f"1) Choose ONE next speaker from active cast IDs.\n"
             f"2) You may set end_scene=true only if the exchange naturally closed.\n"
@@ -1238,6 +1284,7 @@ class DirectorAI:
             f"{'10) The scene is stacking warning cues; do not add another memo/alert/watcher beat. Cash out the sharpest cue through reaction, confrontation, movement, or a scene close.\\n' if progress_signal['signal_stack'] else ''}\n"
             f"{protagonist_focus_rule}"
             f"{jargon_reaction_rule}"
+            f"{emotional_pressure_rule}"
             f"{brevity_rule}"
             f"{show_dont_tell_rule}"
             f"{repeated_concern_rule}"
@@ -1510,7 +1557,11 @@ class DirectorAI:
     # Helpers
     # ------------------------------------------------------------------ #
 
-    def _scene_progress_signal(self, recent_interactions: Optional[list[dict]]) -> dict[str, bool]:
+    def _scene_progress_signal(
+        self,
+        recent_interactions: Optional[list[dict]],
+        agents: Optional[list[Agent]] = None,
+    ) -> dict[str, bool]:
         min_window = 3 if self._reader_wants_repeated_confrontation_merge() else 4
         recent = [
             i for i in (recent_interactions or [])
@@ -1528,6 +1579,10 @@ class DirectorAI:
                 "emotional_shift": False,
                 "decisive_shift": False,
                 "pressure_peak": False,
+                "anxious_pressure": False,
+                "frustration_pressure": False,
+                "confidence_pressure": False,
+                "emotional_conflict": False,
             }
 
         recent_speakers = [
@@ -1556,6 +1611,7 @@ class DirectorAI:
             self._has_emotional_or_decisive_shift(str(i.get("content", "")))
             for i in recent[-2:]
         )
+        emotional_flags = self._current_emotional_pressure_flags(recent_speakers, agents)
         decisive_shift = any(
             re.search(
                 r"(결정|선택|거절|수락|걸음을 옮|문으로 향|자료를 건넸|자리를 정리|돌아서|떠났|막아섰|고개를 끄덕|반걸음|물러섰|손을 내밀)",
@@ -1571,6 +1627,8 @@ class DirectorAI:
         stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
         ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
+        if emotional_flags["emotional_conflict"]:
+            stalled = False
         return {
             "stalled": stalled,
             "closure_ready": closure_ready,
@@ -1582,7 +1640,137 @@ class DirectorAI:
             "emotional_shift": emotional_shift,
             "decisive_shift": decisive_shift,
             "pressure_peak": pressure_peak,
+            **emotional_flags,
         }
+
+    @staticmethod
+    def _emotion_family(label: str) -> str:
+        low = str(label or "").lower()
+        if re.search(r"(불안|초조|긴장|걱정|두렵|fear|anx|unease|stress|nerv)", low):
+            return "anxious"
+        if re.search(r"(분노|짜증|격앙|불만|irrit|anger|frustr)", low):
+            return "frustrated"
+        if re.search(r"(확신|결심|의지|안정|calm|confid|resol)", low):
+            return "confident"
+        if re.search(r"(호기심|궁금|의문|surpris|shock|curious)", low):
+            return "curious"
+        if re.search(r"(안도|진정|안심|relief)", low):
+            return "relieved"
+        return "neutral"
+
+    @classmethod
+    def _dominant_emotion_family(cls, emotional_state: dict) -> tuple[str, float]:
+        best_family = "neutral"
+        best_value = 0.0
+        if not isinstance(emotional_state, dict):
+            return best_family, best_value
+        for emotion, raw_value in emotional_state.items():
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if value <= 0:
+                continue
+            family = cls._emotion_family(str(emotion))
+            if value > best_value:
+                best_family = family
+                best_value = value
+        return best_family, best_value
+
+    def _current_emotional_pressure_flags(
+        self,
+        recent_speakers: list[str],
+        agents: Optional[list[Agent]] = None,
+    ) -> dict[str, bool]:
+        flags = {
+            "anxious_pressure": False,
+            "frustration_pressure": False,
+            "confidence_pressure": False,
+            "emotional_conflict": False,
+        }
+        if not agents:
+            return flags
+
+        speaker_ids = {sid for sid in recent_speakers if sid}
+        relevant_agents = [
+            agent for agent in agents
+            if not speaker_ids or agent.id in speaker_ids
+        ]
+        strong_families: set[str] = set()
+        for agent in relevant_agents:
+            family, intensity = self._dominant_emotion_family(agent.memory.emotional_state)
+            if intensity < 0.35:
+                continue
+            if family == "anxious":
+                flags["anxious_pressure"] = True
+            elif family == "frustrated":
+                flags["frustration_pressure"] = True
+            elif family == "confident":
+                flags["confidence_pressure"] = True
+            if family != "neutral":
+                strong_families.add(family)
+        flags["emotional_conflict"] = len(strong_families) >= 2
+        return flags
+
+    def _speaker_response_hint(
+        self,
+        emotion_family: str,
+        intensity: float,
+        progress_signal: dict[str, bool],
+    ) -> str:
+        hint = {
+            "anxious": "hesitate, verify, or ask for a concrete check",
+            "frustrated": "interrupt, challenge, or refuse bluntly",
+            "confident": "state terms, decide, or push the scene forward",
+            "curious": "probe for a missing detail or next step",
+            "relieved": "soften the exchange and close the beat",
+        }.get(emotion_family, "react to the visible pressure")
+        if progress_signal.get("technical_stall"):
+            hint += "; translate any jargon into consequence instead of repeating it"
+        if progress_signal.get("repeated_concern") and emotion_family in {"confident", "frustrated"}:
+            hint += "; turn the repeated concern into a consequence, not a recap"
+        if intensity >= 0.6:
+            hint += "; the emotion is strong enough to color the line"
+        return hint
+
+    def _build_speaker_turn_signatures(
+        self,
+        agent_map: dict[str, Agent],
+        active_ids: list[str],
+        recent_speakers: list[str],
+        progress_signal: dict[str, bool],
+    ) -> str:
+        lines: list[str] = []
+        tail_recent = recent_speakers[-2:] if recent_speakers else []
+        for aid in active_ids:
+            agent = agent_map[aid]
+            emotion_family, emotion_level = self._dominant_emotion_family(agent.memory.emotional_state)
+            speech = agent.speech_profile if isinstance(agent.speech_profile, dict) else {}
+            voice_bits: list[str] = []
+            for key in ("tone", "cadence", "formality"):
+                value = str(speech.get(key, "")).strip()
+                if value:
+                    voice_bits.append(f"{key}={value}")
+            lexicon = speech.get("lexicon", [])
+            if isinstance(lexicon, list):
+                lexicon_bits = [str(item).strip() for item in lexicon[:4] if str(item).strip()]
+                if lexicon_bits:
+                    voice_bits.append(f"lexicon={', '.join(lexicon_bits)}")
+            tics = speech.get("signature_tics", [])
+            if isinstance(tics, list):
+                tic_bits = [str(item).strip() for item in tics[:2] if str(item).strip()]
+                if tic_bits:
+                    voice_bits.append(f"tics={', '.join(tic_bits)}")
+            if not voice_bits:
+                voice_bits.append("voice=default")
+            hint = self._speaker_response_hint(emotion_family, emotion_level, progress_signal)
+            if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:
+                hint += "; avoid another identical follow-up"
+            lines.append(
+                f"- {agent.name} ({aid}): emotional posture={emotion_family} ({emotion_level:.2f}); "
+                f"{' | '.join(voice_bits)}; likely next move={hint}"
+            )
+        return "\n".join(lines) if lines else "(none)"
 
     def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:
         recent = recent_interactions[-4:]

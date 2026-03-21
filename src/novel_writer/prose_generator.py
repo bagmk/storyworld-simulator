@@ -450,6 +450,7 @@ class ProseGenerator:
             "prefer action beats, gaze shifts, silence, interruption, and sentence rhythm to track speakers.\n"
             "Do not turn stage directions or narration into quoted speech.\n"
             "Use signature verbal tics only when context clearly demands it; avoid catchphrase repetition.\n"
+            "Let each character's speed, hesitation, and directness feel distinct when they speak.\n"
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "Keep all content in Korean.\n"
         )
@@ -517,7 +518,8 @@ class ProseGenerator:
             f"- When a memo, warning sound, or named arrival shifts the scene, give it one dedicated sentence with subject and location.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
-            f"- Let character agendas and speech habits differentiate dialogue; theme should emerge from friction, not repeated explanation.\n\n"
+            f"- Let character agendas and speech habits differentiate dialogue; theme should emerge from friction, not repeated explanation.\n"
+            f"- Use the character guide's cadence, formality, lexicon, and optional tics as real voice cues, not decoration.\n\n"
             f"{COLON_DIALOGUE_LABEL_BAN}\n"
             f"## Essential Content (from simulation)\n"
             f"Key dialogue:\n{dialogue_text}\n"
@@ -539,6 +541,8 @@ class ProseGenerator:
                 "## Dialogue Voice Variety Priority\n"
                 "- Different characters should not sound identical in sentence ending and lexical rhythm.\n"
                 "- Add subtle per-character speech habits without caricature.\n"
+                "- Let one speaker be clipped, another more hesitant, and another more direct when the scene pressure changes.\n"
+                "- If a line starts sounding like exposition, attach it to a tactic, dodge, interruption, or reaction beat so it still feels spoken.\n"
                 "- Avoid repeating the same sentence-ending pattern across adjacent dialogue lines.\n\n"
             )
         if self._feedback_flag_enabled("dialogue_agenda_contrast") or self._feedback_mentions("이해관계", "말버릇", "모레노", "밀러"):
@@ -548,11 +552,11 @@ class ProseGenerator:
                 "- Differentiate voices through directness, evasiveness, brevity, and favored wording.\n"
                 "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
-        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항", "밀러"):
+        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항", "밀러"):
             prompt += (
                 "## Pressure Cash-Out Priority\n"
                 "- When Miller's proposal or a similar coercive offer appears, do not leave the cost abstract.\n"
-                "- Show the price through concrete scene details: clause wording, access restriction, security, badge, facility rule, room placement, deadline, or a visible handoff.\n"
+                "- Show the price through concrete scene details: clause wording, access restriction, security, badge, facility rule, room placement, deadline, a one-line usage instruction, or a visible handoff.\n"
                 "- If the source material only implies danger, keep the implication concrete and physical; do not explain the threat in summary language.\n"
                 "- After the offer lands, the next beat should be consequence, refusal, or a forced choice, not another paraphrase of the warning.\n\n"
             )
