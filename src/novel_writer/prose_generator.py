@@ -500,6 +500,7 @@ class ProseGenerator:
             f"- Avoid repeating identical numeric literals (e.g., same milliseconds/ratios) in adjacent paragraphs unless plot-critical.\n\n"
             f"- In dialogue-heavy stretches, anchor speaker identity with short action beats or name cues every 1-2 exchanges.\n"
             f"- When two speakers make similar warnings or proposals, keep their roles distinct by shifting one into leverage, one into resistance, and one into consequence.\n"
+            f"- When several supporting characters are present, give each one a distinct immediate motive, pressure, or threat in one concrete line instead of repeating the same support/control idea.\n"
             f"- If three or more characters are present, avoid ambiguous pronouns for consecutive lines.\n\n"
             f"- Technical terms: explain only if the scene becomes unclear, and prefer brief inline cues over parentheses.\n"
             f"- Rotate sentence length in short/medium/long rhythm to avoid monotone cadence.\n"
@@ -513,6 +514,7 @@ class ProseGenerator:
             f"- For any pressure beat, keep at most one bodily or emotional reaction sentence before the scene changes state.\n"
             f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
             f"- If a threat is present, name one concrete anchor for it once; do not keep restating abstract danger in different words.\n"
+            f"- If the scene includes multiple supporting characters, let each one carry a different pressure or motive so they do not blur into one repeated concern.\n"
             f"- If repeated atmosphere starts to stack, keep the sharpest image and cut the rest.\n"
             f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
             f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
@@ -570,6 +572,7 @@ class ProseGenerator:
                 "## Dialogue Agenda Contrast Priority\n"
                 "- Let each major speaker push a concrete immediate agenda rather than restating theme.\n"
                 "- Differentiate voices through directness, evasiveness, brevity, and favored wording.\n"
+                "- When support, control, or pressure repeats across nearby lines, vary the leverage or consequence instead of paraphrasing the same motive.\n"
                 "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
         if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항"):
@@ -954,6 +957,9 @@ class ProseGenerator:
             prompt += (
                 "\nIf dialogue runs long, break it with short action/reaction beats to protect pacing."
             )
+        prompt += (
+            "\nWhen several supporting characters appear, give each one a different immediate pressure or motive so they stay distinct."
+        )
         if self._feedback_mentions("정보가 많은 단락", "정보 밀집", "요약 문장", "핵심을 정리", "핵심 정리"):
             prompt += (
                 "\nAt the end of dense information paragraphs, add one short takeaway summary sentence."

@@ -295,6 +295,9 @@ class SceneDistiller:
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary, and preserve only the line that changes leverage or motive.\n"
+            f"6a. Keep each named character's reaction distinct: who hesitated, who escalated, who kept control, and who had to answer.\n"
+            f"6b. If a later turn repeats the same pressure, keep the version that changes leverage and convert the other into a concrete consequence or reaction.\n"
+            f"6c. For supporting characters, preserve one concrete motive, threat, or offer per scene instead of repeating the same abstract support/control tension.\n"
             f"7. If the same conflict repeats later, keep the version that moves the argument or consequence forward instead of re-stating the setup.\n"
             f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure or consequence needs emphasis.\n"
             f"9. Make each summary easy to follow: name the acting subject early, preserve one concrete role/title cue for any unnamed observer that matters, and keep cause/effect explicit instead of stacking clipped fragments.\n"
@@ -1227,10 +1230,10 @@ class SceneDistiller:
     def _blend_mood_fragment_with_consequence(self, sentence: str, scene: DistilledScene) -> str:
         fragment = re.sub(r"\s+", " ", str(sentence or "")).strip()
         if not fragment:
-            return self._summary_replacement_sentence(scene)
+            return self._generate_tension(scene)
         if self._summary_has_action_or_decision(fragment):
             return self._ensure_summary_sentence(fragment)
-        replacement = self._summary_replacement_sentence(scene)
+        replacement = self._refine_character_reactions(scene) or self._generate_tension(scene)
         if not replacement:
             return self._ensure_summary_sentence(fragment)
         base = re.sub(r"[.!?…]+$", "", fragment).strip()
@@ -1243,11 +1246,71 @@ class SceneDistiller:
         return self._ensure_summary_sentence(f"{base}, 그래서 {follow}")
 
     def _observable_emotion_reaction(self, scene: DistilledScene) -> str:
-        # Return the emotional arc as a structural signal — prose_generator handles expression.
-        emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
-        if not emotional:
-            return ""
-        return self._ensure_summary_sentence(emotional)
+        # Keep this as a structural reaction cue, not a fixed emotion-to-sentence mapping.
+        return self._refine_character_reactions(scene)
+
+    def _scene_tension_anchor(self, scene: DistilledScene) -> str:
+        candidates: list[str] = []
+        for source in (scene.key_actions or [], scene.discoveries or []):
+            for item in source:
+                cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
+                if cleaned:
+                    candidates.append(cleaned)
+        for sent in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", str(scene.narrative_summary or "").strip()):
+            cleaned = re.sub(r"\s+", " ", sent).strip()
+            if cleaned:
+                candidates.append(cleaned)
+        for candidate in candidates:
+            if self._summary_has_concrete_risk(candidate) or self._summary_has_action_or_decision(candidate):
+                return re.sub(r"[.!?…]+$", "", candidate).strip()
+        if scene.characters_present:
+            return f"{scene.characters_present[0]}의 반응"
+        return ""
+
+    def _generate_tension(self, scene: DistilledScene) -> str:
+        anchor = self._scene_tension_anchor(scene)
+        if self._scene_tension_score(scene) >= 6:
+            base = "압박이 선택을 강하게 강요했다"
+        elif self._scene_tension_score(scene) >= 4:
+            base = "압박이 한 단계 더 조여 왔다"
+        else:
+            base = "압박이 아직 완전히 풀리지 않았다"
+        if anchor:
+            return self._ensure_summary_sentence(f"{anchor} 때문에 {base}")
+        return self._ensure_summary_sentence(base)
+
+    def _refine_character_reactions(self, scene: DistilledScene) -> str:
+        subject = scene.characters_present[0] if scene.characters_present else "인물들"
+        for action in scene.key_actions or []:
+            cleaned = self._clean_action_text(action)
+            if cleaned:
+                if cleaned.startswith(subject):
+                    return self._ensure_summary_sentence(cleaned)
+                return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
+        for item in scene.discoveries or []:
+            cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
+            if cleaned:
+                return self._ensure_summary_sentence(f"{subject}은 {cleaned}을 확인했다")
+        for row in scene.key_dialogue or []:
+            if not isinstance(row, dict):
+                continue
+            speaker = str(row.get("speaker", "")).strip()
+            line = re.sub(r"\s+", " ", str(row.get("line", "") or "")).strip()
+            if not line:
+                continue
+            if speaker and speaker != "Unknown":
+                if self._summary_has_action_or_decision(line) or self._summary_has_concrete_risk(line):
+                    return self._ensure_summary_sentence(f"{speaker}의 말이 끝나자 {subject}은 다음 반응을 골랐다")
+                if len(line) <= 60:
+                    return self._ensure_summary_sentence(f"{subject}은 {speaker}의 말을 듣고 바로 다음 질문을 준비했다")
+        anchor = self._scene_tension_anchor(scene)
+        if anchor:
+            return self._ensure_summary_sentence(f"{subject}은 {anchor}를 다시 확인하고 반응을 늦췄다")
+        if scene.characters_present:
+            secondary = scene.characters_present[1] if len(scene.characters_present) > 1 else ""
+            if secondary and secondary != subject:
+                return self._ensure_summary_sentence(f"{subject}은 {secondary}의 태도를 먼저 살폈다")
+        return self._ensure_summary_sentence(f"{subject}은 시선을 한 번 옮기고 다음 반응을 골랐다")
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
         if (
@@ -1319,11 +1382,12 @@ class SceneDistiller:
                 return self._ensure_summary_sentence(cleaned)
             subject = scene.characters_present[0] if scene.characters_present else "인물들은"
             return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
-        emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
-        if emotional:
-            reaction = self._observable_emotion_reaction(scene)
-            if reaction:
-                return reaction
+        reaction = self._refine_character_reactions(scene)
+        if reaction:
+            return reaction
+        tension = self._generate_tension(scene)
+        if tension:
+            return tension
         return self._ensure_summary_sentence(scene.narrative_summary)
 
     @staticmethod
@@ -1494,28 +1558,7 @@ class SceneDistiller:
         return ""
 
     def _summary_reaction_tail(self, scene: DistilledScene) -> str:
-        subject = scene.characters_present[0] if scene.characters_present else "인물들"
-        for action in scene.key_actions or []:
-            cleaned = self._clean_action_text(action)
-            if cleaned:
-                return self._ensure_summary_sentence(cleaned)
-        for item in scene.discoveries or []:
-            cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
-            if not cleaned:
-                continue
-            if re.search(r"(드러났|확인됐|밝혀졌|알아냈|감지됐|포착됐)", cleaned):
-                return self._ensure_summary_sentence(cleaned)
-            return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
-        emotional = str(scene.emotional_arc or "")
-        if re.search(r"(불안|긴장|초조|압박)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 숨을 짧게 들이쉬고 손끝을 꽉 말아쥐었다")
-        if re.search(r"(안도|진정|안정)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 그제야 어깨를 조금 내렸다")
-        if re.search(r"(분노|짜증|격앙)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 턱선을 굳히고 시선을 피하지 않았다")
-        if re.search(r"(혼란|당황|망설임)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 시선을 한 번 비키고 답을 늦췄다")
-        return self._ensure_summary_sentence(f"{subject}은 손끝과 시선을 먼저 움직였다")
+        return self._refine_character_reactions(scene)
 
     @staticmethod
     def _threat_signal_signature(text: str) -> set[str]:

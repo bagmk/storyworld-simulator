@@ -1466,7 +1466,7 @@ class DirectorAI:
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
             f"{'8) Recent turns are circling the same explanation or bridge opener without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
-            f"{'9) Recent turns keep landing on the same pressure note or opening phrase; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}"
+            f"{'9) Recent turns keep landing on the same pressure note or opening phrase; either close the scene or pick a speaker who can turn it into one concrete move, cost, or room reaction.\\n' if progress_signal['flat_tension'] else ''}"
             f"{'10) The scene is stacking warning cues; do not add another memo/alert/watcher beat. Cash out the sharpest cue through reaction, confrontation, movement, or a scene close.\\n' if progress_signal['signal_stack'] else ''}\n"
             f"{'11) A warning or access denial just landed. The next turn should be a visible reaction, movement, or decision, not another explanation.\\n' if progress_signal.get('alert_pending_reaction') else ''}"
             f"{protagonist_focus_rule}"
@@ -1506,6 +1506,10 @@ class DirectorAI:
         if progress_signal["signal_stack"]:
             prompt += (
                 "\nReader priority: do not add another warning-style cue. Turn the existing cue into an answer, confrontation, movement, or scene exit."
+            )
+        if progress_signal["flat_tension"]:
+            prompt += (
+                "\nReader priority: the scene is repeating its pressure; choose a turn that introduces one concrete move, cost, or room reaction."
             )
         if prefers_sentence_simplification:
             prompt += (
@@ -1810,13 +1814,15 @@ class DirectorAI:
             1 if self._reader_wants_repeated_confrontation_merge() and len(recent) <= 3 else 2
         )
         technical_stall = self._has_repetitive_technical_exchange(recent)
+        repeated_concern = self._has_repeated_core_concern_exchange(recent)
         flat_tension = (
             self._has_flat_tension_plateau(recent)
             or repeated_openers >= 1
             or bool(tension_curve.get("flat"))
+            or (repeated_concern and repeated_openers >= 1)
+            or (technical_stall and repeated_openers >= 1)
         )
         explanation_loop = self._has_explanatory_loop(recent) or repeated_openers >= 1
-        repeated_concern = self._has_repeated_core_concern_exchange(recent)
         signal_stack = self._has_overloaded_threat_signal_stack(recent)
         closure_ready = self._has_scene_exit_cue(recent)
         emotional_shift = any(
@@ -2191,6 +2197,8 @@ class DirectorAI:
             hint += "; translate any jargon into one visible consequence instead of repeating it"
         if progress_signal.get("repeated_concern") and emotion_family in {"confident", "frustrated"}:
             hint += "; turn the repeated concern into a consequence, not a recap"
+        if progress_signal.get("flat_tension"):
+            hint += "; choose a concrete move, cost, or room reaction instead of another paraphrase"
         if progress_signal.get("inner_conflict"):
             hint += "; expose a split motive or hesitation before the next choice"
         if progress_signal.get("concrete_risk"):

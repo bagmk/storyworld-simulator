@@ -228,6 +228,15 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
     return scenes
 
 
+def _finalize_distilled_scenes(
+    distiller: SceneDistiller,
+    scenes: list[DistilledScene],
+    canonical_speakers: dict[str, str],
+) -> list[DistilledScene]:
+    guarded = distiller.apply_scene_guards(scenes, canonical_speakers)
+    return distiller.normalize_scene_timeline(guarded)
+
+
 def _coerce_intish(value, default: int = 0) -> int:
     if isinstance(value, bool):
         return default
@@ -531,9 +540,7 @@ def main() -> None:
             " | fallback chunking" if distill_fallback_used else "",
         )
     canonical_speakers = distiller._build_canonical_speaker_map(interactions)
-    scenes = distiller.normalize_scene_timeline(
-        distiller.apply_scene_guards(scenes, canonical_speakers)
-    )
+    scenes = _finalize_distilled_scenes(distiller, scenes, canonical_speakers)
     for s in scenes:
         logger.info(
             "  Scene %d: '%s' [T%d-%d] %s — %s",
