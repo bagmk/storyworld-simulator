@@ -261,6 +261,7 @@ DISCORD_BOT_TOKEN="your-main-bot-token"
 DISCORD_BOT_TOKEN2=""
 DISCORD_BOT_TOKEN3=""
 DISCORD_BOT_TOKEN4=""
+DISCORD_ALERT_CHANNEL_ID=""
 ```
 
 설명:
@@ -268,6 +269,7 @@ DISCORD_BOT_TOKEN4=""
 - `OPENAI_API_KEY`: 필수
 - `DISCORD_BOT_TOKEN`: 필수
 - `DISCORD_BOT_TOKEN2/3/4`: 선택
+- `DISCORD_ALERT_CHANNEL_ID`: 선택. 설정하면 연결 끊김/복구 알림을 해당 채널로 전송
 
 처음에는 **봇 하나만** 설정하는 것을 권장합니다.
 
@@ -687,6 +689,22 @@ cp .env.example .env
 
 - 실험을 분리하려면 채널도 분리하세요.
 
+### 봇이 자꾸 꺼진다 (권장: launchd 고정 실행)
+
+macOS에서는 터미널 종료/세션 종료 시 백그라운드 프로세스가 내려갈 수 있습니다.  
+아래처럼 `launchd`로 등록하면 자동 재시작됩니다.
+
+```bash
+# 상태 확인
+launchctl print gui/$(id -u)/com.novelwriter.discordbot
+
+# 재시작
+launchctl kickstart -k gui/$(id -u)/com.novelwriter.discordbot
+
+# 중지
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.novelwriter.discordbot.plist
+```
+
 ---
 
 ## 고급 내부 동작
@@ -733,6 +751,46 @@ Codex Fixer가 수정한 내용은 실제 소스 파일에 반영됩니다.
 
 즉, 같은 실패를 반복하기보다
 **“어떤 종류의 수정이 실제로 점수 향상과 연결됐는가”**를 학습해 가는 구조입니다.
+
+---
+
+## 자동 최적화 파이프라인
+
+### 매 에피소드 — 인라인 최적화 (5 trials)
+`!novel-daily` 실행 시 시뮬레이션 후 자동으로 5-trial mini-Optuna가 돌아갑니다.
+
+**최적화 대상 (10 파라미터):**
+- Distiller: `distiller_temperature`, `target_scenes`, `dialogue_compaction_strength`
+- Prose: `prose_scene_temperature`, `prose_paragraph_min/max_sentences`, `prose_transition_temperature`
+- Polish: `prose_polish_temperature`, `hold_pressure_peak`, `scene_closure_aggressiveness`
+
+**2단계 병렬 전략:**
+- Phase 1: Trial 0, 1 동시 실행 (탐색)
+- Phase 2: Trial 2, 3, 4 동시 실행 (Phase 1 결과로 TPE 가이드)
+
+결과는 `data/rl_policy.json`에 즉시 반영, `data/policy_score_log.jsonl`에 누적.
+
+### 5화마다 — 전체 Optuna 재튜닝
+5화치 실제 프로덕션 데이터(25개 포인트)로 orchestrator 포함 전체 재튜닝.
+백그라운드 실행: `output/optuna_auto_retune_YYYY-MM-DD.log`
+
+### Codex의 역할 (파라미터 최적화 외)
+Codex는 Optuna가 할 수 없는 작업에 집중:
+- **LLM 프롬프트 수정**: 낮은 점수 기준에 해당하는 system/user 프롬프트 개선
+- **새 파라미터 노출**: 하드코딩된 값 → `runtime_policy` 키 변환 (다음 Optuna 탐색 공간 확장)
+- **구조적 버그 수정**: 컴포넌트 간 인터페이스 문제
+
+Codex가 실행되기 전 Optuna 컨텍스트(최근 점수 추세, best params)가 fixer prompt에 자동 주입됩니다.
+
+### 검수 레이어
+
+| 단계 | 도구 | 대상 |
+|------|------|------|
+| Syntax | py_compile | 변경된 .py 파일 |
+| Regression | test_reader_feedback_guards | prose/distiller/director 변경 시 |
+| Smoke test | import check | 변경된 모듈 instantiation |
+| Param sync | param_sync_check | 새 runtime_policy 키 동기화 |
+| Code review | GPT-4o diff review | 모든 Codex 수정 |
 
 ---
 

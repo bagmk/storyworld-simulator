@@ -174,7 +174,9 @@ class SceneDistiller:
         """Keep only interactions the protagonist witnessed."""
         filtered = []
         for ix in interactions:
-            if ix["speaker_id"] == protagonist_id:
+            if not isinstance(ix, dict):
+                continue
+            if str(ix.get("speaker_id", "")).strip() == protagonist_id:
                 filtered.append({**ix, "_is_self": True})
                 continue
             if ix.get("action_type") == "director_event":
@@ -313,12 +315,15 @@ class SceneDistiller:
             f"24. If external support, real-time control, resources, authority, or responsibility repeat across late turns, keep the clearest first mention and compress later restatements into changed consequence only.\n"
             f"25. Treat transition-making beats one at a time: memo discovery, warning sound, and named arrival should each land in their own clear sentence with who noticed it and where they were.\n"
             f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between '정장 남자' and a proper name without clarification.\n\n"
-            f"27. Keep scene order strictly chronological by raw turn number; once a beat exits the stage/Q&A/hallway axis, do not rewind unless later turns clearly return there.\n"
-            f"28. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
-            f"29. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
-            f"30. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
-            f"31. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
-            f"32. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
+            f"27. If the threat source is still vague, keep one concrete anchor in the summary - a person, institution, badge, document, or room reaction - instead of repeating abstract danger language.\n"
+            f"28. When the scene starts to stall, prioritize the next concrete change in pressure or the scene boundary over another explanatory pass.\n"
+            f"29. If a warning cue lands, make the consequence visible in the same or next sentence so the summary does not feel suspended.\n"
+            f"30. Keep scene order strictly chronological by raw turn number; once a beat exits the stage/Q&A/hallway axis, do not rewind unless later turns clearly return there.\n"
+            f"31. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
+            f"32. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
+            f"33. If presentation, corridor exchange, and post-presentation contact all appear, preserve that order once each instead of restaging the same explanation.\n\n"
+            f"34. If Miller or another negotiator repeats support, authority, real-time control, or responsibility across adjacent turns, keep only the clearest 2-3 conditions in dialogue and move the rest into consequence.\n"
+            f"35. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
         )
         prompt += self._build_distill_feedback_guidance()
         prompt += (
@@ -553,7 +558,7 @@ class SceneDistiller:
         covered_beats = set()
         for scene in scenes:
             covered_beats.update(scene.beat_references)
-        required = {beat["id"] for beat in beats}
+        required = {str(beat.get("id", "")).strip() for beat in beats if str(beat.get("id", "")).strip()}
         missing = required - covered_beats
         if not missing:
             return
@@ -1744,6 +1749,8 @@ class SceneDistiller:
             parts.append("responsibility")
         if re.search(r"(계약|조항|문구|서명|서류|시설|보안|경비|출입|허가|배지|명함|access|security|contract|clause)", low):
             parts.append("concrete")
+        if re.search(r"(기관|조직|부서|위원회|사무국|담당자|관리자|보안팀|경호|신분증|직함|직책|출입 통제)", low):
+            parts.append("authority")
         return "|".join(parts[:3])
 
     def _scene_core_concern_signature(self, scene: DistilledScene) -> str:
@@ -1910,7 +1917,7 @@ class SceneDistiller:
             if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):
                 concrete += 1
             if re.search(
-                r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|시선|배지|발표장|복도|문 앞|문가|모니터|계약|조항|문구|시설|보안|경비|허가|출입|access|security|contract|clause)",
+                r"(명함|소속|직함|직책|슬라이드|수치|퍼센트|박수|웅성|시선|배지|발표장|복도|문 앞|문가|모니터|계약|조항|문구|시설|보안|경비|허가|출입|기관|조직|부서|위원회|사무국|담당자|관리자|보안팀|경호|신분증|access|security|contract|clause)",
                 str(line or ""),
             ):
                 concrete += 2
@@ -2201,7 +2208,10 @@ class SceneDistiller:
             end_turn = self._coerce_turn_number(chunk[-1].get("turn", 0), default=start_turn)
             chars = list({ix.get("speaker_name", "?") for ix in chunk if ix.get("speaker_id") != "director"})
             dialogue = [
-                {"speaker": ix["speaker_name"], "line": ix["content"][:150]}
+                {
+                    "speaker": str(ix.get("speaker_name", "?") or "?"),
+                    "line": str(ix.get("content", "") or "")[:150],
+                }
                 for ix in chunk
                 if ix.get("speaker_id") != "director" and not ix.get("content", "").startswith("[")
             ][:3]

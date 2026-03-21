@@ -131,7 +131,9 @@ def main() -> None:
     # ── Load configs ────────────────────────────────────────────────────
     logger.info("Loading episode: %s", args.episode)
     episode_config = load_episode(args.episode)
-    episode_id     = episode_config["id"]
+    episode_id = str(episode_config.get("id") or Path(args.episode).stem).strip()
+    if not episode_id:
+        raise ValueError(f"Episode id is missing in config: {args.episode}")
     rl_policy = load_policy()
     episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
 
@@ -326,13 +328,16 @@ def main() -> None:
     logger.info("Debug log → %s (%d director events)", debug_path, len(director.debug_log))
 
     # Budget summary
-    budget = llm.budget_summary()
+    budget = llm.budget_summary() or {}
+    spent_usd = float(budget.get("spent_usd", 0.0) or 0.0)
+    budget_usd = float(budget.get("budget_usd", 0.0) or 0.0)
+    call_count = int(budget.get("call_count", 0) or 0)
     logger.info(
         "Budget used: $%.4f / $%.2f (%.1f%%) over %d LLM calls",
-        budget["spent_usd"],
-        budget["budget_usd"],
-        100 * budget["spent_usd"] / max(budget["budget_usd"], 0.001),
-        budget["call_count"],
+        spent_usd,
+        budget_usd,
+        100 * spent_usd / max(budget_usd, 0.001),
+        call_count,
     )
 
     logger.info("═" * 60)

@@ -71,6 +71,29 @@ def _get_codex_fixer_lock() -> asyncio.Lock:
         _CODEX_FIXER_LOCK = asyncio.Lock()
     return _CODEX_FIXER_LOCK
 
+
+def _resolve_python_cmd() -> str:
+    """Use the same interpreter that launched this process (venv-safe)."""
+    return sys.executable or "python3"
+
+
+def _resolve_codex_exec_cmd(codex_model: str | None = None) -> list[str] | None:
+    """
+    Resolve a runnable Codex CLI command.
+    Returns None if Codex is unavailable in PATH and project venv.
+    """
+    codex_bin = shutil.which("codex")
+    if not codex_bin:
+        venv_codex = REPO_ROOT / ".venv" / "bin" / "codex"
+        if venv_codex.exists():
+            codex_bin = str(venv_codex)
+    if not codex_bin:
+        return None
+    cmd = [codex_bin, "exec"]
+    if codex_model:
+        cmd += ["-m", codex_model]
+    return cmd
+
 # Auto-improve loop settings
 AUTO_IMPROVE_MAX_CYCLES = 20      # Codex fixer 최대 반복 횟수
 AUTO_IMPROVE_SCORE_THRESHOLD = 8.5  # thrill+style 평균 이 점수 이상이면 통과 (10점 만점)
@@ -89,6 +112,8 @@ FIXER_TARGET_FILES = [
     "src/novel_writer/orchestrator.py",
     "generate_chapter.py",
     "simulate.py",
+    "tools/inline_optimizer.py",   # Codex can expand Optuna param space
+    "data/rl_policy.json",         # Codex can register new param defaults
 ]
 
 SIMULATION_RELEVANT_FIXER_FILES = {
@@ -810,13 +835,18 @@ async def _stream_subprocess(
     If stop_event is set, sends SIGTERM and returns rc=-1.
     """
     env = os.environ.copy()
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=str(REPO_ROOT),
-        env=env,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(REPO_ROOT),
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        missing = cmd[0] if cmd else "unknown"
+        msg = f"FileNotFoundError: {exc} (missing executable: {missing})"
+        return 127, msg
     if on_process_started:
         on_process_started(proc.pid)
 
@@ -1089,7 +1119,7 @@ async def step_simulator(
     ep_file = resolve_episode_file(episode_key)
 
     cmd = [
-        "python3", "-u", "simulate.py",
+        _resolve_python_cmd(), "-u", "simulate.py",
         "--episode", str(ep_file),
         "--characters", "config/characters.yaml",
         "--world", "config/world_facts.yaml",
@@ -1241,7 +1271,7 @@ async def step_chapter_gen(
             prev_review = candidates[-1]
 
     cmd = [
-        "python3", "-u", "generate_chapter.py",
+        _resolve_python_cmd(), "-u", "generate_chapter.py",
         "--episode", episode_id,
         "--episode-config", str(ep_file),
         "--protagonist", protagonist,
@@ -1361,6 +1391,157 @@ async def step_chapter_gen(
         )
 
     return chapter_out
+
+
+# ── Step 3b: Inline Optimizer ─────────────────────────────────────────────────
+
+async def step_inline_optimize(
+    episode_key: str,
+    run_dir: Path,
+    cycle: int,
+    target_words: int,
+    budget: float,
+    protagonist: str,
+    notify: NotifyFn,
+    upload: UploadFn,
+    set_status: StatusFn,
+    stop_event: asyncio.Event | None,
+    guardian_briefing_path: Path | None = None,
+    review_tier: str = "premium",
+    cost_tracker: dict | None = None,
+) -> Path | None:
+    if stop_event and stop_event.is_set():
+        return None
+
+    if set_status:
+        set_status("3/4 챕터 최적화 중...")
+
+    from tools.inline_optimizer import (
+        run_inline_optimize,
+        log_policy_score,
+        should_trigger_full_optuna,
+        trigger_full_optuna_background,
+        POLICY_SCORE_LOG,
+    )
+    from src.novel_writer.rl_policy import load_policy
+    from src.novel_writer.config_loader import load_episode, load_characters
+
+    ep_file = resolve_episode_file(episode_key)
+
+    try:
+        episode_config = load_episode(str(ep_file))
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] episode config load failed: %s", exc)
+        return None
+
+    # Use the YAML id field (matches DB), not the filename stem
+    episode_id = str(episode_config.get("id") or ep_file.stem).strip()
+
+    try:
+        character_profiles = load_characters(str(REPO_ROOT / "config" / "characters.yaml"))
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] character profiles load failed: %s", exc)
+        character_profiles = None
+
+    # Find latest reader feedback json in run_dir or parent
+    reader_feedback: dict | None = None
+    try:
+        candidates = sorted(
+            list(run_dir.glob("**/*review*.json")) + list(run_dir.parent.glob(f"**/{episode_id}*review*.json")),
+            key=lambda p: p.stat().st_mtime,
+        )
+        if candidates:
+            reader_feedback = json.loads(candidates[-1].read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    guardian_briefing: str | None = None
+    if guardian_briefing_path and guardian_briefing_path.exists():
+        try:
+            guardian_briefing = guardian_briefing_path.read_text(encoding="utf-8")
+        except Exception:
+            pass
+
+    base_policy = load_policy()
+
+    base_model = "gpt-4o-mini"
+    premium_model = "gpt-4.1-mini" if _use_mini_review_tier(review_tier) else "gpt-4.1"
+
+    if notify:
+        await notify(f"{DAILY_TAG}[OPTIMIZE] 🔬 인라인 최적화 시작 (5 trials)...")
+
+    try:
+        best_path, best_params, best_score, all_scores = await run_inline_optimize(
+            episode_id=episode_id,
+            episode_config=episode_config,
+            run_dir=run_dir,
+            protagonist_id=protagonist,
+            protagonist_name=" ".join(w.capitalize() for w in protagonist.split("_")),
+            target_words=target_words,
+            budget=budget,
+            character_profiles=character_profiles,
+            reader_feedback=reader_feedback,
+            guardian_briefing=guardian_briefing,
+            base_policy=base_policy,
+            base_model=base_model,
+            premium_model=premium_model,
+            notify_fn=notify,
+        )
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] run_inline_optimize failed: %s", exc)
+        if notify:
+            await notify(f"{DAILY_TAG}[OPTIMIZE] ❌ 인라인 최적화 실패: {exc}")
+        return None
+
+    if best_path is None or not best_path.exists():
+        logger.warning("[INLINE_OPT] best chapter path invalid: %s", best_path)
+        return None
+
+    # Collect all trial scores from the optimizer run (best_score only in this path; log it)
+    try:
+        log_policy_score(
+            episode_id=episode_id,
+            best_params=best_params,
+            best_score=best_score,
+            all_trial_scores=all_scores,
+            log_path=POLICY_SCORE_LOG,
+        )
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] log_policy_score failed: %s", exc)
+
+    try:
+        from tools.inline_optimizer import update_rl_policy
+        update_rl_policy(best_params, best_score, episode_id)
+        logger.info("[INLINE_OPT] rl_policy.json updated with best params")
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] rl_policy update failed: %s", exc)
+
+    try:
+        if should_trigger_full_optuna(POLICY_SCORE_LOG):
+            trigger_full_optuna_background(REPO_ROOT, trials=30)
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[OPTIMIZE] 🔬 5화 누적 — 전체 Optuna 재튜닝 백그라운드 시작"
+                )
+    except Exception as exc:
+        logger.warning("[INLINE_OPT] full optuna trigger failed: %s", exc)
+
+    if set_status:
+        word_count = len(best_path.read_text(encoding="utf-8", errors="replace").split())
+        set_status(f"3/4 챕터 최적화 완성 ({word_count}단어)")
+
+    if upload:
+        try:
+            word_count = len(best_path.read_text(encoding="utf-8", errors="replace").split())
+            await upload(best_path, f"📖 {episode_id} — {word_count}단어 (inline opt best={best_score:.2f})")
+        except Exception as exc:
+            logger.warning("[INLINE_OPT] upload failed: %s", exc)
+    elif notify:
+        await notify(
+            f"{DAILY_TAG}[OPTIMIZE] ✅ 최적화 챕터 완성 | best_score={best_score:.2f} | `{best_path.name}`"
+        )
+
+    return best_path
 
 
 # ── Step 4: Quality Review ────────────────────────────────────────────────────
@@ -1490,18 +1671,23 @@ async def _run_codex_review(
         f"결과를 다음 경로에 저장하라: {review_out}"
     )
 
-    cmd = [
-        "codex", "exec",
+    cmd = _resolve_codex_exec_cmd()
+    if not cmd:
+        return None
+    cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
         prompt,
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=str(REPO_ROOT),
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(REPO_ROOT),
+        )
+    except FileNotFoundError:
+        return None
     if set_process:
         set_process("codex_review", proc.pid, " ".join(cmd))
     try:
@@ -1574,8 +1760,12 @@ async def _run_codex_error_fixer(
         "오류 원인과 무관한 파일은 수정하지 마라."
     )
 
-    cmd = [
-        "codex", "exec",
+    cmd = _resolve_codex_exec_cmd()
+    if not cmd:
+        if notify:
+            await notify(f"{DAILY_TAG}[ERROR-FIX] ❌ Codex CLI를 찾을 수 없어 자동 진단을 건너뜁니다 (`codex` 미설치).")
+        return False
+    cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
         prompt,
@@ -1586,12 +1776,17 @@ async def _run_codex_error_fixer(
             f"{DAILY_TAG}[ERROR-FIX] 🔧 `{failed_step}` 오류 감지 — Codex 자동 진단 시작..."
         )
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=str(REPO_ROOT),
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(REPO_ROOT),
+        )
+    except FileNotFoundError:
+        if notify:
+            await notify(f"{DAILY_TAG}[ERROR-FIX] ❌ Codex 실행 파일을 찾지 못했습니다. 자동 진단을 건너뜁니다.")
+        return False
     if set_process:
         set_process("codex_error_fixer", proc.pid, " ".join(cmd))
 
@@ -1628,6 +1823,49 @@ async def _run_codex_error_fixer(
     return success
 
 
+def _build_optuna_context() -> str:
+    """Build a concise Optuna context report for Codex fixer prompt."""
+    import json
+    log_path = REPO_ROOT / "data" / "policy_score_log.jsonl"
+    policy_path = REPO_ROOT / "data" / "rl_policy.json"
+
+    lines = []
+    if log_path.exists():
+        try:
+            entries = [json.loads(l) for l in log_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+            if entries:
+                recent = entries[-5:]  # last 5 episodes
+                avg_score = sum(e.get("best_score", 0) for e in recent) / len(recent)
+                best_entry = max(entries, key=lambda e: e.get("best_score", 0))
+                lines.append(f"## Optuna 최적화 현황 (최근 {len(recent)}화)")
+                lines.append(f"- 최근 평균 best_score: {avg_score:.3f}")
+                lines.append(f"- 역대 최고: {best_entry.get('best_score', 0):.3f} (에피소드: {best_entry.get('episode_id', '?')})")
+                # Show score trend
+                scores = [e.get("best_score", 0) for e in recent]
+                trend = "📈 상승" if len(scores) >= 2 and scores[-1] > scores[0] else "📉 정체/하락"
+                lines.append(f"- 추세: {trend}")
+                # Best params from last run
+                if recent[-1].get("best_params"):
+                    lines.append(f"- 최근 best_params: {json.dumps(recent[-1]['best_params'], ensure_ascii=False)}")
+        except Exception:
+            pass
+
+    if policy_path.exists():
+        try:
+            policy = json.loads(policy_path.read_text(encoding="utf-8"))
+            # Show which optuna studies ran
+            for key in ["_optuna_prose_best", "_optuna_distiller_best", "_optuna_orchestrator_best", "_optuna_polisher_best"]:
+                if key in policy:
+                    study = policy[key]
+                    lines.append(f"- {key}: score={study.get('score', '?')} (trial={study.get('trial', '?')})")
+        except Exception:
+            pass
+
+    if not lines:
+        return ""
+    return "\n".join(lines)
+
+
 def _build_codex_fixer_prompt(review_json: dict, manager_instructions: str = "") -> str:
     issues = review_json.get("what_felt_boring_or_hard", [])
     tips = review_json.get("style_tips", [])
@@ -1641,7 +1879,25 @@ def _build_codex_fixer_prompt(review_json: dict, manager_instructions: str = "")
         f"\n## 매니저 분석 지시사항 (우선 적용)\n{manager_instructions}\n"
         if manager_instructions else ""
     )
+    optuna_ctx = _build_optuna_context()
+    optuna_block = (
+        f"## Optuna 파라미터 최적화 컨텍스트\n{optuna_ctx}\n\n"
+        if optuna_ctx else ""
+    )
     return (
+        optuna_block
+        + "## Codex의 역할 (중요)\n"
+        "Optuna가 이미 숫자 파라미터(temperature, counts 등)를 최적화했습니다.\n"
+        "Codex는 Optuna가 할 수 없는 작업에 집중하세요:\n\n"
+        "**허용:**\n"
+        "- prose_generator.py / scene_distiller.py 등의 LLM 프롬프트 텍스트 개선\n"
+        "  (점수가 낮은 기준에 해당하는 system/user 프롬프트 수정)\n"
+        "- 하드코딩된 값을 runtime_policy 키로 노출\n"
+        "  (tools/inline_optimizer.py param space + data/rl_policy.json 기본값도 함께 추가)\n"
+        "- 컴포넌트 간 인터페이스 버그 수정\n\n"
+        "**금지:**\n"
+        "- 숫자 파라미터 값 직접 변경 (Optuna 영역)\n"
+        "- runtime_policy 키 추가 시 inline_optimizer.py와 rl_policy.json 동기화 없이 코드만 변경\n\n"
         f"독자 AI 리뷰 결과: 긴장감={thrill}/10, 문체={style}/10, "
         f"인과성={causality}/10, 캐릭터={character}/10, 씬기능={scene_fn}/10\n\n"
         f"문제점:\n" + "\n".join(f"- {i}" for i in issues) + "\n\n"
@@ -2093,6 +2349,72 @@ def _syntax_check_target_files(paths: list[str] | None = None) -> list[str]:
     return errors
 
 
+def _run_param_sync_check(changed_files: list[str], run_dir: Path) -> tuple[bool, str]:
+    """Check that any new runtime_policy keys added by Codex are registered in both
+    rl_policy.json (defaults) and inline_optimizer.py (param space)."""
+    import re, json
+
+    inline_opt_changed = "tools/inline_optimizer.py" in changed_files
+    rl_policy_changed = "data/rl_policy.json" in changed_files
+    prose_distiller_changed = any(
+        f in changed_files for f in [
+            "src/novel_writer/prose_generator.py",
+            "src/novel_writer/scene_distiller.py",
+        ]
+    )
+
+    if not (prose_distiller_changed or inline_opt_changed):
+        return True, "파라미터 동기화 체크 스킵 (해당 파일 미변경)"
+
+    # Find all runtime_policy.get() calls in changed source files
+    new_keys: set[str] = set()
+    for rel_path in changed_files:
+        full_path = REPO_ROOT / rel_path
+        if not full_path.exists() or not rel_path.endswith(".py"):
+            continue
+        try:
+            text = full_path.read_text(encoding="utf-8")
+            keys = re.findall(r'runtime_policy\.get\(["\'](\w+)["\']', text)
+            new_keys.update(keys)
+        except Exception:
+            pass
+
+    if not new_keys:
+        return True, "새 runtime_policy 키 없음"
+
+    # Check rl_policy.json has defaults for all keys
+    rl_path = REPO_ROOT / "data" / "rl_policy.json"
+    try:
+        rl_policy = json.loads(rl_path.read_text(encoding="utf-8")) if rl_path.exists() else {}
+    except Exception:
+        rl_policy = {}
+
+    missing_in_rl = [k for k in new_keys if k not in rl_policy and not k.startswith("_")]
+
+    # Check inline_optimizer.py has suggest calls for new keys
+    inline_path = REPO_ROOT / "tools" / "inline_optimizer.py"
+    try:
+        inline_text = inline_path.read_text(encoding="utf-8") if inline_path.exists() else ""
+    except Exception:
+        inline_text = ""
+    missing_in_inline = [k for k in new_keys if k not in inline_text and not k.startswith("_")]
+
+    issues = []
+    if missing_in_rl:
+        issues.append(f"rl_policy.json 기본값 누락: {missing_in_rl}")
+    if missing_in_inline:
+        issues.append(f"inline_optimizer.py param_space 누락: {missing_in_inline}")
+
+    if issues:
+        msg = "파라미터 동기화 경고:\n" + "\n".join(f"  - {i}" for i in issues)
+        # Log as warning but don't block (Codex may have added them correctly)
+        logger.warning("[PARAM_SYNC] %s", msg)
+        (run_dir / "param_sync_warning.txt").write_text(msg, encoding="utf-8")
+        return True, f"경고 (비차단): {'; '.join(issues)}"
+
+    return True, f"파라미터 동기화 OK ({len(new_keys)}개 키 확인)"
+
+
 async def _run_local_fixer_validation(
     changed_files: list[str],
     run_dir: Path,
@@ -2126,7 +2448,7 @@ async def _run_local_fixer_validation(
             pass
         return False, message
 
-    py_compile_cmd = ["python3", "-m", "py_compile"] + python_changed
+    py_compile_cmd = [_resolve_python_cmd(), "-m", "py_compile"] + python_changed
     rc, output = await _stream_subprocess(
         py_compile_cmd,
         stop_event=stop_event,
@@ -2160,7 +2482,7 @@ async def _run_local_fixer_validation(
         "generate_chapter.py",
     }
     if covered_modules & set(changed_files):
-        test_cmd = ["python3", "-m", "unittest", "tests.test_reader_feedback_guards"]
+        test_cmd = [_resolve_python_cmd(), "-m", "unittest", "tests.test_reader_feedback_guards"]
         rc, output = await _stream_subprocess(
             test_cmd,
             stop_event=stop_event,
@@ -2191,7 +2513,60 @@ async def _run_local_fixer_validation(
         validation_log.write_text("\n\n".join(log_chunks), encoding="utf-8")
     except Exception:
         pass
+
+    # Parameter sync check
+    sync_ok, sync_reason = await asyncio.to_thread(
+        _run_param_sync_check, changed_files, run_dir
+    )
+    if notify and "경고" in sync_reason:
+        await notify(f"{DAILY_TAG}[PROGRAMMER] ⚠️ 파라미터 동기화 경고: {sync_reason}")
+
     return True, f"로컬 검증 통과 ({validation_log.name})"
+
+
+async def _run_prompt_smoke_test(
+    changed_files: list[str],
+    run_dir: Path,
+    notify=None,
+) -> tuple[bool, str]:
+    """Quick smoke test: if prose_generator or scene_distiller changed, verify
+    the module imports cleanly and key classes instantiate without errors."""
+    smoke_targets = {
+        "src/novel_writer/prose_generator.py": "from src.novel_writer.prose_generator import ProseGenerator; print('OK')",
+        "src/novel_writer/scene_distiller.py": "from src.novel_writer.scene_distiller import SceneDistiller; print('OK')",
+        "src/novel_writer/director.py": "from src.novel_writer.director import DirectorAI; print('OK')",
+        "src/novel_writer/orchestrator.py": "from src.novel_writer.orchestrator import SimulationOrchestrator; print('OK')",
+        "tools/inline_optimizer.py": "from tools.inline_optimizer import run_inline_optimize, update_rl_policy; print('OK')",
+    }
+
+    failures = []
+    for rel_path in changed_files:
+        smoke_cmd = smoke_targets.get(rel_path)
+        if not smoke_cmd:
+            continue
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                _resolve_python_cmd(), "-c", smoke_cmd,
+                cwd=str(REPO_ROOT),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                err = stderr.decode(errors="replace").strip()[:200]
+                failures.append(f"{rel_path}: {err}")
+        except asyncio.TimeoutError:
+            failures.append(f"{rel_path}: smoke test timeout")
+        except Exception as exc:
+            failures.append(f"{rel_path}: {exc}")
+
+    if failures:
+        msg = "Smoke test 실패:\n" + "\n".join(f"  - {f}" for f in failures)
+        (run_dir / "smoke_test_failures.txt").write_text(msg, encoding="utf-8")
+        return False, msg
+
+    tested = [f for f in changed_files if f in smoke_targets]
+    return True, f"Smoke test OK ({len(tested)}개 모듈)"
 
 
 def _build_gpt_code_review_prompt(
@@ -2375,9 +2750,11 @@ async def _run_codex_fixer(
         await notify(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작 (사이클 {fixer_cycle}){model_label}")
     summary_path = run_dir / f"fixer_cycle{fixer_cycle}_summary.md"
     output_log_path = run_dir / f"fixer_cycle{fixer_cycle}_stdout.log"
-    cmd = ["codex", "exec"]
-    if codex_model:
-        cmd += ["-m", codex_model]
+    cmd = _resolve_codex_exec_cmd(codex_model=codex_model)
+    if not cmd:
+        if notify:
+            await notify(f"{DAILY_TAG}[FIXER] ❌ Codex CLI를 찾을 수 없습니다 (`codex` 미설치).")
+        return False, "Codex CLI 미설치"
     cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
@@ -2664,6 +3041,18 @@ async def step_auto_improve_loop(
         if notify:
             await notify(f"{DAILY_TAG}[PROGRAMMER] ✅ 로컬 검증 통과: {validation_reason}")
 
+        # Smoke test for import safety
+        smoke_ok, smoke_reason = await _run_prompt_smoke_test(changed_files, run_dir, notify)
+        if not smoke_ok:
+            if notify:
+                await notify(f"{DAILY_TAG}[PROGRAMMER] 🔥 Smoke test 실패 → 롤백\n{smoke_reason}")
+            restored = await asyncio.to_thread(_rollback_from_backup, backup_dir)
+            if cost_tracker is not None:
+                cost_tracker.update(_cost_snapshot)
+            if notify:
+                await notify(f"{DAILY_TAG}[PROGRAMMER] ↩️ 롤백 완료: {', '.join(restored)}")
+            break
+
         # ── GPT 코드리뷰 + 롤백 ──
         if set_status:
             set_status(f"AI 개선 루프 {fixer_cycle}/{max_cycles} — Programmer 코드 검수 중...")
@@ -2928,19 +3317,22 @@ async def _run_story_fixer(
     """Codex로 에피소드 YAML 수정. 성공 여부와 요약 반환."""
     summary_path = run_dir / f"story_fixer_cycle{fixer_cycle}_summary.md"
     prompt = _build_story_fixer_prompt(episode_key, user_feedback)
-    cmd = ["codex", "exec"]
-    if codex_model:
-        cmd += ["-m", codex_model]
+    cmd = _resolve_codex_exec_cmd(codex_model=codex_model)
+    if not cmd:
+        return False, "Codex CLI 미설치 (`codex` 실행 파일을 찾을 수 없음)"
     cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--cd", str(REPO_ROOT),
         "-o", str(summary_path),
         prompt,
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=str(REPO_ROOT),
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, cwd=str(REPO_ROOT),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+    except FileNotFoundError:
+        return False, "Codex 실행 파일을 찾을 수 없음"
     if set_process:
         set_process("codex_story_fixer", proc.pid, " ".join(cmd))
     try:
@@ -3188,17 +3580,26 @@ async def run_daily_pipeline(
 
     # ── Step 3: Chapter generation ──
     _t0 = time.monotonic()
-    chapter_path = await step_chapter_gen(
+    # Try inline optimizer first; fall back to regular chapter gen on failure
+    chapter_path = await step_inline_optimize(
         episode_key, run_dir, cycle, target_words, budget, protagonist,
         notify, upload, set_status, stop_event,
-        set_process=set_process,
-        cost_tracker=cost_tracker,
-        metrics=cost_tracker,
-        auto_cycle_index=0,
-        auto_max_cycles=AUTO_IMPROVE_MAX_CYCLES,
         guardian_briefing_path=guardian_briefing_path,
         review_tier=review_tier,
+        cost_tracker=cost_tracker,
     )
+    if chapter_path is None:
+        chapter_path = await step_chapter_gen(
+            episode_key, run_dir, cycle, target_words, budget, protagonist,
+            notify, upload, set_status, stop_event,
+            set_process=set_process,
+            cost_tracker=cost_tracker,
+            metrics=cost_tracker,
+            auto_cycle_index=0,
+            auto_max_cycles=AUTO_IMPROVE_MAX_CYCLES,
+            guardian_briefing_path=guardian_briefing_path,
+            review_tier=review_tier,
+        )
     if set_metrics:
         set_metrics(dict(cost_tracker))
     if chapter_path is None:

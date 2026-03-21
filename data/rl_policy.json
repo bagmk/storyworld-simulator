@@ -1,14 +1,59 @@
 {
-  "version": 1,
+  "version": 3,
+
   "scene_target_bias": 0,
   "scene_target_min": 3,
   "scene_target_max": 10,
-  "distiller_temperature": 0.2,
-  "distiller_max_tokens": 4000,
-  "prose_scene_temperature": 0.65,
-  "prose_transition_temperature": 0.7,
-  "prose_polish_temperature": 0.45,
-  "prose_anchor_fix_temperature": 0.35,
   "prose_history_max_episodes": 999,
-  "director_fallback_cast_size": 1
+
+  "distiller_temperature": 0.135,
+  "distiller_max_tokens": 3000,
+  "confrontation_merge_strength": 0.790,
+  "dialogue_compaction_strength": 0.905,
+  "role_cue_strength": 0.793,
+
+  "prose_scene_temperature": 0.9849549260809971,
+  "prose_transition_temperature": 0.5274034664069657,
+  "prose_scene_readability_temperature": 0.6162213204002108,
+  "prose_paragraph_min_sentences": 3,
+  "prose_paragraph_max_sentences": 4,
+  "prose_enable_term_gloss": false,
+  "prefer_concrete_offer_detail": 1,
+
+  "prose_polish_temperature": 0.349,
+  "prose_anchor_fix_temperature": 0.380,
+  "clue_injection_timing": 0,
+  "director_fallback_cast_size": 4,
+  "scene_closure_aggressiveness": 0.185,
+  "hold_pressure_peak": 1,
+  "repeated_concern_loop_reduction": 0,
+
+  "reader_style_constraints": {
+    "action_cap": 70,
+    "dialogue_cap": 40,
+    "inner_cap": 30,
+    "sentence_chars_max": 110,
+    "max_sentences_per_paragraph": 5,
+    "max_jargon_terms_per_paragraph": 2
+  },
+  "reader_prefers_dialogue_compaction": true,
+  "reader_prefers_analytical_wording_reduction": true,
+  "repetition_jaccard_threshold": 0.639,
+
+  "_optuna_prose_best": {
+    "trial": 1, "score": 8.436,
+    "source": "tools/optuna_prose_test.py — 50 trials"
+  },
+  "_optuna_distiller_best": {
+    "trial": 6, "score": 9.200,
+    "source": "tools/optuna_multi_study.py — 50 trials"
+  },
+  "_optuna_orchestrator_best": {
+    "trial": 25, "score": 8.333,
+    "source": "tools/optuna_multi_study.py — 50 trials"
+  },
+  "_optuna_polisher_best": {
+    "trial": 0, "score": 8.436,
+    "source": "tools/optuna_multi_study.py — 50 trials (det only, llm не дифференцировал)"
+  }
 }

@@ -174,8 +174,12 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
     profile = build_reader_profile(reader_feedback)
     if profile.reports_stalled_progression():
         policy["hold_pressure_peak"] = 1
+        policy["prefer_scene_exit_on_stall"] = 1
     if profile.prefers_stronger_scene_compaction():
         policy["prefer_concrete_offer_detail"] = 1
+        policy["prefer_concrete_threat_detail"] = 1
+    if profile.prefers_explicit_transition_cues():
+        policy["prefer_concrete_transition_cue"] = 1
     return policy
 
 
@@ -437,6 +441,7 @@ def main() -> None:
         target_scenes = feedback_adjusted_target_scenes
     target_scenes = tuned_scene_target(target_scenes, rl_policy)
 
+    target_scenes = max(1, int(target_scenes))
     logger.info("Target words: %d | Target scenes: %d (%.0f words/scene avg)",
                 target_words, target_scenes, target_words / target_scenes)
 
@@ -556,7 +561,10 @@ def main() -> None:
     word_count = len(chapter_text.split())
     total_elapsed = distill_elapsed + prose_elapsed
 
-    budget = llm.budget_summary()
+    budget = llm.budget_summary() or {}
+    spent_usd = float(budget.get("spent_usd", 0.0) or 0.0)
+    budget_usd = float(budget.get("budget_usd", 0.0) or 0.0)
+    call_count = int(budget.get("call_count", 0) or 0)
     meta_path = Path(chapter_path).with_name(f"{Path(chapter_path).stem}_meta.json")
     meta_payload = {
         "episode_id": episode_id,
@@ -585,9 +593,9 @@ def main() -> None:
                 total_elapsed, distill_elapsed, prose_elapsed)
     logger.info(
         "  Budget: $%.4f / $%.2f over %d LLM calls | tokens: %d in + %d out = %d total",
-        budget["spent_usd"],
-        budget["budget_usd"],
-        budget["call_count"],
+        spent_usd,
+        budget_usd,
+        call_count,
         budget.get("prompt_tokens", 0),
         budget.get("completion_tokens", 0),
         budget.get("total_tokens", 0),

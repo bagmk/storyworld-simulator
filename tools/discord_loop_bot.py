@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -271,6 +273,22 @@ def _resolve_stage_bot_tokens() -> tuple[str, str, str]:
     fixer_bot = _env_value("DISCORD_BOT_TOKEN3", "TOKEN3", "token3")
     manager_bot = _env_value("DISCORD_BOT_TOKEN4", "TOKEN4", "token4")
     return reviewer_bot, fixer_bot, manager_bot
+
+
+def _resolve_alert_channel_id() -> int | None:
+    raw = _env_value(
+        "DISCORD_ALERT_CHANNEL_ID",
+        "DISCORD_STATUS_CHANNEL_ID",
+        "DISCORD_NOTIFY_CHANNEL_ID",
+    )
+    if not raw:
+        return None
+    try:
+        val = int(raw)
+    except ValueError:
+        print(f"warning: invalid alert channel id `{raw}` (must be integer)")
+        return None
+    return val if val > 0 else None
 
 
 def _find_latest(base_dir: Path, path_pattern: str) -> Path | None:
@@ -608,6 +626,169 @@ async def _send_file_with_token(
     await _send_file(channel, path, note)
 
 
+async def _notify_system_channel(
+    client: discord.Client,
+    channel_id: int | None,
+    text: str,
+    bot_token: str,
+) -> None:
+    if not channel_id:
+        return
+    try:
+        await _rest_send_text(channel_id, text, bot_token)
+        return
+    except Exception:
+        pass
+
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await client.fetch_channel(channel_id)
+        except Exception:
+            return
+    try:
+        await _send_text(channel, text)
+    except Exception:
+        return
+
+
+async def _send_team_reconnect_celebration(
+    channel_id: int | None,
+    main_bot_token: str,
+    reviewer_bot_token: str,
+    fixer_bot_token: str,
+    manager_bot_token: str,
+) -> None:
+    """On connect, make all four bots post unique comeback lines and react to each other."""
+    if not channel_id:
+        return
+
+    squad = [
+        (
+            "simulator",
+            main_bot_token,
+            random.choice(
+                [
+                    "🎬 우리가 돌아왔다. 오늘도 서사는 불타오른다.",
+                    "🎥 시뮬레이터 복귀. 다음 장면, 더 세게 간다.",
+                    "🚀 다시 연결 완료. 오늘의 전개는 한층 더 과감하다.",
+                ]
+            ),
+        ),
+        (
+            "reviewer",
+            reviewer_bot_token,
+            random.choice(
+                [
+                    "🧪 리뷰어 복귀 완료. 문장 결, 리듬, 완성도까지 꼼꼼히 본다.",
+                    "📏 리뷰어 접속. 날카로운 기준으로 품질을 끌어올린다.",
+                    "🔍 리뷰어 등장. 디테일까지 놓치지 않고 확인한다.",
+                ]
+            ),
+        ),
+        (
+            "programmer",
+            fixer_bot_token,
+            random.choice(
+                [
+                    "🛠️ 프로그래머 입장. 막힌 구간은 코드로 뚫고, 속도는 끝까지 끌어올린다.",
+                    "⚙️ 프로그래머 컴백. 병목은 정리하고 루프는 더 빠르게 돈다.",
+                    "🧩 프로그래머 연결됨. 문제는 분해해서 바로 해결한다.",
+                ]
+            ),
+        ),
+        (
+            "manager",
+            manager_bot_token,
+            random.choice(
+                [
+                    "🧠 매니저 연결됨. 팀 시동 완료, 이제 결과로 말한다.",
+                    "📣 매니저 복귀. 우선순위 정리 끝, 바로 진행한다.",
+                    "🎯 매니저 온라인. 목표 고정, 실행은 단단하게 간다.",
+                ]
+            ),
+        ),
+    ]
+
+    sent_messages: list[tuple[str, int, str]] = []
+    manager_message_id: int | None = None
+    for role, bot_token, text in squad:
+        if not bot_token:
+            continue
+        try:
+            msg_id = await _rest_send_text_return_message_id(channel_id, text, bot_token)
+            if msg_id:
+                sent_messages.append((role, msg_id, bot_token))
+                if role == "manager":
+                    manager_message_id = msg_id
+        except Exception:
+            continue
+        await asyncio.sleep(0.15)
+
+    if not sent_messages:
+        return
+
+    emoji_waves = {
+        "simulator": ["🌈", "⚡", "🚀", "🫶", "🎉", "✨"],
+        "reviewer": ["🟣", "🔵", "🟢", "✨", "📘", "🧠"],
+        "programmer": ["🧩", "🔥", "🌟", "💫", "⚙️", "🛠️"],
+        "manager": ["🎯", "🧠", "🏁", "🎉", "📣", "✅"],
+    }
+
+    # Each bot adds a different colorful reaction to every posted comeback message.
+    for _, msg_id, _ in sent_messages:
+        for idx, (role, _, reactor_token) in enumerate(squad):
+            if not reactor_token:
+                continue
+            palette = list(emoji_waves.get(role, ["✨"]))
+            random.shuffle(palette)
+            emoji = palette[idx % len(palette)]
+            try:
+                await _rest_add_reaction(channel_id, msg_id, emoji, reactor_token)
+            except Exception:
+                pass
+            await asyncio.sleep(0.08)
+
+    # User-requested behavior: when manager announces reconnect,
+    # the other three bots should leave a 👍 under manager's message.
+    if manager_message_id:
+        for role, reactor_token, _ in squad:
+            if role == "manager" or not reactor_token:
+                continue
+            try:
+                await _rest_add_reaction(channel_id, manager_message_id, "👍", reactor_token)
+            except Exception:
+                pass
+            await asyncio.sleep(0.06)
+
+
+async def _send_team_disconnect_farewell(
+    channel_id: int | None,
+    main_bot_token: str,
+    reviewer_bot_token: str,
+    fixer_bot_token: str,
+    manager_bot_token: str,
+) -> None:
+    """When disconnecting, post manager-only farewell in the channel."""
+    if not channel_id:
+        return
+
+    if not manager_bot_token:
+        return
+
+    text = random.choice(
+        [
+            "🧠 매니저 오프라인 전환. 준비 끝나면 다시 집결하자.",
+            "📣 매니저 퇴장. 다음 접속 때 바로 재정렬해서 시작한다.",
+            "🏁 매니저 로그아웃. 다음 라운드 목표는 이미 정해뒀다.",
+        ]
+    )
+    try:
+        await _rest_send_text_return_message_id(channel_id, text, manager_bot_token)
+    except Exception:
+        return
+
+
 # ── Benchmark helpers ──────────────────────────────────────────────────────
 
 def _collect_benchmark_rows(ep_filter: str | None = None) -> list[dict]:
@@ -760,7 +941,16 @@ async def async_main() -> None:
     os.chdir(REPO_ROOT)
     load_project_env(REPO_ROOT)
     _force_load_env_keys(
-        ["OPENAI_API_KEY", "DISCORD_BOT_TOKEN", "DISCORD_BOT_TOKEN2", "DISCORD_BOT_TOKEN3", "DISCORD_BOT_TOKEN4"]
+        [
+            "OPENAI_API_KEY",
+            "DISCORD_BOT_TOKEN",
+            "DISCORD_BOT_TOKEN2",
+            "DISCORD_BOT_TOKEN3",
+            "DISCORD_BOT_TOKEN4",
+            "DISCORD_ALERT_CHANNEL_ID",
+            "DISCORD_STATUS_CHANNEL_ID",
+            "DISCORD_NOTIFY_CHANNEL_ID",
+        ]
     )
     ROOT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -772,6 +962,13 @@ async def async_main() -> None:
     reviewer_bot_token = reviewer_bot_token or token
     fixer_bot_token = fixer_bot_token or token
     manager_bot_token = manager_bot_token or token
+    alert_channel_id = _resolve_alert_channel_id()
+    last_disconnect_notice_ts = 0.0
+    startup_team_hello_sent = False
+    startup_celebrated_channels: set[int] = set()
+    last_active_channel_id = alert_channel_id
+    manual_shutdown_in_progress = False
+    shutdown_farewell_sent = False
 
     intents = discord.Intents.default()
     intents.message_content = True
@@ -781,16 +978,82 @@ async def async_main() -> None:
 
     @client.event
     async def on_ready():
+        nonlocal startup_team_hello_sent
         print(f"Discord bot connected as {client.user}")
+        if startup_team_hello_sent:
+            return
+        startup_team_hello_sent = True
+        # If a fixed alert channel is configured, celebrate there immediately.
+        # Otherwise, we'll celebrate in the first active channel that receives a user message.
+        if alert_channel_id:
+            await _send_team_reconnect_celebration(
+                alert_channel_id,
+                token,
+                reviewer_bot_token,
+                fixer_bot_token,
+                manager_bot_token,
+            )
+            startup_celebrated_channels.add(alert_channel_id)
+
+    @client.event
+    async def on_disconnect():
+        nonlocal last_disconnect_notice_ts, last_active_channel_id, manual_shutdown_in_progress
+        if manual_shutdown_in_progress:
+            return
+        now = time.time()
+        if now - last_disconnect_notice_ts < 15:
+            return
+        last_disconnect_notice_ts = now
+        notify_channel_id = alert_channel_id or last_active_channel_id
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[WARN] Discord gateway disconnected at {ts}")
+        await _notify_system_channel(
+            client,
+            notify_channel_id,
+            f"⚠️ Discord 연결 끊김 감지 ({ts})\n자동 재연결을 시도합니다.",
+            manager_bot_token,
+        )
+        await _send_team_disconnect_farewell(
+            notify_channel_id,
+            token,
+            reviewer_bot_token,
+            fixer_bot_token,
+            manager_bot_token,
+        )
+
+    @client.event
+    async def on_resumed():
+        notify_channel_id = alert_channel_id or last_active_channel_id
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[INFO] Discord gateway resumed at {ts}")
+        await _notify_system_channel(
+            client,
+            notify_channel_id,
+            f"✅ Discord 연결 복구 ({ts})",
+            manager_bot_token,
+        )
 
     @client.event
     async def on_message(message: discord.Message):
+        nonlocal startup_celebrated_channels, last_active_channel_id
         if message.author.bot:
             return
 
         content = (message.content or "").strip()
         if not content:
             return
+        last_active_channel_id = message.channel.id
+
+        # No fixed alert channel? Then celebrate in the first channel where a user talks.
+        if startup_team_hello_sent and message.channel.id not in startup_celebrated_channels:
+            await _send_team_reconnect_celebration(
+                message.channel.id,
+                token,
+                reviewer_bot_token,
+                fixer_bot_token,
+                manager_bot_token,
+            )
+            startup_celebrated_channels.add(message.channel.id)
 
         parts = content.split(None, 1)
         command = parts[0].lower()
@@ -1221,6 +1484,9 @@ async def async_main() -> None:
                 if text.startswith(f"{DAILY_TAG}[CHAPTER] "):
                     if "챕터 생성 중" not in text:
                         return "chapter"
+                if text.startswith(f"{DAILY_TAG}[OPTIMIZE] "):
+                    if "인라인 최적화 시작" not in text:
+                        return "chapter"
                 if text.startswith(f"{DAILY_TAG}[REVIEW] "):
                     if "품질 자동 검수 중" not in text:
                         return "review"
@@ -1631,6 +1897,42 @@ async def async_main() -> None:
                     "이제 내용을 분석해서 상태 파일에 반영하고, 끝나면 다음에 무엇을 하면 되는지 안내하겠습니다."
                 )
             return
+
+    async def _send_shutdown_farewell(sig_name: str) -> None:
+        nonlocal shutdown_farewell_sent, manual_shutdown_in_progress
+        if shutdown_farewell_sent:
+            return
+        shutdown_farewell_sent = True
+        manual_shutdown_in_progress = True
+        notify_channel_id = alert_channel_id or last_active_channel_id
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        await _notify_system_channel(
+            client,
+            notify_channel_id,
+            f"🛑 프로세스 종료 감지 ({sig_name}, {ts})\n팀이 잠시 오프라인 전환됩니다.",
+            manager_bot_token,
+        )
+        await _send_team_disconnect_farewell(
+            notify_channel_id,
+            token,
+            reviewer_bot_token,
+            fixer_bot_token,
+            manager_bot_token,
+        )
+
+    loop = asyncio.get_running_loop()
+
+    def _handle_signal(sig_name: str) -> None:
+        async def _graceful_shutdown() -> None:
+            await _send_shutdown_farewell(sig_name)
+            await client.close()
+        asyncio.create_task(_graceful_shutdown())
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _handle_signal, sig.name)
+        except NotImplementedError:
+            pass
 
     await client.start(token)
 

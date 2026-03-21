@@ -1,0 +1,475 @@
+"""tools/inline_optimizer.py — Per-episode inline distill+prose+polish optimizer.
+
+Replaces step_chapter_gen in !novel-daily with a 5-trial mini-Optuna loop.
+Phase 1 (trials 0,1): parallel exploratory
+Phase 2 (trials 2,3,4): parallel TPE-guided
+
+Logs results to data/policy_score_log.jsonl.
+Every 5 completed episodes triggers a background full Optuna re-tune.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import shutil
+import subprocess
+import sys
+from datetime import date
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+logger = logging.getLogger("inline_optimizer")
+
+REVIEWER_MODEL = "gpt-4o-mini"
+POLICY_SCORE_LOG = _REPO_ROOT / "data" / "policy_score_log.jsonl"
+
+# ── LLM scorer constants (reused from optuna_prose_test.py) ──────────────────
+
+_LLM_SCORER_SYSTEM = (
+    "You are a strict literary editor for serialized Korean thriller novels. "
+    "Evaluate prose STYLE and STRUCTURE only — not story content. "
+    "Focus on how the text is written, not what happens. "
+    "Return ONLY valid JSON, no markdown."
+)
+
+_LLM_SCORER_CRITERIA = """Rate each criterion from 0 to 10 based on the prose excerpt below.
+Evaluate STYLE/STRUCTURE, not content:
+
+  literary_quality      : prose richness, word choice, imagery depth
+  emotional_tension     : pacing feel, suspense rhythm, interiority weight
+  readability           : clarity, sentence flow, no awkward phrasing
+  sentence_diversity    : variety in sentence LENGTH and STRUCTURE (short/long mix, not all same pattern)
+  paragraph_rhythm      : variation in paragraph length; does it breathe? or does it feel monotonous?
+  prose_vividness       : concrete sensory details vs abstract statements (higher = more concrete)
+  dialogue_effectiveness: does dialogue feel natural and serve the scene? (0 if no dialogue)
+  pacing_tension_balance: tension/release balance — not too flat, not constantly peak
+
+Return ONLY this JSON (no text before or after):
+{
+  "literary_quality": X,
+  "emotional_tension": X,
+  "readability": X,
+  "sentence_diversity": X,
+  "paragraph_rhythm": X,
+  "prose_vividness": X,
+  "dialogue_effectiveness": X,
+  "pacing_tension_balance": X
+}
+"""
+
+
+# ── Parameter space ───────────────────────────────────────────────────────────
+
+def _param_space(trial, base_policy: dict) -> dict:
+    return {
+        "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.05, 0.45),
+        "target_scenes":                 trial.suggest_int("target_scenes", 2, 6),
+        "dialogue_compaction_strength":  trial.suggest_float("dialogue_compaction_strength", 0.5, 1.0),
+        "prose_scene_temperature":       trial.suggest_float("prose_scene_temperature", 0.75, 1.0),
+        "prose_paragraph_min_sentences": trial.suggest_int("prose_paragraph_min_sentences", 2, 4),
+        "prose_paragraph_max_sentences": trial.suggest_int("prose_paragraph_max_sentences", 3, 5),
+        "prose_transition_temperature":  trial.suggest_float("prose_transition_temperature", 0.3, 0.7),
+        "prose_polish_temperature":      trial.suggest_float("prose_polish_temperature", 0.2, 0.6),
+        "hold_pressure_peak":            trial.suggest_categorical("hold_pressure_peak", [0, 1]),
+        "scene_closure_aggressiveness":  trial.suggest_float("scene_closure_aggressiveness", 0.05, 0.5),
+    }
+
+
+# ── Scoring ───────────────────────────────────────────────────────────────────
+
+def _score_deterministic(chapter_text: str, episode_id: str) -> float:
+    sys.path.insert(0, str(_REPO_ROOT / "tools"))
+    from quality_analyzer import QualityAnalyzer
+    qa = QualityAnalyzer(chapter_text, episode_name=episode_id)
+    return round(qa.analyze().get("overall_score", 0.0) * 10, 3)
+
+
+def _score_llm(chapter_text: str) -> float:
+    from openai import OpenAI
+    client = OpenAI()
+
+    text = chapter_text.strip()
+    if len(text) > 3000:
+        excerpt = text[:2000] + "\n\n...[중략]...\n\n" + text[-1000:]
+    else:
+        excerpt = text
+
+    prompt = _LLM_SCORER_CRITERIA + f"\n--- EXCERPT ---\n{excerpt}\n--- END ---"
+
+    try:
+        resp = client.chat.completions.create(
+            model=REVIEWER_MODEL,
+            messages=[
+                {"role": "system", "content": _LLM_SCORER_SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
+            temperature=0.0,
+            max_tokens=300,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw).strip()
+        scores = json.loads(raw)
+        numeric = {k: float(v) for k, v in scores.items() if isinstance(v, (int, float))}
+        return round(sum(numeric.values()) / len(numeric), 3) if numeric else 0.0
+    except Exception as exc:
+        logger.warning("LLM scorer error: %s", exc)
+        return 0.0
+
+
+def _score_chapter(chapter_text: str, episode_id: str) -> float:
+    det = _score_deterministic(chapter_text, episode_id)
+    llm = _score_llm(chapter_text)
+    combined = round(0.4 * det + 0.6 * llm, 3)
+    logger.info("[SCORE] det=%.2f llm=%.2f combined=%.3f", det, llm, combined)
+    return combined
+
+
+# ── Single trial runner ───────────────────────────────────────────────────────
+
+def _sync_run_trial(
+    trial_idx: int,
+    trial_params: dict,
+    episode_id: str,
+    episode_config: dict,
+    trial_dir: Path,
+    llm,
+    protagonist_id: str,
+    protagonist_name: str,
+    target_words: int,
+    character_profiles,
+    reader_feedback: dict | None,
+    guardian_briefing: str | None,
+    base_policy: dict,
+) -> tuple[float, Path]:
+    """Synchronous trial: distill → prose. Returns (score, chapter_path)."""
+    from src.novel_writer.scene_distiller import SceneDistiller
+    from src.novel_writer.prose_generator import ProseGenerator
+
+    trial_policy = dict(base_policy)
+    trial_policy.update(trial_params)
+
+    try:
+        distiller = SceneDistiller(
+            llm=llm,
+            episode_config=episode_config,
+            runtime_policy=trial_policy,
+            reader_feedback=reader_feedback,
+        )
+        scenes = distiller.distill(
+            episode_id=episode_id,
+            protagonist_id=protagonist_id,
+            target_scenes=trial_params["target_scenes"],
+        )
+        scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
+        if not scenes:
+            logger.warning("Trial %d: distill returned no scenes", trial_idx)
+            return 0.0, trial_dir / "empty.md"
+    except Exception as exc:
+        logger.warning("Trial %d: distill failed: %s", trial_idx, exc)
+        return 0.0, trial_dir / "empty.md"
+
+    trial_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        prose_gen = ProseGenerator(
+            llm=llm,
+            episode_config=episode_config,
+            output_dir=str(trial_dir),
+            character_profiles=character_profiles,
+            max_history_episodes=int(trial_policy.get("prose_history_max_episodes", 12)),
+            runtime_policy=trial_policy,
+            reader_feedback=reader_feedback,
+            guardian_briefing=guardian_briefing,
+        )
+        chapter_path = prose_gen.generate_chapter(
+            scenes=scenes,
+            protagonist_name=protagonist_name,
+            style="third_person_close",
+            target_words=target_words,
+        )
+    except Exception as exc:
+        logger.warning("Trial %d: prose generation failed: %s", trial_idx, exc)
+        return 0.0, trial_dir / "empty.md"
+
+    try:
+        chapter_text = Path(chapter_path).read_text(encoding="utf-8")
+        score = _score_chapter(chapter_text, episode_id)
+    except Exception as exc:
+        logger.warning("Trial %d: scoring failed: %s", trial_idx, exc)
+        score = 0.0
+
+    logger.info("Trial %d | score=%.3f | path=%s", trial_idx, score, chapter_path)
+    return score, Path(chapter_path)
+
+
+async def _run_single_trial(
+    trial_idx: int,
+    trial_params: dict,
+    episode_id: str,
+    episode_config: dict,
+    trial_dir: Path,
+    llm,
+    protagonist_id: str,
+    protagonist_name: str,
+    target_words: int,
+    character_profiles,
+    reader_feedback: dict | None,
+    guardian_briefing: str | None,
+    base_policy: dict,
+) -> tuple[float, Path]:
+    """Async wrapper around _sync_run_trial using asyncio.to_thread."""
+    return await asyncio.to_thread(
+        _sync_run_trial,
+        trial_idx,
+        trial_params,
+        episode_id,
+        episode_config,
+        trial_dir,
+        llm,
+        protagonist_id,
+        protagonist_name,
+        target_words,
+        character_profiles,
+        reader_feedback,
+        guardian_briefing,
+        base_policy,
+    )
+
+
+# ── Main optimizer ────────────────────────────────────────────────────────────
+
+async def run_inline_optimize(
+    episode_id: str,
+    episode_config: dict,
+    run_dir: Path,
+    protagonist_id: str,
+    protagonist_name: str,
+    target_words: int,
+    budget: float,
+    character_profiles,
+    reader_feedback: dict | None,
+    guardian_briefing: str | None,
+    base_policy: dict | None,
+    base_model: str,
+    premium_model: str,
+    notify_fn=None,
+) -> tuple[Path, dict, float, list[float]]:
+    """
+    Run 5-trial mini-Optuna loop (Phase 1: 2 parallel, Phase 2: 3 parallel).
+
+    Returns (best_chapter_path, best_params, best_score, all_trial_scores).
+    """
+    try:
+        import optuna
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+    except ImportError:
+        raise RuntimeError("optuna not installed — run: pip install optuna")
+
+    from src.novel_writer.llm_client import LLMClient
+
+    opt_dir = run_dir / "inline_opt"
+    opt_dir.mkdir(parents=True, exist_ok=True)
+    trial_budget = budget / 5
+
+    study = optuna.create_study(
+        study_name=f"inline_{episode_id}",
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(n_startup_trials=2, seed=42),
+    )
+
+    trial_scores: list[float] = []
+    trial_paths: list[Path] = []
+
+    # ── Phase 1: trials 0,1 (exploratory) ───────────────────────────────────
+    if notify_fn:
+        await notify_fn("[OPTIMIZE] 🔬 Trial 0,1 시작... (Phase 1/2)")
+
+    p1_trials = [study.ask() for _ in range(2)]
+    effective_base_policy = dict(base_policy or {})
+    p1_params = [_param_space(t, effective_base_policy) for t in p1_trials]
+
+    p1_llms = [
+        LLMClient(model=base_model, premium_model=premium_model, budget_usd=trial_budget)
+        for _ in range(2)
+    ]
+
+    p1_results = await asyncio.gather(
+        *[
+            _run_single_trial(
+                trial_idx=i,
+                trial_params=p1_params[i],
+                episode_id=episode_id,
+                episode_config=episode_config,
+                trial_dir=opt_dir / f"trial_{i}",
+                llm=p1_llms[i],
+                protagonist_id=protagonist_id,
+                protagonist_name=protagonist_name,
+                target_words=target_words,
+                character_profiles=character_profiles,
+                reader_feedback=reader_feedback,
+                guardian_briefing=guardian_briefing,
+                base_policy=effective_base_policy,
+            )
+            for i in range(2)
+        ],
+        return_exceptions=False,
+    )
+
+    for i, (score, path) in enumerate(p1_results):
+        study.tell(p1_trials[i], score)
+        trial_scores.append(score)
+        trial_paths.append(path)
+        logger.info("Phase 1 trial %d → score=%.3f", i, score)
+
+    # ── Phase 2: trials 2,3,4 (TPE-guided) ──────────────────────────────────
+    if notify_fn:
+        await notify_fn("[OPTIMIZE] 🔬 Trial 2,3,4 시작... (Phase 2/2)")
+
+    p2_trials = [study.ask() for _ in range(3)]
+    p2_params = [_param_space(t, effective_base_policy) for t in p2_trials]
+
+    p2_llms = [
+        LLMClient(model=base_model, premium_model=premium_model, budget_usd=trial_budget)
+        for _ in range(3)
+    ]
+
+    p2_results = await asyncio.gather(
+        *[
+            _run_single_trial(
+                trial_idx=2 + i,
+                trial_params=p2_params[i],
+                episode_id=episode_id,
+                episode_config=episode_config,
+                trial_dir=opt_dir / f"trial_{2 + i}",
+                llm=p2_llms[i],
+                protagonist_id=protagonist_id,
+                protagonist_name=protagonist_name,
+                target_words=target_words,
+                character_profiles=character_profiles,
+                reader_feedback=reader_feedback,
+                guardian_briefing=guardian_briefing,
+                base_policy=effective_base_policy,
+            )
+            for i in range(3)
+        ],
+        return_exceptions=False,
+    )
+
+    for i, (score, path) in enumerate(p2_results):
+        study.tell(p2_trials[i], score)
+        trial_scores.append(score)
+        trial_paths.append(path)
+        logger.info("Phase 2 trial %d → score=%.3f", 2 + i, score)
+
+    # ── Pick best ────────────────────────────────────────────────────────────
+    best_idx = int(max(range(len(trial_scores)), key=lambda i: trial_scores[i]))
+    best_score = trial_scores[best_idx]
+    best_params = (p1_params + p2_params)[best_idx]
+    best_src = trial_paths[best_idx]
+
+    if notify_fn:
+        await notify_fn(
+            f"[OPTIMIZE] ✅ 5트라이얼 완료 | best={best_score:.2f} (trial {best_idx})"
+        )
+
+    # Copy best chapter to run_dir
+    best_chapter_path = run_dir / f"{episode_id}_chapter.md"
+    if best_src.exists() and best_src.stat().st_size > 0:
+        shutil.copy2(best_src, best_chapter_path)
+    else:
+        best_chapter_path = best_src
+
+    logger.info(
+        "Inline optimize done | best_trial=%d score=%.3f path=%s",
+        best_idx, best_score, best_chapter_path,
+    )
+    return best_chapter_path, best_params, best_score, trial_scores
+
+
+# ── Logging helpers ───────────────────────────────────────────────────────────
+
+def log_policy_score(
+    episode_id: str,
+    best_params: dict,
+    best_score: float,
+    all_trial_scores: list[float],
+    log_path: Path | None = None,
+) -> None:
+    log_path = log_path or POLICY_SCORE_LOG
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "date": str(date.today()),
+        "episode_id": episode_id,
+        "best_score": round(best_score, 4),
+        "best_params": best_params,
+        "trial_scores": [round(s, 4) for s in all_trial_scores],
+    }
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    logger.info("Logged policy score for %s → %s", episode_id, log_path)
+
+
+def should_trigger_full_optuna(log_path: Path | None = None) -> bool:
+    log_path = log_path or POLICY_SCORE_LOG
+    if not log_path.exists():
+        return False
+    count = sum(1 for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip())
+    return count > 0 and count % 5 == 0
+
+
+def trigger_full_optuna_background(repo_root: Path, trials: int = 30) -> None:
+    today = date.today().isoformat()
+    log_file = repo_root / "output" / f"optuna_auto_retune_{today}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        sys.executable, "tools/optuna_multi_study.py",
+        "--trials", str(trials),
+        "--study", "distiller", "orchestrator", "polisher",
+    ]
+    with log_file.open("w") as lf:
+        subprocess.Popen(
+            ["nohup"] + cmd,
+            stdout=lf,
+            stderr=lf,
+            cwd=str(repo_root),
+            start_new_session=True,
+        )
+    logger.info("Full Optuna re-tune launched in background → %s", log_file)
+
+
+def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> None:
+    """Write inline optimizer best params back to rl_policy.json."""
+    import json
+    from datetime import date
+    policy_path = _REPO_ROOT / "data" / "rl_policy.json"
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8")) if policy_path.exists() else {}
+    except Exception:
+        policy = {}
+
+    policy["version"] = int(policy.get("version", 2)) + 1
+    # Update only the params that inline optimizer controls
+    INLINE_PARAM_KEYS = {
+        "distiller_temperature", "target_scenes", "dialogue_compaction_strength",
+        "prose_scene_temperature", "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
+        "prose_transition_temperature", "prose_polish_temperature",
+        "hold_pressure_peak", "scene_closure_aggressiveness",
+    }
+    for k, v in best_params.items():
+        if k in INLINE_PARAM_KEYS:
+            policy[k] = v
+    policy["_last_inline_opt"] = {
+        "date": str(date.today()),
+        "episode_id": episode_id,
+        "score": round(best_score, 4),
+    }
+    policy_path.write_text(json.dumps(policy, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info("rl_policy.json updated → version %s score=%.3f", policy["version"], best_score)
