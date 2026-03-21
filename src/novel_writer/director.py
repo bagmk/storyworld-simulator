@@ -1918,9 +1918,15 @@ class DirectorAI:
         )
         scene_conflict_note = ""
         if repeated_concern:
-            scene_conflict_note = "same concern keeps repeating; advance leverage, cost, or a scene exit"
+            if repeated_openers >= 1 or low_novelty:
+                scene_conflict_note = "same concern keeps repeating with little new detail; force a concrete move, cost, or scene exit"
+            else:
+                scene_conflict_note = "same concern keeps repeating; advance leverage, cost, or a scene exit"
         elif technical_stall:
-            scene_conflict_note = "technical loop detected; shift from explanation to visible reaction, gesture, or choice"
+            if repeated_openers >= 1:
+                scene_conflict_note = "technical loop keeps reopening with the same lead-in; shift from explanation to visible reaction, gesture, or choice"
+            else:
+                scene_conflict_note = "technical loop detected; shift from explanation to visible reaction, gesture, or choice"
         elif alert_pending_reaction:
             scene_conflict_note = "alert has landed; a visible reaction is still pending"
         elif concrete_risk:
@@ -1958,6 +1964,7 @@ class DirectorAI:
             or flat_tension
             or explanation_loop
             or repeated_alert_signal
+            or (repeated_openers >= 2 and mostly_dialogue)
         )
         pressure_peak = (
             repetition_pressure

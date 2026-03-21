@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -28,6 +29,8 @@ logger = logging.getLogger("inline_optimizer")
 
 REVIEWER_MODEL = "gpt-4o-mini"
 POLICY_SCORE_LOG = _REPO_ROOT / "data" / "policy_score_log.jsonl"
+CYCLE_SCORE_LOG = _REPO_ROOT / "data" / "cycle_score_log.jsonl"
+SESSION_BENCHMARK_LOG = "benchmark_subtrials.jsonl"
 
 # ── Quality review → LLM scorer weight mapping ───────────────────────────────
 
@@ -670,9 +673,6 @@ def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> N
 
 # ── Cycle score logging ────────────────────────────────────────────────────────
 
-CYCLE_SCORE_LOG = _REPO_ROOT / "data" / "cycle_score_log.jsonl"
-
-
 def log_cycle_score(
     episode_id: str,
     cycle_idx: int,
@@ -699,6 +699,36 @@ def log_cycle_score(
     with log_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     logger.info("Logged cycle score for %s cycle %d → %s", episode_id, cycle_idx, log_path)
+
+
+def append_session_benchmark_row(
+    run_dir: Path,
+    *,
+    episode_id: str,
+    cycle_idx: int,
+    trial_idx: int,
+    study_trial_count_before: int,
+    score: float,
+    det: float,
+    llm: float,
+    params: dict[str, object],
+) -> None:
+    """Append one completed subtrial to this session's benchmark log."""
+    log_path = run_dir / SESSION_BENCHMARK_LOG
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "ts": int(time.time()),
+        "episode_id": episode_id,
+        "cycle_idx": int(cycle_idx),
+        "trial_idx": int(trial_idx),
+        "global_trial_idx": int(study_trial_count_before + trial_idx),
+        "score": round(float(score), 4),
+        "det": round(float(det), 4),
+        "llm": round(float(llm), 4),
+        "params": dict(params),
+    }
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 # ── Narrow param space for per-cycle mini re-optimize ─────────────────────────
@@ -802,13 +832,14 @@ async def run_mini_reoptimize(
     n_trials: int = 5,
     group_size: int = 5,
 ) -> tuple[Path | None, dict, float, list[dict]]:
-    """Narrow-range param re-optimize using a persistent SQLite Optuna study.
+    """Narrow-range param re-optimize using an in-memory Optuna study.
 
     Runs n_trials total, in parallel groups of group_size.
     e.g. n_trials=25, group_size=5 → 5 groups of 5 parallel chapter generations.
 
-    TPE learns across groups within a call AND across outer cycles (SQLite persistence).
-    Search width narrows automatically as trial count accumulates.
+    Uses in-memory study per outer cycle so that Codex code changes between outer
+    cycles don't pollute TPE with data from a different codebase.
+    Cross-episode learning happens via _enqueue_warmup_trials from policy_score_log.
 
     Returns:
         (best_chapter_path | None, best_params, best_score, subtrial_data_list)
@@ -827,22 +858,20 @@ async def run_mini_reoptimize(
     opt_dir.mkdir(parents=True, exist_ok=True)
     trial_budget = budget / max(n_trials, 1)
 
-    # ── Persistent SQLite study — accumulates across ALL outer cycles ─────────
-    db_path = _REPO_ROOT / "data" / f"optuna_mini_{episode_id}.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    storage = f"sqlite:///{db_path}"
-
+    # ── In-memory study per outer cycle (code may change between outers) ──────
     study = optuna.create_study(
-        study_name=f"mini_{episode_id}",
-        storage=storage,
-        load_if_exists=True,
+        study_name=f"mini_{episode_id}_outer{cycle_idx}",
         direction="maximize",
         sampler=optuna.samplers.TPESampler(n_startup_trials=5, seed=42),
     )
-    n_past = len(study.trials)
+    # Warm-start from accumulated cross-episode data
+    _psl = _REPO_ROOT / "data" / "policy_score_log.jsonl"
+    _warmup_keys = set(_PARAM_FULL_RANGES.keys())
+    n_warmup = _enqueue_warmup_trials(study, str(_psl), _warmup_keys) if _psl.exists() else 0
+    n_past = n_warmup
     logger.info(
-        "[MINI-OPT] episode=%s cycle=%d n_trials=%d group_size=%d past_trials=%d",
-        episode_id, cycle_idx, n_trials, group_size, n_past,
+        "[MINI-OPT] episode=%s cycle=%d n_trials=%d group_size=%d warmup=%d",
+        episode_id, cycle_idx, n_trials, group_size, n_warmup,
     )
 
     trial_scores: list[float] = []
@@ -858,6 +887,7 @@ async def run_mini_reoptimize(
         # Width narrows as evidence accumulates (past + already-done-this-call)
         width = _narrow_width_from_n_trials(n_past + global_trial_idx)
 
+        # Group start — Manager anchor (creates new thread per group)
         if notify_fn:
             await notify_fn(
                 f"[MINI-OPT] outer {cycle_idx} — group {group_i + 1}/{n_groups} "
@@ -873,6 +903,29 @@ async def run_mini_reoptimize(
             LLMClient(model=base_model, premium_model=premium_model, budget_usd=trial_budget)
             for _ in range(group_n)
         ]
+
+        # Programmer: show sampled params in thread
+        if notify_fn:
+            _t_start = global_trial_idx
+            _t_end = global_trial_idx + group_n - 1
+            _param_lines = []
+            for i, p in enumerate(g_params):
+                _key_vals = ", ".join(
+                    f"{k}={round(v, 3) if isinstance(v, float) else v}"
+                    for k, v in p.items()
+                )
+                _param_lines.append(f"  t{_t_start + i}: {_key_vals}")
+            await notify_fn(
+                f"[MINI-OPT-PROG] trial {_t_start}~{_t_end} 파라미터 샘플링 완료\n"
+                + "\n".join(_param_lines)
+            )
+
+        # Simulator: signal that chapter generation is in progress
+        if notify_fn:
+            _trial_range = f"trial {global_trial_idx}~{global_trial_idx + group_n - 1}"
+            await notify_fn(
+                f"[MINI-OPT-SIM] {_trial_range} 시뮬레이션 → 챕터 생성 중 ({group_n}개 병렬)..."
+            )
 
         g_results = await asyncio.gather(
             *[
@@ -904,6 +957,17 @@ async def run_mini_reoptimize(
             trial_paths.append(path)
             trial_meta_by_idx[tidx] = meta
             all_trial_params.append(g_params[i])
+            append_session_benchmark_row(
+                run_dir,
+                episode_id=episode_id,
+                cycle_idx=cycle_idx,
+                trial_idx=tidx,
+                study_trial_count_before=n_past,
+                score=score,
+                det=float(meta.get("det", 0.0)),
+                llm=float(meta.get("llm", 0.0)),
+                params=g_params[i],
+            )
 
         if notify_fn:
             g_scores = trial_scores[global_trial_idx: global_trial_idx + group_n]
@@ -911,11 +975,24 @@ async def run_mini_reoptimize(
             for i, sc in enumerate(g_scores):
                 meta = trial_meta_by_idx.get(global_trial_idx + i, {})
                 g_lines.append(
-                    f"  t{global_trial_idx + i}: {sc:.2f} "
+                    f"  t{global_trial_idx + i}: {sc:.3f} "
                     f"(det {float(meta.get('det', 0)):.2f} / llm {float(meta.get('llm', 0)):.2f})"
                 )
+            # Reviewer: per-trial scores in thread
             await notify_fn(
-                f"[MINI-OPT] group {group_i + 1} 결과:\n" + "\n".join(g_lines)
+                f"[MINI-OPT-SCORE] group {group_i + 1} 점수:\n" + "\n".join(g_lines)
+            )
+            # Manager: group summary in main thread
+            _g_best_i = max(range(group_n), key=lambda i: g_scores[i])
+            _g_best_tidx = global_trial_idx + _g_best_i
+            _g_best_params = g_params[_g_best_i]
+            _best_key_params = ", ".join(
+                f"{k}={round(v, 3) if isinstance(v, float) else v}"
+                for k, v in list(_g_best_params.items())[:4]
+            )
+            await notify_fn(
+                f"[MINI-OPT] group {group_i + 1}/{n_groups} 완료 — "
+                f"best t{_g_best_tidx}={g_scores[_g_best_i]:.3f} | {_best_key_params}"
             )
 
         global_trial_idx += group_n

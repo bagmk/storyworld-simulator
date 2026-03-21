@@ -1174,7 +1174,8 @@ class SceneDistiller:
                 parts.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         merged = self._compress_repeated_core_concerns(" ".join(parts[:max_sentences]).strip())
-        return self._compress_repeated_confrontation_sentences(merged)
+        merged = self._compress_repeated_confrontation_sentences(merged)
+        return self._compress_redundant_summary_beats(merged)
 
     def _tighten_narrative_summary(self, summary: str) -> str:
         sentences: list[str] = []
@@ -1190,7 +1191,8 @@ class SceneDistiller:
             sentences.append(sent)
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         tightened = self._compress_repeated_core_concerns(" ".join(sentences[:max_sentences]).strip())
-        return self._compress_repeated_confrontation_sentences(tightened)
+        tightened = self._compress_repeated_confrontation_sentences(tightened)
+        return self._compress_redundant_summary_beats(tightened)
 
     def _rebalance_narrative_summary(self, scene: DistilledScene) -> str:
         """
@@ -1234,7 +1236,9 @@ class SceneDistiller:
                 keep[0] = replacement
 
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
-        return self._compress_repeated_core_concerns(" ".join(keep[:max_sentences]).strip())
+        summary = self._compress_repeated_core_concerns(" ".join(keep[:max_sentences]).strip())
+        summary = self._compress_repeated_confrontation_sentences(summary)
+        return self._compress_redundant_summary_beats(summary)
 
     def _blend_mood_fragment_with_consequence(self, sentence: str, scene: DistilledScene) -> str:
         fragment = re.sub(r"\s+", " ", str(sentence or "")).strip()
@@ -2019,6 +2023,92 @@ class SceneDistiller:
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         kept = self._prioritize_concrete_summary_sentences(kept, limit=max_sentences)
         return " ".join(kept[:max_sentences]).strip()
+
+    def _compress_redundant_summary_beats(self, summary: str) -> str:
+        if not summary:
+            return summary
+
+        out_blocks: list[str] = []
+        for block in [b.strip() for b in str(summary).split("\n\n") if b.strip()]:
+            sentences = [
+                self._ensure_summary_sentence(s)
+                for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", block)
+                if s.strip()
+            ]
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            recent_signatures: list[str] = []
+            for sent in sentences:
+                current = sent.strip()
+                if not current:
+                    continue
+                signature = self._summary_beat_signature(current)
+                if (
+                    signature
+                    and signature in recent_signatures[-3:]
+                    and not (
+                        self._summary_has_action_or_decision(current)
+                        or self._summary_has_consequence_shift(current)
+                    )
+                ):
+                    if rebuilt and not (
+                        self._summary_has_action_or_decision(rebuilt[-1])
+                        or self._summary_has_consequence_shift(rebuilt[-1])
+                    ):
+                        rebuilt[-1] = self._prefer_more_concrete_line(rebuilt[-1], current)
+                    continue
+                if rebuilt and self._is_redundant_summary_beat(rebuilt[-1], current):
+                    rebuilt[-1] = self._prefer_more_concrete_line(rebuilt[-1], current)
+                else:
+                    rebuilt.append(current)
+                if signature:
+                    recent_signatures.append(signature)
+                    if len(recent_signatures) > 4:
+                        recent_signatures.pop(0)
+
+            if rebuilt:
+                out_blocks.append(" ".join(rebuilt).strip())
+
+        return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _summary_beat_signature(self, sentence: str) -> str:
+        tokens = sorted(self._line_fingerprint_set(sentence))
+        if not tokens:
+            return ""
+        parts: list[str] = []
+        if self._summary_has_action_or_decision(sentence):
+            parts.append("action")
+        if self._summary_has_consequence_shift(sentence):
+            parts.append("consequence")
+        if self._summary_has_concrete_risk(sentence):
+            parts.append("risk")
+        if self._summary_has_reaction_or_sensory(sentence):
+            parts.append("reaction")
+        if self._summary_is_mood_heavy(sentence):
+            parts.append("mood")
+        stage = self._summary_confrontation_stage(sentence)
+        if stage:
+            parts.append(f"stage:{stage}")
+        parts.append(" ".join(tokens[:8]))
+        return "|".join(parts)
+
+    def _is_redundant_summary_beat(self, left: str, right: str) -> bool:
+        left_tokens = self._line_fingerprint_set(left)
+        right_tokens = self._line_fingerprint_set(right)
+        if not left_tokens or not right_tokens:
+            return False
+
+        overlap = len(left_tokens & right_tokens) / max(1, min(len(left_tokens), len(right_tokens)))
+        same_axis = (
+            self._summary_has_action_or_decision(left) == self._summary_has_action_or_decision(right)
+            and self._summary_has_consequence_shift(left) == self._summary_has_consequence_shift(right)
+            and self._summary_has_concrete_risk(left) == self._summary_has_concrete_risk(right)
+            and self._summary_has_reaction_or_sensory(left) == self._summary_has_reaction_or_sensory(right)
+        )
+        return same_axis and overlap >= 0.33
 
     def _prioritize_concrete_summary_sentences(self, sentences: list[str], limit: int = 3) -> list[str]:
         if not sentences:

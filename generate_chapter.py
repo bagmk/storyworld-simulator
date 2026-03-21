@@ -430,11 +430,33 @@ def _create_dramatic_scenario(scene: DistilledScene, reader_feedback: dict) -> s
     return "\n".join(lines)
 
 
+def _build_repetition_guard(scene: DistilledScene, reader_feedback: dict) -> str:
+    profile = build_reader_profile(reader_feedback)
+    lines = [
+        "반복 억제:",
+        "- 같은 걱정, 같은 설명, 같은 감정 재진술은 한 번만 쓰고 다음 문장은 행동, 대답, 결과로 넘겨라.",
+    ]
+    if len([d for d in scene.key_dialogue if isinstance(d, dict)]) >= 2:
+        lines.append(
+            "- 대사는 제안, 저항, 비용, 결정으로 기능을 나눠서 같은 내용을 다른 말로 다시 말하지 마라."
+        )
+    if scene.discoveries or scene.key_actions:
+        lines.append(
+            "- 이미 제시된 발견이나 행동은 다시 설명하지 말고, 첫 언급 이후에는 반응이나 결과만 남겨라."
+        )
+    if profile.reports_stalled_progression():
+        lines.append(
+            "- 전개 정체가 지적된 상태이므로, 같은 심리 묘사를 되풀이하지 말고 바로 상황 변화로 전환하라."
+        )
+    return "\n".join(lines)
+
+
 def _build_scene_guidance(scene: DistilledScene, reader_feedback: dict) -> str:
     sections = [
         _create_character_interaction(scene, reader_feedback),
         _build_tension(scene, reader_feedback),
         _create_dramatic_scenario(scene, reader_feedback),
+        _build_repetition_guard(scene, reader_feedback),
     ]
     return "\n\n".join(section for section in sections if section.strip())
 

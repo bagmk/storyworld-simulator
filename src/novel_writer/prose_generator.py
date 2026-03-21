@@ -852,14 +852,15 @@ class ProseGenerator:
             prompt += f"## Original Story Beats\n{beat_context}\n\n"
         if anchors:
             prompt += (
-                f"## Must-Keep Evidence Anchors (use exact surface forms)\n"
-                f"{anchors_text}\n\n"
-            )
-            prompt += (
+            f"## Must-Keep Evidence Anchors\n"
+            f"{anchors_text}\n\n"
+        )
+        prompt += (
                 f"## Anchor Freshness Control\n"
                 f"- Already established earlier in chapter: {recalled_text}\n"
                 f"- Newly introduced in this scene: {new_anchor_text}\n"
-                f"- For already established anchors, prefer one short callback only.\n"
+                f"- If an anchor is newly introduced in this scene, use its exact surface form once.\n"
+                f"- For already established anchors, prefer one short callback only; do not restate the full anchor wording unless the plot truly needs it.\n"
                 f"- Do not restate the same numeric claim or metric explanation more than once in this scene.\n\n"
             )
         if term_glossary:
@@ -889,14 +890,14 @@ class ProseGenerator:
             f"If the scene-specific directives identify a concrete pressure, effect, or role split, follow that guidance once and avoid restating it in parallel wording.\n"
             f"Only if a technical term would block comprehension, add one brief inline plain-language cue once.\n"
             f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
-            f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"
+            f"For recurring concepts (e.g., coherence/drift/latency), keep one stable core term after first mention; vary surrounding sentence shape, imagery, and consequence rather than swapping the term itself.\n"
             f"When reusing already-known facts, reference briefly instead of re-explaining details.\n"
             f"If a condition or responsibility point repeats, compress it into one concrete sentence and keep only the version that changes leverage or consequence.\n"
             f"Each paragraph should add one fresh observation, decision, or emotional turn instead of circling the same tension.\n"
             f"After an important statement lands, move immediately to visible consequence, reaction, or movement instead of a second paraphrase.\n"
-            f"When a technical or English term appears, make the very next sentence a plain-language explanation a high-school reader can follow, then return to action or reaction.\n"
+            f"When a technical or English term appears, do not force the next sentence into explanation mode; if clarity is already sufficient, move straight to action, reaction, or decision.\n"
             f"Use sensory detail sparingly and only where it changes pressure, not as repeated atmosphere filler.\n"
-            f"After that explanation, move straight to reaction, emotion, or decision.\n"
+            f"If you did add a brief technical cue, move straight to reaction, emotion, or decision after that one cue.\n"
             f"If a scene turn already carried one body cue or inner beat, the follow-up sentence should switch to consequence, movement, or dialogue instead of repeating the same feeling.\n"
             f"If a threat, offer, or realization already landed earlier in the scene, do not restate it in new words; cash it out through consequence, interruption, or movement.\n"
             f"If a warning, alert, or denial lands, the next sentence should show a visible reaction or move instead of another explanation.\n"
@@ -2092,15 +2093,41 @@ class ProseGenerator:
                 continue
 
             keep: list[str] = []
+            recent_signatures: list[str] = []
             for sent in sentences:
+                current = sent.strip()
+                if not current:
+                    continue
+                beat_sig = self._scene_beat_signature(current)
                 fp = self._sentence_fingerprint(sent)
+                if (
+                    beat_sig
+                    and beat_sig in recent_signatures[-4:]
+                    and not self._sentence_has_action_or_decision(current)
+                ):
+                    continue
                 if fp and any(self._is_near_duplicate_sentence(fp, prev) for prev in recent_sentence_fp):
                     continue
-                keep.append(sent)
+                if keep and self._is_redundant_scene_beat(keep[-1], current):
+                    keep[-1] = self._prefer_stronger_tension_sentence(keep[-1], current)
+                    if fp:
+                        recent_sentence_fp.append(fp)
+                        if len(recent_sentence_fp) > fp_window:
+                            recent_sentence_fp.pop(0)
+                    if beat_sig:
+                        recent_signatures.append(beat_sig)
+                        if len(recent_signatures) > 6:
+                            recent_signatures.pop(0)
+                    continue
+                keep.append(current)
                 if fp:
                     recent_sentence_fp.append(fp)
                     if len(recent_sentence_fp) > fp_window:
                         recent_sentence_fp.pop(0)
+                if beat_sig:
+                    recent_signatures.append(beat_sig)
+                    if len(recent_signatures) > 6:
+                        recent_signatures.pop(0)
 
             if keep:
                 out_blocks.append(self._compress_repeated_opening_phrases(" ".join(keep)))
@@ -2196,12 +2223,47 @@ class ProseGenerator:
                     continue
                 if rebuilt and self._is_redundant_tension_restatement(rebuilt[-1], current):
                     rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
+                elif rebuilt and self._is_redundant_scene_beat(rebuilt[-1], current):
+                    rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
                 else:
                     rebuilt.append(current)
                 if fp:
                     seen_fp.add(fp)
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
         return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _scene_beat_signature(self, sentence: str) -> str:
+        tokens = sorted(self._sentence_token_set(sentence))
+        if not tokens:
+            return ""
+        parts: list[str] = []
+        if self._sentence_has_action_or_decision(sentence):
+            parts.append("action")
+        if self._is_pressure_heavy_sentence(sentence):
+            parts.append("pressure")
+        if self._is_sensory_heavy_sentence(sentence):
+            parts.append("sensory")
+        if self._is_explanation_like_sentence(sentence):
+            parts.append("explanation")
+        if re.search(r"[\"“”'‘’]", str(sentence or "")):
+            parts.append("dialogue")
+        parts.append(" ".join(tokens[:8]))
+        return "|".join(parts)
+
+    def _is_redundant_scene_beat(self, left: str, right: str) -> bool:
+        left_tokens = self._sentence_token_set(left)
+        right_tokens = self._sentence_token_set(right)
+        if not left_tokens or not right_tokens:
+            return False
+
+        overlap = len(left_tokens & right_tokens) / max(1, min(len(left_tokens), len(right_tokens)))
+        same_axis = (
+            self._sentence_has_action_or_decision(left) == self._sentence_has_action_or_decision(right)
+            and self._is_pressure_heavy_sentence(left) == self._is_pressure_heavy_sentence(right)
+            and self._is_sensory_heavy_sentence(left) == self._is_sensory_heavy_sentence(right)
+            and self._is_explanation_like_sentence(left) == self._is_explanation_like_sentence(right)
+        )
+        return same_axis and overlap >= 0.35
 
     def _trim_post_metaphor_explanations(self, text: str) -> str:
         if not text:
