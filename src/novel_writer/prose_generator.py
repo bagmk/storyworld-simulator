@@ -2154,6 +2154,9 @@ class ProseGenerator:
                         if self._is_explanation_like_sentence(nxt) and not self._sentence_has_action_or_decision(nxt):
                             idx += 1
                             continue
+                        if self._is_pressure_heavy_sentence(nxt) and not self._sentence_has_action_or_decision(nxt):
+                            idx += 1
+                            continue
                         break
                     continue
                 kept.append(current)
@@ -2587,7 +2590,42 @@ class ProseGenerator:
                 seen_fp.add(fp)
             if is_inner and inner_idx is None:
                 inner_idx = len(kept) - 1
+        if len(kept) >= 2:
+            non_action = [sent for sent in kept if not self._sentence_has_action_or_decision(sent)]
+            if len(non_action) >= 2 and all(
+                self._is_static_inner_monologue_sentence(sent) or self._is_pressure_heavy_sentence(sent)
+                for sent in non_action
+            ):
+                best = max(
+                    kept,
+                    key=lambda sent: (
+                        self._pressure_sentence_score(sent),
+                        -self._sentence_word_count(sent),
+                    ),
+                )
+                return [best]
         return kept
+
+    def _derive_clipped_bridge_fragment(self, sentences: list[str]) -> str:
+        """
+        Derive a short bridge fragment from a recent sentence when the source
+        already contains a natural pause or causal turn.
+        """
+        for raw in reversed(sentences[-3:]):
+            current = re.sub(r"\s+", " ", str(raw or "")).strip()
+            if not current:
+                continue
+            if not re.search(r"[,:;—~]", current):
+                continue
+            fragment = re.split(r"[,:;—~]\s*", current, maxsplit=1)[0].strip()
+            fragment = re.sub(r"[.!?…]+$", "", fragment).strip()
+            if not fragment or fragment == current:
+                continue
+            if self._sentence_word_count(fragment) < 2:
+                continue
+            if self._sentence_has_action_or_decision(fragment) or self._is_pressure_heavy_sentence(fragment):
+                return fragment
+        return ""
 
     def _is_static_inner_monologue_sentence(self, sentence: str) -> bool:
         sent = str(sentence or "").strip()
@@ -2638,6 +2676,9 @@ class ProseGenerator:
         )
 
     def _select_clipped_bridge_phrase(self, sentences: list[str]) -> str:
+        fragment = self._derive_clipped_bridge_fragment(sentences)
+        if fragment:
+            return fragment
         options = [
             conn
             for conn in [
@@ -3232,7 +3273,15 @@ class ProseGenerator:
                     streak = 0
                 if streak > streak_limit and inserted < max_per_scene:
                     tone = self._bridge_tone_for_context(rebuilt[-2:])
-                    rebuilt.append(self._rhythm_bridge_sentence(beat_idx, min_short, max_short, tone=tone))
+                    rebuilt.append(
+                        self._rhythm_bridge_sentence(
+                            beat_idx,
+                            min_short,
+                            max_short,
+                            tone=tone,
+                            context_sentences=rebuilt[-3:],
+                        )
+                    )
                     beat_idx += 1
                     inserted += 1
                     streak = 0
@@ -3258,9 +3307,14 @@ class ProseGenerator:
         min_chars: int = 5,
         max_chars: int = 10,
         tone: str = "strong",
+        context_sentences: Optional[list[str]] = None,
     ) -> str:
         min_chars = max(min_chars, 14)
         max_chars = max(max_chars, 28)
+        contextual = self._derive_clipped_bridge_fragment(context_sentences or [])
+        if contextual:
+            bridge = contextual if re.search(r"[.!?…]$", contextual) else f"{contextual}."
+            return self._fit_char_window(bridge, min_chars, max_chars)
         strong_samples = [
             "수민은 한 박자 늦게 고개를 들었다.",
             "질문이 한 번 더 눌러 오자 대답은 더 짧아졌다.",

@@ -310,6 +310,7 @@ class SceneDistiller:
             f"18a. Make emotional shifts visible: use a breath change, hand movement, gaze change, or posture shift instead of abstract feeling words alone.\n"
             f"18b. If a reaction repeats, rewrite it as a fresh observable cue rather than reusing the same feeling phrase or stock connective.\n"
             f"18c. If two speakers are making similar proposals or warnings, keep the difference in purpose obvious so their roles do not blur.\n"
+            f"18d. If the same mood or warning repeats without a new turn in pressure, keep only the sharpest action or reaction and drop the rest.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
             f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
@@ -1489,6 +1490,17 @@ class SceneDistiller:
 
     def _summary_reaction_tail(self, scene: DistilledScene) -> str:
         subject = scene.characters_present[0] if scene.characters_present else "인물들"
+        for action in scene.key_actions or []:
+            cleaned = self._clean_action_text(action)
+            if cleaned:
+                return self._ensure_summary_sentence(cleaned)
+        for item in scene.discoveries or []:
+            cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
+            if not cleaned:
+                continue
+            if re.search(r"(드러났|확인됐|밝혀졌|알아냈|감지됐|포착됐)", cleaned):
+                return self._ensure_summary_sentence(cleaned)
+            return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
         emotional = str(scene.emotional_arc or "")
         if re.search(r"(불안|긴장|초조|압박)", emotional):
             return self._ensure_summary_sentence(f"{subject}은 숨을 짧게 들이쉬고 손끝을 꽉 말아쥐었다")

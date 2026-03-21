@@ -738,7 +738,7 @@ class DirectorAI:
         elif emotion_family == "relieved":
             hints.append("soften the exchange and close the beat")
         if progress_signal.get("repeated_concern") or progress_signal.get("technical_stall"):
-            hints.append("translate the repeated point into consequence")
+            hints.append("translate the repeated point into one concrete consequence or visible cue")
         if progress_signal.get("concrete_risk"):
             hints.append("name the cost as a limit, clause, deadline, or access rule")
         if plateau and curve_points:
@@ -759,11 +759,11 @@ class DirectorAI:
         lines: list[str] = []
         if progress_signal.get("repeated_concern"):
             lines.append(
-                "Do not paraphrase the same concern again; let the next line change leverage, cost, or choice."
+                "Do not paraphrase the same concern again; let the next line change leverage, cost, choice, or visible action."
             )
         if progress_signal.get("technical_stall"):
             lines.append(
-                "If terminology appears again, turn it into consequence and immediate human response instead of another explanation."
+                "If terminology appears again, turn it into one concrete consequence and immediate human response instead of another explanation."
             )
         if progress_signal.get("pressure_peak"):
             lines.append(
@@ -779,7 +779,7 @@ class DirectorAI:
             )
         if tension_curve.get("rising"):
             lines.append(
-                "Escalate step by step so each response sharpens the conflict instead of repeating it."
+                "Escalate step by step so each response sharpens the conflict instead of repeating it or recycling the same feeling."
             )
         return " ".join(lines).strip()
 
@@ -939,7 +939,7 @@ class DirectorAI:
         if progress_signal["stalled"] and self._reader_reports_stalled_progression():
             return (
                 "Reader flagged stalled progression. If the beat already landed, close the scene now; "
-                "otherwise force one concrete shift such as a decision, interruption, movement, or reveal."
+                "otherwise force one concrete shift such as a decision, interruption, movement, reveal, or room-state cue."
             )
         if progress_signal["explanation_loop"]:
             return (
@@ -953,7 +953,7 @@ class DirectorAI:
                 "Technical back-and-forth is looping. Treat latency/real-time-style terms as already explained "
                 f"{'once ' if jargon_onboarded else ''}and move the next beat through Sumin's judgment, emotion, "
                 "or choice. If a technical point remains, translate it into one plain consequence and force "
-                "a decision, interruption, or movement."
+                "a decision, interruption, movement, or visible room reaction."
             )
         if progress_signal.get("anxious_pressure"):
             return (
@@ -981,7 +981,7 @@ class DirectorAI:
         if progress_signal.get("pressure_peak"):
             return (
                 "The scene is at a pressure peak. Keep it open and cash the pressure out through a concrete move, "
-                "reveal, or counteroffer instead of ending on atmosphere alone. "
+                "reveal, counteroffer, or room reaction instead of ending on atmosphere alone. "
                 "Name the price explicitly: access, security, responsibility, contract, or deadline."
             )
         if progress_signal.get("scene_boundary_ready"):
