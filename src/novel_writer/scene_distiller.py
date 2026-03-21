@@ -297,7 +297,7 @@ class SceneDistiller:
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary, and preserve only the line that changes leverage or motive.\n"
             f"7. If the same conflict repeats later, keep the version that moves the argument or consequence forward instead of re-stating the setup.\n"
             f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure or consequence needs emphasis.\n"
-            f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit instead of stacking clipped fragments.\n"
+            f"9. Make each summary easy to follow: name the acting subject early, preserve one concrete role/title cue for any unnamed observer that matters, and keep cause/effect explicit instead of stacking clipped fragments.\n"
             f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary and keep the new turn only once.\n"
             f"11. Do NOT invent content not present in the log. Only compress and select.\n\n"
             f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery, and keep them as complete sentences rather than fragments.\n"
@@ -309,7 +309,7 @@ class SceneDistiller:
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
             f"18a. Make emotional shifts visible: use a breath change, hand movement, gaze change, or posture shift instead of abstract feeling words alone.\n"
             f"18b. If a reaction repeats, rewrite it as a fresh observable cue rather than reusing the same feeling phrase or stock connective.\n"
-            f"18c. If two speakers are making similar proposals or warnings, keep the difference in purpose obvious so their roles do not blur.\n"
+            f"18c. If two speakers are making similar proposals or warnings, keep the difference in purpose or role obvious so their voices do not blur.\n"
             f"18d. If the same mood or warning repeats without a new turn in pressure, keep only the sharpest action or reaction and drop the rest.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
@@ -318,7 +318,7 @@ class SceneDistiller:
             f"23. When scene count is limited, preserve higher-tension beats first: reveal, interruption, exposed contradiction, forced decision, or visible stress reaction.\n"
             f"24. If external support, real-time control, resources, authority, or responsibility repeat across late turns, keep the clearest first mention and compress later restatements into changed consequence only.\n"
             f"25. Treat transition-making beats one at a time: memo discovery, warning sound, and named arrival should each land in their own clear sentence with who noticed it and where they were.\n"
-            f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between '정장 남자' and a proper name without clarification.\n\n"
+            f"26. If an unnamed observer later appears by name, either link the identity once or keep the vague observer clearly separate; do not alternate between a vague role label and a proper name without clarification.\n\n"
             f"27. If the threat source is still vague, keep one concrete anchor in the summary - a person, institution, badge, document, or room reaction - instead of repeating abstract danger language.\n"
             f"28. When the scene starts to stall, prioritize the next concrete change in pressure or the scene boundary over another explanatory pass.\n"
             f"29. If a warning cue lands, make the consequence visible in the same or next sentence so the summary does not feel suspended.\n"
@@ -468,7 +468,7 @@ class SceneDistiller:
             )
         if self._reader_needs_role_cues():
             adaptive_lines.append(
-                "When many characters appear, add one short role/title cue on first mention in each scene (example shape: '모레노 CTO', '밀러 투자 파트너')."
+                "When many characters appear, add one short role/title cue on first mention in each scene. If an unnamed observer matters, keep one neutral label once and reuse it consistently instead of alternating between a vague label and a new name."
             )
         if self._reader_needs_opening_orientation():
             adaptive_lines.append(

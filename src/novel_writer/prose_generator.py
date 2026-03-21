@@ -458,6 +458,8 @@ class ProseGenerator:
             "If a threat stays abstract, anchor it once in a person, object, rule, or visible room reaction instead of repeating danger language.\n"
             "Treat repeated atmosphere as expendable; one sharp image is enough when the scene is already tense.\n"
             "If a later sentence repeats the same observation, bridge, or reaction with a new opener, prefer the version that moves the scene forward.\n"
+            "When a decision lands, show it once through a small habitual motion or concrete action before the next line.\n"
+            "If an important bystander or authority figure is still unnamed, keep one neutral role cue once and reuse it consistently; do not alternate between a vague label and a proper name without a clear bridge.\n"
             "Keep all content in Korean.\n"
         )
         pov_and_time = (
@@ -887,6 +889,7 @@ class ProseGenerator:
         if self._feedback_mentions("심리", "내면", "설명적", "감정선", "표정", "행동", "보여"):
             prompt += (
                 "\nUse action/gesture beats to externalize emotion before adding inner analysis."
+                "\nWhen a character decides, show the decision once through a small body cue or habitual motion instead of narrating the same feeling twice."
             )
         if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
             prompt += (
@@ -900,6 +903,13 @@ class ProseGenerator:
         if self._feedback_flag_enabled("clarify_similar_character_entries"):
             prompt += (
                 "\nIf an unnamed observer becomes a named character, bridge that identity explicitly once."
+            )
+        if self.reader_profile.needs_role_cues():
+            prompt += (
+                "\n## Role Cue Priority\n"
+                "- If an unnamed observer, staffer, or authority figure matters, keep one neutral role cue once and reuse it consistently.\n"
+                "- Do not alternate between a vague label and a proper name unless the identity is actually clarified in the scene.\n"
+                "- Give important anonymous figures one stable descriptive tag so their function stays legible.\n"
             )
         if self._feedback_flag_enabled("single_axis_sentences"):
             prompt += (
@@ -1202,6 +1212,7 @@ class ProseGenerator:
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
             "- 위협이 추상적이면 사람, 물건, 규정, 공간 반응 중 하나로 한 번만 고정하고 같은 불안을 반복 설명하지 말 것\n"
+            "- 이름이 없는 중요한 인물은 한 번만 중립적 역할 단서로 고정하고 이후에는 같은 단서를 일관되게 사용할 것\n"
             "- 한 문장에는 동작, 감정, 판단 가운데 한 축만 남기고 둘 이상이면 인과관계가 보이게 분리할 것\n"
             "- 비유나 비교를 쓴 직후 그 의미를 다음 문장으로 다시 해설하지 말 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
@@ -1219,6 +1230,10 @@ class ProseGenerator:
                 "\n추가 제약:\n"
                 "- 대사 구간은 화자/청자 단서를 자주 배치해 혼선을 줄일 것\n"
                 "- 동일 인물은 인접 문단에서 호칭을 과도하게 바꾸지 말 것\n"
+            )
+        if self.reader_profile.needs_role_cues():
+            prompt += (
+                "- 이름이 없는 관찰자/조력자/권위자는 한 번만 중립적 역할 단서로 고정하고 이후에는 같은 단서를 유지할 것\n"
             )
         if self._feedback_mentions("말투", "어투", "톤", "대화 톤", "고유한 말투"):
             prompt += (

@@ -1842,23 +1842,38 @@ class DirectorAI:
             or self._has_confrontation_resolution_shift(str(i.get("content", "")))
             for i in recent[-2:]
         )
+        concrete_turn = decisive_shift or consequence_shift or motion_shift
+        repetition_pressure = (
+            repeated_concern
+            or signal_stack
+            or technical_stall
+            or flat_tension
+            or explanation_loop
+        )
         pressure_peak = (
-            (repeated_concern or signal_stack or technical_stall or flat_tension or explanation_loop)
+            repetition_pressure
             and (decisive_shift or emotional_shift)
         ) or bool(tension_curve.get("peak"))
         scene_boundary_ready = (
-            (closure_ready and (decisive_shift or consequence_shift or motion_shift))
-            or (repeated_concern and (decisive_shift or consequence_shift) and len(recent) >= min_window)
-            or (technical_stall and (decisive_shift or consequence_shift) and len(recent) >= min_window)
+            (closure_ready and concrete_turn)
+            or (repeated_concern and concrete_turn and len(recent) >= min_window)
+            or (technical_stall and concrete_turn and len(recent) >= min_window)
             or (emotional_shift and consequence_shift)
-            or (pressure_peak and (consequence_shift or motion_shift))
+            or (pressure_peak and concrete_turn)
             or (repeated_concern and closure_ready and len(recent) >= min_window)
             or (technical_stall and closure_ready and len(recent) >= min_window)
+            or (repetition_pressure and concrete_turn and low_novelty and len(recent) >= min_window)
             or (flat_tension and repeated_speaker and len(recent) >= max(min_window, 4))
         )
-        stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
-            repeated_pair and low_novelty
-        ) or technical_stall or flat_tension or explanation_loop or repeated_concern or signal_stack) and not decisive_shift
+        stalled = (
+            (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty))
+            or (repeated_pair and low_novelty)
+            or technical_stall
+            or flat_tension
+            or explanation_loop
+            or repeated_concern
+            or signal_stack
+        ) and not decisive_shift
         if emotional_flags["emotional_conflict"]:
             stalled = False
         if inner_conflict:
@@ -1896,6 +1911,24 @@ class DirectorAI:
         def score(aid: str) -> float:
             agent = agent_map[aid]
             emotion_family, intensity = self._dominant_emotion_family(agent.memory.emotional_state)
+            last_agent = agent_map.get(recent_speakers[-1]) if recent_speakers else None
+            profile_text = " ".join(
+                [
+                    str(agent.name or ""),
+                    str(agent.role or ""),
+                    str(agent.bio or ""),
+                    " ".join(str(goal) for goal in (agent.goals or [])),
+                    " ".join(
+                        str(piece)
+                        for piece in (
+                            (agent.speech_profile or {}).get("tone", ""),
+                            (agent.speech_profile or {}).get("cadence", ""),
+                            (agent.speech_profile or {}).get("formality", ""),
+                        )
+                        if str(piece).strip()
+                    ),
+                ]
+            )
             value = 0.0
             if aid == protagonist_id:
                 value += 1.0
@@ -1926,6 +1959,19 @@ class DirectorAI:
                 value += 0.5
             if intensity >= 0.6:
                 value += 0.5
+            if last_agent and aid != last_agent.id and agent.role != getattr(last_agent, "role", ""):
+                value += 0.75
+            if last_agent and aid != last_agent.id:
+                current_cadence = str((agent.speech_profile or {}).get("cadence", "")).strip().lower()
+                last_cadence = str((last_agent.speech_profile or {}).get("cadence", "")).strip().lower()
+                if current_cadence and last_cadence and current_cadence != last_cadence:
+                    value += 0.25
+            if progress_signal.get("repeated_concern") or progress_signal.get("explanation_loop"):
+                if re.search(r"(확인|질문|검증|반박|거절|보안|책임|조건|대가|통제|경고|수습)", profile_text, re.IGNORECASE):
+                    value += 1.0
+            if progress_signal.get("closure_ready") or progress_signal.get("scene_boundary_ready"):
+                if re.search(r"(정리|마무리|결정|이동|퇴장|종결|선택|마지막|다음)", profile_text, re.IGNORECASE):
+                    value += 0.75
             return value
 
         return max(active_ids, key=score)
@@ -1954,6 +2000,13 @@ class DirectorAI:
                 return False, "pressure is still active; hold the scene open until it cashes out"
             return False, ""
 
+        if progress_signal.get("scene_boundary_ready") and (
+            progress_signal.get("repeated_concern")
+            or progress_signal.get("technical_stall")
+            or progress_signal.get("explanation_loop")
+            or progress_signal.get("signal_stack")
+        ):
+            return True, "scene boundary has already landed on a repeated pressure beat; close the scene now"
         if progress_signal.get("scene_boundary_ready"):
             return True, "scene boundary landed on a concrete shift; move to the next beat"
         if progress_signal.get("closure_ready") and (

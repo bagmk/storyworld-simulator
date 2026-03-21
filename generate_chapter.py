@@ -177,6 +177,7 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
         or profile.prefers_stronger_scene_compaction()
         or profile.prefers_sentence_simplification()
         or profile.prefers_observable_emotion_evidence()
+        or profile.needs_role_cues()
     )
     if needs_pressure_concreteness:
         policy["hold_pressure_peak"] = 1
