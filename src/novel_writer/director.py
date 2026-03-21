@@ -1319,6 +1319,13 @@ class DirectorAI:
             if str(i.get("speaker_id", "")).strip() != "director"
         ]
         progress_signal = self._scene_progress_signal(recent, agents=agents)
+        preferred_speaker_id = self._choose_next_speaker(
+            active_ids,
+            agent_map,
+            recent_speakers,
+            progress_signal,
+            protagonist_id=protagonist_id,
+        )
         recent_text = "\n".join(
             (
                 f"- T{i.get('turn', '?')} | {i.get('speaker_name', '?')}: "
@@ -1426,6 +1433,12 @@ class DirectorAI:
             concrete_risk_rule = (
                 "19) A risk is in play. Name it through a specific limit, clause, deadline, access rule, or visible consequence instead of repeating an abstract warning.\n"
             )
+        speaker_choice_rule = ""
+        if preferred_speaker_id and preferred_speaker_id in active_ids:
+            preferred_name = agent_map[preferred_speaker_id].name
+            speaker_choice_rule = (
+                f"20) If multiple speakers could work, prefer {preferred_name} because that turn best changes the room's pressure or emotion.\n"
+            )
 
         prompt = (
             f"You are a story turn allocator.\n\n"
@@ -1459,6 +1472,7 @@ class DirectorAI:
             f"{scene_boundary_rule}"
             f"{inner_conflict_rule}"
             f"{concrete_risk_rule}"
+            f"{speaker_choice_rule}"
             f"Reply JSON only:\n"
             f"{{\"speaker_id\": \"agent_id\", \"end_scene\": true/false, \"reason\": \"...\"}}"
         )
@@ -1521,6 +1535,23 @@ class DirectorAI:
         if speaker_id not in active_ids:
             speaker_id = active_ids[0]
             reason = reason or "invalid speaker from allocator; fallback to first active"
+
+        if (
+            speaker_id != preferred_speaker_id
+            and preferred_speaker_id in active_ids
+            and (
+                progress_signal["stalled"]
+                or progress_signal["technical_stall"]
+                or progress_signal["explanation_loop"]
+                or progress_signal["repeated_concern"]
+                or progress_signal["signal_stack"]
+                or progress_signal.get("inner_conflict")
+                or progress_signal.get("concrete_risk")
+            )
+        ):
+            speaker_id = preferred_speaker_id
+            reason = (reason + "; " if reason else "") + \
+                "director override to use the speaker most likely to advance the scene"
 
         # Deterministic anti-monologue safety:
         # if the same speaker has taken the last 2 non-director turns,
@@ -1817,6 +1848,9 @@ class DirectorAI:
             (closure_ready and (decisive_shift or consequence_shift or motion_shift))
             or (emotional_shift and consequence_shift)
             or (pressure_peak and (consequence_shift or motion_shift))
+            or (repeated_concern and closure_ready and len(recent) >= min_window)
+            or (technical_stall and closure_ready and len(recent) >= min_window)
+            or (flat_tension and repeated_speaker and len(recent) >= max(min_window, 4))
         )
         stalled = ((mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty)) or (
             repeated_pair and low_novelty
@@ -1844,6 +1878,54 @@ class DirectorAI:
             **emotional_flags,
         }
 
+    def _choose_next_speaker(
+        self,
+        active_ids: list[str],
+        agent_map: dict[str, Agent],
+        recent_speakers: list[str],
+        progress_signal: dict[str, bool],
+        protagonist_id: Optional[str] = None,
+    ) -> str:
+        if not active_ids:
+            return ""
+
+        def score(aid: str) -> float:
+            agent = agent_map[aid]
+            emotion_family, intensity = self._dominant_emotion_family(agent.memory.emotional_state)
+            value = 0.0
+            if aid == protagonist_id:
+                value += 1.0
+            if recent_speakers and aid == recent_speakers[-1]:
+                value -= 2.5
+            if len(recent_speakers) >= 2 and recent_speakers[-1] == aid and recent_speakers[-2] == aid:
+                value -= 4.0
+            if progress_signal.get("inner_conflict"):
+                if aid == protagonist_id:
+                    value += 4.0
+                elif emotion_family in {"anxious", "frustrated", "curious"}:
+                    value += 2.0
+            elif progress_signal.get("technical_stall"):
+                if aid == protagonist_id:
+                    value += 3.0
+                elif emotion_family == "curious":
+                    value += 2.0
+            elif progress_signal.get("concrete_risk"):
+                if emotion_family in {"confident", "frustrated"}:
+                    value += 2.0
+            elif progress_signal.get("pressure_peak"):
+                if emotion_family in {"confident", "frustrated", "anxious"}:
+                    value += 1.0
+            elif progress_signal.get("closure_ready"):
+                if emotion_family in {"confident", "relieved"}:
+                    value += 1.5
+            if progress_signal.get("stalled") and emotion_family in {"confident", "frustrated"}:
+                value += 0.5
+            if intensity >= 0.6:
+                value += 0.5
+            return value
+
+        return max(active_ids, key=score)
+
     def _should_end_scene(
         self,
         progress_signal: dict[str, bool],
@@ -1870,6 +1952,12 @@ class DirectorAI:
 
         if progress_signal.get("scene_boundary_ready"):
             return True, "scene boundary landed on a concrete shift; move to the next beat"
+        if progress_signal.get("closure_ready") and (
+            progress_signal.get("repeated_concern")
+            or progress_signal.get("technical_stall")
+            or progress_signal.get("explanation_loop")
+        ):
+            return True, "scene closure to end a repeated beat once the exit cue is present"
         if progress_signal["stalled"] and progress_signal["closure_ready"]:
             return True, "scene closure to avoid drag after recent beat landed"
         if progress_signal["explanation_loop"] and len(recent) >= 4:

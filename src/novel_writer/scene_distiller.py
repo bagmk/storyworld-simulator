@@ -380,6 +380,10 @@ class SceneDistiller:
                 "33. If presentation, Moreno contact, and Miller intervention all appear, keep that chain once in chronological order.\n"
                 "34. Do not restart a hallway/question exchange from zero after the first approach lands; keep only the sharper continuation and the clearer role difference.\n"
             )
+        if self._reader_flags_stock_bridge_phrases() or self._reader_reports_stalled_progression():
+            sections.append(
+                "35. If a later line only repeats the same approach, reaction, or warning with a new opener, keep the version that advances action or consequence and drop the rest.\n"
+            )
 
         repeat_terms = list(self.reader_profile.term_preferences.repetition_watch_terms[:6])
         if repeat_terms:
@@ -691,6 +695,7 @@ class SceneDistiller:
 
         compact: list[dict] = []
         concern_index: dict[str, int] = {}
+        opener_index: dict[str, int] = {}
         limit = 3 if (
             self._reader_prefers_stronger_scene_compaction()
             or self._reader_wants_repeated_confrontation_merge()
@@ -707,8 +712,17 @@ class SceneDistiller:
                 continue
             cleaned_row = {"speaker": speaker, "line": line}
             concern_sig = self._core_concern_signature(line)
+            opener_sig = self._dialogue_opening_signature(line)
             if concern_sig:
                 prev_idx = concern_index.get(concern_sig)
+                if prev_idx is not None:
+                    compact[prev_idx] = self._prefer_more_concrete_dialogue_row(
+                        compact[prev_idx],
+                        cleaned_row,
+                    )
+                    continue
+            if opener_sig:
+                prev_idx = opener_index.get(opener_sig)
                 if prev_idx is not None:
                     compact[prev_idx] = self._prefer_more_concrete_dialogue_row(
                         compact[prev_idx],
@@ -718,6 +732,8 @@ class SceneDistiller:
             compact.append(cleaned_row)
             if concern_sig:
                 concern_index[concern_sig] = len(compact) - 1
+            if opener_sig:
+                opener_index[opener_sig] = len(compact) - 1
 
         scene.key_dialogue = compact[:limit]
 
@@ -729,6 +745,7 @@ class SceneDistiller:
         scene.narrative_summary = self._compress_repeated_core_concerns(scene.narrative_summary)
         scene.narrative_summary = self._compress_repeated_confrontation_sentences(scene.narrative_summary)
         scene.narrative_summary = self._compress_overloaded_threat_signals(scene.narrative_summary)
+        scene.narrative_summary = self._compress_repeated_openings(scene.narrative_summary)
         scene.narrative_summary = self._rebalance_summary_sentence_rhythm(scene.narrative_summary)
         scene.narrative_summary = self._trim_summary_leading_connectors(scene.narrative_summary)
         scene.narrative_summary = self._remove_redundant_phrases(scene.narrative_summary)
@@ -739,6 +756,52 @@ class SceneDistiller:
         scene.narrative_summary = self._strip_stock_timeline_cues_from_text(scene.narrative_summary)
         scene.narrative_summary = self._tighten_narrative_summary(scene.narrative_summary)
         return scene.narrative_summary
+
+    @staticmethod
+    def _opening_signature(text: str, max_tokens: int = 6) -> str:
+        cleaned = re.sub(r"^[\"“”'‘’\s\-\(\)\[\]]+", "", str(text or "").strip())
+        cleaned = re.sub(r"[^0-9a-zA-Z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+        if not cleaned:
+            return ""
+        stop = {
+            "그리고", "그러자", "다만", "한편", "이어서", "그", "그런", "또", "또한",
+            "하지만", "그러나", "그래서", "the", "a", "an", "and", "or",
+        }
+        tokens = [tok for tok in cleaned.split() if len(tok) > 1 and tok not in stop]
+        return " ".join(tokens[:max_tokens])
+
+    def _compress_repeated_openings(self, text: str) -> str:
+        if not text:
+            return text
+
+        out_blocks: list[str] = []
+        for block in [b.strip() for b in text.split("\n\n") if b.strip()]:
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            seen_openers: list[str] = []
+            for sent in sentences:
+                current = sent.strip()
+                if not current:
+                    continue
+                opener = self._opening_signature(current)
+                if opener and opener in seen_openers[-3:]:
+                    if self._summary_has_action_or_decision(current) or self._summary_has_reaction_or_sensory(current):
+                        if rebuilt:
+                            rebuilt[-1] = self._ensure_summary_sentence(current)
+                    continue
+                rebuilt.append(self._ensure_summary_sentence(current))
+                if opener:
+                    seen_openers.append(opener)
+                    if len(seen_openers) > 4:
+                        seen_openers.pop(0)
+            if rebuilt:
+                out_blocks.append(" ".join(rebuilt).strip())
+        return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _reader_prefers_compact_beats(self) -> bool:
         return self.reader_profile.semantic_flags.prefers_compact_beats
@@ -2162,10 +2225,59 @@ class SceneDistiller:
         return "이름 모를 수트 차림의 남자" in text or self._looks_like_generic_suit_label(text)
 
     @staticmethod
+    def _split_korean_sentences(block: str) -> list[str]:
+        text = str(block or "").strip()
+        if not text:
+            return []
+
+        by_punct = [
+            s.strip()
+            for s in re.split(r'(?<=[.!?…])\s+|(?<=[다요죠]\.)\s+', text)
+            if s.strip()
+        ]
+        if len(by_punct) > 1:
+            return by_punct
+
+        if len(text) <= 220:
+            return [text]
+
+        tokens = text.split()
+        if len(tokens) < 12:
+            return [text]
+
+        chunks: list[str] = []
+        buf: list[str] = []
+        buf_chars = 0
+        for tok in tokens:
+            buf.append(tok)
+            buf_chars += len(tok) + 1
+            if buf_chars >= 120 and (tok.endswith(",") or tok.endswith(")") or buf_chars >= 170):
+                chunks.append(" ".join(buf).strip())
+                buf = []
+                buf_chars = 0
+        if buf:
+            chunks.append(" ".join(buf).strip())
+        return [c for c in chunks if c]
+
+    @staticmethod
     def _dialogue_fingerprint(text: str) -> str:
         cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", str(text or "").lower())
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
+
+    @staticmethod
+    def _dialogue_opening_signature(text: str, max_tokens: int = 6) -> str:
+        cleaned = re.sub(r"^[\"“”'‘’\s\-\(\)\[\]]+", "", str(text or "").strip())
+        cleaned = re.sub(r"[^0-9a-zA-Z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+        if not cleaned:
+            return ""
+        stop = {
+            "그리고", "그러자", "다만", "한편", "이어서", "그", "그녀", "그는", "또",
+            "하지만", "그러나", "그래서", "the", "a", "an", "and", "or",
+        }
+        tokens = [tok for tok in cleaned.split() if len(tok) > 1 and tok not in stop]
+        return " ".join(tokens[:max_tokens])
 
     @staticmethod
     def _norm_name_key(text: str) -> str:

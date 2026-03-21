@@ -455,6 +455,7 @@ class ProseGenerator:
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "When a pressure beat already has one bodily reaction, do not add another near-identical reaction in the next sentence; move to choice, consequence, or dialogue instead.\n"
             "If the pressure has already landed, do not keep narrating the same hesitation; cash it out through a concrete action or scene boundary.\n"
+            "If a later sentence repeats the same observation, bridge, or reaction with a new opener, prefer the version that moves the scene forward.\n"
             "Keep all content in Korean.\n"
         )
         pov_and_time = (
@@ -2023,9 +2024,55 @@ class ProseGenerator:
                         recent_sentence_fp.pop(0)
 
             if keep:
-                out_blocks.append(" ".join(keep))
+                out_blocks.append(self._compress_repeated_opening_phrases(" ".join(keep)))
 
         return "\n\n".join(out_blocks)
+
+    def _compress_repeated_opening_phrases(self, text: str) -> str:
+        """
+        Remove adjacent prose sentences that reopen the same beat without adding
+        a fresh action, decision, or consequence.
+        """
+        if not text:
+            return text
+
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+        out_blocks: list[str] = []
+        for block in blocks:
+            if block.startswith("#") or block.startswith("*") or block.startswith("---"):
+                out_blocks.append(block)
+                continue
+
+            sentences = self._split_korean_sentences(block)
+            if len(sentences) < 2:
+                out_blocks.append(block)
+                continue
+
+            rebuilt: list[str] = []
+            seen_openers: list[str] = []
+            for sent in sentences:
+                current = sent.strip()
+                if not current:
+                    continue
+                opener = self._sentence_opening_signature(current)
+                repeated_opener = bool(opener and opener in seen_openers[-3:])
+                if repeated_opener and not re.search(r"[\"“”'‘’]", current):
+                    if self._sentence_has_action_or_decision(current):
+                        if rebuilt and not self._sentence_has_action_or_decision(rebuilt[-1]):
+                            rebuilt[-1] = current
+                    elif self._is_explanation_like_sentence(current) and rebuilt:
+                        rebuilt[-1] = self._prefer_stronger_tension_sentence(rebuilt[-1], current)
+                    continue
+                rebuilt.append(current)
+                if opener:
+                    seen_openers.append(opener)
+                    if len(seen_openers) > 4:
+                        seen_openers.pop(0)
+
+            if rebuilt:
+                out_blocks.append(" ".join(rebuilt).strip())
+
+        return "\n\n".join(b for b in out_blocks if b.strip())
 
     def _compress_repeated_tension_beats(self, text: str) -> str:
         """
@@ -2741,6 +2788,20 @@ class ProseGenerator:
         }
         toks = [t for t in cleaned.split() if len(t) > 1 and t not in stop]
         return " ".join(toks[:18])
+
+    @staticmethod
+    def _sentence_opening_signature(sentence: str, max_tokens: int = 6) -> str:
+        cleaned = re.sub(r"^[\"“”'‘’\s\-\(\)\[\]]+", "", str(sentence or "").strip())
+        cleaned = re.sub(r"[^0-9a-zA-Z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+        if not cleaned:
+            return ""
+        stop = {
+            "그리고", "그러자", "다만", "한편", "이어서", "그", "그의", "그녀", "그는", "또",
+            "하지만", "그러나", "그래서", "the", "a", "an", "and", "or",
+        }
+        toks = [t for t in cleaned.split() if len(t) > 1 and t not in stop]
+        return " ".join(toks[:max_tokens])
 
     @staticmethod
     def _is_near_duplicate_sentence(a: str, b: str) -> bool:
