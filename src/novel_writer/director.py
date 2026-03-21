@@ -958,7 +958,8 @@ class DirectorAI:
         if progress_signal.get("anxious_pressure"):
             return (
                 "The cast is emotionally keyed up. Let the next beat show hesitation, a question, a check-in, "
-                "or a small bodily reaction instead of another neutral explanation."
+                "or a small bodily reaction instead of another neutral explanation. Favor one visible cue such as a glance, "
+                "a breath, a hand movement, or a room sound."
             )
         if progress_signal.get("frustration_pressure"):
             return (
@@ -1810,6 +1811,15 @@ class DirectorAI:
             for idx in range(1, len(opener_fingerprints))
             if opener_fingerprints[idx] and opener_fingerprints[idx] == opener_fingerprints[idx - 1]
         )
+        alert_rows = sum(
+            1 for item in recent if "alert" in self._threat_signal_signature(str(item.get("content", "")))
+        )
+        repeated_alert_signal = alert_rows >= 2 and not any(
+            self._has_consequence_shift(str(item.get("content", "")))
+            or self._has_emotional_or_decisive_shift(str(item.get("content", "")))
+            or self._has_confrontation_resolution_shift(str(item.get("content", "")))
+            for item in recent[-2:]
+        )
         low_novelty = len({fp for fp in fingerprints if fp}) <= (
             1 if self._reader_wants_repeated_confrontation_merge() and len(recent) <= 3 else 2
         )
@@ -1821,9 +1831,10 @@ class DirectorAI:
             or bool(tension_curve.get("flat"))
             or (repeated_concern and repeated_openers >= 1)
             or (technical_stall and repeated_openers >= 1)
+            or repeated_alert_signal
         )
         explanation_loop = self._has_explanatory_loop(recent) or repeated_openers >= 1
-        signal_stack = self._has_overloaded_threat_signal_stack(recent)
+        signal_stack = self._has_overloaded_threat_signal_stack(recent) or repeated_alert_signal
         closure_ready = self._has_scene_exit_cue(recent)
         emotional_shift = any(
             self._has_emotional_or_decisive_shift(str(i.get("content", "")))
@@ -1871,6 +1882,7 @@ class DirectorAI:
             or technical_stall
             or flat_tension
             or explanation_loop
+            or repeated_alert_signal
         )
         pressure_peak = (
             repetition_pressure
@@ -1888,6 +1900,7 @@ class DirectorAI:
             or (technical_stall and closure_ready and len(recent) >= min_window)
             or (repetition_pressure and concrete_turn and low_novelty and len(recent) >= min_window)
             or (flat_tension and repeated_speaker and len(recent) >= max(min_window, 4))
+            or (repeated_alert_signal and concrete_turn)
         )
         stalled = (
             (mostly_dialogue and (repeated_speaker or repeated_pair or low_novelty))
@@ -1897,6 +1910,7 @@ class DirectorAI:
             or explanation_loop
             or repeated_concern
             or signal_stack
+            or repeated_alert_signal
         ) and not decisive_shift
         if emotional_flags["emotional_conflict"]:
             stalled = False
@@ -2204,7 +2218,7 @@ class DirectorAI:
         if progress_signal.get("concrete_risk"):
             hint += "; name the cost as a specific limit, clause, deadline, or access restriction"
         if progress_signal.get("alert_pending_reaction"):
-            hint += "; react to the alert with one visible move before explaining anything"
+            hint += "; react to the alert with one visible move, glance, breath, or room cue before explaining anything"
         if intensity >= 0.6:
             hint += "; the emotion is strong enough to color the line"
         return hint
@@ -2253,7 +2267,7 @@ class DirectorAI:
             if progress_signal.get("technical_stall"):
                 focus_bits.append("technical stall: show one visible effect or next step")
             if progress_signal.get("alert_pending_reaction"):
-                focus_bits.append("alert: answer the warning with immediate motion or reaction")
+                focus_bits.append("alert: answer the warning with immediate motion, glance, or breath before explaining")
             if focus_bits:
                 voice_bits.append(f"focus={'; '.join(focus_bits)}")
             if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:

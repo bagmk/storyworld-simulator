@@ -1853,18 +1853,40 @@ class SceneDistiller:
             line_fp = self._dialogue_fingerprint(line)
             signature = (speaker_fp, line_fp)
             if signature in seen_signatures:
-                extra_actions.append(f"{speaker}는 같은 설명을 반복하지 않고 반응을 살폈다.")
+                extra_actions.append(f"{speaker}는 같은 설명을 반복하지 않고 주변 반응을 살폈다.")
                 continue
             seen_signatures.add(signature)
             if len(line) > 90 and explain_pattern.search(line):
-                cut = re.split(r"[,;]|(?:\s+그리고\s+)|(?:\s+하지만\s+)", line, maxsplit=1)[0].strip()
+                cut = self._shorten_expository_dialogue_line(line)
                 if cut and cut != line:
-                    line = cut.rstrip(". ") + "…"
-                extra_actions.append(f"{speaker}는 말을 짧게 정리하고 반응을 살폈다.")
+                    line = cut
+                extra_actions.append(f"{speaker}는 설명을 짧게 끊고 시선을 반응 쪽으로 돌렸다.")
             compact.append({"speaker": speaker, "line": line})
         scene.key_dialogue = compact[:4]
         if extra_actions:
             scene.key_actions = self._dedupe_preserve_order(list(scene.key_actions) + extra_actions)
+
+    @staticmethod
+    def _shorten_expository_dialogue_line(line: str) -> str:
+        text = re.sub(r"\s+", " ", str(line or "")).strip()
+        if not text:
+            return ""
+        text = re.sub(r"^(?:즉|다시 말해|정리하면|요약하면|핵심은|결론은|설명하자면)\s*", "", text)
+        text = re.split(
+            r"(?:라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다|뜻에 가까웠다)",
+            text,
+            maxsplit=1,
+        )[0].strip()
+        text = re.split(r"[,;]|(?:\s+그리고\s+)|(?:\s+하지만\s+)|(?:\s+그러나\s+)", text, maxsplit=1)[0].strip()
+        if not text:
+            return ""
+        if not re.search(r"[0-9A-Za-z가-힣]", text):
+            return ""
+        if len(text) > 88:
+            text = text[:87].rstrip(" ,")
+            if text and not re.search(r"[.!?…]$", text):
+                text += "…"
+        return text
 
     def _compress_signature_entries(
         self,

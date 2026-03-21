@@ -2217,13 +2217,15 @@ class ProseGenerator:
                         or self._is_explanation_like_sentence(kept[-1])
                     )
                 ):
-                    if not explanation_taken and self._sentence_has_concrete_anchor(current):
-                        kept.append(current)
+                    shortened = self._shorten_explanatory_sentence(current)
+                    if not explanation_taken and shortened:
+                        kept.append(shortened)
                         explanation_taken = True
                     idx += 1
                     continue
                 if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
-                    kept.append(current)
+                    shortened = self._shorten_explanatory_sentence(current)
+                    kept.append(shortened or current)
                     explanation_taken = True
                     idx += 1
                     while idx < len(sentences):
@@ -2241,8 +2243,9 @@ class ProseGenerator:
                             self._is_pressure_heavy_sentence(nxt)
                             and not self._sentence_has_action_or_decision(nxt)
                         ):
-                            if not explanation_taken and self._sentence_has_concrete_anchor(nxt):
-                                kept.append(nxt)
+                            next_short = self._shorten_explanatory_sentence(nxt)
+                            if not explanation_taken and next_short:
+                                kept.append(next_short)
                                 explanation_taken = True
                             idx += 1
                             continue
@@ -2339,6 +2342,27 @@ class ProseGenerator:
             r"(라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다|뜻에 가까웠다)",
             str(sentence or "").strip(),
         ))
+
+    def _shorten_explanatory_sentence(self, sentence: str) -> str:
+        """
+        Reduce an explanation sentence to the shortest usable factual clause.
+        Returns an empty string when the sentence is only restating meaning.
+        """
+        text = re.sub(r"\s+", " ", str(sentence or "").strip())
+        if not text:
+            return ""
+        text = re.sub(r"^(?:즉|다시 말해|쉽게 말하면|그 말은|그 뜻은|결국|한마디로)\s*", "", text)
+        text = re.split(
+            r"(?:라는 뜻|뜻이었다|의미였|셈이었다|말이었다|다름 아니었다|뜻에 가까웠다)",
+            text,
+            maxsplit=1,
+        )[0].strip()
+        text = re.split(r"[,;]|(?:\s+그리고\s+)|(?:\s+하지만\s+)|(?:\s+그러나\s+)", text, maxsplit=1)[0].strip()
+        if not text:
+            return ""
+        if not self._sentence_has_action_or_decision(text) and not self._sentence_has_concrete_anchor(text):
+            return ""
+        return self._ensure_summary_sentence(text)
 
     def _is_redundant_tension_restatement(self, left: str, right: str) -> bool:
         left_clean = str(left or "").strip()
@@ -2823,15 +2847,32 @@ class ProseGenerator:
             return ""
         if len(sentences) == 1:
             return sentences[0]
-        combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
+        ordered: list[str] = []
+        seen_openers: set[str] = set()
+        for raw in sentences:
+            current = str(raw or "").strip()
+            if not current:
+                continue
+            opener = self._sentence_opening_signature(current)
+            if opener and opener in seen_openers:
+                continue
+            if ordered and self._is_redundant_tension_restatement(ordered[-1], current):
+                ordered[-1] = self._prefer_stronger_tension_sentence(ordered[-1], current)
+                continue
+            ordered.append(current)
+            if opener:
+                seen_openers.add(opener)
+        if not ordered:
+            return ""
+        combined = re.sub(r"[.!?…]+$", "", ordered[0].strip())
         if not combined:
-            return " ".join(s for s in sentences if s.strip())
+            return " ".join(s for s in ordered if s.strip())
 
         connector = ""
-        if self._should_use_clipped_bridge(sentences):
-            connector = self._select_clipped_bridge_phrase(sentences)
+        if self._should_use_clipped_bridge(ordered):
+            connector = self._select_clipped_bridge_phrase(ordered)
 
-        for idx, sent in enumerate(sentences[1:], start=1):
+        for idx, sent in enumerate(ordered[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
             if not cleaned:
                 continue
@@ -3495,6 +3536,9 @@ class ProseGenerator:
             return self._fit_char_window(bridge, min_chars, max_chars)
         if context_sentences:
             recent = [str(sent or "").strip() for sent in context_sentences[-3:] if str(sent or "").strip()]
+            sensory = self._contextual_sensory_bridge(recent, tone=tone)
+            if sensory:
+                return self._fit_char_window(sensory, min_chars, max_chars)
             for sent in reversed(recent):
                 fragment = self._derive_clipped_bridge_fragment([sent])
                 if fragment:
@@ -3510,6 +3554,21 @@ class ProseGenerator:
                     return self._fit_char_window(f"{lead}가 다음 반응을 불렀다.", min_chars, max_chars)
         fallback = "수민은 다음 반응을 기다렸다." if tone == "plain" else "압박은 한 박자 더 또렷해졌다."
         return self._fit_char_window(fallback, min_chars, max_chars)
+
+    @staticmethod
+    def _contextual_sensory_bridge(sentences: list[str], tone: str = "strong") -> str:
+        joined = " ".join(str(sent or "") for sent in sentences).lower()
+        if not joined.strip():
+            return ""
+        if re.search(r"(경보|알람|알림|alert|warning|monitor|비프|소리)", joined):
+            return "경보음이 잠깐 더 선명해졌다."
+        if re.search(r"(시선|응시|바라|눈)", joined):
+            return "시선이 잠깐 멈췄다."
+        if re.search(r"(심박|심장|숨|호흡|가쁘)", joined):
+            return "숨이 한 번 얕아졌다."
+        if re.search(r"(발소리|걸음|다가서|물러서|움직)", joined):
+            return "발소리가 한 박자 먼저 닿았다."
+        return "압박이 한 번 더 가까워졌다." if tone != "plain" else "다음 반응이 곧 이어졌다."
 
     @staticmethod
     def _sentence_word_count(sentence: str) -> int:
