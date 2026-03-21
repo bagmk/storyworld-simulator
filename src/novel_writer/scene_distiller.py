@@ -307,6 +307,8 @@ class SceneDistiller:
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
             f"17. If a technical term or acronym survives in the summary, add one short plain-language Korean sentence immediately after it, then show an immediate human reaction or consequence.\n"
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
+            f"18a. Make emotional shifts visible: use a breath change, hand movement, gaze change, or posture shift instead of abstract feeling words alone.\n"
+            f"18b. If Miller appears, keep the cost concrete in the same summary: access, security, contract, deadline, responsibility, or another visible leverage point.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
             f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
@@ -1161,6 +1163,64 @@ class SceneDistiller:
             return self._ensure_summary_sentence(base)
         return self._ensure_summary_sentence(f"{base}, 그래서 {follow}")
 
+    def _scene_mentions_miller(self, scene: DistilledScene) -> bool:
+        text = " ".join(
+            [
+                str(scene.narrative_summary or ""),
+                " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
+                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
+                str(scene.emotional_arc or ""),
+                str(scene.location or ""),
+            ]
+        ).lower()
+        return bool(re.search(r"(miller|밀러)", text))
+
+    def _observable_emotion_reaction(self, scene: DistilledScene) -> str:
+        emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
+        subject = scene.characters_present[0] if scene.characters_present else "인물"
+        if re.search(r"(불안|긴장|초조|압박|경계)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 숨을 짧게 들이쉬고 손끝에 힘을 줬다")
+        if re.search(r"(안도|진정|안정)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 길게 숨을 내쉬며 어깨를 조금 내렸다")
+        if re.search(r"(분노|짜증|격앙)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 턱선을 굳히고 손가락을 한 번 세게 말아쥐었다")
+        if re.search(r"(혼란|당황|망설임)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 시선을 한 번 비키고 답을 늦췄다")
+        if re.search(r"(결심|선택|각오)", emotional):
+            return self._ensure_summary_sentence(f"{subject}은 숨을 고르고 자세를 바로 세웠다")
+        return self._ensure_summary_sentence(f"{subject}은 주변의 반응을 먼저 살폈다")
+
+    def _miller_risk_clause(self, scene: DistilledScene) -> str:
+        if not self._scene_mentions_miller(scene):
+            return ""
+
+        text = " ".join(
+            [
+                str(scene.narrative_summary or ""),
+                " ".join(str(x) for x in (scene.discoveries or []) if str(x).strip()),
+                " ".join(str(x) for x in (scene.key_actions or []) if str(x).strip()),
+                " ".join(str((row or {}).get("line", "")) for row in (scene.key_dialogue or []) if isinstance(row, dict)),
+                str(scene.emotional_arc or ""),
+            ]
+        ).lower()
+        risk_bits: list[str] = []
+        if re.search(r"(외부 지원|지원|후원|자원|예산)", text):
+            risk_bits.append("외부 지원이 흔들릴 수 있었다")
+        if re.search(r"(통제권|주도권|권한|control|authority)", text):
+            risk_bits.append("통제권을 넘겨야 할 수 있었다")
+        if re.search(r"(책임|책임질|oversight|liability)", text):
+            risk_bits.append("책임이 수민 쪽으로 남을 수 있었다")
+        if re.search(r"(계약|조항|서류|시설|보안|경비|배지|명함|출입|access|security|contract|clause)", text):
+            risk_bits.append("계약과 보안 조건이 따라붙을 수 있었다")
+        if re.search(r"(실시간|latency|지연|보정|real-time)", text):
+            risk_bits.append("실시간 대응 부담이 더 커질 수 있었다")
+
+        if not risk_bits:
+            risk_bits.append("대가가 분명하지 않은 제안은 아니었다")
+        joined = " 그리고 ".join(risk_bits[:2])
+        return self._ensure_summary_sentence(f"밀러의 제안 뒤에는 {joined}")
+
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
         if scene.pacing in {"opening", "climax"}:
             return True
@@ -1200,10 +1260,18 @@ class SceneDistiller:
         return token_count <= 9
 
     def _summary_replacement_sentence(self, scene: DistilledScene) -> str:
+        risk_clause = self._miller_risk_clause(scene)
         for action in scene.key_actions or []:
             cleaned = self._clean_action_text(action)
             if cleaned:
+                if risk_clause and self._scene_mentions_miller(scene):
+                    base = re.sub(r"[.!?…]+$", "", cleaned).strip()
+                    risk = re.sub(r"[.!?…]+$", "", risk_clause).strip()
+                    if base and risk:
+                        return self._ensure_summary_sentence(f"{base}, {risk}")
                 return self._ensure_summary_sentence(cleaned)
+        if risk_clause:
+            return risk_clause
         for item in scene.discoveries or []:
             cleaned = re.sub(r"\s+", " ", str(item or "")).strip()
             if not cleaned:
@@ -1214,8 +1282,9 @@ class SceneDistiller:
             return self._ensure_summary_sentence(f"{subject}은 {cleaned}")
         emotional = re.sub(r"\s+", " ", str(scene.emotional_arc or "")).strip()
         if emotional:
-            subject = scene.characters_present[0] if scene.characters_present else "인물들은"
-            return self._ensure_summary_sentence(f"{subject}의 감정선은 {emotional}으로 기울었다")
+            reaction = self._observable_emotion_reaction(scene)
+            if reaction:
+                return reaction
         return self._ensure_summary_sentence(scene.narrative_summary)
 
     def _summary_sentence_word_cap(self, default: int = 18) -> int:
@@ -1368,14 +1437,14 @@ class SceneDistiller:
         subject = scene.characters_present[0] if scene.characters_present else "인물들"
         emotional = str(scene.emotional_arc or "")
         if re.search(r"(불안|긴장|초조|압박)", emotional):
-            return self._ensure_summary_sentence(f"{subject}의 말끝이 잠깐 무거워졌다")
+            return self._ensure_summary_sentence(f"{subject}은 숨을 짧게 들이쉬고 손끝을 꽉 말아쥐었다")
         if re.search(r"(안도|진정|안정)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 그제야 어깨 힘을 조금 풀었다")
+            return self._ensure_summary_sentence(f"{subject}은 그제야 어깨를 조금 내렸다")
         if re.search(r"(분노|짜증|격앙)", emotional):
-            return self._ensure_summary_sentence(f"{subject}의 턱선이 눈에 띄게 굳었다")
+            return self._ensure_summary_sentence(f"{subject}은 턱선을 굳히고 시선을 피하지 않았다")
         if re.search(r"(혼란|당황|망설임)", emotional):
-            return self._ensure_summary_sentence(f"{subject}은 잠깐 답을 잇지 못했다")
-        return self._ensure_summary_sentence(f"{subject}은 주변의 반응을 먼저 살폈다")
+            return self._ensure_summary_sentence(f"{subject}은 시선을 한 번 비키고 답을 늦췄다")
+        return self._ensure_summary_sentence(f"{subject}은 손끝과 시선을 먼저 움직였다")
 
     @staticmethod
     def _threat_signal_signature(text: str) -> set[str]:

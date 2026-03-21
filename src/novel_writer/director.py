@@ -839,7 +839,8 @@ class DirectorAI:
         if progress_signal.get("pressure_peak"):
             return (
                 "The scene is at a pressure peak. Keep it open and cash the pressure out through a concrete move, "
-                "reveal, or counteroffer instead of ending on atmosphere alone."
+                "reveal, or counteroffer instead of ending on atmosphere alone. If Miller or another negotiator is present, "
+                "name the price explicitly: access, security, responsibility, contract, or deadline."
             )
         if progress_signal["repeated_concern"]:
             if self._reader_wants_repeated_confrontation_merge():
@@ -857,7 +858,7 @@ class DirectorAI:
         if progress_signal["flat_tension"]:
             return (
                 "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "
-                "brief human reaction, uneasy silence, dry aside, or small physical movement, "
+                "brief human reaction, uneasy silence, dry aside, gaze shift, hand movement, or other small physical movement, "
                 "then sharpen the next question or choice. Reserve clipped hard-stop lines for "
                 "real reveals, choices, or scene exits."
             )
@@ -1239,7 +1240,7 @@ class DirectorAI:
         if progress_signal["explanation_loop"] or prefers_observable_emotion:
             show_dont_tell_rule = (
                 "13) Do not spend the next turn defining or interpreting the situation again. "
-                "Show pressure through visible reaction, interruption, gesture, movement, or a blunt choice.\n"
+                "Show pressure through visible reaction, interruption, gesture, movement, breath, or a blunt choice.\n"
             )
         repeated_concern_rule = ""
         if progress_signal["repeated_concern"]:
@@ -1258,7 +1259,7 @@ class DirectorAI:
         if progress_signal.get("pressure_peak"):
             pressure_peak_rule = (
                 "16) The scene is at a pressure peak. Keep it open until a concrete consequence, reveal, or exit cue lands; "
-                "do not end it on atmosphere alone.\n"
+                "do not end it on atmosphere alone. If a proposal is on the table, make the cost concrete instead of abstract.\n"
             )
 
         prompt = (

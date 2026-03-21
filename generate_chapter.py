@@ -511,7 +511,10 @@ def main() -> None:
             len(interactions), len(scenes), distill_elapsed,
             " | fallback chunking" if distill_fallback_used else "",
         )
-    scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
+    canonical_speakers = distiller._build_canonical_speaker_map(interactions)
+    scenes = distiller.normalize_scene_timeline(
+        distiller.apply_scene_guards(scenes, canonical_speakers)
+    )
     for s in scenes:
         logger.info(
             "  Scene %d: '%s' [T%d-%d] %s — %s",

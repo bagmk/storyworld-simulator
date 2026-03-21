@@ -1762,6 +1762,7 @@ class ProseGenerator:
             f"The transition should feel like a natural breath between moments: "
             f"one concrete movement + one short thought + one attention shift. "
             f"Make spatial continuity explicit in one sentence, and avoid abstract wording. "
+            f"Vary the bridge phrasing; do not reuse the same stock opener as the previous transition. "
             f"Do not begin with stock time adverbs like '그 직후' or '잠시 뒤'; "
             f"use movement, gaze, doorway, hallway, or object handling instead. "
             f"Write in Korean. Write ONLY the transition text."
@@ -2358,11 +2359,11 @@ class ProseGenerator:
     @staticmethod
     def _transition_replacement_catalog() -> dict[str, list[str]]:
         return {
-            "그리고": ["답이 바로 나오지 않는 사이", "말끝이 가라앉자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤"],
-            "그러자": ["답이 바로 나오지 않는 사이", "말끝이 떨어지자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "짧은 정적 끝에", "정면을 버틴 채"],
+            "그리고": ["말끝이 가라앉자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이"],
+            "그러자": ["말끝이 떨어지자", "문 쪽에서 인기척이 일자", "의자 다리가 짧게 끌리자", "짧은 정적 끝에", "정면을 버틴 채", "답이 바로 나오지 않는 사이"],
             "다만": ["대신", "문제는", "그래도", "한편"],
-            "이어서": ["말끝이 가라앉자", "답이 바로 나오지 않는 사이", "누군가 펜을 내려놓자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤"],
-            "그 순간": ["말끝이 떨어지자", "문 쪽에서 인기척이 일자", "누군가 펜을 내려놓자", "짧은 정적 끝에", "의자 다리가 짧게 끌리자", "실내의 공기가 식자"],
+            "이어서": ["누군가 펜을 내려놓자", "말끝이 가라앉자", "의자 다리가 짧게 끌리자", "정면을 버틴 채", "짧은 숨이 스친 뒤", "답이 바로 나오지 않는 사이"],
+            "그 순간": ["문 쪽에서 인기척이 일자", "말끝이 떨어지자", "누군가 펜을 내려놓자", "짧은 정적 끝에", "의자 다리가 짧게 끌리자", "실내의 공기가 식자"],
         }
 
     def _pick_transition_replacement(
@@ -2501,16 +2502,19 @@ class ProseGenerator:
         connectors = [
             conn
             for conn in [
-                "답이 바로 나오지 않는 사이",
                 "말끝이 가라앉자",
                 "문 쪽에서 인기척이 일자",
                 "의자 다리가 짧게 끌리자",
                 "정면을 버틴 채",
                 "짧은 숨이 스친 뒤",
+                "답이 바로 나오지 않는 사이",
             ]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
-        connector = connectors[0] if connectors else ""
+        connector = ""
+        if connectors:
+            pick = 0 if len(sentences) <= 3 else (sum(len(s) for s in sentences) + len(sentences)) % len(connectors)
+            connector = connectors[pick]
         combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
         for idx, sent in enumerate(sentences[1:], start=1):
             cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
