@@ -455,6 +455,8 @@ class ProseGenerator:
             "Use concrete sensory details only at pressure turns; do not layer similar sensations repeatedly.\n"
             "When a pressure beat already has one bodily reaction, do not add another near-identical reaction in the next sentence; move to choice, consequence, or dialogue instead.\n"
             "If the pressure has already landed, do not keep narrating the same hesitation; cash it out through a concrete action or scene boundary.\n"
+            "If a threat stays abstract, anchor it once in a person, object, rule, or visible room reaction instead of repeating danger language.\n"
+            "Treat repeated atmosphere as expendable; one sharp image is enough when the scene is already tense.\n"
             "If a later sentence repeats the same observation, bridge, or reaction with a new opener, prefer the version that moves the scene forward.\n"
             "Keep all content in Korean.\n"
         )
@@ -508,6 +510,8 @@ class ProseGenerator:
             f"- Once a fact, threat, or decision lands, the next sentence should show consequence, reaction, or movement instead of paraphrasing it.\n"
             f"- For any pressure beat, keep at most one bodily or emotional reaction sentence before the scene changes state.\n"
             f"- Save the hardest tension wording for only one or two decisive beats in the scene.\n"
+            f"- If a threat is present, name one concrete anchor for it once; do not keep restating abstract danger in different words.\n"
+            f"- If repeated atmosphere starts to stack, keep the sharpest image and cut the rest.\n"
             f"- If a fact, fear, or interpretation already landed once, do not paraphrase it in the next sentence; move to reaction, interruption, or decision.\n"
             f"- If scene focus changes, open the paragraph with the acting subject or a short location cue so the reader does not have to reconstruct who moved first.\n"
             f"- If similar sensory channel repeats for recent 3+ sentences, switch to another channel (sound/touch/temperature).\n"
@@ -1196,6 +1200,7 @@ class ProseGenerator:
             "- 강하게 압박하는 문장과 담백하게 상황을 잇는 문장을 섞어 리듬 고저를 만들 것\n"
             "- 같은 상황이나 감정을 다른 말로 되풀이하지 말고, 이미 성립한 내용은 결과만 짧게 남길 것\n"
             "- 비슷한 감각 묘사와 심리 표현은 한 번만 선명하게 쓰고, 나머지는 행동/결과로 압축할 것\n"
+            "- 위협이 추상적이면 사람, 물건, 규정, 공간 반응 중 하나로 한 번만 고정하고 같은 불안을 반복 설명하지 말 것\n"
             "- 한 문장에는 동작, 감정, 판단 가운데 한 축만 남기고 둘 이상이면 인과관계가 보이게 분리할 것\n"
             "- 비유나 비교를 쓴 직후 그 의미를 다음 문장으로 다시 해설하지 말 것\n"
             "- 각 문단은 반드시 상황 변화, 압박, 발견 중 하나를 전진시킬 것\n"
@@ -2144,6 +2149,8 @@ class ProseGenerator:
                         or self._is_explanation_like_sentence(kept[-1])
                     )
                 ):
+                    if self._sentence_has_concrete_anchor(current):
+                        kept.append(current)
                     idx += 1
                     continue
                 if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
@@ -2151,10 +2158,20 @@ class ProseGenerator:
                     idx += 1
                     while idx < len(sentences):
                         nxt = sentences[idx].strip()
-                        if self._is_explanation_like_sentence(nxt) and not self._sentence_has_action_or_decision(nxt):
+                        if (
+                            self._is_explanation_like_sentence(nxt)
+                            and not self._sentence_has_action_or_decision(nxt)
+                        ):
+                            if self._sentence_has_concrete_anchor(nxt):
+                                kept.append(nxt)
                             idx += 1
                             continue
-                        if self._is_pressure_heavy_sentence(nxt) and not self._sentence_has_action_or_decision(nxt):
+                        if (
+                            self._is_pressure_heavy_sentence(nxt)
+                            and not self._sentence_has_action_or_decision(nxt)
+                        ):
+                            if self._sentence_has_concrete_anchor(nxt):
+                                kept.append(nxt)
                             idx += 1
                             continue
                         break
@@ -2233,6 +2250,13 @@ class ProseGenerator:
     @staticmethod
     def _is_metaphor_like_sentence(sentence: str) -> bool:
         return bool(re.search(r"(마치|흡사|처럼|같았다|같은|듯했다|듯한)", str(sentence or "").strip()))
+
+    @staticmethod
+    def _sentence_has_concrete_anchor(sentence: str) -> bool:
+        return bool(re.search(
+            r"(배지|명함|문서|조항|계약|규정|허가|출입|번호|수치|모니터|경보|문|복도|방|회의실|발표장|시선|경비|보안|기관|부서|관리자|관찰자|감시 장치)",
+            str(sentence or "").lower(),
+        ))
 
     @staticmethod
     def _is_explanation_like_sentence(sentence: str) -> bool:
@@ -2565,6 +2589,7 @@ class ProseGenerator:
         kept: list[str] = []
         seen_fp: set[str] = set()
         inner_idx: Optional[int] = None
+        last_image_sig = ""
         keep_single_inner = self._feedback_flag_enabled("single_strong_interior_beat") or self._feedback_mentions(
             "내면 독백",
             "한 번만 강하게",
@@ -2580,6 +2605,22 @@ class ProseGenerator:
                 continue
             if kept and self._is_redundant_tension_restatement(kept[-1], current):
                 kept[-1] = self._prefer_stronger_tension_sentence(kept[-1], current)
+                last_image_sig = self._sentence_image_signature(kept[-1])
+                if fp:
+                    seen_fp.add(fp)
+                continue
+            current_image_sig = self._sentence_image_signature(current)
+            if (
+                kept
+                and current_image_sig
+                and last_image_sig
+                and not self._sentence_has_action_or_decision(current)
+                and self._image_signature_overlap(last_image_sig, current_image_sig)
+            ):
+                kept[-1] = self._prefer_stronger_tension_sentence(kept[-1], current)
+                last_image_sig = self._sentence_image_signature(kept[-1])
+                if fp:
+                    seen_fp.add(fp)
                 continue
             is_inner = self._is_static_inner_monologue_sentence(current)
             if keep_single_inner and is_inner and inner_idx is not None:
@@ -2590,6 +2631,8 @@ class ProseGenerator:
                 seen_fp.add(fp)
             if is_inner and inner_idx is None:
                 inner_idx = len(kept) - 1
+            if current_image_sig:
+                last_image_sig = current_image_sig
         if len(kept) >= 2:
             non_action = [sent for sent in kept if not self._sentence_has_action_or_decision(sent)]
             if len(non_action) >= 2 and all(
@@ -2626,6 +2669,32 @@ class ProseGenerator:
             if self._sentence_has_action_or_decision(fragment) or self._is_pressure_heavy_sentence(fragment):
                 return fragment
         return ""
+
+    @staticmethod
+    def _sentence_image_signature(sentence: str) -> str:
+        low = re.sub(r"\s+", " ", str(sentence or "")).strip().lower()
+        if not low:
+            return ""
+        groups = [
+            ("space", ("복도", "문", "문턱", "계단", "방", "회의실", "발표장", "무대", "엘리베이터", "통로")),
+            ("atmosphere", ("공기", "정적", "침묵", "소음", "냉기", "열기", "온기", "기류", "공조")),
+            ("gaze", ("시선", "눈", "응시", "바라")),
+            ("body", ("숨", "호흡", "손끝", "손바닥", "어깨", "턱", "입술", "등")),
+            ("sound", ("소리", "기계음", "발소리", "웅", "삐", "울림", "마찰")),
+        ]
+        hits: list[str] = []
+        for group, tokens in groups:
+            if any(tok in low for tok in tokens):
+                hits.append(group)
+        return "|".join(hits[:3])
+
+    @staticmethod
+    def _image_signature_overlap(left: str, right: str) -> bool:
+        if not left or not right:
+            return False
+        left_tokens = {token for token in str(left).split("|") if token}
+        right_tokens = {token for token in str(right).split("|") if token}
+        return bool(left_tokens & right_tokens)
 
     def _is_static_inner_monologue_sentence(self, sentence: str) -> bool:
         sent = str(sentence or "").strip()
@@ -3315,27 +3384,23 @@ class ProseGenerator:
         if contextual:
             bridge = contextual if re.search(r"[.!?…]$", contextual) else f"{contextual}."
             return self._fit_char_window(bridge, min_chars, max_chars)
-        strong_samples = [
-            "수민은 한 박자 늦게 고개를 들었다.",
-            "질문이 한 번 더 눌러 오자 대답은 더 짧아졌다.",
-            "의자 다리가 살짝 끌리고 나서야 방 안의 계산이 다시 움직였다.",
-            "상대의 손끝이 멈추자 다음 조건도 같이 멎었다.",
-            "한 사람의 침묵이 길어질수록 요구는 더 선명해졌다.",
-            "문 쪽의 시선이 먼저 움직이자 수민도 숨을 낮췄다.",
-            "종이 한 장이 테이블 위에 놓이자 대화의 무게가 바뀌었다.",
-            "상대가 고개를 들자 방 안의 균형도 함께 흔들렸다.",
-        ]
-        plain_samples = [
-            "수민은 대답을 한 박자 늦췄다.",
-            "누군가 펜을 손에서 놓았다.",
-            "방 안의 시선이 잠깐 같은 곳에 멈췄다.",
-            "그녀는 상대가 먼저 말을 잇기를 기다렸다.",
-            "컵 바닥이 조용히 테이블에 닿았다.",
-            "짧은 숨 뒤에 질문의 결이 다시 바뀌었다.",
-        ]
-        samples = plain_samples if tone == "plain" else strong_samples
-        sample = samples[idx % len(samples)]
-        return self._fit_char_window(sample, min_chars, max_chars)
+        if context_sentences:
+            recent = [str(sent or "").strip() for sent in context_sentences[-3:] if str(sent or "").strip()]
+            for sent in reversed(recent):
+                fragment = self._derive_clipped_bridge_fragment([sent])
+                if fragment:
+                    bridge = fragment if re.search(r"[.!?…]$", fragment) else f"{fragment}."
+                    return self._fit_char_window(bridge, min_chars, max_chars)
+            source = re.sub(r"\s+", " ", recent[-1]) if recent else ""
+            source = re.sub(r"[.!?…]+$", "", source)
+            if source:
+                lead = re.split(r"[,，;—~]\s*", source, maxsplit=1)[0].strip()
+                if len(re.findall(r"[0-9A-Za-z가-힣]+", lead)) >= 2:
+                    if tone == "plain":
+                        return self._fit_char_window(f"{lead}가 먼저 멈췄다.", min_chars, max_chars)
+                    return self._fit_char_window(f"{lead}가 다음 반응을 불렀다.", min_chars, max_chars)
+        fallback = "대답이 멎자, 다음 움직임이 바로 이어졌다." if tone == "plain" else "압박은 한 박자 더 또렷해졌다."
+        return self._fit_char_window(fallback, min_chars, max_chars)
 
     @staticmethod
     def _sentence_word_count(sentence: str) -> int:

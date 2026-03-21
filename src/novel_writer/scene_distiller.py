@@ -322,6 +322,7 @@ class SceneDistiller:
             f"27. If the threat source is still vague, keep one concrete anchor in the summary - a person, institution, badge, document, or room reaction - instead of repeating abstract danger language.\n"
             f"28. When the scene starts to stall, prioritize the next concrete change in pressure or the scene boundary over another explanatory pass.\n"
             f"29. If a warning cue lands, make the consequence visible in the same or next sentence so the summary does not feel suspended.\n"
+            f"29b. If danger is only implied, preserve the line that says who noticed it, what triggered it, or what concrete rule/object made it real.\n"
             f"30. Keep scene order strictly chronological by raw turn number; once a beat exits the stage/Q&A/hallway axis, do not rewind unless later turns clearly return there.\n"
             f"31. If one dramatic unit runs as question -> response -> approach, keep that axis linear in one scene or adjacent scenes in that exact order.\n"
             f"32. Avoid stock transition openers like '그 직후' or '잠시 뒤'; show the shift through movement, gaze, door, podium, seat, or corridor cues instead.\n"
@@ -373,7 +374,7 @@ class SceneDistiller:
         if self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail"):
             sections.append(
                 "## Concrete Threat/Offer Priority\n"
-                "When the scene contains a coercive offer or threat, preserve one concrete detail such as a badge, clause, deadline, document line, access rule, or visible room reaction. Do not compress it into abstract danger language.\n"
+                "When the scene contains a coercive offer or threat, preserve one concrete detail such as a badge, clause, deadline, document line, access rule, visible room reaction, or the observer who noticed it. Do not compress it into abstract danger language.\n"
             )
 
         if self._reader_wants_repeated_confrontation_merge():
@@ -1541,12 +1542,24 @@ class SceneDistiller:
         seen_signals: set[str] = set()
         static_signal_sentences = 0
         cap = self._feedback_static_threat_signal_cap(default=1)
+        concrete_anchor_seen = False
         for sentence in sentences:
             signals = self._threat_signal_signature(sentence)
             if not signals:
                 kept.append(sentence)
                 continue
             has_shift = self._summary_has_action_or_decision(sentence) or self._summary_has_reaction_or_sensory(sentence)
+            concrete_anchor = self._summary_has_concrete_risk(sentence)
+            if concrete_anchor and kept and not self._summary_has_concrete_risk(kept[-1]) and not has_shift:
+                kept[-1] = sentence
+                seen_signals.update(signals)
+                concrete_anchor_seen = True
+                static_signal_sentences = min(static_signal_sentences + 1, cap)
+                continue
+            if concrete_anchor:
+                concrete_anchor_seen = True
+            elif concrete_anchor_seen and not has_shift:
+                continue
             if not has_shift and not (signals - seen_signals):
                 continue
             if not has_shift and static_signal_sentences >= cap:
@@ -1564,10 +1577,22 @@ class SceneDistiller:
         seen_signals: set[str] = set()
         static_signal_lines = 0
         cap = self._feedback_static_threat_signal_cap(default=1)
+        concrete_anchor_seen = False
         for line in values:
             signals = self._threat_signal_signature(line)
             has_shift = self._summary_has_action_or_decision(line) or self._summary_has_reaction_or_sensory(line)
+            concrete_anchor = self._summary_has_concrete_risk(line)
             if signals:
+                if concrete_anchor and kept and not self._summary_has_concrete_risk(kept[-1]) and not has_shift:
+                    kept[-1] = line
+                    seen_signals.update(signals)
+                    concrete_anchor_seen = True
+                    static_signal_lines = min(static_signal_lines + 1, cap)
+                    continue
+                if concrete_anchor:
+                    concrete_anchor_seen = True
+                elif concrete_anchor_seen and not has_shift:
+                    continue
                 if not has_shift and not (signals - seen_signals):
                     continue
                 if not has_shift and static_signal_lines >= cap:

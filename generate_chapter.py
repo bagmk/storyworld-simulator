@@ -172,7 +172,13 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
 def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
     policy = dict(base_policy or {})
     profile = build_reader_profile(reader_feedback)
-    if profile.reports_stalled_progression() or profile.prefers_stronger_scene_compaction() or profile.prefers_sentence_simplification():
+    needs_pressure_concreteness = (
+        profile.reports_stalled_progression()
+        or profile.prefers_stronger_scene_compaction()
+        or profile.prefers_sentence_simplification()
+        or profile.prefers_observable_emotion_evidence()
+    )
+    if needs_pressure_concreteness:
         policy["hold_pressure_peak"] = 1
         policy["prefer_scene_exit_on_stall"] = 1
         policy["prefer_concrete_offer_detail"] = 1

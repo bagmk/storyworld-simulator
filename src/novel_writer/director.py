@@ -1395,14 +1395,16 @@ class DirectorAI:
         if progress_signal["explanation_loop"] or prefers_observable_emotion:
             show_dont_tell_rule = (
                 "13) Do not spend the next turn defining or interpreting the situation again. "
-                "Show pressure through visible reaction, interruption, gesture, movement, breath, or a blunt choice.\n"
+                "Show pressure through visible reaction, interruption, gesture, movement, breath, or a blunt choice. "
+                "If the threat is still vague, anchor it in one observer, object, or rule before explaining it again.\n"
             )
         repeated_concern_rule = ""
         if progress_signal["repeated_concern"]:
             repeated_concern_rule = (
                 "14) Recent turns are revisiting the same concern. Do not paraphrase it again; "
                 "either end the scene or force a new consequence, choice, interruption, or movement. "
-                "Keep at most 2-3 core conditions and let any extra pressure arrive through a concrete detail like affiliation, card, number, or room reaction.\n"
+                "Keep at most 2-3 core conditions and let any extra pressure arrive through a concrete detail like affiliation, card, number, or room reaction. "
+                "If the threat still sounds abstract, name the person, object, or rule that makes it real.\n"
             )
         confrontation_axis_rule = ""
         if self._reader_wants_repeated_confrontation_merge():
@@ -2063,7 +2065,7 @@ class DirectorAI:
     def _has_concrete_risk_marker(text: str) -> bool:
         low = str(text or "").lower()
         return bool(re.search(
-            r"(대가|조건|한계|지원|보안|출입|배지|명함|계약|조항|책임|허가|시설|deadline|limit|access|security|support|clause)",
+            r"(대가|조건|한계|지원|보안|출입|배지|명함|계약|조항|책임|허가|시설|관찰자|메모|경보|모니터|시선|문|deadline|limit|access|security|support|clause)",
             low,
         ))
 
