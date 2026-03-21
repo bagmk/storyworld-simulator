@@ -799,7 +799,8 @@ class DirectorAI:
             return (
                 "The scene is explaining instead of moving. Cut the next turn into short direct sentences, "
                 "translate the point into plain consequence, and show it through reaction, choice, interruption, "
-                "or physical movement instead of another interpretation pass."
+                "or physical movement instead of another interpretation pass. If a bridge opener keeps repeating, "
+                "replace it with a concrete action or room cue."
             )
         if progress_signal["technical_stall"]:
             return (
@@ -854,8 +855,8 @@ class DirectorAI:
             return (
                 "The dialogue has stayed at one pressure level for too long. Add a rhythm change: "
                 "brief human reaction, uneasy silence, dry aside, gaze shift, hand movement, or other small physical movement, "
-                "then sharpen the next question or choice. Reserve clipped hard-stop lines for "
-                "real reveals, choices, or scene exits."
+                "then sharpen the next question or choice. Avoid recycling the same opening phrase; use a visible action, "
+                "object, or room-state cue instead. Reserve clipped hard-stop lines for real reveals, choices, or scene exits."
             )
         if progress_signal["stalled"]:
             return (
@@ -1286,8 +1287,8 @@ class DirectorAI:
             f"when other active speakers are available.\n"
             f"{'6) Recent turns are stalling: pick a speaker who changes the situation, or end the scene if the beat already landed.\\n' if progress_signal['stalled'] else ''}"
             f"{'7) A natural exit cue is already present, so prefer end_scene=true unless another turn clearly adds pressure.\\n' if progress_signal['closure_ready'] else ''}"
-            f"{'8) Recent turns are circling the same explanation without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
-            f"{'9) Recent turns keep landing on the same pressure note; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}"
+            f"{'8) Recent turns are circling the same explanation or bridge opener without enough reaction or decision change; prefer a speaker who turns it into emotion, conflict, movement, or a scene close.\\n' if progress_signal['technical_stall'] else ''}"
+            f"{'9) Recent turns keep landing on the same pressure note or opening phrase; either close the scene or insert a plain human reaction before another sharp line.\\n' if progress_signal['flat_tension'] else ''}"
             f"{'10) The scene is stacking warning cues; do not add another memo/alert/watcher beat. Cash out the sharpest cue through reaction, confrontation, movement, or a scene close.\\n' if progress_signal['signal_stack'] else ''}\n"
             f"{protagonist_focus_rule}"
             f"{jargon_reaction_rule}"
@@ -1598,12 +1599,18 @@ class DirectorAI:
             1 for i in recent if str(i.get("action_type", "")).strip() == "dialogue"
         ) >= min(3, len(recent))
         fingerprints = [self._content_fingerprint(str(i.get("content", ""))) for i in recent]
+        opener_fingerprints = [self._opening_phrase_fingerprint(str(i.get("content", ""))) for i in recent]
+        repeated_openers = sum(
+            1
+            for idx in range(1, len(opener_fingerprints))
+            if opener_fingerprints[idx] and opener_fingerprints[idx] == opener_fingerprints[idx - 1]
+        )
         low_novelty = len({fp for fp in fingerprints if fp}) <= (
             1 if self._reader_wants_repeated_confrontation_merge() and len(recent) <= 3 else 2
         )
         technical_stall = self._has_repetitive_technical_exchange(recent)
-        flat_tension = self._has_flat_tension_plateau(recent)
-        explanation_loop = self._has_explanatory_loop(recent)
+        flat_tension = self._has_flat_tension_plateau(recent) or repeated_openers >= 1
+        explanation_loop = self._has_explanatory_loop(recent) or repeated_openers >= 1
         repeated_concern = self._has_repeated_core_concern_exchange(recent)
         signal_stack = self._has_overloaded_threat_signal_stack(recent)
         closure_ready = self._has_scene_exit_cue(recent)
@@ -2215,6 +2222,18 @@ class DirectorAI:
         stop = {"그리고", "하지만", "그러나", "그는", "그녀는", "정말", "아주", "that", "with"}
         tokens = [t for t in cleaned.split() if len(t) >= 2 and t not in stop]
         return " ".join(tokens[:8])
+
+    @staticmethod
+    def _opening_phrase_fingerprint(text: str) -> str:
+        cleaned = re.sub(r"\s+", " ", str(text or "").strip().lower())
+        if not cleaned:
+            return ""
+        cleaned = re.split(r"[.!?…]", cleaned, maxsplit=1)[0]
+        cleaned = re.sub(r"^[\"“”'‘’\(\)\[\]\s]+", "", cleaned)
+        cleaned = re.sub(r"[^0-9a-z가-힣\s]", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        tokens = [t for t in cleaned.split() if len(t) >= 2]
+        return " ".join(tokens[:4])
 
     @staticmethod
     def _has_scene_exit_cue(recent_interactions: list[dict]) -> bool:

@@ -329,6 +329,7 @@ class SceneDistiller:
             f"35. When pressure is abstract, favor concrete leverage such as a slide figure, affiliation cue, business card, or room reaction over another ethics/control paraphrase.\n\n"
             f"36. When a threat or offer is on the table, keep one concrete detail in view - a document line, badge, deadline, access rule, or room reaction - and do not leave the danger abstract.\n"
             f"37. Avoid reusing the same framing clause at the start of adjacent summaries, especially stock phrases like '답이 바로 나오지 않는 사이'; vary with action, reaction, or consequence.\n\n"
+            f"38. If a bridge or explanation clause already appeared once nearby, keep it once and convert later mentions into changed consequence, movement, or decision.\n\n"
         )
         prompt += self._build_distill_feedback_guidance()
         prompt += (
@@ -425,7 +426,7 @@ class SceneDistiller:
             )
         if self._reader_flags_stock_bridge_phrases():
             adaptive_lines.append(
-                "Vary sentence length inside summaries, but keep the default as full natural sentences rather than repeated clipped beats."
+                "Vary sentence length inside summaries, but do not reuse the same bridge/opening phrase in nearby summaries; prefer one concrete action or consequence sentence instead of repeated clipped beats."
             )
         if self._reader_prefers_stronger_scene_compaction():
             adaptive_lines.append(

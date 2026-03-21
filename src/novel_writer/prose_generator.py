@@ -520,6 +520,8 @@ class ProseGenerator:
             f"- If you use one metaphor or comparison, do not spend the next sentence unpacking it again; move straight to reaction or the next action.\n"
             f"- When a memo, warning sound, or named arrival shifts the scene, give it one dedicated sentence with subject and location.\n\n"
             f"- Do not lean on default connective openers like '그리고', '그러자', '다만' in nearby lines; vary or omit them when flow allows.\n"
+            f"- If two clipped beats belong to one moment, fuse them into one cause/effect sentence instead of reusing a stock bridge opener.\n"
+            f"- If a bridge phrase has already carried the beat, replace the next one with a concrete action, gaze, object, or room-state cue.\n"
             f"- Mix forceful pressure lines with plainer connective sentences so the rhythm rises and settles instead of staying equally taut.\n\n"
             f"- Let character agendas and speech habits differentiate dialogue; theme should emerge from friction, not repeated explanation.\n"
             f"- Use the character guide's cadence, formality, lexicon, and optional tics as real voice cues, not decoration.\n\n"
@@ -2051,6 +2053,18 @@ class ProseGenerator:
             idx = 0
             while idx < len(sentences):
                 current = sentences[idx].strip()
+                if (
+                    trim_metaphor_explanations
+                    and self._is_explanation_like_sentence(current)
+                    and not self._sentence_has_action_or_decision(current)
+                    and kept
+                    and (
+                        self._is_metaphor_like_sentence(kept[-1])
+                        or self._is_explanation_like_sentence(kept[-1])
+                    )
+                ):
+                    idx += 1
+                    continue
                 if trim_metaphor_explanations and idx + 1 < len(sentences) and self._is_post_metaphor_explanation_pair(current, sentences[idx + 1].strip()):
                     kept.append(current)
                     idx += 1
@@ -2512,7 +2526,38 @@ class ProseGenerator:
             return ""
         if len(sentences) == 1:
             return sentences[0]
-        connectors = [
+        combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
+        if not combined:
+            return " ".join(s for s in sentences if s.strip())
+
+        connector = ""
+        if self._should_use_clipped_bridge(sentences):
+            connector = self._select_clipped_bridge_phrase(sentences)
+
+        for idx, sent in enumerate(sentences[1:], start=1):
+            cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
+            if not cleaned:
+                continue
+            if idx == 1 and connector:
+                combined = f"{combined}, {connector} {cleaned}"
+            else:
+                combined = f"{combined}, {cleaned}"
+        return combined.strip(" ,") + "."
+
+    def _should_use_clipped_bridge(self, sentences: list[str]) -> bool:
+        if len(sentences) < 2:
+            return False
+        if any(self._sentence_has_action_or_decision(sent) for sent in sentences):
+            return False
+        if len(sentences) >= 3:
+            return True
+        return any(
+            self._is_static_inner_monologue_sentence(sent) or self._is_pressure_heavy_sentence(sent)
+            for sent in sentences
+        )
+
+    def _select_clipped_bridge_phrase(self, sentences: list[str]) -> str:
+        options = [
             conn
             for conn in [
                 "말끝이 가라앉자",
@@ -2524,20 +2569,34 @@ class ProseGenerator:
             ]
             if conn.lower() not in self._feedback_transition_avoid_terms()
         ]
-        connector = ""
-        if connectors:
-            pick = 0 if len(sentences) <= 3 else (sum(len(s) for s in sentences) + len(sentences)) % len(connectors)
-            connector = connectors[pick]
-        combined = re.sub(r"[.!?…]+$", "", sentences[0].strip())
-        for idx, sent in enumerate(sentences[1:], start=1):
-            cleaned = re.sub(r"[.!?…]+$", "", sent.strip())
-            if not cleaned:
-                continue
-            if idx == 1 and connector:
-                combined = f"{combined}, {connector} {cleaned}"
-            else:
-                combined = f"{combined}, {cleaned}"
-        return combined.strip(" ,") + "."
+        if not options:
+            return ""
+
+        combined = " ".join(str(sent or "") for sent in sentences).lower()
+        tokens = set(re.findall(r"[0-9A-Za-z가-힣]+", combined))
+        best = ""
+        best_score = -10
+        for idx, candidate in enumerate(options):
+            low_candidate = candidate.lower()
+            cand_tokens = set(re.findall(r"[0-9A-Za-z가-힣]+", low_candidate))
+            score = len(tokens & cand_tokens)
+            if "말끝" in low_candidate:
+                score -= 1
+            if any(tok in combined for tok in ("문이", "문 쪽", "문쪽", "door", "doorway", "발소리", "발걸음", "열렸", "열리")) and "문" in low_candidate:
+                score += 3
+            if any(tok in combined for tok in ("숨", "호흡", "막혔", "가라앉", "초조", "긴장")) and "숨" in low_candidate:
+                score += 3
+            if any(tok in combined for tok in ("의자", "자리", "앉", "밀리", "끌리")) and "의자" in low_candidate:
+                score += 3
+            if any(tok in combined for tok in ("질문", "대답", "조건", "응답", "반박", "수락", "거절")) and "답이 바로" in low_candidate:
+                score += 2
+            if any(tok in combined for tok in ("정적", "침묵", "멈칫", "멈췄", "버텼")) and "정면" in low_candidate:
+                score += 1
+            score += max(0, len(options) - idx - 1) * 0.01
+            if score > best_score:
+                best_score = score
+                best = candidate
+        return best
 
     @staticmethod
     def _sentence_length_band(sentence: str) -> str:
@@ -3108,36 +3167,22 @@ class ProseGenerator:
         min_chars = max(min_chars, 14)
         max_chars = max(max_chars, 28)
         strong_samples = [
-            "질문의 결이 한 단계 올라서자 대답도 더는 미뤄 둘 수 없었다.",
-            "의자 다리가 짧게 끌리며 방 안의 계산이 다른 쪽으로 기울었다.",
-            "수민은 바로 받아치지 않고 상대 손끝이 멈추는 순간을 먼저 봤다.",
-            "말끝이 얇아진 자리에서 다음 선택지가 더 선명해졌다.",
-            "한쪽이 조건을 꺼내자 다른 쪽은 침묵으로 값을 올렸다.",
-            "답이 늦어지는 사이 공조기 소리만 더 또렷해졌다.",
-            "누군가 펜을 내려놓자 더 미룰 여지도 함께 사라졌다.",
-            "이번 질문은 확인보다 압박에 가까웠다.",
-            "종이 한 장이 밀려 나오자 협상의 무게도 갑자기 현실이 됐다.",
-            "한 사람의 망설임이 길어질수록 다른 쪽의 요구는 더 선명해졌다.",
-            "짧은 정적 뒤에 남은 건 설명이 아니라 선택뿐이었다.",
-            "손끝에 힘이 들어가자 질문의 값도 눈앞에서 달라졌다.",
-            "누군가 미소를 접는 순간 숨기던 계산도 절반쯤 드러났다.",
-            "질서 있던 호흡이 한 박자 어긋나면서 대화의 결도 거칠어졌다.",
-            "단어 하나가 힘의 방향을 바꾸자 모두가 다음 반응을 기다렸다.",
-            "정적은 길지 않았지만 돌아갈 여지는 더 짧아졌다.",
-            "한쪽의 양보가 늦어질수록 다른 쪽의 태도는 더 단단해졌다.",
-            "고개를 든 사람은 한 명뿐이었고 그 사실이 방의 균형을 바꿨다.",
-            "실내의 공기가 식는 동안 반응의 방향도 더 분명해졌다.",
-            "수민은 답보다 먼저 상대가 어디까지 밀어붙일지를 가늠했다.",
+            "수민은 한 박자 늦게 고개를 들었다.",
+            "질문이 한 번 더 눌러 오자 대답은 더 짧아졌다.",
+            "의자 다리가 살짝 끌리고 나서야 방 안의 계산이 다시 움직였다.",
+            "상대의 손끝이 멈추자 다음 조건도 같이 멎었다.",
+            "한 사람의 침묵이 길어질수록 요구는 더 선명해졌다.",
+            "문 쪽의 시선이 먼저 움직이자 수민도 숨을 낮췄다.",
+            "종이 한 장이 테이블 위에 놓이자 대화의 무게가 바뀌었다.",
+            "상대가 고개를 들자 방 안의 균형도 함께 흔들렸다.",
         ]
         plain_samples = [
             "수민은 대답을 한 박자 늦췄다.",
-            "누군가 펜 끝만 가볍게 굴렸다.",
+            "누군가 펜을 손에서 놓았다.",
+            "방 안의 시선이 잠깐 같은 곳에 멈췄다.",
+            "그녀는 상대가 먼저 말을 잇기를 기다렸다.",
             "컵 바닥이 조용히 테이블에 닿았다.",
-            "그는 숨을 한번 고르고 의자를 바로잡았다.",
-            "짧은 정리 뒤에 질문의 결이 다시 바뀌었다.",
-            "말의 결이 가라앉자 방 안도 잠깐 조용해졌다.",
-            "시선 몇 개가 같은 지점에 모였다가 다시 흩어졌다.",
-            "그녀는 상대가 먼저 입을 열기를 기다렸다.",
+            "짧은 숨 뒤에 질문의 결이 다시 바뀌었다.",
         ]
         samples = plain_samples if tone == "plain" else strong_samples
         sample = samples[idx % len(samples)]
