@@ -328,6 +328,117 @@ def _log_sentence_pattern_warnings(
     return warnings
 
 
+def _create_character_interaction(scene: DistilledScene, reader_feedback: dict) -> str:
+    characters = [str(name).strip() for name in (scene.characters_present or []) if str(name).strip()]
+    if not characters:
+        return (
+            "상호작용: 인물이 한 명뿐이더라도 내면 독백과 외부 행동을 분리해, "
+            "같은 감정을 두 번 설명하지 말고 행동으로 전환하라."
+        )
+
+    lead = characters[0]
+    foil = characters[1] if len(characters) > 1 else ""
+    others = characters[2:4]
+    lines = [
+        "상호작용:",
+        f"- {lead}는 먼저 감정 설명보다 작은 행동이나 시선 이동으로 반응을 드러내고, 다음 문장에서 선택으로 넘어가라.",
+    ]
+    if foil:
+        lines.append(
+            f"- {foil}는 같은 압박을 반복하지 말고, 조건·증거·거리두기 같은 다른 기능으로 맞서게 하라."
+        )
+    if others:
+        lines.append(
+            f"- 추가 인물({', '.join(others)})은 관망자로 두지 말고, 질문·메모·이동 같은 한 번의 개입으로 장면의 판을 흔들게 하라."
+        )
+    if len(characters) >= 2:
+        lines.append(
+            "- 각 화자는 서로 다른 역할을 맡게 하라: 한 명은 압박을 제기하고, 한 명은 반박하고, 한 명은 비용이나 결과를 드러내라."
+        )
+    if build_reader_profile(reader_feedback).reports_stalled_progression():
+        lines.append(
+            "- 독자가 전개 정체를 지적했으므로, 같은 심리와 같은 걱정을 한 번 더 반복하지 말고 바로 행동·대답·결과로 이어라."
+        )
+    return "\n".join(lines)
+
+
+def _build_tension(scene: DistilledScene, reader_feedback: dict) -> str:
+    key_dialogue = [d for d in scene.key_dialogue if isinstance(d, dict)]
+    dialogue_count = len(key_dialogue)
+    action_count = len([a for a in scene.key_actions if isinstance(a, str) and a.strip()])
+    lines = [
+        "긴장:",
+        "- 질문 -> 반박 -> 선택의 순서를 한 번만 또렷하게 만들고, 같은 압박을 다른 말로 재진술하지 말라.",
+        "- 짧은 문장 하나로 압박을 찍은 뒤, 다음 문장은 반드시 행동·결과·거리 변화 중 하나로 넘어가라.",
+    ]
+    if dialogue_count >= 2:
+        lines.append(
+            "- 대사가 둘 이상이면 각 대사가 같은 설명을 반복하지 않게 하고, 한 문장은 제안, 한 문장은 저항, 한 문장은 비용 제시로 기능을 나눠라."
+        )
+    if action_count:
+        lines.append(
+            "- 이미 행동이 들어간 장면이면 그 다음 문장은 같은 감정 재서술이 아니라, 그 행동의 결과나 상대의 즉각 반응을 붙여라."
+        )
+    if scene.pacing == "climax":
+        lines.append(
+            "- 클라이맥스는 더 길게 설명하는 구간이 아니라, 한 번의 결정과 그 즉시 드러나는 대가를 보여주는 구간이다."
+        )
+    if build_reader_profile(reader_feedback).reports_stalled_progression():
+        lines.append(
+            "- 독자가 속도 저하를 지적했으니, 같은 걱정과 같은 시선 묘사는 한 번만 쓰고 다음 문장으로 밀어붙여라."
+        )
+    return "\n".join(lines)
+
+
+def _create_dramatic_scenario(scene: DistilledScene, reader_feedback: dict) -> str:
+    source_text = " ".join(
+        [
+            scene.title or "",
+            scene.location or "",
+            scene.emotional_arc or "",
+            scene.narrative_summary or "",
+            " ".join(scene.discoveries or []),
+            " ".join(scene.key_actions or []),
+            " ".join(
+                f"{row.get('speaker', '')} {row.get('line', '')}"
+                for row in scene.key_dialogue
+                if isinstance(row, dict)
+            ),
+        ]
+    )
+    technical_terms = []
+    for term in ("QPU", "T₂", "coherence", "coherent", "latency", "drift", "qubit", "protocol", "RSA-2048"):
+        if re.search(rf"\b{re.escape(term)}\b", source_text, re.IGNORECASE):
+            technical_terms.append(term)
+    lines = [
+        "기술/세계관:",
+        "- 양자 기술은 추상 설명이 아니라, 안정 창이 늘어나는지·재시도 비용이 줄어드는지·누가 더 오래 버틸 수 있는지로 체감되게 써라.",
+        "- 용어가 나오면 그 즉시 문장 안에 실제 변화 하나를 붙여 세계관의 쓸모가 보이게 하라.",
+    ]
+    if technical_terms:
+        lines.append(
+            f"- 장면에 드러난 기술 표기({', '.join(sorted(set(technical_terms)))})는 한 번만 풀고, 이후에는 실전 효과나 인간 반응으로 넘겨라."
+        )
+    if any(term in source_text for term in ("배지", "명함", "조항", "허가", "보안", "지원", "책임", "대가")):
+        lines.append(
+            "- 위협이나 제안은 추상적인 압박으로 두지 말고, 출입권·규칙·기한·문서·보안 같은 손에 잡히는 비용으로 보여줘라."
+        )
+    if build_reader_profile(reader_feedback).has_any("전개가 느려", "늘어지", "지루", "반복되는 표현"):
+        lines.append(
+            "- 독자가 세계관 설명의 속도를 지적했으므로, 기술 설명은 한 문장으로 끝내고 바로 인물의 행동이나 표정으로 옮겨라."
+        )
+    return "\n".join(lines)
+
+
+def _build_scene_guidance(scene: DistilledScene, reader_feedback: dict) -> str:
+    sections = [
+        _create_character_interaction(scene, reader_feedback),
+        _build_tension(scene, reader_feedback),
+        _create_dramatic_scenario(scene, reader_feedback),
+    ]
+    return "\n\n".join(section for section in sections if section.strip())
+
+
 def main() -> None:
     load_project_env()
     args = parse_args()
@@ -585,6 +696,7 @@ def main() -> None:
         runtime_policy=chapter_runtime_policy,
         reader_feedback=normalized_reader_feedback,
         guardian_briefing=guardian_briefing,
+        scene_guidance_by_index={idx: _build_scene_guidance(scene, normalized_reader_feedback) for idx, scene in enumerate(scenes)},
     )
 
     prose_start = datetime.utcnow()

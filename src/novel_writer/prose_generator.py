@@ -67,6 +67,7 @@ class ProseGenerator:
         runtime_policy: Optional[dict] = None,
         reader_feedback: Optional[dict] = None,
         guardian_briefing: Optional[str] = None,
+        scene_guidance_by_index: Optional[dict[int, str]] = None,
     ) -> None:
         self.llm = llm
         self.episode_config = episode_config
@@ -80,6 +81,15 @@ class ProseGenerator:
         self.reader_profile: ReaderProfile = build_reader_profile(reader_feedback)
         self.reader_feedback = self.reader_profile.as_dict()
         self.guardian_briefing = guardian_briefing or ""
+        self.scene_guidance_by_index: dict[int, str] = {}
+        for index, guidance in (scene_guidance_by_index or {}).items():
+            try:
+                scene_index = int(index)
+            except (TypeError, ValueError):
+                continue
+            text = str(guidance).strip()
+            if text:
+                self.scene_guidance_by_index[scene_index] = text
         self.chapter_polisher = ChapterPolisher(
             llm=llm,
             episode_config=self.episode_config,
@@ -144,6 +154,7 @@ class ProseGenerator:
                 prev_section_tail=prev_section[-300:] if prev_section else None,
                 previous_episode_context=continuity_context,
                 established_anchors=sorted(established_anchors)[:24],
+                scene_guidance=self.scene_guidance_by_index.get(i, ""),
             )
             prose_sections.append(section)
             established_anchors.update(scene_anchors[:12])
@@ -375,6 +386,7 @@ class ProseGenerator:
         prev_section_tail: Optional[str] = None,
         previous_episode_context: Optional[str] = None,
         established_anchors: Optional[list[str]] = None,
+        scene_guidance: Optional[str] = None,
     ) -> str:
         """Generate literary prose for one distilled scene."""
         style = self._effective_style(style)
@@ -861,6 +873,11 @@ class ProseGenerator:
                 f"## Character Voice and Visual Profiles (apply naturally)\n"
                 f"{scene_character_guide}\n\n"
             )
+        if scene_guidance:
+            prompt += (
+                f"## Scene-Specific Directives\n"
+                f"{scene_guidance}\n\n"
+            )
 
         prompt += (
             f"{continuity}"
@@ -869,6 +886,7 @@ class ProseGenerator:
             f"Keep the same story events and discoveries, but render them as immersive fiction.\n"
             f"Let dialogue emerge naturally from tension and intent; avoid uniform speaking voices.\n"
             f"Keep technical exposition lightweight: do not stack unexplained jargon in consecutive sentences.\n"
+            f"If the scene-specific directives identify a concrete pressure, effect, or role split, follow that guidance once and avoid restating it in parallel wording.\n"
             f"Only if a technical term would block comprehension, add one brief inline plain-language cue once.\n"
             f"Avoid parenthetical explanation by default, and use comparison only when clarity truly needs it.\n"
             f"For recurring concepts (e.g., coherence/drift/latency), vary wording naturally after first mention without changing meaning.\n"

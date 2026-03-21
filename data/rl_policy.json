@@ -1,16 +1,16 @@
 {
-  "version": 7,
+  "version": 8,
   "scene_target_bias": 0,
   "scene_target_min": 3,
   "scene_target_max": 10,
   "prose_history_max_episodes": 999,
-  "distiller_temperature": 0.07843866324131045,
+  "distiller_temperature": 0.10590346795209099,
   "distiller_max_tokens": 3000,
   "confrontation_merge_strength": 0.79,
-  "dialogue_compaction_strength": 0.6872206448520259,
+  "dialogue_compaction_strength": 0.7119842071533685,
   "role_cue_strength": 0.793,
-  "prose_scene_temperature": 0.7647384094988077,
-  "prose_transition_temperature": 0.5847711498818968,
+  "prose_scene_temperature": 0.7577513954209819,
+  "prose_transition_temperature": 0.5736784942291369,
   "prose_scene_readability_temperature": 0.6162213204002108,
   "prose_paragraph_min_sentences": 4,
   "prose_paragraph_max_sentences": 5,
@@ -19,11 +19,11 @@
   "prefer_concrete_threat_detail": 1,
   "prefer_concrete_transition_cue": 1,
   "prefer_scene_exit_on_stall": 1,
-  "prose_polish_temperature": 0.493694447342792,
+  "prose_polish_temperature": 0.4636890781240956,
   "prose_anchor_fix_temperature": 0.357,
   "clue_injection_timing": 1,
   "director_fallback_cast_size": 4,
-  "scene_closure_aggressiveness": 0.4993752397029847,
+  "scene_closure_aggressiveness": 0.4929330140353037,
   "hold_pressure_peak": 1,
   "repeated_concern_loop_reduction": 1,
   "reader_style_constraints": {
@@ -57,11 +57,11 @@
     "score": 8.372,
     "source": "tools/optuna_multi_study.py — 50 trials"
   },
-  "target_scenes": 6,
+  "target_scenes": 5,
   "_last_inline_opt": {
     "date": "2026-03-21",
     "episode_id": "ep01_conference_shadow",
-    "score": 8.74
+    "score": 8.578
   },
   "_param_source_notes": {
     "distiller_temperature": "optuna_distiller trial=6 score=9.2",

@@ -653,6 +653,12 @@ class DirectorAI:
             if isinstance(row, dict) and str(row.get("speaker_id", "")).strip() != "director"
         ][-5:]
         curve: list[dict[str, object]] = []
+        pressure_counts = {
+            "technical": 0,
+            "risk": 0,
+            "shift": 0,
+            "inner": 0,
+        }
         previous_fp = ""
         for row in recent:
             text = str(row.get("content", "") or "")
@@ -660,14 +666,19 @@ class DirectorAI:
             pressure = 0
             if self._has_emotional_or_decisive_shift(text):
                 pressure += 1
+                pressure_counts["shift"] += 1
             if self._has_concrete_risk_marker(text):
                 pressure += 1
+                pressure_counts["risk"] += 1
             if self._has_inner_conflict_marker(text):
                 pressure += 1
+                pressure_counts["inner"] += 1
             if self._has_confrontation_resolution_shift(text):
                 pressure += 1
+                pressure_counts["shift"] += 1
             if self._technical_term_signature(text):
                 pressure += 1
+                pressure_counts["technical"] += 1
             if fingerprint and fingerprint == previous_fp:
                 pressure += 1
             curve.append(
@@ -684,6 +695,10 @@ class DirectorAI:
             )
             previous_fp = fingerprint
 
+        dominant_pressure = ""
+        if any(pressure_counts.values()):
+            dominant_pressure = max(pressure_counts.items(), key=lambda item: (item[1], item[0]))[0]
+        pressure_profile = dominant_pressure if pressure_counts.get(dominant_pressure, 0) >= 2 else ""
         pressure_values = [int(item.get("pressure", 0) or 0) for item in curve]
         rising = any(
             pressure_values[idx] > pressure_values[idx - 1]
@@ -708,6 +723,8 @@ class DirectorAI:
             "peak": peak,
             "decisive_shift": decisive_shift,
             "emotional_mix": emotional_mix,
+            "pressure_profile": pressure_profile,
+            "pressure_counts": pressure_counts,
         }
 
     def _enhance_character_interaction(
@@ -725,6 +742,7 @@ class DirectorAI:
         hints: list[str] = []
         curve_points = tension_curve.get("curve", []) if isinstance(tension_curve, dict) else []
         plateau = bool(tension_curve.get("flat")) if isinstance(tension_curve, dict) else False
+        pressure_profile = str(tension_curve.get("pressure_profile", "")).strip()
         if agent.role == "protagonist":
             hints.append("surface hesitation, then choose")
         elif agent.id in recent_speakers[-2:]:
@@ -741,6 +759,12 @@ class DirectorAI:
             hints.append("translate the repeated point into one concrete consequence or visible cue")
         if progress_signal.get("concrete_risk"):
             hints.append("name the cost as a limit, clause, deadline, or access rule")
+        if pressure_profile == "technical":
+            hints.append("turn the technical point into one visible operational effect")
+        elif pressure_profile == "risk":
+            hints.append("keep the cost concrete and immediate")
+        elif pressure_profile == "shift":
+            hints.append("cash the beat out through motion, decision, or consequence")
         if plateau and curve_points:
             hints.append("break the plateau with a visible change of stance")
         if intensity >= 0.6:
@@ -1864,6 +1888,7 @@ class DirectorAI:
             "alert" in self._threat_signal_signature(str(i.get("content", "")))
             for i in recent
         )
+        pressure_profile = str(tension_curve.get("pressure_profile", "")).strip()
         motion_shift = any(
             re.search(
                 r"(움직이|옮기|다가서|물러서|돌아서|떠나|나가|들어오|정리하|걸음|고개를 들|몸을 기울|손을 내밀|펜을 내려놓|종이를 건네|반걸음|한걸음)",
@@ -1904,6 +1929,12 @@ class DirectorAI:
             scene_conflict_note = "emotion is moving with consequence; cash it out through decision or motion"
         elif pressure_peak:
             scene_conflict_note = "pressure is peaking; keep the beat open until it changes state"
+        elif pressure_profile == "technical":
+            scene_conflict_note = "technical pressure dominates; turn the jargon into one visible operational effect or human reaction"
+        elif pressure_profile == "risk":
+            scene_conflict_note = "concrete risk dominates; name the limit, clause, access rule, or cost once"
+        elif pressure_profile == "shift":
+            scene_conflict_note = "movement or decision is already present; follow it with consequence instead of another explanation"
 
         scene_external_cue = ""
         recent_text = " ".join(str(item.get("content", "")) for item in recent)
