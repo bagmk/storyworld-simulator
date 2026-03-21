@@ -1848,6 +1848,8 @@ class DirectorAI:
         ) or bool(tension_curve.get("peak"))
         scene_boundary_ready = (
             (closure_ready and (decisive_shift or consequence_shift or motion_shift))
+            or (repeated_concern and (decisive_shift or consequence_shift) and len(recent) >= min_window)
+            or (technical_stall and (decisive_shift or consequence_shift) and len(recent) >= min_window)
             or (emotional_shift and consequence_shift)
             or (pressure_peak and (consequence_shift or motion_shift))
             or (repeated_concern and closure_ready and len(recent) >= min_window)
@@ -2100,7 +2102,7 @@ class DirectorAI:
             "relieved": "soften the exchange and close the beat",
         }.get(emotion_family, "react to the visible pressure")
         if progress_signal.get("technical_stall"):
-            hint += "; translate any jargon into consequence instead of repeating it"
+            hint += "; translate any jargon into one visible consequence instead of repeating it"
         if progress_signal.get("repeated_concern") and emotion_family in {"confident", "frustrated"}:
             hint += "; turn the repeated concern into a consequence, not a recap"
         if progress_signal.get("inner_conflict"):
@@ -2150,6 +2152,10 @@ class DirectorAI:
                 focus_bits.append("protagonist: surface hesitation, then choose")
             if progress_signal.get("concrete_risk"):
                 focus_bits.append("risk: make the cost concrete, not abstract")
+            if progress_signal.get("repeated_concern"):
+                focus_bits.append("repeat concern: move to consequence, not recap")
+            if progress_signal.get("technical_stall"):
+                focus_bits.append("technical stall: show one visible effect or next step")
             if focus_bits:
                 voice_bits.append(f"focus={'; '.join(focus_bits)}")
             if len(tail_recent) == 2 and tail_recent[-1] == aid and tail_recent[-2] == aid:

@@ -524,6 +524,7 @@ class ProseGenerator:
             f"- Do not reuse the same emotion word or paraphrase more than about {emotion_repeat_cap} time per local beat.\n"
             f"- If an English keyword or technical term appears, explain it once in plain Korean in the next sentence, then attach an immediate human reaction or feeling.\n"
             f"- Terms like latency or real-time should get only one short onboarding explanation in the chapter; later mentions should shift quickly into {protagonist_short}의 판단, 감정, 또는 선택.\n"
+            f"- If technical wording starts to crowd out the beat, collapse it into one visible action, object cue, or body reaction instead of another explanatory paraphrase.\n"
             f"- Do not explain the same technical idea in two adjacent sentences; one plain-language cue is enough.\n"
             f"- If commas or connectives start chaining clauses, cut the sentence into shorter direct beats.\n\n"
             f"- Keep one dominant axis per sentence: action, perception, or emotion. If two axes matter, split them into explicit cause/effect.\n"
@@ -2558,6 +2559,7 @@ class ProseGenerator:
                     run.append(sent.strip())
                     continue
                 pruned_run = self._prune_clipped_sentence_run(run)
+                pruned_run = self._prefer_concrete_clipped_run(pruned_run)
                 if len(pruned_run) >= 2:
                     rebuilt.append(self._combine_clipped_sentence_run(pruned_run))
                 else:
@@ -2565,6 +2567,7 @@ class ProseGenerator:
                 run = []
                 rebuilt.append(sent.strip())
             pruned_run = self._prune_clipped_sentence_run(run)
+            pruned_run = self._prefer_concrete_clipped_run(pruned_run)
             if len(pruned_run) >= 2:
                 rebuilt.append(self._combine_clipped_sentence_run(pruned_run))
             else:
@@ -2572,6 +2575,39 @@ class ProseGenerator:
             out_blocks.append(" ".join(s for s in rebuilt if s.strip()).strip())
 
         return "\n\n".join(b for b in out_blocks if b.strip())
+
+    def _prefer_concrete_clipped_run(self, sentences: list[str]) -> list[str]:
+        if len(sentences) < 2:
+            return sentences
+        if not any(self._is_jargon_heavy_sentence(sent) for sent in sentences):
+            return sentences
+
+        def score(sentence: str) -> tuple[int, int]:
+            value = 0
+            if self._sentence_has_action_or_decision(sentence):
+                value += 4
+            if self._is_pressure_heavy_sentence(sentence):
+                value += 2
+            if self._sentence_image_signature(sentence):
+                value += 2
+            if not self._is_jargon_heavy_sentence(sentence):
+                value += 1
+            return value, -self._sentence_word_count(sentence)
+
+        anchor = max(sentences, key=score)
+        follow = ""
+        for sent in sentences:
+            if sent == anchor:
+                continue
+            if self._sentence_has_action_or_decision(sent) or self._sentence_image_signature(sent):
+                follow = sent
+                break
+        if not follow:
+            follow = next((sent for sent in sentences if sent != anchor), "")
+        reduced = [anchor]
+        if follow and follow != anchor:
+            reduced.append(follow)
+        return reduced
 
     def _is_mergeable_clipped_sentence(self, sentence: str) -> bool:
         sent = str(sentence or "").strip()

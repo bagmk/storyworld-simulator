@@ -295,13 +295,13 @@ class SceneDistiller:
             f"4. **Identify** which YAML beats/clues each scene covers\n"
             f"5. **Assign** pacing: opening / building / climax / resolution\n"
             f"6. Compress explanatory dialogue: keep one decisive quote, convert the rest into action/reaction summary, and preserve only the line that changes leverage or motive.\n"
-            f"7. Keep technical-term onboarding compact: first clear mention only, later references summarized.\n"
-            f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure needs emphasis.\n"
+            f"7. If the same conflict repeats later, keep the version that moves the argument or consequence forward instead of re-stating the setup.\n"
+            f"8. Keep summary rhythm natural: mostly clear medium-length sentences, with a short sentence only when a real turn in pressure or consequence needs emphasis.\n"
             f"9. Make each summary easy to follow: name the acting subject early and keep cause/effect explicit instead of stacking clipped fragments.\n"
-            f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary.\n"
+            f"10. Do not preserve a scene unless it changes tension, information, or decision; merge low-movement beats into the adjacent scene summary and keep the new turn only once.\n"
             f"11. Do NOT invent content not present in the log. Only compress and select.\n\n"
             f"12. Prefer 2 clear summary sentences; use a third only when the scene includes a distinct reversal or discovery, and keep them as complete sentences rather than fragments.\n"
-            f"13. If adjacent candidate scenes share cast/location and the latter mainly restates mood or explanation, merge them.\n"
+            f"13. If adjacent candidate scenes share cast/location and the latter mainly restates mood or explanation, merge them and keep the progression once.\n"
             f"14. Remove repeated atmosphere, gesture, or technical explanation phrasing unless stakes visibly change.\n\n"
             f"15. Keep mood-only fragments such as silence/noise/gesture cues only when they mark an actual turn in pressure; otherwise rewrite them as action or emotional consequence in the same sentence.\n"
             f"16. If a summary sentence is mostly atmosphere, pair it with who moved, decided, or reacted so the scene does not feel frozen.\n\n"
@@ -1847,21 +1847,12 @@ class SceneDistiller:
         return self._is_redundant_core_concern(previous, current)
 
     def _should_replace_confrontation_entry(self, previous: str, current: str) -> bool:
-        previous_stage = self._summary_confrontation_stage(previous)
-        current_stage = self._summary_confrontation_stage(current)
-        stage_regressed = (
-            previous_stage
-            and current_stage
-            and self._summary_stage_rank(current_stage) <= self._summary_stage_rank(previous_stage)
-        )
+        previous_score = self._summary_progress_score(previous)
+        current_score = self._summary_progress_score(current)
+        if current_score != previous_score:
+            return current_score > previous_score
         overlap = self._token_overlap_score(previous, current)
-        return (
-            stage_regressed
-            and not self._summary_has_consequence_shift(current)
-        ) or (
-            overlap >= 0.28
-            and not self._summary_has_consequence_shift(current)
-        ) or self._is_redundant_core_concern(previous, current)
+        return overlap >= 0.28 or self._is_redundant_core_concern(previous, current)
 
     def _compress_repeated_core_concerns(self, summary: str) -> str:
         sentences = [
@@ -1902,6 +1893,21 @@ class SceneDistiller:
         kept = self._compress_signature_entries(sentences, rule_key="confrontation")
         max_sentences = 2 if self._reader_prefers_stronger_scene_compaction() else 3
         return " ".join(kept[:max_sentences]).strip()
+
+    def _summary_progress_score(self, text: str) -> int:
+        score = 0
+        if self._summary_has_action_or_decision(text):
+            score += 3
+        if self._summary_has_consequence_shift(text):
+            score += 3
+        if self._summary_has_concrete_risk(text):
+            score += 2
+        stage = self._summary_confrontation_stage(text)
+        if stage:
+            score += self._summary_stage_rank(stage)
+        if self._summary_is_mood_heavy(text):
+            score -= 1
+        return score
 
     def _compress_core_concern_lines(self, values: list[str], limit: int) -> list[str]:
         compact = self._dedupe_semantic_lines(values, limit=max(1, limit * 2))
@@ -2087,6 +2093,8 @@ class SceneDistiller:
             concrete = 0
             if self._summary_has_action_or_decision(line):
                 concrete += 3
+            if self._summary_has_consequence_shift(line):
+                concrete += 2
             if re.search(r"[0-9]", str(line or "")):
                 concrete += 1
             if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):

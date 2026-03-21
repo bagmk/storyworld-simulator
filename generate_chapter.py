@@ -196,6 +196,8 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
         policy["prefer_concrete_threat_detail"] = 1
     if profile.prefers_explicit_transition_cues():
         policy["prefer_concrete_transition_cue"] = 1
+    if getattr(profile, "prefers_technical_term_restraint", lambda: False)():
+        policy["prose_enable_term_gloss"] = 0
     return policy
 
 
