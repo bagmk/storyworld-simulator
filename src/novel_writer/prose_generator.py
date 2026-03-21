@@ -489,6 +489,7 @@ class ProseGenerator:
             f"- Alternate inner thought and outer action to avoid continuous analytical voice.\n"
             f"- Reserve short sentence beats for genuine pressure turns; otherwise keep nearby clauses connected.\n"
             f"- Avoid repeating the same tension phrasing across nearby paragraphs.\n\n"
+            f"- If a reaction has already been shown, do not restate it with the same emotional wording; switch to a different visible cue such as gaze, hand movement, posture, breath, or room reaction.\n"
             f"- Avoid repeating identical numeric literals (e.g., same milliseconds/ratios) in adjacent paragraphs unless plot-critical.\n\n"
             f"- In dialogue-heavy stretches, anchor speaker identity with short action beats or name cues every 1-2 exchanges.\n"
             f"- If three or more characters are present, avoid ambiguous pronouns for consecutive lines.\n\n"
@@ -631,6 +632,12 @@ class ProseGenerator:
                 "## Transition Clarity Priority\n"
                 "- When scene location or focus shifts, insert one short transition sentence.\n"
                 "- Keep transition lines concrete and action-based, not analytical.\n\n"
+            )
+        if self.runtime_policy.get("prefer_concrete_transition_cue"):
+            prompt += (
+                "## Concrete Transition Cue Priority\n"
+                "- Make the bridge carry one specific movement, object, or doorway cue so the reader can see the handoff.\n"
+                "- Do not use a vague connective sentence when an observable action can do the job.\n\n"
             )
         if self._feedback_flag_enabled("compress_threat_signal_stack"):
             prompt += (
@@ -1767,6 +1774,7 @@ class ProseGenerator:
             f"The transition should feel like a natural breath between moments: "
             f"one concrete movement + one short thought + one attention shift. "
             f"Make spatial continuity explicit in one sentence, and avoid abstract wording. "
+            f"{'The bridge must include one concrete object, doorway, or room-state cue instead of a vague connective beat. ' if self.runtime_policy.get('prefer_concrete_transition_cue') else ''}"
             f"Vary the bridge phrasing; do not reuse the same stock opener as the previous transition. "
             f"Do not begin with stock time adverbs like '그 직후' or '잠시 뒤'; "
             f"use movement, gaze, doorway, hallway, or object handling instead. "

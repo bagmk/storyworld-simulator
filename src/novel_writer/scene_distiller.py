@@ -308,7 +308,8 @@ class SceneDistiller:
             f"17. If a technical term or acronym survives in the summary, add one short plain-language Korean sentence immediately after it, then show an immediate human reaction or consequence.\n"
             f"18. When abstraction rises, ground it in what the character instantly felt, heard, saw, or did.\n"
             f"18a. Make emotional shifts visible: use a breath change, hand movement, gaze change, or posture shift instead of abstract feeling words alone.\n"
-            f"18b. If Miller appears, keep the cost concrete in the same summary: access, security, contract, deadline, responsibility, or another visible leverage point.\n"
+            f"18b. If a reaction repeats, rewrite it as a fresh observable cue rather than reusing the same feeling phrase or stock connective.\n"
+            f"18c. If Miller appears, keep the cost concrete in the same summary: access, security, contract, deadline, responsibility, or another visible leverage point.\n"
             f"19. Replace abstract or lofty phrasing with direct cause-and-effect wording that a high-school reader can follow quickly.\n"
             f"20. Keep each summary sentence under about {summary_word_cap} words. If commas/connectives start chaining clauses, split them into shorter sentences.\n"
             f"21. Avoid stock sentence-leading connectives like '그리고', '그러자', '다만' unless a real turn, interruption, or location shift happens there.\n"
@@ -445,6 +446,10 @@ class SceneDistiller:
         if self._reader_reports_stalled_progression():
             adaptive_lines.append(
                 "Reader flagged that the chapter feels stalled. Merge pauses, repeated analysis, and lingering mood beats into the nearest scene unless they create a real decision, discovery, or pressure change. End each retained scene summary on what changed next, not on atmosphere alone."
+            )
+        if self.runtime_policy.get("prefer_concrete_transition_cue"):
+            adaptive_lines.append(
+                "When the scene shifts, keep one concrete handoff cue: who moved, what object or doorway changed hands, and what immediate consequence followed. Avoid vague bridge wording."
             )
         if self._reader_prefers_observable_emotion_evidence():
             adaptive_lines.append(
@@ -1175,7 +1180,7 @@ class SceneDistiller:
         return self._ensure_summary_sentence(emotional)
 
     def _scene_can_keep_mood_fragment(self, scene: DistilledScene) -> bool:
-        if scene.pacing in {"opening", "climax"}:
+        if scene.pacing in {"opening", "climax"} and not scene.key_actions and not scene.discoveries:
             return True
         if not scene.key_actions and not scene.discoveries:
             return True

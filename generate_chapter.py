@@ -177,9 +177,11 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
         policy["prefer_scene_exit_on_stall"] = 1
         policy["prefer_concrete_offer_detail"] = 1
         policy["prefer_concrete_threat_detail"] = 1
+        policy["prefer_concrete_transition_cue"] = 1
     if profile.prefers_stronger_scene_compaction():
         policy["prefer_concrete_offer_detail"] = 1
         policy["prefer_concrete_threat_detail"] = 1
+        policy["prefer_concrete_transition_cue"] = 1
     if profile.prefers_dialogue_compaction():
         policy["prefer_concrete_offer_detail"] = 1
         policy["prefer_concrete_threat_detail"] = 1

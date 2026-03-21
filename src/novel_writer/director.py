@@ -1429,45 +1429,14 @@ class DirectorAI:
                     speaker_id = alternates[0]
                     reason = (reason + "; " if reason else "") + \
                         "pressure-peak rotation to force a fresh reaction"
-
-        if progress_signal["stalled"] and progress_signal["closure_ready"]:
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to avoid drag after recent beat landed"
-        elif progress_signal["explanation_loop"] and len(recent) >= 4:
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to stop repeated explanation before it drags"
-        elif progress_signal["technical_stall"] and len(recent) >= 4:
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to stop repeated technical explanation without new emotional turn"
-        elif progress_signal["repeated_concern"] and len(recent) >= (
-            3 if self._reader_wants_repeated_confrontation_merge() else 4
-        ):
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to stop revisiting the same concern without new consequence"
-        elif progress_signal["signal_stack"] and (progress_signal["closure_ready"] or len(recent) >= 5):
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to avoid piling more warning cues without payoff"
-        elif progress_signal["flat_tension"] and (progress_signal["closure_ready"] or len(recent) >= 6):
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "scene closure to keep repeated tension beats from flattening out"
-        elif progress_signal["stalled"] and len(recent) >= 4 and self._reader_reports_stalled_progression():
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "reader-priority scene closure for stalled progression"
-        elif (
-            progress_signal["stalled"]
-            and len(recent) >= 5
-            and prefers_scene_compaction
-        ):
-            end_scene = True
-            reason = (reason + "; " if reason else "") + \
-                "reader-priority scene closure to cut repeated exchange"
+        end_scene, closure_reason = self._should_end_scene(
+            progress_signal,
+            recent,
+            prefers_scene_compaction=prefers_scene_compaction,
+            current_end_scene=end_scene,
+        )
+        if closure_reason:
+            reason = (reason + "; " if reason else "") + closure_reason
 
         self._log(
             "turn_allocation",
@@ -1684,6 +1653,50 @@ class DirectorAI:
             "concrete_risk": concrete_risk,
             **emotional_flags,
         }
+
+    def _should_end_scene(
+        self,
+        progress_signal: dict[str, bool],
+        recent: list[dict],
+        *,
+        prefers_scene_compaction: bool,
+        current_end_scene: bool,
+    ) -> tuple[bool, str]:
+        high_pressure = (
+            progress_signal.get("pressure_peak")
+            or progress_signal.get("signal_stack")
+            or progress_signal.get("concrete_risk")
+            or progress_signal.get("inner_conflict")
+            or progress_signal.get("emotional_conflict")
+        )
+        if high_pressure and not progress_signal.get("decisive_shift"):
+            if current_end_scene:
+                return False, "pressure is still active; hold the scene open until it cashes out"
+            return False, ""
+
+        if progress_signal["stalled"] and progress_signal["closure_ready"]:
+            return True, "scene closure to avoid drag after recent beat landed"
+        if progress_signal["explanation_loop"] and len(recent) >= 4:
+            return True, "scene closure to stop repeated explanation before it drags"
+        if progress_signal["technical_stall"] and len(recent) >= 4:
+            return True, "scene closure to stop repeated technical explanation without new emotional turn"
+        if progress_signal["repeated_concern"] and len(recent) >= (
+            3 if self._reader_wants_repeated_confrontation_merge() else 4
+        ):
+            return True, "scene closure to stop revisiting the same concern without new consequence"
+        if progress_signal["signal_stack"] and (progress_signal["closure_ready"] or len(recent) >= 5):
+            return True, "scene closure to avoid piling more warning cues without payoff"
+        if progress_signal["flat_tension"] and (progress_signal["closure_ready"] or len(recent) >= 6):
+            return True, "scene closure to keep repeated tension beats from flattening out"
+        if progress_signal["stalled"] and len(recent) >= 4 and self._reader_reports_stalled_progression():
+            return True, "reader-priority scene closure for stalled progression"
+        if (
+            progress_signal["stalled"]
+            and len(recent) >= 5
+            and prefers_scene_compaction
+        ):
+            return True, "reader-priority scene closure to cut repeated exchange"
+        return current_end_scene, ""
 
     @staticmethod
     def _emotion_family(label: str) -> str:
