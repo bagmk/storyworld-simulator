@@ -149,11 +149,6 @@ def _distiller_param_space(trial) -> dict:
     return {
         "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.1, 0.6),
         "distiller_max_tokens":          trial.suggest_int("distiller_max_tokens", 2000, 6000, step=500),
-        "target_scenes":                 trial.suggest_int("target_scenes", 3, 8),
-        "prompt_char_limit":             trial.suggest_int("prompt_char_limit", 8000, 20000, step=2000),
-        # soft params — 0.0=off, 1.0=max
-        "confrontation_merge_strength":  trial.suggest_float("confrontation_merge_strength", 0.0, 1.0),
-        "dialogue_compaction_strength":  trial.suggest_float("dialogue_compaction_strength", 0.0, 1.0),
         "role_cue_strength":             trial.suggest_float("role_cue_strength", 0.0, 1.0),
     }
 
@@ -204,9 +199,6 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
         runtime_policy = {
             "distiller_temperature":        params["distiller_temperature"],
             "distiller_max_tokens":         params["distiller_max_tokens"],
-            "prompt_char_limit":            params["prompt_char_limit"],
-            "confrontation_merge_strength": params["confrontation_merge_strength"],
-            "dialogue_compaction_strength": params["dialogue_compaction_strength"],
             "role_cue_strength":            params["role_cue_strength"],
         }
 
@@ -215,8 +207,6 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
             episode_config=episode_config,
             runtime_policy=runtime_policy,
         )
-        # Patch prompt_char_limit into the request builder
-        distiller._optuna_prompt_char_limit = params["prompt_char_limit"]
 
         try:
             scenes = distiller.distill(
@@ -240,9 +230,7 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
     )
     if warmup_log:
         _distiller_keys = {
-            "distiller_temperature", "distiller_max_tokens", "target_scenes",
-            "prompt_char_limit", "confrontation_merge_strength",
-            "dialogue_compaction_strength", "role_cue_strength",
+            "distiller_temperature", "distiller_max_tokens", "role_cue_strength",
         }
         n_enqueued = _enqueue_warmup_trials(study, warmup_log, _distiller_keys)
         log.info("Distiller warmup: %d trials enqueued from %s", n_enqueued, warmup_log)
@@ -261,10 +249,6 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
 
 def _orchestrator_param_space(trial) -> dict:
     return {
-        # word caps per turn section
-        "action_cap":                        trial.suggest_int("action_cap", 30, 90, step=10),
-        "dialogue_cap":                      trial.suggest_int("dialogue_cap", 20, 70, step=10),
-        "inner_cap":                         trial.suggest_int("inner_cap", 10, 50, step=10),
         # structural caps
         "sentence_chars_max":                trial.suggest_int("sentence_chars_max", 60, 120, step=10),
         "max_sentences_per_paragraph":       trial.suggest_int("max_sentences_per_paragraph", 2, 6),
@@ -289,9 +273,6 @@ def _build_reader_feedback_from_orchestrator_params(params: dict) -> dict:
         boring.append("too analytical / abstract")
     return {
         "style_constraints": {
-            "action_cap":                        params["action_cap"],
-            "dialogue_cap":                      params["dialogue_cap"],
-            "inner_cap":                         params["inner_cap"],
             "sentence_chars_max":                params["sentence_chars_max"],
             "max_sentences_per_paragraph":       params["max_sentences_per_paragraph"],
             "max_jargon_terms_per_paragraph":    params["max_jargon_terms_per_paragraph"],
@@ -433,7 +414,7 @@ def run_orchestrator_study(n_trials: int, warmup_log: str | None = None) -> None
     )
     if warmup_log:
         _orch_keys = {
-            "action_cap", "dialogue_cap", "inner_cap", "sentence_chars_max",
+            "sentence_chars_max",
             "max_sentences_per_paragraph", "max_jargon_terms_per_paragraph",
             "needs_role_cues", "prefers_dialogue_compaction",
             "prefers_analytical_wording_reduction", "repetition_jaccard_threshold",
@@ -461,10 +442,6 @@ def _polisher_param_space(trial) -> dict:
         "prose_anchor_fix_temperature":    trial.suggest_float("prose_anchor_fix_temperature", 0.2, 0.6),
         # Clue injection timing: 0=early (first pass), 1=late (anchor-fix pass)
         "clue_injection_timing":           trial.suggest_categorical("clue_injection_timing", [0, 1]),
-        # Fallback cast size (how many agents director keeps when cast is trimmed)
-        "director_fallback_cast_size":     trial.suggest_int("director_fallback_cast_size", 1, 4),
-        # Scene closure: how aggressively to end scenes (0=gentle, 1=hard cut)
-        "scene_closure_aggressiveness":    trial.suggest_float("scene_closure_aggressiveness", 0.0, 1.0),
         # Pressure peak hold: keep tension at peak vs release after peak
         "hold_pressure_peak":              trial.suggest_categorical("hold_pressure_peak", [0, 1]),
         # Repeated concern loop reduction: 0=off, 1=on
@@ -572,8 +549,6 @@ def run_polisher_study(n_trials: int, warmup_log: str | None = None) -> None:
             "prose_polish_temperature":        params["prose_polish_temperature"],
             "prose_anchor_fix_temperature":    params["prose_anchor_fix_temperature"],
             "clue_injection_timing":           params["clue_injection_timing"],
-            "director_fallback_cast_size":     params["director_fallback_cast_size"],
-            "scene_closure_aggressiveness":    params["scene_closure_aggressiveness"],
             "hold_pressure_peak":              params["hold_pressure_peak"],
             "repeated_concern_loop_reduction": params["repeated_concern_loop_reduction"],
             # Keep best prose params
@@ -622,7 +597,6 @@ def run_polisher_study(n_trials: int, warmup_log: str | None = None) -> None:
     if warmup_log:
         _polisher_keys = {
             "prose_polish_temperature", "prose_anchor_fix_temperature", "clue_injection_timing",
-            "director_fallback_cast_size", "scene_closure_aggressiveness",
             "hold_pressure_peak", "repeated_concern_loop_reduction",
         }
         n_enqueued = _enqueue_warmup_trials(study, warmup_log, _polisher_keys)

@@ -36,7 +36,7 @@ if "SSL_CERT_FILE" not in os.environ:
 
 from src.novel_writer.env_loader import load_project_env
 from src.novel_writer.llm_client import LLMClient
-from tools.daily_pipeline import run_daily_pipeline
+from tools.daily_pipeline import run_daily_pipeline, _generate_quality_chart
 from tools.config_guardian import _assert_not_locked
 from tools.inline_optimizer import SESSION_BENCHMARK_LOG
 from tools.quality_reviewer import resolve_episode_file
@@ -74,6 +74,7 @@ DAILY_PENDING_REVIEW_TIER: dict[int, dict[str, Any]] = {}
 DAILY_START_TIMES: dict[int, float] = {}   # channel_id → pipeline start time (monotonic)
 DAILY_EPISODE_KEYS: dict[int, str] = {}    # channel_id → episode key (kept after stop for chart)
 DAILY_START_TIMES_WALL: dict[int, float] = {}  # channel_id → pipeline start time (wall clock)
+DAILY_REVIEW_TIERS: dict[int, str] = {}        # channel_id → review_tier ("mini" / "premium")
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -1574,7 +1575,7 @@ def _build_parameter_report(
         "Distiller": [
             "distiller_temperature", "distiller_max_tokens",
             "target_scenes", "scene_target_bias", "scene_target_min", "scene_target_max",
-            "dialogue_compaction_strength", "confrontation_merge_strength", "role_cue_strength",
+            "role_cue_strength",
             "prose_history_max_episodes",
         ],
         "Prose": [
@@ -1584,14 +1585,14 @@ def _build_parameter_report(
         ],
         "Polish": [
             "prose_polish_temperature", "prose_anchor_fix_temperature",
-            "hold_pressure_peak", "scene_closure_aggressiveness",
+            "hold_pressure_peak",
             "repeated_concern_loop_reduction", "clue_injection_timing",
         ],
         "Flags / Reader": [
             "prose_enable_term_gloss",
             "prefer_concrete_offer_detail", "prefer_concrete_threat_detail",
             "prefer_concrete_transition_cue", "prefer_scene_exit_on_stall",
-            "director_fallback_cast_size",
+            "director_fallback_cast_size",  # 고정값=4, 탐색 제외
             "reader_prefers_dialogue_compaction",
             "reader_prefers_analytical_wording_reduction",
             "repetition_jaccard_threshold",
@@ -1955,6 +1956,19 @@ async def async_main() -> None:
                     f"{prefix}\n{_format_usage_summary(active_metrics, start_t)}",
                     manager_bot_token,
                 )
+                # 중간 차트 생성 + 업로드
+                _ep_key = DAILY_EPISODE_KEYS.get(ch_id)
+                _run_dir = _resolve_latest_daily_run_dir(_ep_key) if _ep_key else None
+                _tier = DAILY_REVIEW_TIERS.get(ch_id, "premium")
+                if _run_dir:
+                    try:
+                        _chart = await asyncio.to_thread(
+                            _generate_quality_chart, _ep_key, _run_dir, active_metrics, None, _tier
+                        )
+                        if _chart:
+                            await _send_file_with_token(message.channel, ch_id, _chart, "📊 중간 품질 차트", manager_bot_token)
+                    except Exception as _ce:
+                        logger.warning("[USAGE] chart gen failed: %s", _ce)
                 return
 
             metrics = DAILY_SESSION_METRICS.get(ch_id)
@@ -2351,6 +2365,7 @@ async def async_main() -> None:
             DAILY_STOP_EVENTS[ch_id] = stop_ev
             DAILY_STATUS[ch_id] = f"시작 대기 — {episode_key}"
             DAILY_EPISODE_KEYS[ch_id] = episode_key  # for stop chart
+            DAILY_REVIEW_TIERS[ch_id] = review_tier or "premium"
             DAILY_START_TIMES[ch_id] = time.monotonic()
             DAILY_START_TIMES_WALL[ch_id] = time.time()
             DAILY_SESSION_METRICS[ch_id] = {

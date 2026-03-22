@@ -1,13 +1,11 @@
 {
-  "version": 17,
+  "version": 18,
   "scene_target_bias": 0,
   "scene_target_min": 3,
   "scene_target_max": 10,
   "prose_history_max_episodes": 999,
   "distiller_temperature": 0.4491899687106237,
   "distiller_max_tokens": 3000,
-  "confrontation_merge_strength": 0.79,
-  "dialogue_compaction_strength": 0.5527236026869047,
   "role_cue_strength": 0.793,
   "prose_scene_temperature": 0.6170817643958465,
   "prose_transition_temperature": 0.6592928962374859,
@@ -23,13 +21,12 @@
   "prose_anchor_fix_temperature": 0.357,
   "clue_injection_timing": 1,
   "director_fallback_cast_size": 4,
-  "scene_closure_aggressiveness": 0.06871191532589531,
   "hold_pressure_peak": 1,
   "repeated_concern_loop_reduction": 1,
   "reader_style_constraints": {
-    "action_cap": 50,
-    "dialogue_cap": 35,
-    "inner_cap": 30,
+    "action_cap": 70,
+    "dialogue_cap": 55,
+    "inner_cap": 45,
     "sentence_chars_max": 110,
     "max_sentences_per_paragraph": 6,
     "max_jargon_terms_per_paragraph": 3
@@ -57,7 +54,7 @@
     "score": 8.372,
     "source": "tools/optuna_multi_study.py — 50 trials"
   },
-  "target_scenes": 6,
+  "target_scenes": 7,
   "_last_inline_opt": {
     "date": "2026-03-22",
     "episode_id": "ep01_conference_shadow",
@@ -65,7 +62,6 @@
   },
   "_param_source_notes": {
     "distiller_temperature": "optuna_distiller trial=6 score=9.2",
-    "dialogue_compaction_strength": "blend: optuna_distiller=0.905 + inline_run2=0.606",
     "prose_paragraph_min_sentences": "optuna_prose trial=1 score=8.436",
     "prose_paragraph_max_sentences": "optuna_prose trial=1 score=8.436",
     "prose_scene_temperature": "manually tuned 0.985→0.72 for consistency",
@@ -73,7 +69,6 @@
     "prose_polish_temperature": "blend: optuna_polisher=0.779 + inline_run2=0.373",
     "prose_anchor_fix_temperature": "optuna_polisher trial=1",
     "clue_injection_timing": "optuna_polisher trial=1 + clue injection fix",
-    "scene_closure_aggressiveness": "blend: optuna_polisher=0.983 + inline_run2=0.113",
     "repeated_concern_loop_reduction": "optuna_polisher trial=1 + review feedback",
     "repetition_jaccard_threshold": "blend: optuna_orchestrator=0.795",
     "action_cap": "blend: optuna_orchestrator=30",

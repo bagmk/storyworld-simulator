@@ -110,15 +110,12 @@ Return ONLY this JSON (no text before or after):
 def _param_space(trial, base_policy: dict) -> dict:
     return {
         "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.05, 0.45),
-        "target_scenes":                 trial.suggest_int("target_scenes", 2, 6),
-        "dialogue_compaction_strength":  trial.suggest_float("dialogue_compaction_strength", 0.5, 1.0),
         "prose_scene_temperature":       trial.suggest_float("prose_scene_temperature", 0.55, 0.85),
         "prose_paragraph_min_sentences": trial.suggest_int("prose_paragraph_min_sentences", 2, 4),
         "prose_paragraph_max_sentences": trial.suggest_int("prose_paragraph_max_sentences", 3, 5),
         "prose_transition_temperature":  trial.suggest_float("prose_transition_temperature", 0.3, 0.7),
         "prose_polish_temperature":      trial.suggest_float("prose_polish_temperature", 0.2, 0.6),
         "hold_pressure_peak":            trial.suggest_categorical("hold_pressure_peak", [0, 1]),
-        "scene_closure_aggressiveness":  trial.suggest_float("scene_closure_aggressiveness", 0.05, 0.5),
     }
 
 
@@ -316,7 +313,7 @@ def _sync_run_trial(
         scenes = distiller.distill(
             episode_id=episode_id,
             protagonist_id=protagonist_id,
-            target_scenes=trial_params["target_scenes"],
+            target_scenes=int(base_policy.get("target_scenes", 7)),
         )
         scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
         if not scenes:
@@ -765,10 +762,10 @@ def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> N
     policy["version"] = int(policy.get("version", 2)) + 1
     # Update only the params that inline optimizer controls
     INLINE_PARAM_KEYS = {
-        "distiller_temperature", "target_scenes", "dialogue_compaction_strength",
+        "distiller_temperature",
         "prose_scene_temperature", "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
         "prose_transition_temperature", "prose_polish_temperature",
-        "hold_pressure_peak", "scene_closure_aggressiveness",
+        "hold_pressure_peak",
     }
     for k, v in best_params.items():
         if k in INLINE_PARAM_KEYS:
@@ -866,15 +863,12 @@ def append_session_benchmark_row(
 # Full search ranges mirroring _param_space()
 _PARAM_FULL_RANGES: dict[str, tuple] = {
     "distiller_temperature":         ("float", 0.05, 0.45),
-    "target_scenes":                 ("int",   2,    6),
-    "dialogue_compaction_strength":  ("float", 0.5,  1.0),
     "prose_scene_temperature":       ("float", 0.55, 0.85),
     "prose_paragraph_min_sentences": ("int",   2,    4),
     "prose_paragraph_max_sentences": ("int",   3,    5),
     "prose_transition_temperature":  ("float", 0.3,  0.7),
     "prose_polish_temperature":      ("float", 0.2,  0.6),
     "hold_pressure_peak":            ("cat",   [0, 1]),
-    "scene_closure_aggressiveness":  ("float", 0.05, 0.5),
 }
 
 # Fix C: Split sim-level vs prose-level params for 2-study optimization.
@@ -882,9 +876,6 @@ _PARAM_FULL_RANGES: dict[str, tuple] = {
 # prose params → affect only how scenes are rendered as text
 _PARAM_SIM_RANGES: dict[str, tuple] = {
     "distiller_temperature":         ("float", 0.05, 0.45),
-    "target_scenes":                 ("int",   2,    8),
-    "dialogue_compaction_strength":  ("float", 0.30, 1.0),
-    "scene_closure_aggressiveness":  ("float", 0.05, 0.70),
 }
 
 _PARAM_PROSE_RANGES: dict[str, tuple] = {
