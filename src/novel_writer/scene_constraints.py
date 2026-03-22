@@ -293,3 +293,222 @@ def classify_turn_function(content: str) -> TurnFunction:
         if kw in c:
             return TurnFunction.HESITATION
     return TurnFunction.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# New dataclasses: TransitionRule, EntryRuleResult, RelationshipProfile
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TransitionRule:
+    """Defines valid conditions for a scene/phase transition."""
+    from_phase: str = ""          # phase_id this rule applies to (empty = any)
+    to_phase: str = ""            # target phase (empty = any exit)
+    trigger_types: list[str] = field(default_factory=list)   # e.g. ["location_move", "director_event", "exit_action"]
+    required_clues_completed: list[str] = field(default_factory=list)
+    required_concrete_changes: int = 0   # min number of concrete changes before transition
+    soft: bool = True             # if True: log warning but don't hard-block
+
+
+@dataclass
+class EntryRuleResult:
+    """Result of evaluating whether a character may enter the current scene."""
+    allowed: bool = True
+    character_id: str = ""
+    reason: str = ""              # human-readable explanation
+    should_log: bool = True
+
+
+@dataclass
+class RelationshipProfile:
+    """Compact structured relationship context for a character pair."""
+    agent_id: str = ""
+    other_id: str = ""
+    relation_type: str = ""          # e.g. "mentor", "rival", "colleague", "stranger", "authority"
+    familiarity_level: str = "low"   # low / medium / high
+    hierarchy: str = "peer"          # agent_above / agent_below / peer
+    trust_level: str = "neutral"     # low / neutral / high
+    unresolved_tension: str = ""     # free text
+    formality_expectation: str = "formal"  # casual / semi-formal / formal
+    shared_history_density: str = "none"   # none / sparse / rich
+    taboo_topics: list[str] = field(default_factory=list)
+    typical_interaction_mode: str = ""     # free text
+    protective_stance: bool = False
+    adversarial_stance: bool = False
+
+    @classmethod
+    def from_character_pair(cls, agent_id: str, other_id: str,
+                             agent_dict: dict, other_dict: dict,
+                             relationship_matrix: dict) -> "RelationshipProfile":
+        """
+        Build a RelationshipProfile from character config dicts and relationship_matrix.
+        Extracts what's available; falls back to defaults gracefully.
+        """
+        rel_value = float(relationship_matrix.get(other_id, 0.0))
+        # Infer familiarity from relationship_matrix magnitude
+        magnitude = abs(rel_value)
+        if magnitude >= 0.6:
+            familiarity = "high"
+        elif magnitude >= 0.3:
+            familiarity = "medium"
+        else:
+            familiarity = "low"
+
+        # Trust from sign
+        if rel_value >= 0.4:
+            trust = "high"
+        elif rel_value <= -0.3:
+            trust = "low"
+        else:
+            trust = "neutral"
+
+        # Try to extract relation_type from bio / invariants / goals text
+        combined_text = " ".join([
+            str(agent_dict.get("bio", "") or ""),
+            " ".join(agent_dict.get("invariants", []) or []),
+            str(other_dict.get("bio", "") or ""),
+            " ".join(other_dict.get("invariants", []) or []),
+        ]).lower()
+
+        other_name_lower = str(other_dict.get("name", "") or "").lower()
+        agent_name_lower = str(agent_dict.get("name", "") or "").lower()
+
+        relation_type = "colleague"
+        if any(w in combined_text for w in ["mentor", "지도", "교수", "professor", "advisor"]):
+            relation_type = "mentor"
+        elif any(w in combined_text for w in ["rival", "경쟁", "competitor"]):
+            relation_type = "rival"
+        elif any(w in combined_text for w in ["supervisor", "상관", "manager", "director"]):
+            relation_type = "authority"
+        elif familiarity == "low":
+            relation_type = "acquaintance"
+
+        # Hierarchy: check role fields
+        agent_role = str(agent_dict.get("role", "") or "").lower()
+        other_role = str(other_dict.get("role", "") or "").lower()
+        if other_role in ("protagonist",) and agent_role not in ("protagonist",):
+            hierarchy = "agent_above"
+        else:
+            hierarchy = "peer"
+
+        formality = "formal"
+        if familiarity == "high" and trust == "high":
+            formality = "semi-formal"
+
+        return cls(
+            agent_id=agent_id,
+            other_id=other_id,
+            relation_type=relation_type,
+            familiarity_level=familiarity,
+            hierarchy=hierarchy,
+            trust_level=trust,
+            formality_expectation=formality,
+            shared_history_density=familiarity,  # reuse as proxy
+            adversarial_stance=(rel_value <= -0.4),
+            protective_stance=(rel_value >= 0.6 and relation_type == "mentor"),
+        )
+
+    def to_prompt_block(self) -> str:
+        """Compact relationship context for LLM injection."""
+        lines = [f"Relationship to {self.other_id}: {self.relation_type}"]
+        lines.append(f"  Familiarity: {self.familiarity_level} | Trust: {self.trust_level} | Hierarchy: {self.hierarchy}")
+        lines.append(f"  Formality expected: {self.formality_expectation}")
+        if self.shared_history_density not in ("none", "low"):
+            lines.append(f"  Shared history: {self.shared_history_density} — skip re-explaining common context")
+        if self.unresolved_tension:
+            lines.append(f"  Unresolved tension: {self.unresolved_tension}")
+        if self.typical_interaction_mode:
+            lines.append(f"  Typical mode: {self.typical_interaction_mode}")
+        if self.adversarial_stance:
+            lines.append("  Stance: adversarial — caution, guarded phrasing")
+        if self.protective_stance:
+            lines.append("  Stance: protective — caring restraint, avoids direct pressure")
+        # Behavioral guidance
+        if self.familiarity_level == "high":
+            lines.append("  → Speak with compressed references, skip pleasantries, assume shared assumptions")
+        elif self.familiarity_level == "low":
+            lines.append("  → More measured phrasing, less assumption, clearer signaling of intent")
+        return "\n".join(lines)
+
+    def is_meaningful(self) -> bool:
+        return self.familiarity_level != "low" or self.relation_type not in ("colleague", "acquaintance", "stranger")
+
+
+# ---------------------------------------------------------------------------
+# New helper functions: evaluate_entry_rule, check_transition_legality
+# ---------------------------------------------------------------------------
+
+def evaluate_entry_rule(
+    character_id: str,
+    scene_state: "SceneState | None",
+    constraint: "SceneConstraint | None",
+    scene_turn: int,
+    total_turns: int,
+) -> EntryRuleResult:
+    """
+    Evaluate whether a character may enter based on current scene state and constraints.
+    Returns EntryRuleResult. Soft by default — does not hard-block unless constraint says so.
+    """
+    if constraint is None or constraint.is_empty():
+        return EntryRuleResult(allowed=True, character_id=character_id, reason="no constraint", should_log=False)
+
+    if constraint.forbidden_characters and character_id in constraint.forbidden_characters:
+        return EntryRuleResult(allowed=False, character_id=character_id,
+                               reason=f"{character_id} is forbidden in this phase")
+
+    if constraint.allowed_characters and character_id not in constraint.allowed_characters:
+        # Allow if past 70% of scene — late entry is more forgivable
+        progress = (scene_turn / max(1, total_turns))
+        if progress < 0.7:
+            return EntryRuleResult(allowed=False, character_id=character_id,
+                                   reason=f"{character_id} not in allowed list at {progress:.0%} scene progress")
+
+    return EntryRuleResult(allowed=True, character_id=character_id, reason="passed", should_log=False)
+
+
+def check_transition_legality(
+    scene_state: "SceneState | None",
+    transition_rules: list["TransitionRule"],
+    proposed_new_location: str = "",
+    proposed_new_phase: str = "",
+) -> tuple[bool, str]:
+    """
+    Returns (is_legal, reason).
+    If no rules defined, always legal (backward compat).
+    A transition is legal if:
+    - No matching rule exists (permissive default), OR
+    - A matching rule's conditions are satisfied
+    """
+    if not transition_rules or scene_state is None:
+        return True, "no transition rules defined"
+
+    relevant = [r for r in transition_rules
+                if not r.from_phase or r.from_phase == scene_state.phase_id]
+
+    if not relevant:
+        return True, "no rule for current phase"
+
+    for rule in relevant:
+        # Check concrete change requirement
+        if rule.required_concrete_changes > 0:
+            n_changes = len(scene_state.concrete_changes)
+            if n_changes < rule.required_concrete_changes:
+                msg = (f"transition requires {rule.required_concrete_changes} concrete changes, "
+                       f"only {n_changes} recorded")
+                if rule.soft:
+                    import logging
+                    logging.getLogger("scene_constraints").warning("[TRANSITION] soft-blocked: %s", msg)
+                    return True, f"soft-allowed: {msg}"
+                return False, msg
+
+        # Check required clues
+        for clue_id in rule.required_clues_completed:
+            if clue_id not in scene_state.completed_clues:
+                msg = f"transition requires clue {clue_id} to be completed first"
+                if rule.soft:
+                    import logging
+                    logging.getLogger("scene_constraints").warning("[TRANSITION] soft-blocked: %s", msg)
+                    return True, f"soft-allowed: {msg}"
+                return False, msg
+
+    return True, "transition allowed"

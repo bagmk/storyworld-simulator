@@ -384,6 +384,16 @@ class DirectorAI:
             )
             return False, correction
 
+        # Extended relation drift check
+        relation_drift = self._detect_relation_drift(agent, proposed_action, agents)
+        if relation_drift:
+            _sc_log = logging.getLogger("scene_constraints")
+            _sc_log.info(
+                "[RELATION DRIFT] %s — %s",
+                agent.name,
+                "; ".join(relation_drift),
+            )
+
         storyline_guidance = self.get_storyline_guidance() or ""
         active_names = ", ".join(
             a.name for a in agents if a.id in active_ids
@@ -2451,10 +2461,16 @@ class DirectorAI:
             )
             if interaction_hint:
                 voice_bits.append(f"interaction={interaction_hint}")
-            lines.append(
+            agent_line = (
                 f"- {agent.name} ({aid}): emotional posture={emotion_family} ({emotion_level:.2f}); "
                 f"{' | '.join(voice_bits)}; likely next move={hint}"
             )
+            # Relationship context injection
+            all_agents_in_scene = list(agent_map.values())
+            relation_block = self._build_relation_context_block(agent, all_agents_in_scene)
+            if relation_block:
+                agent_line = agent_line + "\n" + relation_block
+            lines.append(agent_line)
         return "\n".join(lines) if lines else "(none)"
 
     def _has_explanatory_loop(self, recent_interactions: list[dict]) -> bool:
@@ -3277,6 +3293,164 @@ class DirectorAI:
             if variant and variant.lower() in haystack:
                 return True
         return False
+
+    def _build_relationship_profile(
+        self,
+        agent: "Agent",
+        other: "Agent",
+    ) -> "RelationshipProfile | None":
+        """
+        Build a RelationshipProfile for agent→other pair.
+        Returns None if relationship is low-familiarity and uninteresting.
+        """
+        from src.novel_writer.scene_constraints import RelationshipProfile
+        agent_dict = {
+            "bio": agent.bio,
+            "invariants": agent.invariants,
+            "goals": agent.goals,
+            "role": agent.role,
+            "name": agent.name,
+        }
+        other_dict = {
+            "bio": other.bio,
+            "invariants": other.invariants,
+            "goals": other.goals,
+            "role": other.role,
+            "name": other.name,
+        }
+        profile = RelationshipProfile.from_character_pair(
+            agent_id=agent.id,
+            other_id=other.id,
+            agent_dict=agent_dict,
+            other_dict=other_dict,
+            relationship_matrix=agent.memory.relationship_matrix,
+        )
+        # Also check reverse direction for richer data
+        reverse_val = other.memory.relationship_matrix.get(agent.id, None)
+        if reverse_val is not None and abs(reverse_val) > abs(
+            agent.memory.relationship_matrix.get(other.id, 0.0)
+        ):
+            # Use stronger signal from reverse direction
+            if abs(reverse_val) >= 0.6:
+                profile.familiarity_level = "high"
+            elif abs(reverse_val) >= 0.3:
+                profile.familiarity_level = "medium"
+        return profile if profile.is_meaningful() else None
+
+    def _build_relation_context_block(
+        self,
+        speaker: "Agent",
+        active_agents: list["Agent"],
+    ) -> str:
+        """
+        Build a compact relationship context block for all known pairs
+        involving the speaker. Used to inject into generation prompts.
+        """
+        lines: list[str] = []
+        for other in active_agents:
+            if other.id == speaker.id:
+                continue
+            profile = self._build_relationship_profile(speaker, other)
+            if profile is not None:
+                lines.append(profile.to_prompt_block())
+        if not lines:
+            return ""
+        return "=== Relationship Context ===\n" + "\n\n".join(lines)
+
+    def _detect_relation_drift(
+        self,
+        agent: "Agent",
+        proposed_action: str,
+        active_agents: list["Agent"],
+    ) -> list[str]:
+        """
+        Extended relation drift check beyond first-meeting cues.
+        Flags cases where known relations sound like strangers, generic
+        negotiators, or symmetric exposition devices.
+        """
+        text = (proposed_action or "").lower()
+        if not text or len(text) < 30:
+            return []
+
+        stranger_patterns = [
+            "who are you",
+            "당신은 누구",
+            "처음 뵙",
+            "처음 만나",
+            "자기소개",
+            "소개해 주",
+            "이름이 뭐",
+            "성함이",
+            "명함",
+            "nice to meet",
+            "let me introduce",
+        ]
+        generic_negotiator_patterns = [
+            "상호 이익",
+            "mutual benefit",
+            "파트너십",
+            "윈윈",
+            "협력 관계",
+            "공식적으로 제안",
+        ]
+
+        offenders: list[str] = []
+        for other in active_agents:
+            if other.id == agent.id:
+                continue
+            profile = self._build_relationship_profile(agent, other)
+            if profile is None:
+                continue
+            if profile.familiarity_level not in ("medium", "high"):
+                continue
+
+            name_variants = self._agent_name_variants(other.name)
+            name_mentioned = any(v.lower() in text for v in name_variants if v)
+            if not name_mentioned:
+                continue
+
+            # Check stranger patterns for known relations
+            if any(p in text for p in stranger_patterns):
+                offenders.append(f"{other.name}(stranger-pattern with known relation)")
+                continue
+
+            # Check generic negotiator patterns for close relations
+            if profile.familiarity_level == "high" and any(p in text for p in generic_negotiator_patterns):
+                offenders.append(f"{other.name}(generic-negotiator pattern with close relation)")
+
+        return offenders
+
+    def check_location_transition_legality(
+        self,
+        proposed_location: str,
+        transition_rules: list | None = None,
+    ) -> tuple[bool, str]:
+        """
+        Soft-check whether a location transition is currently legal.
+        Logs a warning if suspicious but does not hard-block by default.
+        """
+        from src.novel_writer.scene_constraints import check_transition_legality, TransitionRule
+        rules = transition_rules or []
+        legal, reason = check_transition_legality(
+            scene_state=self._active_scene_state,
+            transition_rules=[TransitionRule(**r) if isinstance(r, dict) else r for r in rules],
+            proposed_new_location=proposed_location,
+        )
+        if not legal:
+            logger.warning(
+                "[TRANSITION BLOCKED] %s → %s: %s",
+                getattr(self._active_scene_state, "location", "?"),
+                proposed_location,
+                reason,
+            )
+        elif "soft-allowed" in reason:
+            logger.info(
+                "[TRANSITION SOFT-WARN] %s → %s: %s",
+                getattr(self._active_scene_state, "location", "?"),
+                proposed_location,
+                reason,
+            )
+        return legal, reason
 
     @staticmethod
     def _extract_structured_field(text: str, field: str) -> str:
