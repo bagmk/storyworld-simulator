@@ -49,6 +49,7 @@ class DistilledScene:
     emotion_trajectory: list[str] = field(default_factory=list)  # Ordered emotional beats e.g. ["불안", "분노", "체념"]
     tension_peaks: list[str] = field(default_factory=list)       # Key tension moments e.g. ["협박 공개", "침묵 후 거절"]
     relationship_delta: str = ""                                  # Net relationship change e.g. "불신 → 잠정 협력"
+    dramatic_function: str = "unknown"                           # DramaticFunction value
 
     def to_dict(self) -> dict:
         return {
@@ -369,7 +370,8 @@ class SceneDistiller:
             f"    \"relationship_delta\": \"관계 변화 (e.g. 불신 → 잠정 협력)\",\n"
             f"    \"beat_refs\": [\"clue_id_1\"],\n"
             f"    \"summary\": \"2-3 sentence narrative summary\",\n"
-            f"    \"pacing\": \"building\"\n"
+            f"    \"pacing\": \"building\",\n"
+            f"    \"dramatic_function\": \"pressure\",  // orientation|discovery|warning|pressure|ethical_framing|negotiation|refusal|condition_setting|consequence|transition|reversal|commitment|unknown\n"
             f"  }}\n"
             f"]\n"
             f"```\n"
@@ -582,26 +584,27 @@ class SceneDistiller:
                 scene_index=idx,
                 total_scenes=len(scenes_data),
             )
-            scenes.append(
-                DistilledScene(
-                    scene_number=idx + 1,
-                    title=payload.get("title") or f"Scene {idx + 1}",
-                    turn_range=(turn_start, turn_end),
-                    location=payload.get("location") or request.default_location,
-                    characters_present=payload.get("characters", []),
-                    key_dialogue=payload.get("key_dialogue", []),
-                    key_actions=payload.get("key_actions", []),
-                    discoveries=payload.get("discoveries", []),
-                    emotional_arc=payload.get("emotional_arc", ""),
-                    beat_references=payload.get("beat_refs", []),
-                    narrative_summary=payload.get("summary", ""),
-                    pacing=payload.get("pacing", "building"),
-                    raw_turn_count=max(1, turn_end - turn_start + 1),
-                    emotion_trajectory=payload.get("emotion_trajectory") or [],
-                    tension_peaks=payload.get("tension_peaks") or [],
-                    relationship_delta=payload.get("relationship_delta") or "",
-                )
+            sd = payload
+            scene_obj = DistilledScene(
+                scene_number=idx + 1,
+                title=payload.get("title") or f"Scene {idx + 1}",
+                turn_range=(turn_start, turn_end),
+                location=payload.get("location") or request.default_location,
+                characters_present=payload.get("characters", []),
+                key_dialogue=payload.get("key_dialogue", []),
+                key_actions=payload.get("key_actions", []),
+                discoveries=payload.get("discoveries", []),
+                emotional_arc=payload.get("emotional_arc", ""),
+                beat_references=payload.get("beat_refs", []),
+                narrative_summary=payload.get("summary", ""),
+                pacing=payload.get("pacing", "building"),
+                raw_turn_count=max(1, turn_end - turn_start + 1),
+                emotion_trajectory=payload.get("emotion_trajectory") or [],
+                tension_peaks=payload.get("tension_peaks") or [],
+                relationship_delta=payload.get("relationship_delta") or "",
             )
+            scene_obj.dramatic_function = str(sd.get("dramatic_function", "unknown"))
+            scenes.append(scene_obj)
         return scenes
 
     def _finalize_distilled_scenes(
@@ -615,6 +618,11 @@ class SceneDistiller:
         merge_budget = self._scene_merge_budget(request.target_scenes)
         if merge_budget > 0:
             guarded = self._merge_low_signal_adjacent_scenes(guarded, merge_budget)
+
+        aggressiveness = int(
+            (self.runtime_policy or {}).get("adjacent_scene_merge_aggressiveness", 1)
+        )
+        guarded = self._post_distill_same_function_merge(guarded, aggressiveness)
 
         for idx, scene in enumerate(guarded, start=1):
             scene.scene_number = idx
@@ -959,6 +967,14 @@ class SceneDistiller:
             budget += 1
         if self._reader_reports_timeline_confusion():
             budget += 1
+        # Policy-level aggressiveness adds to base budget
+        aggressiveness = int(
+            (self.runtime_policy or {}).get("adjacent_scene_merge_aggressiveness", 1)
+        )
+        if aggressiveness >= 2:
+            budget += 2
+        elif aggressiveness == 1:
+            budget += 1
         return max(0, min(budget, max(0, target_scenes // 4)))
 
     def _merge_low_signal_adjacent_scenes(
@@ -988,6 +1004,37 @@ class SceneDistiller:
             ]
             merges_left -= 1
 
+        return merged
+
+    def _post_distill_same_function_merge(
+        self, scenes: list[DistilledScene], aggressiveness: int
+    ) -> list[DistilledScene]:
+        """Merge adjacent scenes with same dramatic_function if aggressiveness > 0."""
+        if aggressiveness == 0 or len(scenes) <= 2:
+            return scenes
+
+        PROGRESSION_FUNCTIONS = {"reversal", "commitment", "consequence", "transition", "revelation"}
+        merged = list(scenes)
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(merged) - 1):
+                a, b = merged[i], merged[i + 1]
+                if a.dramatic_function == b.dramatic_function and \
+                   a.dramatic_function not in PROGRESSION_FUNCTIONS and \
+                   a.dramatic_function != "unknown":
+                    # check if cast overlaps
+                    cast_a = set(a.characters_present)
+                    cast_b = set(b.characters_present)
+                    if len(cast_a & cast_b) >= max(1, min(len(cast_a), len(cast_b)) - 1):
+                        logger.info(
+                            "Post-distill merge: scene %d + %d (both '%s', overlapping cast)",
+                            a.scene_number, b.scene_number, a.dramatic_function
+                        )
+                        merged_scene = self._merge_scene_pair(a, b)
+                        merged[i:i+2] = [merged_scene]
+                        changed = True
+                        break
         return merged
 
     def _adjacent_scene_merge_score(self, left: DistilledScene, right: DistilledScene) -> int:

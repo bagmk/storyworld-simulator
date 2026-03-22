@@ -35,6 +35,16 @@ DEFAULT_POLICY: dict[str, Any] = {
     # Runtime fallback cast is now conditional in DirectorAI; keep this as a
     # legacy field but pin it to 1 to preserve "monologue possible" default.
     "director_fallback_cast_size": 1,
+    # Scene constraint and repetition control
+    "same_conflict_loop_turn_threshold": 3,    # turns before loop detected
+    "no_concrete_change_turn_threshold": 4,    # turns without change before forced progression
+    "adjacent_scene_merge_aggressiveness": 1,  # 0=off, 1=conservative, 2=aggressive
+    "repeated_body_cue_cap_per_scene": 2,      # max reuse of same body-cue category
+    "repeated_abstract_theme_cap_per_scene": 3,   # max reuse of abstract theme nouns
+    "force_progression_after_landed_pressure": True,
+    "enable_voice_drift_check": False,         # lightweight, off by default
+    "scene_constraint_enforcement_mode": "soft",    # "off" / "soft" / "strict"
+    "illegal_transition_handling_mode": "warn",     # "warn" / "block"
 }
 
 

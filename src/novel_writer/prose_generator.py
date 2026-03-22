@@ -332,6 +332,74 @@ class ProseGenerator:
                 lines.append(f"- {name}: " + " | ".join(parts))
         return "\n".join(lines)
 
+    def _build_voice_profiles_block(self, speakers: list[str]) -> str:
+        """Build a compact voice profile block for the given speaker IDs."""
+        from .scene_constraints import VoiceProfile
+        profiles = []
+        chars = (self.episode_config or {}).get("characters", []) or []
+        char_map: dict[str, dict] = {}
+        for c in chars:
+            if isinstance(c, dict):
+                cid = c.get("id", "")
+                if cid:
+                    char_map[cid] = c
+
+        for speaker_id in speakers:
+            if speaker_id in char_map:
+                vp = VoiceProfile.from_character_config(speaker_id, char_map[speaker_id])
+                if not vp.is_empty():
+                    profiles.append(f"[{speaker_id}]\n{vp.to_prompt_block()}")
+
+        if not profiles:
+            return ""
+        return "## Character Voice Profiles\n" + "\n\n".join(profiles) + "\n\n"
+
+    MOTIF_CATEGORIES: dict[str, list[str]] = {
+        "gaze": ["눈", "시선", "눈빛", "눈동자", "바라봤", "바라보며"],
+        "breath": ["숨", "호흡", "내쉬", "들이쉬", "한숨"],
+        "hands": ["손", "손끝", "손가락", "쥐었", "움켜", "만지"],
+        "silence": ["침묵", "고요", "공기", "정적", "무거운"],
+        "heartbeat": ["심장", "가슴", "두근", "박동"],
+    }
+
+    def _build_repeated_motif_watchlist(self, text: str) -> str:
+        """Detect motif categories already used heavily in text; return guidance string."""
+        if not text:
+            return ""
+        cap = int((self.runtime_policy or {}).get("repeated_body_cue_cap_per_scene", 2))
+        overused = []
+        for category, keywords in self.MOTIF_CATEGORIES.items():
+            count = sum(text.count(kw) for kw in keywords)
+            if count >= cap:
+                overused.append(category)
+        if not overused:
+            return ""
+        return (
+            f"## Motif Overuse Warning\n"
+            f"These body/atmosphere cues are already overused in this chapter: "
+            f"{', '.join(overused)}. "
+            f"Do NOT reuse them. Use a different concrete action, movement, or sensory detail instead.\n\n"
+        )
+
+    def _build_abstract_theme_watchlist(self, text: str) -> str:
+        """Detect abstract theme nouns used too many times."""
+        cap = int((self.runtime_policy or {}).get("repeated_abstract_theme_cap_per_scene", 3))
+        import re as _re
+        candidates = _re.findall(r'[가-힣]{2,6}', text)
+        freq: dict[str, int] = {}
+        for w in candidates:
+            freq[w] = freq.get(w, 0) + 1
+        ABSTRACT_FILTER = {"윤리", "책임", "협력", "무게", "운명", "진실", "신뢰", "의지", "가치", "선택"}
+        overused = [w for w in ABSTRACT_FILTER if freq.get(w, 0) >= cap]
+        if not overused:
+            return ""
+        return (
+            f"## Abstract Theme Overuse Warning\n"
+            f"These abstract nouns already appear too frequently: {', '.join(overused)}. "
+            f"Replace them with concrete actions, conditions, or objects. "
+            f"Show the stakes through what can be seen, signed, denied, or revoked — not through repeated theme words.\n\n"
+        )
+
     def _build_previous_episode_context(self, episode_id: str) -> str:
         """
         Build cross-episode continuity context.
@@ -894,6 +962,21 @@ class ProseGenerator:
                 f"## Character Voice and Visual Profiles (apply naturally)\n"
                 f"{scene_character_guide}\n\n"
             )
+
+        # Voice profiles block (from characters.yaml speech_profile)
+        voice_profiles_block = self._build_voice_profiles_block(scene.characters_present)
+        if voice_profiles_block:
+            prompt += voice_profiles_block
+
+        # Motif and abstract theme overuse warnings based on accumulated text
+        accumulated_text = prev_section_tail or ""
+        motif_watchlist = self._build_repeated_motif_watchlist(accumulated_text)
+        if motif_watchlist:
+            prompt += motif_watchlist
+        abstract_watchlist = self._build_abstract_theme_watchlist(accumulated_text)
+        if abstract_watchlist:
+            prompt += abstract_watchlist
+
         if scene_guidance:
             prompt += (
                 f"## Scene-Specific Directives\n"

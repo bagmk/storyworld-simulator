@@ -6,8 +6,11 @@ All structures are content-agnostic — story details come from YAML configs.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 import json
+
+if TYPE_CHECKING:
+    from src.novel_writer.scene_constraints import SceneConstraint
 
 
 # ---------------------------------------------------------------------------
@@ -252,17 +255,22 @@ class ClueManager:
         self,
         turn_progress: float,
         threshold_overrides: dict[str, float] | None = None,
+        scene_constraint: "SceneConstraint | None" = None,
     ) -> Optional[dict]:
         """
         Return a clue that needs director injection if it hasn't surfaced
         by a certain % of the episode (defined per-clue or default 0.6).
         threshold_overrides: Guardian이 화별로 지정한 {clue_id: threshold} — YAML 기본값을 덮어씀.
+        scene_constraint: optional per-scene constraint to block disallowed clues.
         """
+        from src.novel_writer.scene_constraints import check_clue_legality
         overrides = threshold_overrides or {}
         for clue in self.required_clues:
             clue_id = clue.get("id")
             threshold = overrides.get(clue_id, clue.get("inject_threshold", 0.6))
             if clue_id not in self.introduced and turn_progress >= threshold:
+                if not check_clue_legality(clue_id, scene_constraint, log_prefix="[ClueManager]"):
+                    continue
                 return clue
         return None
 

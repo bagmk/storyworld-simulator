@@ -16,12 +16,17 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
+from typing import Any, Optional
 
 from .models import Agent, WorldState, ClueManager
 from .llm_client import LLMClient
 from .reader_profile import build_reader_profile
 from . import database as db
+from .scene_constraints import (
+    SceneConstraint, SceneState, VoiceProfile, TurnFunction,
+    check_cast_legality, check_clue_legality, classify_turn_function,
+    load_scene_constraints_from_episode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +130,14 @@ class DirectorAI:
             for f in world_facts.get("hidden", [])
         ]
         self.storyline_context = self._build_storyline_context()
+
+        # Scene constraint support
+        self._scene_constraints: list[SceneConstraint] = (
+            load_scene_constraints_from_episode(episode_config)
+            if isinstance(episode_config, dict) else []
+        )
+        self._active_scene_state: SceneState = SceneState()
+        self._voice_profiles: dict[str, VoiceProfile] = {}  # populated lazily
 
     # ------------------------------------------------------------------ #
     # 1. Invariant Check
@@ -444,7 +457,12 @@ class DirectorAI:
         threshold_overrides: dict[str, float] = {}
         if isinstance(self.episode_config, dict):
             threshold_overrides = self.episode_config.get("clue_thresholds") or {}
-        clue = self.clue_manager.needs_injection(turn_progress, threshold_overrides=threshold_overrides)
+        constraint = self._get_active_constraint()
+        clue = self.clue_manager.needs_injection(
+            turn_progress,
+            threshold_overrides=threshold_overrides,
+            scene_constraint=constraint,
+        )
         if not clue:
             return None
 
@@ -1817,6 +1835,17 @@ class DirectorAI:
             candidate_pool = [a.id for a in agents if a.id not in fallback]
             fallback.extend(candidate_pool[: max(0, fallback_size - len(fallback))])
             fallback = self._dedupe_preserve_order(fallback)
+
+        constraint = self._get_active_constraint()
+        if constraint and not constraint.is_empty():
+            allowed, blocked = check_cast_legality(
+                fallback,
+                constraint,
+                log_prefix="[Director]",
+            )
+            if blocked:
+                fallback = allowed if allowed else fallback
+
         self._log(
             "cast_selection",
             "director",
@@ -3264,6 +3293,71 @@ class DirectorAI:
         elif tokens:
             variants.append(tokens[0])
         return [v for v in DirectorAI._dedupe_preserve_order(variants) if v]
+
+    # ------------------------------------------------------------------ #
+    # Scene Constraint & Repetition Control
+    # ------------------------------------------------------------------ #
+
+    def _policy_get(self, key: str, default: Any) -> Any:
+        if isinstance(self.episode_config, dict):
+            return self.episode_config.get(key, default)
+        return default
+
+    def _get_active_constraint(self) -> Optional[SceneConstraint]:
+        """Return the first constraint matching current scene state, or None."""
+        if not self._scene_constraints:
+            return None
+        state = self._active_scene_state
+        for constraint in self._scene_constraints:
+            # Match by phase_id if set, otherwise by location or time_phase
+            if constraint.phase_id and state.phase_id and constraint.phase_id != state.phase_id:
+                continue
+            if constraint.location and state.location and constraint.location != state.location:
+                continue
+            if constraint.time_phase and state.time_phase and constraint.time_phase != state.time_phase:
+                continue
+            return constraint
+        # If none fully match, return the first non-empty one as a fallback
+        for constraint in self._scene_constraints:
+            if not constraint.is_empty():
+                return constraint
+        return None
+
+    def record_turn(self, content: str, speaker_id: str = "") -> None:
+        """Called after each simulation turn to update scene state."""
+        fn = classify_turn_function(content)
+        self._active_scene_state.record_turn_function(fn)
+        self._active_scene_state.turn_count += 1
+
+        threshold = int(self._policy_get(
+            "same_conflict_loop_turn_threshold",
+            3,
+        ))
+        if self._active_scene_state.loop_detected(threshold):
+            self._log("repetition_control", "director",
+                      f"Loop detected: {fn.value} repeating at turn {self._active_scene_state.turn_count}",
+                      {"speaker_id": speaker_id, "turn_function": fn.value})
+
+    def get_forced_progression_hint(self) -> str:
+        """Returns a hint string when loop detected, empty string otherwise."""
+        threshold = self._policy_get("same_conflict_loop_turn_threshold", 3)
+        no_change_threshold = self._policy_get("no_concrete_change_turn_threshold", 4)
+        state = self._active_scene_state
+
+        if state.loop_detected(int(threshold)):
+            return (
+                "PROGRESSION REQUIRED: The same conflict pattern has repeated. "
+                "Force one of: consequence / explicit condition / refusal / decision / "
+                "transition / interruption / object reveal / access reveal. "
+                "Do NOT write another abstract paraphrase of the same warning or pressure."
+            )
+        if state.turns_without_concrete_change() >= int(no_change_threshold):
+            return (
+                "CONCRETE CHANGE REQUIRED: Several turns have passed without any real change. "
+                "Introduce: a document, a condition, a deadline, a decision, "
+                "a location shift, or an access/authority reveal."
+            )
+        return ""
 
     def _log(self, event_type: str, agent_id: str, message: str, details: dict) -> None:
         entry = {

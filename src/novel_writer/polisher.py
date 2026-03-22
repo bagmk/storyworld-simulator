@@ -212,6 +212,41 @@ class ChapterPolisher:
         prose_adapter._log_paragraph_split_recommendations(cleaned)
         return prose_adapter._normalize_paragraphs(cleaned)
 
+    def _pre_polish_redundancy_scan(self, text: str) -> str:
+        """
+        Lightweight Python-side pass before LLM polish.
+        Detects and flags adjacent paragraph redundancy patterns.
+        Returns a guidance string to include in the polish prompt.
+        """
+        import re
+        paragraphs = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()]
+        if len(paragraphs) < 3:
+            return ""
+
+        # Check for adjacent paragraphs ending on same suspension pattern
+        SUSPENSION_ENDINGS = [
+            "었다.", "있었다.", "들었다.", "느꼈다.", "생각했다.",
+            "스쳤다.", "맴돌았다.", "울렸다.",
+        ]
+
+        suspension_run = 0
+        max_suspension_run = 0
+        for p in paragraphs:
+            if any(p.endswith(e) for e in SUSPENSION_ENDINGS):
+                suspension_run += 1
+                max_suspension_run = max(max_suspension_run, suspension_run)
+            else:
+                suspension_run = 0
+
+        guidance_parts = []
+        if max_suspension_run >= 3:
+            guidance_parts.append(
+                f"WARNING: {max_suspension_run} consecutive paragraphs end on the same internal-suspension pattern. "
+                f"Break this by ending at least one paragraph on action, consequence, decision, or physical movement instead."
+            )
+
+        return "\n".join(guidance_parts)
+
     def run_llm_polish(
         self,
         text: str,
@@ -287,6 +322,9 @@ class ChapterPolisher:
                 "Additional reader feedback to honor during polish:\n"
                 f"{review_guidance}\n\n"
             )
+        redundancy_guidance = self._pre_polish_redundancy_scan(text)
+        if redundancy_guidance:
+            prompt += f"## Pre-Polish Redundancy Notes\n{redundancy_guidance}\n\n"
         prompt += f"Full chapter text:\n\n{text}"
 
         polished = self.llm.chat(
