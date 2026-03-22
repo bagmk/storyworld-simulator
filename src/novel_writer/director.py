@@ -437,9 +437,14 @@ class DirectorAI:
         """
         Return a clue injection event if a required clue needs to be forced.
         Returns None if no injection needed.
+        Guardian이 지정한 clue_thresholds로 YAML 기본 inject_threshold를 덮어씀.
         """
         turn_progress = turn / max(self.max_turns, 1)
-        clue = self.clue_manager.needs_injection(turn_progress)
+        # Guardian이 화별로 클루 ID별 threshold를 직접 지정; 없으면 YAML 기본값 사용
+        threshold_overrides: dict[str, float] = {}
+        if isinstance(self.episode_config, dict):
+            threshold_overrides = self.episode_config.get("clue_thresholds") or {}
+        clue = self.clue_manager.needs_injection(turn_progress, threshold_overrides=threshold_overrides)
         if not clue:
             return None
 
@@ -2797,7 +2802,7 @@ class DirectorAI:
         try:
             explicit = self.episode_config.get("fallback_cast_size")
             if explicit is not None:
-                return max(1, min(2, int(explicit)))
+                return max(1, min(4, int(explicit)))
         except (TypeError, ValueError):
             pass
 
@@ -2832,7 +2837,7 @@ class DirectorAI:
         if continuity_sensitive and (dialogue_centric or has_multi_character_hint or max_turns >= 14):
             fallback_size = 2
 
-        # Never exceed 2 in the new fixed policy; solo remains possible.
+        # Guardian 추천값이 없을 때의 heuristic fallback (max 2)
         return max(1, min(2, fallback_size))
 
     def _safe_llm_call(

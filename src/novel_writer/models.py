@@ -248,14 +248,20 @@ class ClueManager:
         return [c for c in self.required_clues
                 if c.get("id") not in self.introduced]
 
-    def needs_injection(self, turn_progress: float) -> Optional[dict]:
+    def needs_injection(
+        self,
+        turn_progress: float,
+        threshold_overrides: dict[str, float] | None = None,
+    ) -> Optional[dict]:
         """
         Return a clue that needs director injection if it hasn't surfaced
         by a certain % of the episode (defined per-clue or default 0.6).
+        threshold_overrides: Guardian이 화별로 지정한 {clue_id: threshold} — YAML 기본값을 덮어씀.
         """
+        overrides = threshold_overrides or {}
         for clue in self.required_clues:
             clue_id = clue.get("id")
-            threshold = clue.get("inject_threshold", 0.6)
+            threshold = overrides.get(clue_id, clue.get("inject_threshold", 0.6))
             if clue_id not in self.introduced and turn_progress >= threshold:
                 return clue
         return None

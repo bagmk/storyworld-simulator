@@ -1059,6 +1059,25 @@ def _build_guardian_gpt_prompt(context: dict, rule_report: str) -> str:
 ## 짧은 실행 메모
 - prose_generator/director가 바로 쓸 수 있는 3-6개의 짧은 imperative 문장
 
+## 파라미터 추천
+아래 형식으로 정확히 출력하라 (다른 설명 없이):
+RECOMMENDED_CAST_SIZE: N
+(N은 1~4 사이 정수. 이번 화에 실질적으로 상호작용하는 핵심 등장인물 수 기준)
+RECOMMENDED_HOLD_PRESSURE_PEAK: B
+(B는 0 또는 1. 이번 화에 위협/강요/계약 압박이 절정에서 해소되지 않고 유지되어야 하면 1, 해소/전환되면 0)
+RECOMMENDED_PREFER_CONCRETE_OFFER: B
+(B는 0 또는 1. 이번 화에 제안/거래 장면이 있고 구체적 조건/물건/수치를 명시해야 하면 1)
+RECOMMENDED_PREFER_CONCRETE_THREAT: B
+(B는 0 또는 1. 이번 화에 위협/위험 장면이 있고 구체적 결과/방법/물증을 명시해야 하면 1)
+RECOMMENDED_PROSE_SCENE_TEMPERATURE: F
+(F는 0.55~0.85 사이 소수점 둘째자리. 액션/긴장 씬 중심이면 낮게(0.60), 감성/내면 씬 중심이면 높게(0.82))
+
+현재 화 YAML의 required_clues 목록에 있는 클루 각각에 대해 아래 형식으로 한 줄씩 출력하라:
+CLUE_THRESHOLD: <clue_id>=<0.0~1.0>
+(에피소드 진행률 기준. 이 시점 이후까지 클루가 자연 등장 못 하면 Director가 강제 투입.
+ 예: 0.4=40% 지점, 0.7=70% 지점. YAML에 inject_threshold가 이미 있으면 그것을 참고하되, 이번 화 스토리 흐름상 더 적절한 시점이 있으면 재판단해서 덮어써라.
+ required_clues가 없으면 이 줄은 생략한다.)
+
 작성 규칙:
 - 각 bullet은 한두 문장 이내로 짧게.
 - "자연스럽다", "잘 연결된다", "도움이 된다" 같은 평가형 문장은 피하고, 대신 유지/강조/금지/이월 같은 동사로 써라.
@@ -1080,10 +1099,18 @@ async def step_guardian(
     review_tier: str = "premium",
     cost_tracker: dict[str, Any] | None = None,
     metrics: dict[str, Any] | None = None,
-) -> tuple[bool, Path | None]:
-    """Returns (success, guardian_briefing_path). briefing_path is None if GPT analysis failed."""
+) -> tuple[bool, Path | None, dict]:
+    """Returns (success, guardian_briefing_path, guardian_params dict)."""
+    _GUARDIAN_DEFAULTS: dict = {
+        "fallback_cast_size": 2,
+        "hold_pressure_peak": 0,
+        "prefer_concrete_offer_detail": 0,
+        "prefer_concrete_threat_detail": 0,
+        "prose_scene_temperature": 0.75,
+        "clue_thresholds": {},  # clue_id → float, Guardian이 화별로 직접 지정
+    }
     if stop_event and stop_event.is_set():
-        return False, None
+        return False, None, dict(_GUARDIAN_DEFAULTS)
 
     if set_status:
         set_status("1/4 Config Guardian 검수 중...")
@@ -1097,7 +1124,7 @@ async def step_guardian(
     except Exception as exc:
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] ❌ Config 검수 실패: {type(exc).__name__}: {exc}")
-        return False, None
+        return False, None, dict(_GUARDIAN_DEFAULTS)
 
     # Save rule-based report locally
     report_path = run_dir / "config_check.txt"
@@ -1145,14 +1172,53 @@ async def step_guardian(
         briefing_path = run_dir / "guardian_briefing.txt"
         briefing_path.write_text(gpt_report, encoding="utf-8")
 
+        # Guardian 추천 파라미터 파싱
+        def _int_match(pattern: str, default: int) -> int:
+            m = re.search(pattern, gpt_report)
+            return int(m.group(1)) if m else default
+
+        def _float_match(pattern: str, default: float) -> float:
+            m = re.search(pattern, gpt_report)
+            return float(m.group(1)) if m else default
+
+        # 클루별 threshold 파싱: CLUE_THRESHOLD: some_clue_id=0.65
+        clue_thresholds: dict[str, float] = {}
+        for m in re.finditer(r"CLUE_THRESHOLD:\s*([\w_]+)\s*=\s*(0\.\d+|1\.0|0|1)", gpt_report):
+            try:
+                clue_thresholds[m.group(1)] = max(0.0, min(1.0, float(m.group(2))))
+            except ValueError:
+                pass
+
+        guardian_params = {
+            "fallback_cast_size":           _int_match(r"RECOMMENDED_CAST_SIZE:\s*([1-4])", 2),
+            "hold_pressure_peak":           _int_match(r"RECOMMENDED_HOLD_PRESSURE_PEAK:\s*([01])", 0),
+            "prefer_concrete_offer_detail": _int_match(r"RECOMMENDED_PREFER_CONCRETE_OFFER:\s*([01])", 0),
+            "prefer_concrete_threat_detail":_int_match(r"RECOMMENDED_PREFER_CONCRETE_THREAT:\s*([01])", 0),
+            "prose_scene_temperature":      _float_match(r"RECOMMENDED_PROSE_SCENE_TEMPERATURE:\s*(0\.\d+)", 0.75),
+            "clue_thresholds":              clue_thresholds,
+        }
+
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] 🧭 GPT 생성용 브리핑:\n{gpt_report}")
+            clue_thr_summary = (
+                ", ".join(f"{k}={v}" for k, v in guardian_params["clue_thresholds"].items())
+                or "없음"
+            )
+            param_summary = (
+                f"캐스팅 {guardian_params['fallback_cast_size']}명 | "
+                f"압박유지 {guardian_params['hold_pressure_peak']} | "
+                f"제안구체화 {guardian_params['prefer_concrete_offer_detail']} | "
+                f"위협구체화 {guardian_params['prefer_concrete_threat_detail']} | "
+                f"문체온도 {guardian_params['prose_scene_temperature']} | "
+                f"클루투입: {clue_thr_summary}"
+            )
+            await notify(f"{DAILY_TAG}[GUARDIAN] 🎛️ 추천 파라미터: {param_summary}")
             await notify(f"{DAILY_TAG}[GUARDIAN] 💸 {_format_budget_line('Guardian 분석 비용', guardian_budget)}")
 
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료 — 브리핑이 챕터 생성에 사용됩니다")
 
-        return True, briefing_path
+        return True, briefing_path, guardian_params
 
     except Exception as exc:
         if notify:
@@ -1161,7 +1227,7 @@ async def step_guardian(
     if notify:
         await notify(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료")
 
-    return True, None
+    return True, None, dict(_GUARDIAN_DEFAULTS)
 
 
 # ── Step 2: Simulator ──────────────────────────────────────────────────────────
@@ -4062,11 +4128,14 @@ async def run_daily_pipeline(
 
     # ── Step 1: Config Guardian ──
     _t0 = time.monotonic()
-    ok1, guardian_briefing_path = await step_guardian(
+    ok1, guardian_briefing_path, guardian_params = await step_guardian(
         episode_key, run_dir, cycle, notify, upload, set_status, stop_event, review_tier,
         cost_tracker=cost_tracker,
         metrics=cost_tracker,
     )
+    # Guardian 추천 파라미터를 episode_config에 주입 → Director/ProseGenerator가 사용
+    if isinstance(episode_config, dict):
+        episode_config.update(guardian_params)
     time_tracker["guardian"] = time.monotonic() - _t0
     if not ok1:
         if stop_event and stop_event.is_set():

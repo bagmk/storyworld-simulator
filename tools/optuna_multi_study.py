@@ -149,7 +149,6 @@ def _distiller_param_space(trial) -> dict:
     return {
         "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.1, 0.6),
         "distiller_max_tokens":          trial.suggest_int("distiller_max_tokens", 2000, 6000, step=500),
-        "role_cue_strength":             trial.suggest_float("role_cue_strength", 0.0, 1.0),
     }
 
 
@@ -184,6 +183,14 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
     db.DB_PATH = DB_PATH
     db.init_db()
 
+    # target_scenes는 Optuna 최적화 대상이 아님 — episode의 target_words에서 자동 계산.
+    # generate_chapter.py 와 동일한 공식: words_per_scene=500, min=3
+    _ep_target_words = int(episode_config.get("recommended_length", 3500))
+    _WORDS_PER_SCENE = 500
+    _fixed_target_scenes = max(3, round(_ep_target_words / _WORDS_PER_SCENE))
+    log.info("Distiller fixed target_scenes=%d (from recommended_length=%d)",
+             _fixed_target_scenes, _ep_target_words)
+
     def objective(trial) -> float:
         params = _distiller_param_space(trial)
         log.info("Trial %d | %s", trial.number, params)
@@ -199,7 +206,6 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
         runtime_policy = {
             "distiller_temperature":        params["distiller_temperature"],
             "distiller_max_tokens":         params["distiller_max_tokens"],
-            "role_cue_strength":            params["role_cue_strength"],
         }
 
         distiller = SceneDistiller(
@@ -212,7 +218,7 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
             scenes = distiller.distill(
                 episode_id=EPISODE_ID,
                 protagonist_id=PROTAGONIST,
-                target_scenes=params["target_scenes"],
+                target_scenes=_fixed_target_scenes,
             )
         except Exception as exc:
             log.warning("Trial %d distill failed: %s", trial.number, exc)
@@ -230,7 +236,7 @@ def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
     )
     if warmup_log:
         _distiller_keys = {
-            "distiller_temperature", "distiller_max_tokens", "role_cue_strength",
+            "distiller_temperature", "distiller_max_tokens",
         }
         n_enqueued = _enqueue_warmup_trials(study, warmup_log, _distiller_keys)
         log.info("Distiller warmup: %d trials enqueued from %s", n_enqueued, warmup_log)
@@ -440,12 +446,7 @@ def _polisher_param_space(trial) -> dict:
         "prose_polish_temperature":        trial.suggest_float("prose_polish_temperature", 0.2, 0.8),
         # Anchor fix temperature
         "prose_anchor_fix_temperature":    trial.suggest_float("prose_anchor_fix_temperature", 0.2, 0.6),
-        # Clue injection timing: 0=early (first pass), 1=late (anchor-fix pass)
-        "clue_injection_timing":           trial.suggest_categorical("clue_injection_timing", [0, 1]),
-        # Pressure peak hold: keep tension at peak vs release after peak
-        "hold_pressure_peak":              trial.suggest_categorical("hold_pressure_peak", [0, 1]),
-        # Repeated concern loop reduction: 0=off, 1=on
-        "repeated_concern_loop_reduction": trial.suggest_categorical("repeated_concern_loop_reduction", [0, 1]),
+        # hold_pressure_peak removed: now set per-episode by Config Guardian
     }
 
 
@@ -548,9 +549,7 @@ def run_polisher_study(n_trials: int, warmup_log: str | None = None) -> None:
         runtime_policy = {
             "prose_polish_temperature":        params["prose_polish_temperature"],
             "prose_anchor_fix_temperature":    params["prose_anchor_fix_temperature"],
-            "clue_injection_timing":           params["clue_injection_timing"],
-            "hold_pressure_peak":              params["hold_pressure_peak"],
-            "repeated_concern_loop_reduction": params["repeated_concern_loop_reduction"],
+            # hold_pressure_peak: set by Config Guardian per episode, not tuned here
             # Keep best prose params
             "prose_scene_temperature":         0.72,
             "prose_paragraph_min_sentences":   3,
@@ -596,8 +595,7 @@ def run_polisher_study(n_trials: int, warmup_log: str | None = None) -> None:
     )
     if warmup_log:
         _polisher_keys = {
-            "prose_polish_temperature", "prose_anchor_fix_temperature", "clue_injection_timing",
-            "hold_pressure_peak", "repeated_concern_loop_reduction",
+            "prose_polish_temperature", "prose_anchor_fix_temperature",
         }
         n_enqueued = _enqueue_warmup_trials(study, warmup_log, _polisher_keys)
         log.info("Polisher warmup: %d trials enqueued from %s", n_enqueued, warmup_log)

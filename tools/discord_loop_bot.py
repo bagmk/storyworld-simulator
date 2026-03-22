@@ -1324,6 +1324,7 @@ async def _send_team_reconnect_celebration(
         "        --protagonist kim_sumin\n"
         "        --review-tier mini|premium\n"
         "        --outer-cycles 1~50\n"
+        "  플랜 승인 팝업 → 1 (시작) / 2 (취소)\n"
         "─────────────────────────────────────\n"
         "!status             현재 파이프라인 상태·진행 단계\n"
         "!usage              세션 토큰·비용 사용량\n"
@@ -1332,6 +1333,10 @@ async def _send_team_reconnect_celebration(
         "!benchmark [ep]     에피소드별 점수 추이\n"
         "!parameter          Optuna 파라미터 현황 및 변화 이력\n"
         "!emotion [ep]       최근 씬 감정 궤적 차트\n"
+        "─────────────────────────────────────\n"
+        "!approve <req_id>   Guardian config 변경 승인\n"
+        "!reject <req_id>    Guardian config 변경 거절\n"
+        "─────────────────────────────────────\n"
         "!reboot             봇 재부팅\n"
         "!shutdown           봇 완전 종료\n"
         "!meitner <질문>      저장소 구조·코드 질문\n"
@@ -1575,27 +1580,29 @@ def _build_parameter_report(
         "Distiller": [
             "distiller_temperature", "distiller_max_tokens",
             "target_scenes", "scene_target_bias", "scene_target_min", "scene_target_max",
-            "role_cue_strength",
             "prose_history_max_episodes",
         ],
         "Prose": [
-            "prose_scene_temperature", "prose_transition_temperature",
+            "prose_transition_temperature",
             "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
             "prose_scene_readability_temperature",
         ],
         "Polish": [
             "prose_polish_temperature", "prose_anchor_fix_temperature",
-            "hold_pressure_peak",
-            "repeated_concern_loop_reduction", "clue_injection_timing",
         ],
         "Flags / Reader": [
             "prose_enable_term_gloss",
-            "prefer_concrete_offer_detail", "prefer_concrete_threat_detail",
             "prefer_concrete_transition_cue", "prefer_scene_exit_on_stall",
             "director_fallback_cast_size",  # 고정값=4, 탐색 제외
             "reader_prefers_dialogue_compaction",
             "reader_prefers_analytical_wording_reduction",
             "repetition_jaccard_threshold",
+        ],
+        "Guardian (per-episode)": [
+            "prose_scene_temperature",        # Guardian이 화별 문체 온도 결정
+            "hold_pressure_peak",             # Guardian이 압박 유지 여부 결정
+            "prefer_concrete_offer_detail",   # Guardian이 제안 구체화 결정
+            "prefer_concrete_threat_detail",  # Guardian이 위협 구체화 결정
         ],
     }
 
