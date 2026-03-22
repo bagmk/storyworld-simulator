@@ -954,6 +954,76 @@ async def _stream_subprocess(
 
 # ── Step 1: Config Guardian ────────────────────────────────────────────────────
 
+_GUARDIAN_CACHE_DIR = REPO_ROOT / "data" / "guardian_cache"
+
+
+def _guardian_cache_path(episode_key: str) -> Path:
+    return _GUARDIAN_CACHE_DIR / f"{episode_key}.json"
+
+
+def _compute_guardian_source_hash(episode_key: str, window: int = 3) -> str:
+    """현재 화 ±window YAML + story_context.yaml 내용의 MD5 해시."""
+    import hashlib
+    ep_dir = REPO_ROOT / "config" / "episodes"
+    story_ctx = REPO_ROOT / "config" / "story_context.yaml"
+
+    all_ep_files = sorted(ep_dir.glob("ep*.yaml"))
+    current_idx = next(
+        (i for i, f in enumerate(all_ep_files)
+         if f.stem == episode_key or f.stem.startswith(episode_key.split("_")[0] + "_")),
+        None,
+    )
+    if current_idx is None:
+        ep_num = episode_key[:4]
+        current_idx = next(
+            (i for i, f in enumerate(all_ep_files) if f.stem.startswith(ep_num)), None
+        )
+
+    paths: list[Path] = []
+    if current_idx is not None:
+        start = max(0, current_idx - window)
+        end = min(len(all_ep_files) - 1, current_idx + window)
+        paths = all_ep_files[start:end + 1]
+    if story_ctx.exists():
+        paths.append(story_ctx)
+
+    h = hashlib.md5()
+    for p in paths:
+        try:
+            h.update(p.read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()
+
+
+def _load_guardian_cache(episode_key: str) -> tuple[dict, str] | None:
+    """캐시 히트 시 (guardian_params, briefing_text) 반환. 미스/해시 불일치 시 None."""
+    cache_path = _guardian_cache_path(episode_key)
+    if not cache_path.exists():
+        return None
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        current_hash = _compute_guardian_source_hash(episode_key)
+        if cached.get("source_hash") != current_hash:
+            return None  # YAML 변경됨 → 재생성
+        return cached["params"], cached.get("briefing_text", "")
+    except Exception:
+        return None
+
+
+def _save_guardian_cache(episode_key: str, guardian_params: dict, briefing_text: str) -> None:
+    """Guardian 결과를 캐시 파일로 저장."""
+    _GUARDIAN_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = _guardian_cache_path(episode_key)
+    payload = {
+        "source_hash": _compute_guardian_source_hash(episode_key),
+        "generated_at": __import__("datetime").datetime.now().isoformat(),
+        "params": guardian_params,
+        "briefing_text": briefing_text,
+    }
+    cache_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _load_context_window_for_guardian(episode_key: str, window: int = 3) -> dict:
     """
     Load story_context.yaml + the current episode ±window YAML files.
@@ -1145,7 +1215,30 @@ async def step_guardian(
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청 {len(pending_requests)}건:\n{req_list}")
 
-    # ── GPT 컨텍스트 분석 ──
+    # ── GPT 컨텍스트 분석 (캐시 우선) ──
+    cached = await asyncio.to_thread(_load_guardian_cache, episode_key)
+    if cached is not None:
+        cached_params, cached_briefing = cached
+        briefing_path = run_dir / "guardian_briefing.txt"
+        briefing_path.write_text(cached_briefing, encoding="utf-8")
+        if notify:
+            await notify(f"{DAILY_TAG}[GUARDIAN] ⚡ 캐시 사용 — YAML 변경 없음, GPT 분석 생략")
+            clue_thr_summary = (
+                ", ".join(f"{k}={v}" for k, v in cached_params.get("clue_thresholds", {}).items())
+                or "없음"
+            )
+            param_summary = (
+                f"캐스팅 {cached_params.get('fallback_cast_size', 2)}명 | "
+                f"압박유지 {cached_params.get('hold_pressure_peak', 0)} | "
+                f"제안구체화 {cached_params.get('prefer_concrete_offer_detail', 0)} | "
+                f"위협구체화 {cached_params.get('prefer_concrete_threat_detail', 0)} | "
+                f"문체온도 {cached_params.get('prose_scene_temperature', 0.75)} | "
+                f"클루투입: {clue_thr_summary}"
+            )
+            await notify(f"{DAILY_TAG}[GUARDIAN] 🎛️ 추천 파라미터 (캐시): {param_summary}")
+            await notify(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료 — 캐시된 브리핑 사용")
+        return True, briefing_path, cached_params
+
     if notify:
         await notify(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중 (±3화 + story_context)...")
 
@@ -1197,6 +1290,9 @@ async def step_guardian(
             "prose_scene_temperature":      _float_match(r"RECOMMENDED_PROSE_SCENE_TEMPERATURE:\s*(0\.\d+)", 0.75),
             "clue_thresholds":              clue_thresholds,
         }
+
+        # 캐시 저장 (다음 실행부터 GPT 생략)
+        await asyncio.to_thread(_save_guardian_cache, episode_key, guardian_params, gpt_report)
 
         if notify:
             await notify(f"{DAILY_TAG}[GUARDIAN] 🧭 GPT 생성용 브리핑:\n{gpt_report}")
