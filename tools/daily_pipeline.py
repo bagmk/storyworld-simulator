@@ -3210,6 +3210,43 @@ async def _run_gpt_fixer(
         if not files_to_write:
             return False, "GPT가 수정할 파일을 반환하지 않음"
 
+        # Patterns that indicate GPT returned a partial/truncated file instead of the full content
+        _TRUNCATION_PATTERNS = [
+            r"^\s*\.\.\.",                                   # starts with ...
+            r"^\s*#\s*\.\.\.",                               # starts with # ...
+            r"#\s*\.\.\.\s*\(rest.*unchanged\)",            # # ... (rest unchanged)
+            r"#\s*\.\.\.\s*\(나머지.*동일\)",               # Korean equivalent
+            r"#\s*\.\.\.\s*\(기존.*유지\)",
+            r"#\s*\.\.\.\s*\(이하.*동일\)",
+            r"#\s*existing code remains",
+            r"#\s*rest of (the )?class unchanged",
+            r"#\s*이하 동일",
+            r"#\s*기존 코드 유지",
+        ]
+        import re as _re
+
+        def _is_truncated_content(path: str, content: str) -> str | None:
+            """Return a description of the truncation pattern found, or None if content looks complete."""
+            first_line = content.lstrip().split("\n")[0] if content.strip() else ""
+            # Check if file starts with ellipsis (most dangerous case)
+            if _re.match(r"^\s*\.\.\.", content.lstrip()):
+                return f"content starts with '...' (partial file — first line: {first_line!r})"
+            for pat in _TRUNCATION_PATTERNS:
+                if _re.search(pat, content, _re.IGNORECASE | _re.MULTILINE):
+                    match = _re.search(pat, content, _re.IGNORECASE | _re.MULTILINE)
+                    return f"truncation marker found: {match.group()!r}"
+            # For .py files: warn if content is suspiciously short vs original
+            if path.endswith(".py") and path in file_contents:
+                original_lines = file_contents[path].count("\n")
+                new_lines = content.count("\n")
+                if original_lines > 100 and new_lines < original_lines * 0.4:
+                    return (
+                        f"suspicious size reduction: {original_lines} → {new_lines} lines "
+                        f"({new_lines / original_lines:.0%} of original)"
+                    )
+            return None
+
+        truncation_errors: list[str] = []
         modified_paths: list[str] = []
         for file_entry in files_to_write:
             rel_path = file_entry.get("path", "")
@@ -3219,12 +3256,28 @@ async def _run_gpt_fixer(
             # 허용된 경로만 쓰기 허용
             if rel_path not in FIXER_TARGET_FILES:
                 continue
+            # Truncation guard: refuse to write partial files
+            trunc_reason = _is_truncated_content(rel_path, content)
+            if trunc_reason:
+                truncation_errors.append(f"{rel_path}: {trunc_reason}")
+                continue
             abs_path = REPO_ROOT / rel_path
             abs_path.parent.mkdir(parents=True, exist_ok=True)
             abs_path.write_text(content, encoding="utf-8")
             modified_paths.append(rel_path)
 
+        if truncation_errors:
+            err_text = "\n".join(truncation_errors)
+            logger.warning("[FIXER] Truncated file content rejected:\n%s", err_text)
+            if notify:
+                await notify(
+                    f"{DAILY_TAG}[FIXER] ⛔ 부분 파일 쓰기 거부 (생략 표현 감지):\n```\n{err_text[:600]}\n```\n"
+                    "GPT가 전체 파일 대신 요약본을 반환했습니다. 해당 파일은 수정되지 않았습니다."
+                )
+
         if not modified_paths:
+            if truncation_errors:
+                return False, "GPT가 부분 파일(생략 표현 포함)만 반환하여 쓰기 거부됨:\n" + "\n".join(truncation_errors)
             return False, "GPT 응답에서 유효한 파일 수정 없음"
 
         # py_compile 검증
@@ -4229,9 +4282,6 @@ async def run_daily_pipeline(
         cost_tracker=cost_tracker,
         metrics=cost_tracker,
     )
-    # Guardian 추천 파라미터를 episode_config에 주입 → Director/ProseGenerator가 사용
-    if isinstance(episode_config, dict):
-        episode_config.update(guardian_params)
     time_tracker["guardian"] = time.monotonic() - _t0
     if not ok1:
         if stop_event and stop_event.is_set():
