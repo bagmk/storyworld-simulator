@@ -2,7 +2,7 @@
 """
 Discord bot for the Novel Writer project.
 
-Supports: !novel-daily, !meitner, !status, !usage, !stop, !chapter, !approve, !reject, !emotion
+Supports: !novel-daily, !meitner, !status, !usage, !stop, !chapter, !approve, !reject, !emotion, !killdup
 """
 
 from __future__ import annotations
@@ -61,6 +61,8 @@ CMD_PARAMETER = "!parameter"
 CMD_REBOOT = "!reboot"
 CMD_SHUTDOWN = "!shutdown"
 CMD_EMOTION = "!emotion"
+CMD_GUARDIAN_REFRESH = "!guardian-refresh"
+CMD_KILLDUP = "!killdup"
 
 # Daily pipeline: per-channel state
 DAILY_FEEDBACK_QUEUES: dict[int, asyncio.Queue] = {}
@@ -1334,11 +1336,13 @@ async def _send_team_reconnect_celebration(
         "!parameter          Optuna 파라미터 현황 및 변화 이력\n"
         "!emotion [ep]       최근 씬 감정 궤적 차트\n"
         "─────────────────────────────────────\n"
-        "!approve <req_id>   Guardian config 변경 승인\n"
-        "!reject <req_id>    Guardian config 변경 거절\n"
+        "!guardian-refresh [ep]  Guardian 캐시 삭제 후 재분석\n"
+        "!approve <req_id>       Guardian config 변경 승인\n"
+        "!reject <req_id>        Guardian config 변경 거절\n"
         "─────────────────────────────────────\n"
         "!reboot             봇 재부팅\n"
         "!shutdown           봇 완전 종료\n"
+        "!killdup            중복 실행된 봇 프로세스 종료 (1개만 유지)\n"
         "!meitner <질문>      저장소 구조·코드 질문\n"
         "```"
     )
@@ -2052,6 +2056,43 @@ async def async_main() -> None:
             await asyncio.sleep(1)
             os.execv(sys.executable, [sys.executable] + sys.argv)
 
+        # ── !killdup ──────────────────────────────────────────────────────────
+        if command == CMD_KILLDUP and not arg_text:
+            ch_id = message.channel.id
+            my_pid = os.getpid()
+            killed: list[int] = []
+            errors: list[str] = []
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", "discord_loop_bot.py"],
+                    capture_output=True, text=True,
+                )
+                pids = [int(p) for p in result.stdout.split() if p.strip().isdigit()]
+                dup_pids = [p for p in pids if p != my_pid]
+                for pid in dup_pids:
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        killed.append(pid)
+                    except ProcessLookupError:
+                        pass  # 이미 종료됨
+                    except PermissionError as e:
+                        errors.append(f"PID {pid}: 권한 없음 ({e})")
+            except Exception as e:
+                errors.append(str(e))
+
+            if not killed and not errors:
+                msg = f"✅ 중복 봇 없음. 현재 PID: {my_pid}"
+            else:
+                lines = [f"🔫 중복 봇 종료 완료 (현재 PID: {my_pid})"]
+                if killed:
+                    lines.append(f"  종료된 PID: {', '.join(str(p) for p in killed)}")
+                if errors:
+                    lines.append(f"  오류: {'; '.join(errors)}")
+                msg = "\n".join(lines)
+
+            await _send_text_with_token(message.channel, ch_id, msg, manager_bot_token)
+            return
+
         # ── !stop ─────────────────────────────────────────────────────────────
         if command == CMD_PIPELINE_STOP and not arg_text:
             ch_id = message.channel.id
@@ -2159,6 +2200,36 @@ async def async_main() -> None:
                 await _send_text_with_token(
                     message.channel, ch_id,
                     f"❌ 차트 생성 실패: {_e}",
+                    manager_bot_token,
+                )
+            return
+
+        # ── !guardian-refresh [episode_key] ──────────────────────────────────
+        if command == CMD_GUARDIAN_REFRESH:
+            ch_id = message.channel.id
+            ep_key = arg_text.strip() or DAILY_EPISODE_KEYS.get(ch_id) or None
+            if not ep_key:
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    "⚠️ 에피소드 키를 지정하거나 `!novel-daily` 실행 후 사용하세요.\n"
+                    "예: `!guardian-refresh ep01_academic_presentation`",
+                    manager_bot_token,
+                )
+                return
+            from tools.daily_pipeline import _guardian_cache_path
+            cache_path = _guardian_cache_path(ep_key)
+            if cache_path.exists():
+                cache_path.unlink()
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    f"🗑️ `{ep_key}` Guardian 캐시 삭제 완료.\n"
+                    f"다음 `!novel-daily` 실행 시 GPT 재분석합니다.",
+                    manager_bot_token,
+                )
+            else:
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    f"ℹ️ `{ep_key}` Guardian 캐시 없음 (이미 최신 상태).",
                     manager_bot_token,
                 )
             return
