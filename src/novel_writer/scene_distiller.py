@@ -959,7 +959,7 @@ class SceneDistiller:
             budget += 1
         if self._reader_reports_timeline_confusion():
             budget += 1
-        return max(0, min(budget, max(0, target_scenes - 3)))
+        return max(0, min(budget, max(0, target_scenes // 4)))
 
     def _merge_low_signal_adjacent_scenes(
         self,
