@@ -3806,48 +3806,6 @@ async def step_auto_improve_loop(
         if avg >= score_threshold:
             break
 
-        # ── Fix E: YAML auto-feedback (if still below threshold, patch episode YAML) ──
-        if avg < score_threshold and outer_cycle < _outer_max:
-            if notify:
-                await notify(
-                    f"{DAILY_TAG}[AUTO] 📝 Fix E — YAML 자동 피드백 시작 "
-                    f"(avg={avg:.1f} < {score_threshold})"
-                )
-            try:
-                _yaml_feedback = _build_yaml_auto_feedback(review_json)
-                _yaml_ok, _yaml_summary = await _run_story_fixer(
-                    episode_key=episode_key,
-                    user_feedback=_yaml_feedback,
-                    run_dir=run_dir,
-                    fixer_cycle=_global_fixer_cycle,
-                    set_process=set_process,
-                    codex_model=_codex_model_for_tier(review_tier),
-                )
-                if _yaml_ok:
-                    if notify:
-                        await notify(
-                            f"{DAILY_TAG}[AUTO] ✅ YAML 수정 완료:\n{_yaml_summary[:400]}"
-                        )
-                    # Re-simulate so the next outer cycle's Phase A sees the new YAML
-                    _yaml_sim_ok = await step_simulator(
-                        episode_key=episode_key, run_dir=run_dir, cycle=daily_cycle,
-                        budget=budget, notify=notify, set_status=set_status,
-                        stop_event=stop_event, set_process=set_process,
-                        cost_tracker=cost_tracker, metrics=metrics,
-                        auto_cycle_index=_global_fixer_cycle,
-                        auto_max_cycles=_outer_max * _inner_max,
-                        guardian_briefing_path=guardian_briefing_path,
-                    )
-                    if not _yaml_sim_ok and notify:
-                        await notify(f"{DAILY_TAG}[AUTO] ⚠️ YAML 수정 후 재시뮬레이션 실패 — 다음 outer cycle 진행")
-                else:
-                    if notify:
-                        await notify(f"{DAILY_TAG}[AUTO] ⚠️ YAML 수정 실패: {_yaml_summary[:200]}")
-            except Exception as _yaml_exc:
-                logger.warning("[AUTO] Fix E YAML feedback failed: %s", _yaml_exc)
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ YAML 자동 피드백 오류: {_yaml_exc}")
-
         if notify and outer_cycle < _outer_max:
             await notify(
                 f"{DAILY_TAG}[AUTO] 🔄 Phase C {_inner_max}회 소진 (avg {avg:.1f}) "
