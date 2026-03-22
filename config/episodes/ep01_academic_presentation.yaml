@@ -14,82 +14,61 @@ episode:
 
   introduced_clues:
     - id: clue_ep01_academic_presentation_c01
-      content: >
-        모레노 교수의 첫 슬라이드에는 이렇게 적혀 있었다.
-        《Quantum Coherence Scaling: T₂ → T₂ × 3.7》
-        3.7배. 단순한 개선이 아니었다. 발표가 이어질수록 수민은 그 수치보다 더 중요한 것을 알아차린다.
-        모레노가 설명하는 병목은 자신이 붙들고 있던 문제와 정확히 맞닿아 있었다.
-        위상 드리프트, 실시간 보상, 온도 변화에 따른 편차. 이름만 달랐지, 구조는 같았다.
-        발표를 듣는 동안 처음으로 이런 생각이 들었다.
-        ‘내 아이디어가 틀린 게 아니라, 아직 구현할 환경이 없었던 건가.’
+      content: |
+        모레노 교수의 첫 슬라이드 제목: 《Quantum Coherence Scaling: T₂ → T₂ × 3.7》
+        이후 슬라이드에서 그가 설명한 병목들: 위상 드리프트(phase drift), 실시간 보상(real-time compensation), 온도 변화에 따른 편차(thermal variance correction).
+        발표 중간, 모레노가 말했다. "기존 제어 알고리즘의 한계는 속도가 아니라 예측 구조에 있습니다."
       trigger: Moreno mentions coherence scaling, drift compensation, or real-time control in the presentation; or Sumin reacts to a slide or number on screen
       inject_threshold: 0.30
       inject_method: system_alert
 
     - id: clue_ep01_academic_presentation_c02
-      content: >
-        앞줄 오른쪽에 앉은 몇몇 사람들은 일반 청중 같지 않았다.
-        그들은 박수 타이밍도, 감탄도, 고개를 끄덕이는 순간도 없었다.
-        대신 기술 슬라이드가 나올 때만 움직였다.
-        특히 수식이 아니라 구현 조건이 적힌 장면—보정 주기, drift window, control latency—에서만
-        동시에 시선이 고정됐다. 그 반응은 ‘흥미롭다’가 아니라 ‘쓸 수 있겠다’에 가까웠다.
-        수민은 그 순간 처음으로, 이 발표가 논문 하나로 끝나지 않을 수도 있다는 생각을 한다.
+      content: |
+        발표장 앞줄 오른쪽. 서너 명이 앉아있었다. 박수도, 메모도 없었다.
+        기술 슬라이드가 나올 때만 자세가 바뀌었다. 특히 구현 조건 슬라이드—보정 주기(correction cycle), drift window, control latency—에서 동시에 화면을 향했다.
+        그 중 한 명은 슬라이드가 넘어갈 때마다 옆 사람에게 짧게 무언가를 말했다. 마이크가 없어 들리지 않았다.
       trigger: Sumin notices audience members who are not typical academics; or any agent scans the room or comments on the audience; or Miller, Moreno, or an unnamed observer is described watching the screen
       inject_threshold: 0.38
       inject_method: environmental_cue
 
     - id: clue_ep01_academic_presentation_c03
-      content: >
-        쉬는 시간 직전, 한 남자가 메모장에 적어둔 단어 몇 개가 수민의 눈에 스친다.
+      content: |
+        쉬는 시간 직전, 옆자리 남자의 메모장이 잠깐 보였다.
         COHERENCE.
         DRIFT.
         COMPENSATION LAYER?
-        마지막 줄에는 동그라미 쳐진 문장이 있었다.
-        “real-time viable if externally supported”
-        대학원생의 세미나 메모처럼 보이지 않았다.
-        아이디어를 이해하려는 필기가 아니라, 투자 가능성과 실행 가능성을 가르는 검토표 같았다.
+        그 아래 동그라미 친 문장: "real-time viable if externally supported"
+        메모장 상단 모서리에는 'AMRD-7'이라는 인쇄된 글자가 있었다. 대학원생 노트가 아니었다.
       trigger: any agent moves or writes during a slide; or Miller is seen making notes; or a physical object (notebook, badge, phone) appears in scene
       inject_threshold: 0.46
       inject_method: document_artifact
 
     - id: clue_ep01_academic_presentation_c04
-      content: >
-        복도에서 마주친 모레노는 반가운 표정을 지었지만, 말은 예상보다 직선적이었다.
-        “네가 예전에 했던 보상 회로 발상, 아직 붙들고 있지?”
-        그는 안부도 길게 묻지 않았다.
-        대신 수민의 다음 단계가 어디까지 와 있는지, 실험 환경이 있는지, 제어 루프를 직접 돌릴 수 있는지부터 확인했다.
-        마치 멘토라기보다, 누군가에게 넘기기 전에 최종 확인을 하는 사람처럼.
-        그리고 낮은 목소리로 덧붙였다.
-        “그건 혼자 오래 끌 수 있는 종류의 문제가 아니야.”
+      content: |
+        쉬는 시간, 복도에서 모레노가 수민에게 먼저 말을 걸었다.
+        "네가 예전에 했던 보상 회로 발상, 아직 붙들고 있지?"
+        안부 없이 바로 물었다. 수민의 실험 환경이 있는지, 제어 루프를 직접 돌릴 수 있는지.
+        그리고 낮게 덧붙였다. "그건 혼자 오래 끌 수 있는 종류의 문제가 아니야."
       trigger: Moreno speaks directly to Sumin about her research, resources, or next steps; or any NPC asks about Sumin's experimental setup or progress
       inject_threshold: 0.52
       inject_method: npc_question
 
     - id: clue_ep01_academic_presentation_c05
-      content: >
-        모레노는 잠깐 말을 멈췄다가 발표장 안쪽을 한 번 돌아봤다.
-        “실시간 보정은 논문으로는 설명돼도, 실제로 굴리려면 다른 종류의 지원이 필요해.”
-        그의 말은 조언처럼 들렸지만, 사실상 방향 제시였다.
-        장비 몇 대와 학생 인건비로는 안 된다.
-        온도 변화까지 예측하는 제어, 장시간 안정화, 반복 검증, 폐쇄형 테스트 환경—
-        그런 건 누군가가 의지를 갖고 밀어줘야만 가능하다.
-        수민은 그 말을 듣는 순간 불쾌감보다 먼저 어떤 유혹을 느낀다.
-        누군가 정말로 이걸 끝까지 밀어준다면?
+      content: |
+        모레노가 발표장 안쪽을 한 번 돌아보고 말했다.
+        "실시간 보정은 논문으로는 설명돼도, 실제로 굴리려면 다른 종류의 지원이 필요해."
+        구체적으로 열거했다. 온도 변화 예측 제어, 장시간 안정화, 반복 검증, 폐쇄형 테스트 환경.
+        "그런 건 누군가가 의지를 갖고 밀어줘야만 가능하다."
       trigger: Moreno mentions support, funding, resources, or external collaboration; or the conversation moves to what Sumin would need to make her idea real
       inject_threshold: 0.58
       inject_method: npc_question
 
     - id: clue_ep01_academic_presentation_c06
-      content: >
-        Miller는 명함을 먼저 꺼내지 않았다.
-        그는 발표가 인상적이었다고도 하지 않았다.
-        대신 수민이 지금 어떤 환경에서 일하는지, 무엇이 가장 느린 병목인지, 
-        아이디어가 아니라 실험 체계 쪽에서 어디까지 손에 쥐고 싶은지를 물었다.
-        그 질문 방식은 연구자를 칭찬하는 사람의 것이 아니라, 실행 가능한 사람을 가려내는 사람의 것이었다.
-        그리고 마지막에야 조용히 말했다.
-        “공식 과제는 느리죠. 더 민첩한 지원 구조를 찾는 사람들도 있습니다.”
-        그 문장은 협박보다 훨씬 더 위험했다.
-        선택지처럼 들렸기 때문이다.
+      content: |
+        발표 후 스폰서 라운지. 한 남자가 수민에게 다가왔다. 명함은 꺼내지 않았다.
+        발표 감상도 없었다. 대신 수민의 현재 실험 환경, 병목 구간, 실험 체계의 어느 부분까지 직접 통제하고 싶은지를 물었다.
+        마지막에 말했다. "공식 과제는 느리죠. 더 민첩한 지원 구조를 찾는 사람들도 있습니다."
+        그가 자리를 뜨면서 작은 카드를 테이블에 남겼다. 이름: 'D. Miller'. 소속란은 비어있었다.
       trigger: Miller speaks to Sumin directly; or any unnamed man approaches Sumin after the presentation; or Miller asks about her research environment or constraints
       inject_threshold: 0.64
       inject_method: npc_offer
