@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import date
 from pathlib import Path
 
@@ -47,6 +48,10 @@ _ALL_LLM_CRITERIA = [
     "literary_quality", "emotional_tension", "readability", "sentence_diversity",
     "paragraph_rhythm", "prose_vividness", "dialogue_effectiveness", "pacing_tension_balance",
 ]
+_REPETITION_STOPWORDS = {
+    "그리고", "그러나", "하지만", "그래서", "정말", "아주", "매우", "조금",
+    "것", "수", "더", "또", "그", "이", "저", "때문", "정도",
+}
 
 
 def _build_criterion_weights(quality_focus: dict | None) -> dict[str, float]:
@@ -164,16 +169,116 @@ def _score_llm(chapter_text: str, criterion_weights: dict[str, float] | None = N
         return 0.0
 
 
+def _score_llm_claude(chapter_text: str, criterion_weights: dict[str, float] | None = None) -> float:
+    """Claude-based LLM scorer. Ensembles with GPT to reduce self-preference bias (Fix B)."""
+    try:
+        import anthropic
+    except ImportError:
+        return 0.0
+
+    text = chapter_text.strip()
+    if len(text) > 3000:
+        excerpt = text[:2000] + "\n\n...[중략]...\n\n" + text[-1000:]
+    else:
+        excerpt = text
+
+    prompt = _LLM_SCORER_CRITERIA + f"\n--- EXCERPT ---\n{excerpt}\n--- END ---"
+    try:
+        client = anthropic.Anthropic()
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            system=_LLM_SCORER_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (msg.content[0].text if msg.content else "").strip()
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw).strip()
+        scores = json.loads(raw)
+        numeric = {k: float(v) for k, v in scores.items() if isinstance(v, (int, float))}
+        if not numeric:
+            return 0.0
+        if criterion_weights:
+            total_w = sum(criterion_weights.get(k, 1.0) for k in numeric)
+            return round(sum(v * criterion_weights.get(k, 1.0) for k, v in numeric.items()) / total_w, 3)
+        return round(sum(numeric.values()) / len(numeric), 3)
+    except Exception as exc:
+        logger.warning("Claude LLM scorer error: %s", exc)
+        return 0.0
+
+
+_LLM_SCORE_RUNS = 3  # LLM 채점 반복 횟수 — 평균으로 분산 감소
+
+
 def _score_chapter(
     chapter_text: str, episode_id: str, quality_focus: dict | None = None
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     det = _score_deterministic(chapter_text, episode_id)
     weights = _build_criterion_weights(quality_focus)
-    llm = _score_llm(chapter_text, criterion_weights=weights)
-    combined = round(0.4 * det + 0.6 * llm, 3)
-    logger.info("[SCORE] det=%.2f llm=%.2f combined=%.3f focus=%s",
-                det, llm, combined, list(quality_focus.keys()) if quality_focus else None)
-    return combined, det, llm
+
+    # GPT + Claude 각 3회씩 채점 후 평균 (LLM 분산 감소)
+    gpt_scores = [_score_llm(chapter_text, criterion_weights=weights) for _ in range(_LLM_SCORE_RUNS)]
+    gpt_score = round(sum(gpt_scores) / len(gpt_scores), 3)
+
+    claude_scores = [_score_llm_claude(chapter_text, criterion_weights=weights) for _ in range(_LLM_SCORE_RUNS)]
+    valid_claude = [s for s in claude_scores if s > 0.0]
+    claude_score = round(sum(valid_claude) / len(valid_claude), 3) if valid_claude else 0.0
+
+    # Ensemble GPT + Claude to reduce self-preference bias (Fix B)
+    if claude_score > 0.0:
+        llm = round((gpt_score + claude_score) / 2, 3)
+    else:
+        llm = gpt_score
+
+    repetition_penalty = _repetition_penalty(chapter_text)
+    # det 비중 축소 (0.2) — LLM 판단을 최대한 반영 (0.8)
+    combined = round(max(0.0, 0.2 * float(det or 0.0) + 0.8 * float(llm or 0.0) - float(repetition_penalty or 0.0)), 3)
+    logger.info(
+        "[SCORE] det=%.2f gpt=%.2f(×%d) claude=%.2f(×%d) ensemble=%.2f rep_penalty=%.3f combined=%.3f focus=%s",
+        det, gpt_score, _LLM_SCORE_RUNS, claude_score, _LLM_SCORE_RUNS,
+        llm, repetition_penalty, combined,
+        list(quality_focus.keys()) if quality_focus else None,
+    )
+    return combined, det, llm, repetition_penalty
+
+
+def _repetition_penalty(chapter_text: str) -> float:
+    text = str(chapter_text or "").strip()
+    if not text:
+        return 0.0
+
+    normalized = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", text.lower())
+    tokens = [tok for tok in normalized.split() if len(tok) >= 2 and tok not in _REPETITION_STOPWORDS]
+    if len(tokens) < 80:
+        return 0.0
+
+    token_counts = Counter(tokens)
+    repeated_token_ratio = sum(1 for count in token_counts.values() if count >= 6) / max(1, len(token_counts))
+    bigrams = list(zip(tokens, tokens[1:]))
+    bigram_counts = Counter(bigrams)
+    repeated_bigram_ratio = sum(1 for count in bigram_counts.values() if count >= 3) / max(1, len(bigram_counts))
+
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", text)
+        if s.strip()
+    ]
+    local_repeat_hits = 0
+    for prev, curr in zip(sentences, sentences[1:]):
+        prev_norm = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", prev.lower()).split()
+        curr_norm = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", curr.lower()).split()
+        if not prev_norm or not curr_norm:
+            continue
+        prev_set, curr_set = set(prev_norm), set(curr_norm)
+        overlap = len(prev_set & curr_set) / max(1, len(prev_set | curr_set))
+        if overlap >= 0.72:
+            local_repeat_hits += 1
+
+    penalty = min(
+        1.5,
+        repeated_token_ratio * 2.0 + repeated_bigram_ratio * 2.5 + (local_repeat_hits / max(1, len(sentences))) * 3.0,
+    )
+    return round(penalty, 3)
 
 
 # ── Single trial runner ───────────────────────────────────────────────────────
@@ -264,11 +369,16 @@ def _sync_run_trial(
 
     det = 0.0
     llm = 0.0
+    repetition_penalty = 0.0
     word_count = 0
     try:
         chapter_text = Path(chapter_path).read_text(encoding="utf-8")
         word_count = len(chapter_text.split())
-        score, det, llm = _score_chapter(chapter_text, episode_id, quality_focus=quality_focus)
+        score, det, llm, repetition_penalty = _score_chapter(
+            chapter_text,
+            episode_id,
+            quality_focus=quality_focus,
+        )
     except Exception as exc:
         logger.warning("Trial %d: scoring failed: %s", trial_idx, exc)
         score = 0.0
@@ -277,6 +387,7 @@ def _sync_run_trial(
     return score, Path(chapter_path), {
         "det": round(det, 3),
         "llm": round(llm, 3),
+        "repetition_penalty": round(repetition_penalty, 3),
         "scene_count": len(scenes),
         "raw_turn_total": int(sum(max(0, int(s.raw_turn_count or 0)) for s in scenes)),
         "target_scenes": int(trial_params.get("target_scenes", 0) or 0),
@@ -680,14 +791,29 @@ def log_cycle_score(
     ai_review_scores: dict,
     subtrial_data: list[dict],
     log_path: Path | None = None,
+    cost_tracker: dict | None = None,
 ) -> None:
     """Log one AUTO cycle's data: params, AI review scores, and subtrial results.
 
     ai_review_scores: {thrill, style, causality, character, scene_fn, avg}
     subtrial_data:    [{trial_idx, score, det, llm, params}, ...]
+    cost_tracker:     {guardian, simulation, chapter, auto_chapter, manager, auto_review, ...}
     """
     log_path = log_path or CYCLE_SCORE_LOG
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    _cost_breakdown: dict = {}
+    _total_cost_usd = 0.0
+    if cost_tracker:
+        _cost_keys = [
+            "guardian", "simulation", "chapter", "auto_chapter",
+            "manager", "auto_review", "code_review", "regen_check",
+            "final_review", "feedback_parse",
+        ]
+        for k in _cost_keys:
+            v = float(cost_tracker.get(k, 0.0))
+            if v > 0.0:
+                _cost_breakdown[k] = round(v, 6)
+                _total_cost_usd += v
     record = {
         "date": str(date.today()),
         "episode_id": episode_id,
@@ -695,6 +821,8 @@ def log_cycle_score(
         "ai_review": ai_review_scores,
         "cycle_params": current_params,
         "subtrials": subtrial_data,
+        "cost_usd": round(_total_cost_usd, 6),
+        "cost_breakdown": _cost_breakdown,
     }
     with log_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -711,6 +839,7 @@ def append_session_benchmark_row(
     score: float,
     det: float,
     llm: float,
+    repetition_penalty: float,
     params: dict[str, object],
 ) -> None:
     """Append one completed subtrial to this session's benchmark log."""
@@ -725,6 +854,7 @@ def append_session_benchmark_row(
         "score": round(float(score), 4),
         "det": round(float(det), 4),
         "llm": round(float(llm), 4),
+        "repetition_penalty": round(float(repetition_penalty), 4),
         "params": dict(params),
     }
     with log_path.open("a", encoding="utf-8") as f:
@@ -747,22 +877,42 @@ _PARAM_FULL_RANGES: dict[str, tuple] = {
     "scene_closure_aggressiveness":  ("float", 0.05, 0.5),
 }
 
+# Fix C: Split sim-level vs prose-level params for 2-study optimization.
+# sim params → affect distillation (what content enters the scene pipeline)
+# prose params → affect only how scenes are rendered as text
+_PARAM_SIM_RANGES: dict[str, tuple] = {
+    "distiller_temperature":         ("float", 0.05, 0.45),
+    "target_scenes":                 ("int",   2,    8),
+    "dialogue_compaction_strength":  ("float", 0.30, 1.0),
+    "scene_closure_aggressiveness":  ("float", 0.05, 0.70),
+}
+
+_PARAM_PROSE_RANGES: dict[str, tuple] = {
+    "prose_scene_temperature":       ("float", 0.45, 0.95),
+    "prose_paragraph_min_sentences": ("int",   2,    4),
+    "prose_paragraph_max_sentences": ("int",   3,    6),
+    "prose_transition_temperature":  ("float", 0.30, 0.80),
+    "prose_polish_temperature":      ("float", 0.15, 0.65),
+    "hold_pressure_peak":            ("cat",   [0, 1]),
+}
+
 
 def _narrow_width_from_n_trials(n_past_trials: int) -> float:
     """Compute search width_ratio based on accumulated trial count.
 
-    Starts at 0.30 (wide) and shrinks toward 0.12 as evidence accumulates.
-    Schedule: shrinks 15% every 10 trials, floor at 0.12.
+    Fix A: start raised 0.30→0.50, floor raised 0.12→0.25.
+    Prevents premature convergence in multimodal quality landscapes.
+    Schedule: shrinks 15% every 10 trials.
 
     Examples:
-      0  trials → 0.30 (full narrow band, TPE barely started)
-     10  trials → 0.255
-     20  trials → 0.217
-     30  trials → 0.184
-     50  trials → 0.133
-    100+ trials → ~0.12 (floor)
+      0  trials → 0.50 (wide)
+     10  trials → 0.425
+     20  trials → 0.361
+     30  trials → 0.307
+     50  trials → 0.221
+    100+ trials → ~0.25 (floor)
     """
-    return max(0.12, 0.30 * (0.85 ** (n_past_trials // 10)))
+    return max(0.25, 0.50 * (0.85 ** (n_past_trials // 10)))
 
 
 def _param_space_narrow(trial, base_policy: dict, width_ratio: float = 0.30) -> dict:
@@ -810,6 +960,246 @@ def _param_space_narrow(trial, base_policy: dict, width_ratio: float = 0.30) -> 
     return params
 
 
+# ── Warmup helpers ────────────────────────────────────────────────────────────
+
+def _enqueue_warmup_trials(study, psl_path: str, warmup_keys: set) -> int:
+    """Add past best-param trials from policy_score_log.jsonl to an in-memory study.
+
+    Each JSONL row that has best_params + best_score is added as a COMPLETE trial
+    so TPE can start from accumulated cross-episode knowledge.
+
+    Returns the number of trials successfully added.
+    """
+    import json as _json
+    from datetime import datetime as _dt
+    try:
+        import optuna
+        from optuna.distributions import (
+            FloatDistribution,
+            IntDistribution,
+            CategoricalDistribution,
+        )
+        from optuna.trial import FrozenTrial, TrialState
+    except ImportError:
+        return 0
+
+    # Build distribution map from _PARAM_FULL_RANGES
+    dist_map: dict = {}
+    for name, spec in _PARAM_FULL_RANGES.items():
+        if name not in warmup_keys:
+            continue
+        kind = spec[0]
+        if kind == "float":
+            dist_map[name] = FloatDistribution(float(spec[1]), float(spec[2]))
+        elif kind == "int":
+            dist_map[name] = IntDistribution(int(spec[1]), int(spec[2]))
+        elif kind == "cat":
+            dist_map[name] = CategoricalDistribution(list(spec[1]))
+
+    n_added = 0
+    try:
+        with open(psl_path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return 0
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = _json.loads(line)
+        except _json.JSONDecodeError:
+            continue
+        best_params = row.get("best_params", {})
+        best_score = row.get("best_score")
+        if best_score is None or not best_params:
+            continue
+
+        # Filter to keys that are in both warmup_keys and dist_map
+        trial_params: dict = {}
+        trial_dists: dict = {}
+        for k, dist in dist_map.items():
+            if k not in best_params:
+                continue
+            val = best_params[k]
+            # Type-coerce
+            if isinstance(dist, FloatDistribution):
+                val = float(val)
+            elif isinstance(dist, IntDistribution):
+                val = int(round(float(val)))
+            trial_params[k] = val
+            trial_dists[k] = dist
+
+        if not trial_params:
+            continue
+
+        now = _dt.now()
+        try:
+            frozen = FrozenTrial(
+                number=n_added,
+                trial_id=n_added,
+                state=TrialState.COMPLETE,
+                value=float(best_score),
+                datetime_start=now,
+                datetime_complete=now,
+                params=trial_params,
+                distributions=trial_dists,
+                intermediate_values={},
+                user_attrs={},
+                system_attrs={},
+            )
+            study.add_trial(frozen)
+            n_added += 1
+        except Exception:
+            continue
+
+    return n_added
+
+
+# ── Fix C helpers: distill-only and prose-from-scenes ────────────────────────
+
+def _sync_run_distill(
+    sim_params: dict,
+    episode_id: str,
+    episode_config: dict,
+    llm,
+    protagonist_id: str,
+    base_policy: dict,
+    reader_feedback: dict | None,
+) -> list:
+    """Run distillation only with sim_params. Returns list of DistilledScene."""
+    from src.novel_writer.scene_distiller import SceneDistiller
+    trial_policy = dict(base_policy)
+    trial_policy.update(sim_params)
+    try:
+        distiller = SceneDistiller(
+            llm=llm,
+            episode_config=episode_config,
+            runtime_policy=trial_policy,
+            reader_feedback=reader_feedback,
+        )
+        scenes = distiller.distill(
+            episode_id=episode_id,
+            protagonist_id=protagonist_id,
+            target_scenes=int(sim_params.get("target_scenes", base_policy.get("target_scenes", 6))),
+        )
+        scenes = distiller.normalize_scene_timeline(distiller.apply_scene_guards(scenes))
+        return scenes or []
+    except Exception as exc:
+        logger.warning("Distill failed: %s", exc)
+        return []
+
+
+def _sync_run_prose_from_scenes(
+    prose_params: dict,
+    scenes: list,
+    episode_id: str,
+    episode_config: dict,
+    trial_dir: Path,
+    llm,
+    protagonist_name: str,
+    target_words: int,
+    character_profiles,
+    reader_feedback: dict | None,
+    guardian_briefing: str | None,
+    base_policy: dict,
+    quality_focus: dict | None = None,
+) -> tuple[float, Path, dict]:
+    """Run prose generation from pre-distilled scenes. Returns (score, path, meta)."""
+    from src.novel_writer.prose_generator import ProseGenerator
+    if not scenes:
+        return 0.0, trial_dir / "empty.md", {"det": 0.0, "llm": 0.0, "scene_count": 0}
+
+    trial_policy = dict(base_policy)
+    trial_policy.update(prose_params)
+    trial_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        prose_gen = ProseGenerator(
+            llm=llm,
+            episode_config=episode_config,
+            output_dir=str(trial_dir),
+            character_profiles=character_profiles,
+            max_history_episodes=int(trial_policy.get("prose_history_max_episodes", 12)),
+            runtime_policy=trial_policy,
+            reader_feedback=reader_feedback,
+            guardian_briefing=guardian_briefing,
+        )
+        chapter_path = prose_gen.generate_chapter(
+            scenes=scenes,
+            protagonist_name=protagonist_name,
+            style="third_person_close",
+            target_words=target_words,
+        )
+    except Exception as exc:
+        logger.warning("Prose from scenes failed: %s", exc)
+        return 0.0, trial_dir / "empty.md", {
+            "det": 0.0, "llm": 0.0, "scene_count": len(scenes),
+            "raw_turn_total": int(sum(max(0, int(s.raw_turn_count or 0)) for s in scenes)),
+        }
+
+    det = 0.0
+    llm_val = 0.0
+    repetition_penalty = 0.0
+    word_count = 0
+    score = 0.0
+    try:
+        chapter_text = Path(chapter_path).read_text(encoding="utf-8")
+        word_count = len(chapter_text.split())
+        score, det, llm_val, repetition_penalty = _score_chapter(
+            chapter_text, episode_id, quality_focus=quality_focus,
+        )
+    except Exception as exc:
+        logger.warning("Scoring failed: %s", exc)
+    return score, Path(chapter_path), {
+        "det": round(det, 3),
+        "llm": round(llm_val, 3),
+        "repetition_penalty": round(repetition_penalty, 3),
+        "scene_count": len(scenes),
+        "raw_turn_total": int(sum(max(0, int(s.raw_turn_count or 0)) for s in scenes)),
+        "chapter_file": Path(chapter_path).name,
+        "word_count": int(word_count),
+    }
+
+
+def _param_space_from_ranges(trial, param_ranges: dict, base_policy: dict, width_ratio: float) -> dict:
+    """Generic narrow param sampler for any param_ranges dict."""
+    params: dict = {}
+    for name, spec in param_ranges.items():
+        kind = spec[0]
+        current = base_policy.get(name)
+        if kind == "float":
+            lo, hi = float(spec[1]), float(spec[2])
+            if current is not None:
+                cur = max(lo, min(hi, float(current)))
+                half = (hi - lo) * width_ratio / 2.0
+                c_lo = max(lo, cur - half)
+                c_hi = min(hi, cur + half)
+                if c_lo >= c_hi:
+                    c_lo = max(lo, cur - (hi - lo) * 0.1)
+                    c_hi = min(hi, cur + (hi - lo) * 0.1)
+                    if c_lo >= c_hi:
+                        c_lo, c_hi = lo, hi
+            else:
+                c_lo, c_hi = lo, hi
+            params[name] = trial.suggest_float(name, c_lo, c_hi)
+        elif kind == "int":
+            lo, hi = int(spec[1]), int(spec[2])
+            if current is not None:
+                c_lo = max(lo, int(current) - 1)
+                c_hi = min(hi, int(current) + 1)
+            else:
+                c_lo, c_hi = lo, hi
+            params[name] = trial.suggest_int(name, c_lo, c_hi)
+        elif kind == "cat":
+            choices: list = list(spec[1])
+            if current is not None and current in choices:
+                params[name] = trial.suggest_categorical(name, [current])
+            else:
+                params[name] = trial.suggest_categorical(name, choices)
+    return params
+
+
 # ── Per-cycle mini re-optimizer ───────────────────────────────────────────────
 
 async def run_mini_reoptimize(
@@ -832,18 +1222,20 @@ async def run_mini_reoptimize(
     n_trials: int = 5,
     group_size: int = 5,
 ) -> tuple[Path | None, dict, float, list[dict]]:
-    """Narrow-range param re-optimize using an in-memory Optuna study.
+    """Fix C: 2-study hierarchical param re-optimize.
 
-    Runs n_trials total, in parallel groups of group_size.
-    e.g. n_trials=25, group_size=5 → 5 groups of 5 parallel chapter generations.
+    study_sim  : optimises distillation-level params (what scenes to keep).
+    study_prose: optimises prose-level params (how scenes are rendered).
 
-    Uses in-memory study per outer cycle so that Codex code changes between outer
-    cycles don't pollute TPE with data from a different codebase.
-    Cross-episode learning happens via _enqueue_warmup_trials from policy_score_log.
+    Structure: n_sim_trials = n_trials // group_size distillation attempts,
+    each with group_size parallel prose trials.
+    Total chapter generations = n_trials (same as before).
+
+    Fix A: CMA-ES sampler when warmup data ≥ 5 rows, TPE otherwise.
+    Fix B: Claude ensemble scoring used inside _score_chapter.
 
     Returns:
         (best_chapter_path | None, best_params, best_score, subtrial_data_list)
-        subtrial_data_list: [{trial_idx, score, det, llm, params}, ...]
     """
     try:
         import optuna
@@ -856,152 +1248,227 @@ async def run_mini_reoptimize(
 
     opt_dir = run_dir / f"mini_opt_cycle{cycle_idx}"
     opt_dir.mkdir(parents=True, exist_ok=True)
-    trial_budget = budget / max(n_trials, 1)
 
-    # ── In-memory study per outer cycle (code may change between outers) ──────
-    study = optuna.create_study(
-        study_name=f"mini_{episode_id}_outer{cycle_idx}",
-        direction="maximize",
-        sampler=optuna.samplers.TPESampler(n_startup_trials=5, seed=42),
-    )
-    # Warm-start from accumulated cross-episode data
+    # Derive 2-study dimensions from n_trials / group_size
+    n_prose_per_sim = max(1, group_size)
+    n_sim_trials = max(1, n_trials // n_prose_per_sim)
+    prose_budget = budget / max(n_trials, 1)
+
     _psl = _REPO_ROOT / "data" / "policy_score_log.jsonl"
-    _warmup_keys = set(_PARAM_FULL_RANGES.keys())
-    n_warmup = _enqueue_warmup_trials(study, str(_psl), _warmup_keys) if _psl.exists() else 0
-    n_past = n_warmup
-    logger.info(
-        "[MINI-OPT] episode=%s cycle=%d n_trials=%d group_size=%d warmup=%d",
-        episode_id, cycle_idx, n_trials, group_size, n_warmup,
+    _n_psl_rows = sum(1 for ln in _psl.read_text(encoding="utf-8").splitlines() if ln.strip()) if _psl.exists() else 0
+
+    def _make_sampler(prefix: str) -> "optuna.samplers.BaseSampler":
+        if _n_psl_rows >= 5:
+            return optuna.samplers.CmaEsSampler(
+                n_startup_trials=10,
+                restart_strategy="ipop",
+                seed=42,
+                independent_sampler=optuna.samplers.TPESampler(n_startup_trials=2, seed=42),
+            )
+        return optuna.samplers.TPESampler(n_startup_trials=5, seed=42)
+
+    # ── Create two in-memory studies ─────────────────────────────────────────
+    study_sim = optuna.create_study(
+        study_name=f"sim_{episode_id}_outer{cycle_idx}",
+        direction="maximize",
+        sampler=_make_sampler("sim"),
     )
+    study_prose = optuna.create_study(
+        study_name=f"prose_{episode_id}_outer{cycle_idx}",
+        direction="maximize",
+        sampler=_make_sampler("prose"),
+    )
+
+    # Warm-start both studies from accumulated cross-episode data
+    n_warmup_sim = _enqueue_warmup_trials(study_sim, str(_psl), set(_PARAM_SIM_RANGES)) if _psl.exists() else 0
+    n_warmup_prose = _enqueue_warmup_trials(study_prose, str(_psl), set(_PARAM_PROSE_RANGES)) if _psl.exists() else 0
+    n_past = n_warmup_sim + n_warmup_prose
+
+    logger.info(
+        "[MINI-OPT] episode=%s cycle=%d n_sim=%d n_prose_per_sim=%d warmup_sim=%d warmup_prose=%d",
+        episode_id, cycle_idx, n_sim_trials, n_prose_per_sim, n_warmup_sim, n_warmup_prose,
+    )
+
+    if notify_fn:
+        await notify_fn(
+            f"[MINI-OPT] outer {cycle_idx} — 2-study 시작 "
+            f"({n_sim_trials} distill × {n_prose_per_sim} prose = {n_sim_trials * n_prose_per_sim}회, "
+            f"warmup sim={n_warmup_sim} prose={n_warmup_prose})"
+        )
 
     trial_scores: list[float] = []
     trial_paths: list[Path] = []
     trial_meta_by_idx: dict[int, dict] = {}
     all_trial_params: list[dict] = []
-    global_trial_idx = 0
+    global_prose_idx = 0
 
-    # ── Run trials in parallel groups, TPE learns between groups ─────────────
-    n_groups = (n_trials + group_size - 1) // group_size
-    for group_i in range(n_groups):
-        group_n = min(group_size, n_trials - global_trial_idx)
-        # Width narrows as evidence accumulates (past + already-done-this-call)
-        width = _narrow_width_from_n_trials(n_past + global_trial_idx)
+    # ── Outer loop: sim params ─────────────────────────────────────────────
+    for sim_i in range(n_sim_trials):
+        width_sim = _narrow_width_from_n_trials(n_past // 2 + sim_i)
+        width_prose = _narrow_width_from_n_trials(n_past // 2 + global_prose_idx)
 
-        # Group start — Manager anchor (creates new thread per group)
+        # Sample sim params
+        sim_optuna_trial = study_sim.ask()
+        sim_params = _param_space_from_ranges(sim_optuna_trial, _PARAM_SIM_RANGES, current_params, width_sim)
+
         if notify_fn:
+            _sim_str = ", ".join(
+                f"{k}={round(v, 3) if isinstance(v, float) else v}"
+                for k, v in sim_params.items()
+            )
             await notify_fn(
-                f"[MINI-OPT] outer {cycle_idx} — group {group_i + 1}/{n_groups} "
-                f"({group_n} trials parallel, 탐색 폭 ±{width * 50:.0f}%)"
+                f"[MINI-OPT-SIM] sim {sim_i + 1}/{n_sim_trials} — 증류 시작\n"
+                f"파라미터: {_sim_str}"
             )
 
-        g_optuna_trials = [study.ask() for _ in range(group_n)]
-        g_params = [
-            _param_space_narrow(t, current_params, width_ratio=width)
-            for t in g_optuna_trials
-        ]
-        g_llms = [
-            LLMClient(model=base_model, premium_model=premium_model, budget_usd=trial_budget)
-            for _ in range(group_n)
-        ]
+        # Distill once for this sim trial
+        distill_llm = LLMClient(model=base_model, premium_model=premium_model, budget_usd=prose_budget)
+        scenes = await asyncio.to_thread(
+            _sync_run_distill,
+            sim_params, episode_id, episode_config, distill_llm,
+            protagonist_id, current_params, reader_feedback,
+        )
 
-        # Programmer: show sampled params in thread
+        if not scenes:
+            study_sim.tell(sim_optuna_trial, 0.0)
+            if notify_fn:
+                await notify_fn(f"[MINI-OPT-SIM] sim {sim_i + 1} 증류 실패 (0씬) — 스킵")
+            continue
+
         if notify_fn:
-            _t_start = global_trial_idx
-            _t_end = global_trial_idx + group_n - 1
-            _param_lines = []
-            for i, p in enumerate(g_params):
-                _key_vals = ", ".join(
-                    f"{k}={round(v, 3) if isinstance(v, float) else v}"
-                    for k, v in p.items()
+            _scene_lines = []
+            for _s in scenes[:5]:
+                _title = getattr(_s, "title", None) or (
+                    _s.get("title") if isinstance(_s, dict) else "—"
                 )
-                _param_lines.append(f"  t{_t_start + i}: {_key_vals}")
+                _arc = getattr(_s, "emotional_arc", None) or (
+                    _s.get("emotional_arc") if isinstance(_s, dict) else ""
+                )
+                _pacing = getattr(_s, "pacing", None) or (
+                    _s.get("pacing") if isinstance(_s, dict) else ""
+                )
+                _arc_short = str(_arc)[:40] if _arc else "—"
+                _scene_lines.append(f"  · {_title} [{_pacing}] {_arc_short}")
+            _scene_summary = "\n".join(_scene_lines)
             await notify_fn(
-                f"[MINI-OPT-PROG] trial {_t_start}~{_t_end} 파라미터 샘플링 완료\n"
-                + "\n".join(_param_lines)
+                f"[MINI-OPT-SIM] sim {sim_i + 1} 증류 완료 — {len(scenes)}씬 생성\n"
+                f"{_scene_summary}\n"
+                f"→ prose {n_prose_per_sim}개 병렬 생성 시작"
             )
 
-        # Simulator: signal that chapter generation is in progress
-        if notify_fn:
-            _trial_range = f"trial {global_trial_idx}~{global_trial_idx + group_n - 1}"
-            await notify_fn(
-                f"[MINI-OPT-SIM] {_trial_range} 시뮬레이션 → 챕터 생성 중 ({group_n}개 병렬)..."
-            )
+        # Sample prose params for this group
+        prose_optuna_trials = [study_prose.ask() for _ in range(n_prose_per_sim)]
+        prose_params_list = [
+            _param_space_from_ranges(t, _PARAM_PROSE_RANGES, current_params, width_prose)
+            for t in prose_optuna_trials
+        ]
+        prose_llms = [
+            LLMClient(model=base_model, premium_model=premium_model, budget_usd=prose_budget)
+            for _ in range(n_prose_per_sim)
+        ]
 
-        g_results = await asyncio.gather(
+        # Run prose trials in parallel
+        prose_results = await asyncio.gather(
             *[
-                _run_single_trial(
-                    trial_idx=global_trial_idx + i,
-                    trial_params=g_params[i],
-                    episode_id=episode_id,
-                    episode_config=episode_config,
-                    trial_dir=opt_dir / f"trial_{global_trial_idx + i}",
-                    llm=g_llms[i],
-                    protagonist_id=protagonist_id,
-                    protagonist_name=protagonist_name,
-                    target_words=target_words,
-                    character_profiles=character_profiles,
-                    reader_feedback=reader_feedback,
-                    guardian_briefing=guardian_briefing,
-                    base_policy=current_params,
-                    quality_focus=quality_focus,
+                asyncio.to_thread(
+                    _sync_run_prose_from_scenes,
+                    prose_params_list[j],
+                    scenes,
+                    episode_id,
+                    episode_config,
+                    opt_dir / f"s{sim_i}_p{j}",
+                    prose_llms[j],
+                    protagonist_name,
+                    target_words,
+                    character_profiles,
+                    reader_feedback,
+                    guardian_briefing,
+                    {**current_params, **sim_params},
+                    quality_focus,
                 )
-                for i in range(group_n)
+                for j in range(n_prose_per_sim)
             ],
             return_exceptions=False,
         )
 
-        for i, (score, path, meta) in enumerate(g_results):
-            tidx = global_trial_idx + i
-            study.tell(g_optuna_trials[i], score)
-            trial_scores.append(score)
-            trial_paths.append(path)
-            trial_meta_by_idx[tidx] = meta
-            all_trial_params.append(g_params[i])
+        prose_scores_this_sim: list[float] = []
+        for j, (p_score, p_path, p_meta) in enumerate(prose_results):
+            tidx = global_prose_idx + j
+            study_prose.tell(prose_optuna_trials[j], p_score)
+            trial_scores.append(p_score)
+            trial_paths.append(p_path)
+            trial_meta_by_idx[tidx] = p_meta
+            combined_params = {**sim_params, **prose_params_list[j]}
+            all_trial_params.append(combined_params)
+            prose_scores_this_sim.append(p_score)
             append_session_benchmark_row(
                 run_dir,
                 episode_id=episode_id,
                 cycle_idx=cycle_idx,
                 trial_idx=tidx,
                 study_trial_count_before=n_past,
-                score=score,
-                det=float(meta.get("det", 0.0)),
-                llm=float(meta.get("llm", 0.0)),
-                params=g_params[i],
+                score=p_score,
+                det=float(p_meta.get("det", 0.0)),
+                llm=float(p_meta.get("llm", 0.0)),
+                repetition_penalty=float(p_meta.get("repetition_penalty", 0.0)),
+                params=combined_params,
             )
+
+        # Tell study_sim the average prose score for this distillation
+        sim_avg = sum(prose_scores_this_sim) / max(1, len(prose_scores_this_sim))
+        study_sim.tell(sim_optuna_trial, sim_avg)
 
         if notify_fn:
-            g_scores = trial_scores[global_trial_idx: global_trial_idx + group_n]
-            g_lines = []
-            for i, sc in enumerate(g_scores):
-                meta = trial_meta_by_idx.get(global_trial_idx + i, {})
-                g_lines.append(
-                    f"  t{global_trial_idx + i}: {sc:.3f} "
-                    f"(det {float(meta.get('det', 0)):.2f} / llm {float(meta.get('llm', 0)):.2f})"
+            best_j = max(range(n_prose_per_sim), key=lambda j: prose_scores_this_sim[j])
+            p_lines = []
+            for j in range(n_prose_per_sim):
+                meta_j = trial_meta_by_idx.get(global_prose_idx + j, {})
+                marker = "★" if j == best_j else " "
+                rep = float(meta_j.get("repetition_penalty", 0))
+                p_lines.append(
+                    f" {marker} p{j + 1}: {prose_scores_this_sim[j]:.3f} "
+                    f"(결정적 {float(meta_j.get('det', 0)):.2f} / "
+                    f"LLM {float(meta_j.get('llm', 0)):.2f} / "
+                    f"반복패널티 -{rep:.2f})"
                 )
-            # Reviewer: per-trial scores in thread
-            await notify_fn(
-                f"[MINI-OPT-SCORE] group {group_i + 1} 점수:\n" + "\n".join(g_lines)
-            )
-            # Manager: group summary in main thread
-            _g_best_i = max(range(group_n), key=lambda i: g_scores[i])
-            _g_best_tidx = global_trial_idx + _g_best_i
-            _g_best_params = g_params[_g_best_i]
-            _best_key_params = ", ".join(
+            _best_prose_params = prose_params_list[best_j]
+            _best_str = ", ".join(
                 f"{k}={round(v, 3) if isinstance(v, float) else v}"
-                for k, v in list(_g_best_params.items())[:4]
+                for k, v in _best_prose_params.items()
             )
             await notify_fn(
-                f"[MINI-OPT] group {group_i + 1}/{n_groups} 완료 — "
-                f"best t{_g_best_tidx}={g_scores[_g_best_i]:.3f} | {_best_key_params}"
+                f"[MINI-OPT-SCORE] sim {sim_i + 1} 평가 완료 (avg={sim_avg:.3f})\n"
+                + "\n".join(p_lines) + "\n"
+                f"★ 베스트 prose 파라미터: {_best_str}"
             )
 
-        global_trial_idx += group_n
+        global_prose_idx += n_prose_per_sim
+
+    if not trial_scores:
+        logger.warning("[MINI-OPT] No successful trials — returning current_params")
+        return None, current_params, 0.0, []
 
     # ── Pick best ─────────────────────────────────────────────────────────────
     best_idx = max(range(len(trial_scores)), key=lambda i: trial_scores[i])
     best_score = trial_scores[best_idx]
     best_params = all_trial_params[best_idx]
     best_path = trial_paths[best_idx]
+
+    if notify_fn:
+        sorted_scores = sorted(enumerate(trial_scores), key=lambda x: x[1], reverse=True)
+        top5 = sorted_scores[:5]
+        score_bar = " > ".join(f"t{idx+1}:{sc:.3f}" for idx, sc in top5)
+        _best_param_str = "\n".join(
+            f"  {k} = {round(v, 4) if isinstance(v, float) else v}"
+            for k, v in best_params.items()
+        )
+        await notify_fn(
+            f"[MINI-OPT-PROG] outer {cycle_idx} 최적화 완료 — {len(trial_scores)}개 trial\n"
+            f"점수 순위: {score_bar}\n"
+            f"★ 베스트 파라미터 (trial {best_idx + 1}, score={best_score:.3f}):\n"
+            f"{_best_param_str}\n"
+            f"→ rl_policy.json 업데이트 예정"
+        )
 
     # ── Build subtrial data for logging ──────────────────────────────────────
     subtrial_data: list[dict] = []
@@ -1012,16 +1479,18 @@ async def run_mini_reoptimize(
             "score": round(score, 4),
             "det": round(float(meta.get("det", 0.0)), 3),
             "llm": round(float(meta.get("llm", 0.0)), 3),
+            "repetition_penalty": round(float(meta.get("repetition_penalty", 0.0)), 3),
             "params": dict(params),
         })
 
+    total_trials = len(trial_scores)
     if notify_fn:
         sorted_scores = sorted(enumerate(trial_scores), key=lambda x: x[1], reverse=True)
         ranking = " | ".join(f"t{idx}:{sc:.2f}" for idx, sc in sorted_scores[:5])
         await notify_fn(
-            f"[MINI-OPT] outer {cycle_idx} 전체 완료 | {n_trials} trials\n"
+            f"[MINI-OPT] outer {cycle_idx} 전체 완료 | {total_trials} trials\n"
             f"best={best_score:.2f} (trial {best_idx}) | top5: {ranking}\n"
-            f"누적 study trials: {n_past + n_trials}"
+            f"누적 study trials: {n_past + total_trials}"
         )
 
     # ── Persist best params → rl_policy.json ─────────────────────────────────

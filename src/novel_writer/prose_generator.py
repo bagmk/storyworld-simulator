@@ -252,6 +252,8 @@ class ProseGenerator:
 
     def _build_character_index(self, profiles: list[dict]) -> dict[str, dict]:
         index: dict[str, dict] = {}
+        if not isinstance(profiles, list):
+            return index
         for row in profiles:
             if not isinstance(row, dict):
                 continue
@@ -373,6 +375,19 @@ class ProseGenerator:
     # ------------------------------------------------------------------ #
     # Scene Prose Generation
     # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _build_emotion_context(scene: "DistilledScene") -> str:
+        """Build a compact emotion guidance block from Fix-D fields."""
+        parts: list[str] = []
+        if scene.emotion_trajectory:
+            parts.append(f"Emotion trajectory: {' → '.join(scene.emotion_trajectory)}")
+        if scene.tension_peaks:
+            peaks = "; ".join(scene.tension_peaks)
+            parts.append(f"Tension peaks: {peaks}")
+        if scene.relationship_delta and scene.relationship_delta.strip():
+            parts.append(f"Relationship shift: {scene.relationship_delta}")
+        return "\n".join(parts)
 
     def _generate_scene_prose(
         self,
@@ -501,6 +516,11 @@ class ProseGenerator:
             f"Emotional arc: {scene.emotional_arc}\n"
             f"Location: {scene.location}\n"
             f"Characters: {', '.join(scene.characters_present)}\n\n"
+        )
+        emotion_ctx = self._build_emotion_context(scene)
+        if emotion_ctx:
+            prompt += f"## Emotional Dynamics\n{emotion_ctx}\n\n"
+        prompt += (
             f"## POV and Time Guidance\n{pov_and_time}\n"
             f"## Readability and Rhythm Constraints\n"
             f"- Keep paragraph rhythm breathable: usually {readability['paragraph_min']}-{readability['paragraph_max']} sentences per paragraph.\n"
@@ -992,6 +1012,8 @@ class ProseGenerator:
         # for the same word target; keep a higher ceiling to avoid truncation.
         scene_max_tokens = min(4800, max(1800, word_budget * 5))
 
+        prompt = self._enforce_scene_prompt_budget(prompt)
+
         generated = self.llm.chat(
             [{"role": "user", "content": prompt}],
             system=system,
@@ -1015,6 +1037,56 @@ class ProseGenerator:
         if len(text) <= limit:
             return text
         return text[: max(0, limit - 3)].rstrip() + "..."
+
+    def _scene_prompt_char_limit(self, default: int = 16000) -> int:
+        raw = self.runtime_policy.get("prose_scene_prompt_chars_max", default)
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            cap = default
+        return max(6000, cap)
+
+    @staticmethod
+    def _drop_prompt_section(prompt: str, header: str) -> str:
+        marker = f"## {header}\n"
+        start = prompt.find(marker)
+        if start < 0:
+            return prompt
+        next_header = prompt.find("\n## ", start + len(marker))
+        if next_header < 0:
+            return prompt[:start].rstrip()
+        return (prompt[:start].rstrip() + "\n\n" + prompt[next_header + 1 :].lstrip()).strip()
+
+    def _enforce_scene_prompt_budget(self, prompt: str) -> str:
+        max_chars = self._scene_prompt_char_limit()
+        if len(prompt) <= max_chars:
+            return prompt
+
+        trimmed = str(prompt)
+        drop_order = [
+            "Optional Reader-Friendly Gloss",
+            "Reader Feedback Priorities",
+            "Guardian Story Briefing (일관성 유의사항)",
+            "Cross-Episode Continuity",
+            "Character Voice and Visual Profiles (apply naturally)",
+        ]
+        for header in drop_order:
+            trimmed = self._drop_prompt_section(trimmed, header)
+            if len(trimmed) <= max_chars:
+                logger.info("Scene prompt trimmed under budget by dropping section: %s", header)
+                return trimmed
+
+        overflow = len(trimmed) - max_chars
+        if overflow > 0 and "## Task\n" in trimmed:
+            task_idx = trimmed.rfind("## Task\n")
+            head = trimmed[:task_idx]
+            tail = trimmed[task_idx:]
+            if len(head) > overflow:
+                trimmed = head[:-overflow].rstrip() + "\n\n" + tail
+        if len(trimmed) > max_chars:
+            trimmed = trimmed[:max_chars].rstrip()
+        logger.info("Scene prompt trimmed to budget: %d -> %d chars", len(prompt), len(trimmed))
+        return trimmed
 
     def _feedback_reports_stalled_progression(self) -> bool:
         return self.reader_profile.semantic_flags.stalled_progression

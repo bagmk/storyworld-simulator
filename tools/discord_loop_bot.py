@@ -2,7 +2,7 @@
 """
 Discord bot for the Novel Writer project.
 
-Supports: !novel-daily, !meitner, !status, !stop, !chapter, !approve, !reject
+Supports: !novel-daily, !meitner, !status, !usage, !stop, !chapter, !approve, !reject, !emotion
 """
 
 from __future__ import annotations
@@ -38,9 +38,13 @@ from src.novel_writer.env_loader import load_project_env
 from src.novel_writer.llm_client import LLMClient
 from tools.daily_pipeline import run_daily_pipeline
 from tools.config_guardian import _assert_not_locked
+from tools.inline_optimizer import SESSION_BENCHMARK_LOG
+from tools.quality_reviewer import resolve_episode_file
 
 
 ROOT_OUTPUT_DIR = REPO_ROOT / "output"
+DISCORD_LOOP_STATE_PATH = REPO_ROOT / "data" / "discord_loop_state.json"
+USAGE_STATE_KEY = "__usage_sessions__"
 
 DAILY_TAG = ""
 
@@ -49,9 +53,14 @@ CMD_DAILY = "!novel-daily"
 CMD_APPROVE = "!approve"
 CMD_REJECT = "!reject"
 CMD_STATUS = "!status"
+CMD_USAGE = "!usage"
 CMD_PIPELINE_STOP = "!stop"
 CMD_CHAPTER = "!chapter"
 CMD_BENCHMARK = "!benchmark"
+CMD_PARAMETER = "!parameter"
+CMD_REBOOT = "!reboot"
+CMD_SHUTDOWN = "!shutdown"
+CMD_EMOTION = "!emotion"
 
 # Daily pipeline: per-channel state
 DAILY_FEEDBACK_QUEUES: dict[int, asyncio.Queue] = {}
@@ -64,6 +73,7 @@ DAILY_CHAPTER_PATHS: dict[int, Path] = {}  # channel_id → 최근 생성된 챕
 DAILY_PENDING_REVIEW_TIER: dict[int, dict[str, Any]] = {}
 DAILY_START_TIMES: dict[int, float] = {}   # channel_id → pipeline start time (monotonic)
 DAILY_EPISODE_KEYS: dict[int, str] = {}    # channel_id → episode key (kept after stop for chart)
+DAILY_START_TIMES_WALL: dict[int, float] = {}  # channel_id → pipeline start time (wall clock)
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -76,6 +86,133 @@ def _pid_alive(pid: int | None) -> bool:
         return False
 
 
+def _session_cost_total(metrics: dict[str, Any]) -> float:
+    return sum(
+        float(metrics.get(key, 0.0))
+        for key in (
+            "guardian",
+            "simulation",
+            "chapter",
+            "auto_chapter",
+            "manager",
+            "auto_review",
+            "code_review",
+            "regen_check",
+            "final_review",
+            "feedback_parse",
+        )
+    )
+
+
+def _format_usage_summary(
+    metrics: dict[str, Any] | None,
+    start_time: float | None = None,
+) -> str:
+    metrics = metrics or {}
+    token_total = int(metrics.get("total_tokens", 0))
+    prompt_total = int(metrics.get("prompt_tokens", 0))
+    completion_total = int(metrics.get("completion_tokens", 0))
+    cost_total = _session_cost_total(metrics)
+    parts = [
+        f"🔢 세션 누적 토큰: {token_total:,} ({prompt_total:,} in + {completion_total:,} out)",
+        f"💸 세션 누적 비용(Codex CLI 제외): ${cost_total:.4f}",
+    ]
+    if start_time is not None:
+        elapsed = time.monotonic() - start_time
+        elapsed_min, elapsed_sec = int(elapsed // 60), int(elapsed % 60)
+        parts.insert(0, f"⏱️ 경과 시간: {elapsed_min}분 {elapsed_sec:02d}초")
+    return "\n".join(parts)
+
+
+def _load_discord_loop_state() -> dict[str, Any]:
+    if not DISCORD_LOOP_STATE_PATH.exists():
+        return {}
+    try:
+        data = json.loads(DISCORD_LOOP_STATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_discord_loop_state(state: dict[str, Any]) -> None:
+    DISCORD_LOOP_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DISCORD_LOOP_STATE_PATH.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _persist_usage_snapshot(
+    channel_id: int,
+    *,
+    metrics: dict[str, Any] | None,
+    status: str | None,
+    episode_key: str | None,
+    is_active: bool,
+) -> None:
+    metrics = dict(metrics or {})
+    if not metrics and not status and not episode_key:
+        return
+    state = _load_discord_loop_state()
+    usage_state = state.get(USAGE_STATE_KEY)
+    if not isinstance(usage_state, dict):
+        usage_state = {}
+        state[USAGE_STATE_KEY] = usage_state
+
+    started_wall = DAILY_START_TIMES_WALL.get(channel_id)
+    elapsed_sec = None
+    if is_active:
+        started_mono = DAILY_START_TIMES.get(channel_id)
+        if started_mono is not None:
+            elapsed_sec = max(0, int(time.monotonic() - started_mono))
+    else:
+        prev = usage_state.get(str(channel_id), {})
+        if isinstance(prev, dict):
+            elapsed_sec = prev.get("elapsed_sec")
+
+    usage_state[str(channel_id)] = {
+        "status": status or "",
+        "episode_key": episode_key or "",
+        "is_active": bool(is_active),
+        "metrics": metrics,
+        "started_at": float(started_wall or time.time()),
+        "elapsed_sec": int(elapsed_sec or 0),
+        "updated_at": int(time.time()),
+    }
+    _save_discord_loop_state(state)
+
+
+def _get_recent_usage_snapshot(channel_id: int) -> dict[str, Any] | None:
+    state = _load_discord_loop_state()
+    usage_state = state.get(USAGE_STATE_KEY)
+    if not isinstance(usage_state, dict):
+        return None
+    snapshot = usage_state.get(str(channel_id))
+    return snapshot if isinstance(snapshot, dict) else None
+
+
+def _format_usage_summary_from_elapsed(
+    metrics: dict[str, Any] | None,
+    elapsed_sec: int | None,
+) -> str:
+    metrics = metrics or {}
+    token_total = int(metrics.get("total_tokens", 0))
+    prompt_total = int(metrics.get("prompt_tokens", 0))
+    completion_total = int(metrics.get("completion_tokens", 0))
+    cost_total = _session_cost_total(metrics)
+    parts = []
+    if elapsed_sec is not None:
+        elapsed_min, elapsed_rem = int(elapsed_sec // 60), int(elapsed_sec % 60)
+        parts.append(f"⏱️ 경과 시간: {elapsed_min}분 {elapsed_rem:02d}초")
+    parts.extend(
+        [
+            f"🔢 세션 누적 토큰: {token_total:,} ({prompt_total:,} in + {completion_total:,} out)",
+            f"💸 세션 누적 비용(Codex CLI 제외): ${cost_total:.4f}",
+        ]
+    )
+    return "\n".join(parts)
+
+
 def _parse_review_tier_choice(text: str) -> str | None:
     t = (text or "").strip().lower()
     if t in {"1", "mini", "min", "저렴", "빠르게", "가볍게"}:
@@ -83,6 +220,247 @@ def _parse_review_tier_choice(text: str) -> str | None:
     if t in {"2", "premium", "prem", "프리미엄", "정밀", "고품질"}:
         return "premium"
     return None
+
+
+def _parse_outer_cycles_choice(text: str) -> int | None:
+    t = (text or "").strip().lower()
+    aliases = {
+        "한번": 1, "1회": 1,
+        "두번": 2, "2회": 2,
+        "세번": 3, "3회": 3,
+        "네번": 4, "4회": 4,
+        "다섯번": 5, "5회": 5,
+        "열번": 10, "10회": 10,
+    }
+    if t in aliases:
+        return aliases[t]
+    if t.isdigit():
+        value = int(t)
+        if 1 <= value <= 50:
+            return value
+    return None
+
+
+def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
+    """outer_cycles 확정 후 사용자에게 보여줄 실행 플랜 미리보기."""
+    from tools.daily_pipeline import (
+        AUTO_OUTER_MAX_CYCLES, AUTO_INNER_MAX_CYCLES,
+        AUTO_BATCH_TRIALS, AUTO_BATCH_GROUP_SIZE,
+    )
+
+    parts = arg_text.split()
+    episode_key = parts[0] if parts else "?"
+    review_tier = "mini"
+    budget = 4.0
+    target_words = 3500
+    try:
+        for i, p in enumerate(parts):
+            if p == "--review-tier" and i + 1 < len(parts):
+                review_tier = parts[i + 1]
+            elif p == "--budget" and i + 1 < len(parts):
+                budget = float(parts[i + 1])
+            elif p == "--target-words" and i + 1 < len(parts):
+                target_words = int(parts[i + 1])
+    except (ValueError, IndexError):
+        pass
+
+    # Try to read episode config for simulation turns
+    sim_turns_label = "?"
+    try:
+        from tools.quality_reviewer import resolve_episode_file
+        from src.novel_writer.config_loader import load_episode
+        ep_cfg = load_episode(str(resolve_episode_file(episode_key)))
+        sim_turns_label = str(ep_cfg.get("max_turns") or ep_cfg.get("target_turns") or "?")
+    except Exception:
+        pass
+
+    tier_label = "mini (빠름)" if review_tier == "mini" else "premium (정밀)"
+
+    # 2-study MINI-OPT 계산
+    n_sim_groups = AUTO_BATCH_TRIALS // AUTO_BATCH_GROUP_SIZE   # 5
+    n_prose_per_sim = AUTO_BATCH_GROUP_SIZE                     # 5
+    total_chapters_phase_a = AUTO_BATCH_TRIALS                  # 25
+    total_chapters_phase_c = AUTO_INNER_MAX_CYCLES              # 3 regen
+    max_chapters_per_outer = total_chapters_phase_a + total_chapters_phase_c
+    max_chapters_total = AUTO_OUTER_MAX_CYCLES * max_chapters_per_outer  # per daily cycle
+
+    # 파라미터 수: sim study 4개 + prose study 6개
+    n_sim_params = 4
+    n_prose_params = 6
+
+    # 실측 비용 추정
+    cost_line = ""
+    try:
+        from tools.cost_estimator import format_cost_estimate_for_plan
+        cost_line = format_cost_estimate_for_plan(episode_key, outer_cycles)
+    except Exception:
+        cost_line = f"${budget:.1f}/cycle 상한 (실측 데이터 없음 — 첫 실행 후 자동 갱신)"
+
+    # outer_cycles 기반 전체 수치 계산
+    total_sims        = outer_cycles                                      # 시뮬레이션 횟수
+    total_phase_a     = outer_cycles * total_chapters_phase_a             # Phase A 챕터 총합
+    total_phase_c     = outer_cycles * total_chapters_phase_c             # Phase C 재생성 총합
+    total_chapters    = outer_cycles * max_chapters_per_outer             # 전체 최대 챕터
+    inner_max         = AUTO_INNER_MAX_CYCLES
+    # AI 리뷰 횟수: Phase B 1회 + Phase C 재생성마다 1회 + 최종 1회
+    total_reviews     = outer_cycles * (1 + inner_max) + 1
+
+    sim_param_names   = "distiller_temp / target_scenes / dialogue_compaction / scene_closure"
+    prose_param_names = "prose_scene_temp / para_min / para_max / transition_temp / polish_temp / hold_pressure"
+
+    lines = [
+        f"📋 **실행 플랜 확인** — `{episode_key}`",
+        "─────────────────────────────────────",
+        f"🔄  Outer cycles   : **{outer_cycles}회**",
+        f"📊  리뷰 티어      : **{tier_label}**",
+        f"📝  목표 단어수    : **{target_words:,}자**",
+        f"💰  예상 비용      : {cost_line}",
+        "─────────────────────────────────────",
+        "**전체 규모 요약:**",
+        f"  🎬  시뮬레이션      : **{total_sims}회** (outer cycle당 1회, {sim_turns_label}턴)",
+        f"  📄  Phase A 챕터    : **{total_phase_a}개** ({outer_cycles}회 × {total_chapters_phase_a}개)",
+        f"  🔧  Phase C 재생성  : 최대 **{total_phase_c}개** ({outer_cycles}회 × {inner_max}회)",
+        f"  📦  전체 최대 챕터  : **{total_chapters}개** ({outer_cycles}×({total_chapters_phase_a}+{inner_max}))",
+        f"  🔍  AI 리뷰         : 최대 **{total_reviews}회** (Phase B {outer_cycles}회 + Phase C 최대 {outer_cycles * inner_max}회 + 최종 1회)",
+        "─────────────────────────────────────",
+        "**각 Outer Cycle 내부 흐름:**",
+        f"",
+        f"  🔍 1. Config Guardian 검수",
+        f"  ⚙️  2. 시뮬레이션 — {sim_turns_label}턴 (에이전트 멀티턴 → SceneDistiller 압축)",
+        f"",
+        f"  🧠 3. AI 자동 개선 루프",
+        f"     Phase A — 2-study 파라미터 탐색 ({total_chapters_phase_a}개 챕터)",
+        f"       • sim study ({n_sim_params}개)  : {sim_param_names}",
+        f"         → {n_sim_groups}회 증류 × prose {n_prose_per_sim}병렬 = {total_chapters_phase_a}개 챕터 생성",
+        f"       • prose study ({n_prose_params}개): {prose_param_names}",
+        f"       • 샘플러: CMA-ES (데이터 5개↑) / TPE (초기)",
+        f"       • 탐색 폭: ±25% → 누적 trial 증가할수록 자동 축소",
+        f"     Phase B — AI 리뷰 **1회** + Factor Analysis",
+        f"       → 점수 ≥ 9.5/10 달성 시 즉시 조기 종료",
+        f"     Phase C — GPT Fixer 최대 **{inner_max}회** (재생성마다 AI 리뷰 1회)",
+        f"       → 코드 수정 → 챕터 재생성 → AI 리뷰 → 점수 비교 → 하락 시 자동 롤백",
+        f"",
+        f"  📖 4. 최종 AI 리뷰 **1회** + 품질 스코어카드 출력",
+        f"       평가 항목: 긴장감 / 문체 / 인과성 / 캐릭터 / 장면기능 (각 10점)",
+        "─────────────────────────────────────",
+        "**`1`** 로 시작  |  **`2`** 로 취소",
+    ]
+    return "\n".join(lines)
+
+
+def _resolve_latest_daily_run_dir(ep_filter: str | None = None) -> Path | None:
+    daily_dir = ROOT_OUTPUT_DIR / "daily"
+    if not daily_dir.exists():
+        return None
+
+    normalized_filter: str | None = None
+    if ep_filter:
+        try:
+            normalized_filter = resolve_episode_file(ep_filter).stem
+        except Exception:
+            normalized_filter = str(ep_filter).strip()
+
+    run_dirs: list[Path] = []
+    for ep_dir in daily_dir.iterdir():
+        if not ep_dir.is_dir():
+            continue
+        if normalized_filter and not ep_dir.name.endswith(f"_{normalized_filter}"):
+            continue
+        for run_dir in ep_dir.iterdir():
+            if run_dir.is_dir():
+                run_dirs.append(run_dir)
+    if not run_dirs:
+        return None
+    return max(run_dirs, key=lambda p: p.stat().st_mtime)
+
+
+def _load_session_benchmark_rows(run_dir: Path) -> list[dict]:
+    log_path = run_dir / SESSION_BENCHMARK_LOG
+    rows: list[dict] = []
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    if not rows:
+        episode_id = None
+        chapter_candidates = sorted(run_dir.glob("*_chapter.txt"))
+        if chapter_candidates:
+            episode_id = chapter_candidates[0].name.replace("_chapter.txt", "")
+        cycle_count = len(list(run_dir.glob("auto_review_cycle*.json")))
+        cycle_log = REPO_ROOT / "data" / "cycle_score_log.jsonl"
+        if episode_id and cycle_count > 0 and cycle_log.exists():
+            matching: list[dict] = []
+            for line in cycle_log.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except Exception:
+                    continue
+                if record.get("episode_id") == episode_id:
+                    matching.append(record)
+            for record in matching[-cycle_count:]:
+                cycle_idx = int(record.get("cycle_idx", 0))
+                for subtrial in record.get("subtrials", []):
+                    rows.append({
+                        "ts": 0,
+                        "episode_id": episode_id,
+                        "cycle_idx": cycle_idx,
+                        "trial_idx": int(subtrial.get("trial_idx", 0)),
+                        "global_trial_idx": int(subtrial.get("trial_idx", 0)),
+                        "score": float(subtrial.get("score", 0.0)),
+                        "det": float(subtrial.get("det", 0.0)),
+                        "llm": float(subtrial.get("llm", 0.0)),
+                        "repetition_penalty": float(subtrial.get("repetition_penalty", 0.0)),
+                        "params": dict(subtrial.get("params", {})),
+                    })
+    rows.sort(key=lambda row: (int(row.get("cycle_idx", 0)), int(row.get("trial_idx", 0))))
+    return rows
+
+
+def _build_session_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+    except ImportError:
+        return None
+
+    if not rows:
+        return None
+
+    _configure_korean_matplotlib_font(plt, fm)
+    xs = [i + 1 for i in range(len(rows))]
+    ys = [float(r.get("score", 0.0)) for r in rows]
+    colors = ["#2ecc71" if y >= 8.5 else "#f39c12" if y >= 7.5 else "#e74c3c" for y in ys]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    fig.suptitle(f"Benchmark — {ep_key} ({len(rows)} subtrials)", fontsize=13, fontweight="bold")
+    ax.bar(xs, ys, color=colors, alpha=0.85, width=0.85)
+    ax.plot(xs, ys, color="black", linewidth=1.2, alpha=0.7)
+    for cycle_idx in sorted({int(r.get("cycle_idx", 0)) for r in rows}):
+        cycle_rows = [i + 1 for i, r in enumerate(rows) if int(r.get("cycle_idx", 0)) == cycle_idx]
+        if cycle_rows:
+            ax.text(cycle_rows[0], 10.15, f"C{cycle_idx}", fontsize=8, fontweight="bold")
+    ax.axhline(y=8.5, linestyle="--", linewidth=1, color="red", alpha=0.6)
+    ax.set_ylim(0, 10.5)
+    ax.set_xlabel("Subtrial Index")
+    ax.set_ylabel("Score / 10")
+    ax.grid(axis="y", linestyle=":", alpha=0.5)
+    out_path = ROOT_OUTPUT_DIR / "benchmark_chart.png"
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
 
 
 def _top_level_repo_snapshot() -> str:
@@ -392,6 +770,211 @@ def _make_stop_chart(episode_key: str) -> Path | None:
     return tmp
 
 
+def _make_emotion_chart(episode_key: str | None = None) -> Path | None:
+    """!emotion — 씬별 긴장도 라인 + 캐릭터 등장 표시 그래프. PNG 임시 파일 경로 반환."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+        import tempfile
+        import textwrap
+    except ImportError:
+        return None
+
+    # ── 씬 파일 탐색 (최신 1개) ──────────────────────────────────────────────
+    daily_dir = ROOT_OUTPUT_DIR / "daily"
+    pattern = f"*{episode_key}*/**/*scenes*.json" if episode_key else "**/*scenes*.json"
+    scene_files = sorted(daily_dir.glob(pattern), key=lambda p: p.stat().st_mtime)
+    if not scene_files:
+        scene_files = sorted(ROOT_OUTPUT_DIR.glob("**/*scenes*.json"), key=lambda p: p.stat().st_mtime)
+    if not scene_files:
+        return None
+
+    try:
+        scenes_raw = json.loads(scene_files[-1].read_text(encoding="utf-8"))
+        if not isinstance(scenes_raw, list) or not scenes_raw:
+            return None
+    except Exception:
+        return None
+
+    # ── 긴장도 매핑 ──────────────────────────────────────────────────────────
+    PACING_TENSION = {"opening": 3, "building": 6, "climax": 9, "resolution": 4}
+    PACING_KO      = {"opening": "도입", "building": "고조", "climax": "절정", "resolution": "해소"}
+
+    # emotion_trajectory 키워드 → 긴장도 보정값
+    EMOTION_OFFSET = {
+        "분노": +1, "공포": +1, "절망": +1, "충격": +1, "압박": +1,
+        "긴장": +0.5, "불안": +0.5, "당혹": +0.5,
+        "희망": -0.5, "안도": -1, "체념": -0.5, "신뢰": -0.5,
+    }
+
+    # ── 데이터 추출 ──────────────────────────────────────────────────────────
+    xs       = []   # scene index
+    ys       = []   # 긴장도
+    labels   = []   # x축 라벨
+    arcs     = []   # emotional_arc text
+    pacings  = []   # pacing string
+    all_chars: list[list[str]] = []
+
+    for i, s in enumerate(scenes_raw):
+        pacing = str(s.get("pacing", "building")).lower()
+        base   = PACING_TENSION.get(pacing, 5)
+
+        # emotion_trajectory로 보정
+        traj = s.get("emotion_trajectory") or []
+        offset = sum(EMOTION_OFFSET.get(e, 0) for e in traj)
+        tension = min(10, max(1, base + offset))
+
+        xs.append(i)
+        ys.append(tension)
+        labels.append(f"씬 {s.get('scene_number', i+1)}\n[{PACING_KO.get(pacing, pacing)}]")
+        arcs.append(str(s.get("emotional_arc", "")).strip())
+        pacings.append(pacing)
+        all_chars.append([c.split()[-1] for c in s.get("characters_present", [])])  # 성만
+
+    # ── 등장 캐릭터 목록 (전체) ──────────────────────────────────────────────
+    unique_chars: list[str] = []
+    for ch_list in all_chars:
+        for c in ch_list:
+            if c not in unique_chars:
+                unique_chars.append(c)
+
+    CHAR_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#9b59b6", "#f39c12", "#1abc9c"]
+
+    _configure_korean_matplotlib_font(plt, fm)
+
+    # ── 레이아웃: 메인 그래프 + 캐릭터 등장 서브플롯 ─────────────────────────
+    fig, (ax_main, ax_char) = plt.subplots(
+        2, 1, figsize=(max(10, len(xs) * 1.6), 7),
+        gridspec_kw={"height_ratios": [3, 1]},
+    )
+    fig.subplots_adjust(hspace=0.05)
+
+    ep_label  = episode_key or scene_files[-1].parent.name
+    run_label = str(scene_files[-1].parent.relative_to(ROOT_OUTPUT_DIR))
+    fig.suptitle(f"씬별 긴장도 & 감정 궤적 — {ep_label}\n({run_label})",
+                 fontsize=12, fontweight="bold")
+
+    # ── 메인: 긴장도 라인 ────────────────────────────────────────────────────
+    PACING_COLOR = {"opening": "#5dade2", "building": "#f39c12",
+                    "climax": "#e74c3c",  "resolution": "#27ae60"}
+
+    # 구간별 색상으로 선 그리기
+    for i in range(len(xs) - 1):
+        col = PACING_COLOR.get(pacings[i], "#95a5a6")
+        ax_main.plot(xs[i:i+2], ys[i:i+2], color=col, linewidth=2.5, solid_capstyle="round")
+
+    # 점 + emotional_arc 주석
+    for i, (x, y, arc, pacing) in enumerate(zip(xs, ys, arcs, pacings)):
+        col = PACING_COLOR.get(pacing, "#95a5a6")
+        ax_main.scatter(x, y, color=col, s=80, zorder=5)
+        if arc:
+            short = arc[:40] + "…" if len(arc) > 40 else arc
+            offset_y = 0.4 if i % 2 == 0 else -0.6
+            ax_main.annotate(
+                short, (x, y),
+                xytext=(0, 28 if offset_y > 0 else -28),
+                textcoords="offset points",
+                ha="center", va="bottom" if offset_y > 0 else "top",
+                fontsize=7, color="#444444",
+                arrowprops=dict(arrowstyle="-", color="#cccccc", lw=0.8),
+            )
+
+        # tension_peaks ⚡
+        peaks = s.get("tension_peaks") or [] if (s := scenes_raw[i]) else []
+        if peaks:
+            ax_main.annotate("⚡", (x, y + 0.15), ha="center", fontsize=10, color="#c0392b")
+
+    ax_main.set_xlim(-0.5, len(xs) - 0.5)
+    ax_main.set_ylim(0, 11)
+    ax_main.set_xticks(xs)
+    ax_main.set_xticklabels(labels, fontsize=8)
+    ax_main.set_ylabel("긴장도", fontsize=9)
+    ax_main.set_yticks([2, 4, 6, 8, 10])
+    ax_main.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax_main.set_axisbelow(True)
+    ax_main.tick_params(axis="x", bottom=False)
+
+    # 범례
+    from matplotlib.lines import Line2D
+    legend_els = [
+        Line2D([0], [0], color=PACING_COLOR[p], linewidth=2.5, label=PACING_KO[p])
+        for p in PACING_COLOR
+    ]
+    ax_main.legend(handles=legend_els, loc="upper left", fontsize=8, framealpha=0.8)
+
+    # ── 서브: 캐릭터 등장 도트 ──────────────────────────────────────────────
+    ax_char.set_xlim(-0.5, len(xs) - 0.5)
+    ax_char.set_ylim(-0.5, len(unique_chars) - 0.5)
+    ax_char.set_yticks(range(len(unique_chars)))
+    ax_char.set_yticklabels(unique_chars, fontsize=8)
+    ax_char.set_xticks(xs)
+    ax_char.set_xticklabels([""] * len(xs))
+    ax_char.yaxis.grid(True, linestyle=":", alpha=0.3)
+    ax_char.set_xlabel("씬", fontsize=9)
+    ax_char.tick_params(axis="x", bottom=False)
+
+    for scene_i, ch_list in enumerate(all_chars):
+        for char in ch_list:
+            if char in unique_chars:
+                ci = unique_chars.index(char)
+                ax_char.scatter(scene_i, ci,
+                                color=CHAR_COLORS[ci % len(CHAR_COLORS)],
+                                s=90, marker="o", zorder=4)
+
+    tmp = Path(tempfile.mktemp(suffix=".png", prefix="emotion_chart_"))
+    fig.savefig(str(tmp), dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return tmp
+
+
+def _build_emotion_text_summary(episode_key: str | None = None) -> str | None:
+    """!emotion — 씬별 감정 데이터를 텍스트로 요약. 이미지 전송 후 보조 메시지로 사용."""
+    daily_dir = ROOT_OUTPUT_DIR / "daily"
+    pattern = f"*{episode_key}*/**/*scenes*.json" if episode_key else "**/*scenes*.json"
+    scene_files = sorted(daily_dir.glob(pattern), key=lambda p: p.stat().st_mtime)
+    if not scene_files:
+        scene_files = sorted(ROOT_OUTPUT_DIR.glob("**/*scenes*.json"), key=lambda p: p.stat().st_mtime)
+    if not scene_files:
+        return None
+
+    try:
+        scenes_raw = json.loads(scene_files[-1].read_text(encoding="utf-8"))
+        if not isinstance(scenes_raw, list) or not scenes_raw:
+            return None
+    except Exception:
+        return None
+
+    PACING_KO = {"opening": "도입", "building": "고조", "climax": "절정", "resolution": "해소"}
+
+    lines: list[str] = []
+    ep_label = episode_key or scene_files[-1].parent.name
+    lines.append(f"**📝 [{ep_label}] 씬별 감정 요약**\n")
+
+    for s in scenes_raw:
+        scene_num = s.get("scene_number", "?")
+        pacing = str(s.get("pacing", "building")).lower()
+        pacing_ko = PACING_KO.get(pacing, pacing)
+        arc = str(s.get("emotional_arc", "")).strip()
+        traj = s.get("emotion_trajectory") or []
+        peaks = s.get("tension_peaks") or []
+        delta = str(s.get("relationship_delta", "")).strip()
+
+        block: list[str] = [f"**씬 {scene_num}** [{pacing_ko}]"]
+        if arc:
+            block.append(f"  감정 흐름: {arc}")
+        if traj:
+            block.append(f"  궤적: {' → '.join(traj)}")
+        if peaks:
+            block.append(f"  긴장 포인트: {' / '.join(peaks)}")
+        if delta:
+            block.append(f"  관계 변화: {delta}")
+        lines.append("\n".join(block))
+
+    return "\n\n".join(lines)
+
+
 async def _send_file(channel: discord.abc.Messageable, path: Path, note: str) -> None:
     if not path.exists():
         return
@@ -450,6 +1033,7 @@ def _is_daily_report_text(text: str) -> bool:
     markers = (
         "[GUARDIAN] Config 규칙 검수 결과:",
         "[GUARDIAN] 🧠 GPT 분석 리포트:",
+        "[GUARDIAN] 🧭 GPT 생성용 브리핑:",
         "[REVIEW] ✅ 자동 검수 완료",
     )
     return any(marker in (text or "") for marker in markers)
@@ -728,6 +1312,35 @@ async def _send_team_reconnect_celebration(
     if not sent_messages:
         return
 
+    # 매니저 온라인 직후 명령어 안내 전송
+    _cmd_guide = (
+        "```\n"
+        "📋 명령어 목록\n"
+        "─────────────────────────────────────\n"
+        "!novel-daily <ep>   소설 생성 파이프라인 시작\n"
+        "  옵션: --target-words 3500\n"
+        "        --budget 4.0\n"
+        "        --protagonist kim_sumin\n"
+        "        --review-tier mini|premium\n"
+        "        --outer-cycles 1~50\n"
+        "─────────────────────────────────────\n"
+        "!status             현재 파이프라인 상태·진행 단계\n"
+        "!usage              세션 토큰·비용 사용량\n"
+        "!stop               파이프라인 중단 (차트 자동 생성)\n"
+        "!chapter            최근 생성된 챕터 파일 다운로드\n"
+        "!benchmark [ep]     에피소드별 점수 추이\n"
+        "!parameter          Optuna 파라미터 현황 및 변화 이력\n"
+        "!emotion [ep]       최근 씬 감정 궤적 차트\n"
+        "!reboot             봇 재부팅\n"
+        "!shutdown           봇 완전 종료\n"
+        "!meitner <질문>      저장소 구조·코드 질문\n"
+        "```"
+    )
+    try:
+        await _rest_send_text_return_message_id(channel_id, _cmd_guide, manager_bot_token)
+    except Exception:
+        pass
+
     emoji_waves = {
         "simulator": ["🌈", "⚡", "🚀", "🫶", "🎉", "✨"],
         "reviewer": ["🟣", "🔵", "🟢", "✨", "📘", "🧠"],
@@ -937,6 +1550,120 @@ def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
     return out_path
 
 
+def _build_parameter_report(
+    session_cycle_rows: list[dict] | None,
+) -> str:
+    """Build !parameter report: param tables by group + per-cycle change history.
+
+    session_cycle_rows: list of cycle_score_log records from current/latest session.
+    Each record: {cycle_idx, cycle_params, ai_review: {avg, ...}, subtrials: [...]}
+    Falls back to data/rl_policy.json for current values if no session data.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    _REPO = _Path(__file__).resolve().parent.parent
+    _policy_path = _REPO / "data" / "rl_policy.json"
+    try:
+        current_policy = _json.loads(_policy_path.read_text(encoding="utf-8"))
+    except Exception:
+        current_policy = {}
+
+    # ── Parameter groups ────────────────────────────────────────────────────
+    GROUPS = {
+        "Distiller": [
+            "distiller_temperature", "distiller_max_tokens",
+            "target_scenes", "scene_target_bias", "scene_target_min", "scene_target_max",
+            "dialogue_compaction_strength", "confrontation_merge_strength", "role_cue_strength",
+            "prose_history_max_episodes",
+        ],
+        "Prose": [
+            "prose_scene_temperature", "prose_transition_temperature",
+            "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
+            "prose_scene_readability_temperature",
+        ],
+        "Polish": [
+            "prose_polish_temperature", "prose_anchor_fix_temperature",
+            "hold_pressure_peak", "scene_closure_aggressiveness",
+            "repeated_concern_loop_reduction", "clue_injection_timing",
+        ],
+        "Flags / Reader": [
+            "prose_enable_term_gloss",
+            "prefer_concrete_offer_detail", "prefer_concrete_threat_detail",
+            "prefer_concrete_transition_cue", "prefer_scene_exit_on_stall",
+            "director_fallback_cast_size",
+            "reader_prefers_dialogue_compaction",
+            "reader_prefers_analytical_wording_reduction",
+            "repetition_jaccard_threshold",
+        ],
+    }
+
+    lines: list[str] = []
+
+    # ── Per-cycle history table ─────────────────────────────────────────────
+    if session_cycle_rows:
+        lines.append("**📈 사이클별 파라미터 변화**")
+        lines.append("```")
+        # Collect all param keys that actually changed
+        all_params_in_cycles = set()
+        for r in session_cycle_rows:
+            all_params_in_cycles.update(r.get("cycle_params", {}).keys())
+        tracked = [p for grp in GROUPS.values() for p in grp if p in all_params_in_cycles]
+
+        # Header row
+        cycle_cols = [f"outer{r['cycle_idx']}" for r in session_cycle_rows]
+        col_w = max(9, max(len(c) for c in cycle_cols))
+        hdr = f"{'파라미터':<38} " + " ".join(f"{c:>{col_w}}" for c in cycle_cols) + f"  {'현재':>{col_w}}"
+        lines.append(hdr)
+        lines.append("─" * len(hdr))
+
+        for param in tracked:
+            vals = []
+            for r in session_cycle_rows:
+                v = r.get("cycle_params", {}).get(param)
+                if v is None:
+                    vals.append("-")
+                elif isinstance(v, float):
+                    vals.append(f"{v:.3f}")
+                else:
+                    vals.append(str(v))
+            cur_v = current_policy.get(param)
+            cur_str = f"{cur_v:.3f}" if isinstance(cur_v, float) else str(cur_v) if cur_v is not None else "-"
+            row = f"{param:<38} " + " ".join(f"{v:>{col_w}}" for v in vals) + f"  {cur_str:>{col_w}}"
+            lines.append(row)
+
+        # Score row
+        lines.append("─" * len(hdr))
+        score_vals = [f"{r['ai_review'].get('avg', 0):.1f}" for r in session_cycle_rows]
+        lines.append(
+            f"{'AI avg':>38} " + " ".join(f"{v:>{col_w}}" for v in score_vals) + f"  {'(현재)':>{col_w}}"
+        )
+        lines.append("```")
+        lines.append("")
+
+    # ── Current value tables by group ───────────────────────────────────────
+    lines.append("**🔧 현재 파라미터 (그룹별)**")
+    for grp_name, params in GROUPS.items():
+        lines.append(f"**{grp_name}**")
+        lines.append("```")
+        lines.append(f"  {'파라미터':<42} {'현재값':>10}")
+        lines.append("  " + "─" * 54)
+        for p in params:
+            v = current_policy.get(p)
+            if v is None:
+                continue
+            if isinstance(v, dict):
+                v_str = ", ".join(f"{dk}={dv}" for dk, dv in v.items())
+            elif isinstance(v, float):
+                v_str = f"{v:.4f}"
+            else:
+                v_str = str(v)
+            lines.append(f"  {p:<42} {v_str:>10}")
+        lines.append("```")
+
+    return "\n".join(lines)
+
+
 async def async_main() -> None:
     os.chdir(REPO_ROOT)
     load_project_env(REPO_ROOT)
@@ -1060,27 +1787,105 @@ async def async_main() -> None:
         arg_text = parts[1].strip() if len(parts) > 1 else ""
 
         pending_review_tier = DAILY_PENDING_REVIEW_TIER.get(message.channel.id)
+        # 만료된 plan_approval 상태 자동 정리
+        if pending_review_tier:
+            expires_at = pending_review_tier.get("expires_at")
+            if expires_at and time.monotonic() > expires_at:
+                DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
+                pending_review_tier = None
         if pending_review_tier and message.author.id == pending_review_tier.get("user_id"):
             if content.lower() in {"취소", "cancel", "c"}:
                 DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
+                _cancel_stage = pending_review_tier.get("stage", "review_tier")
+                _cancel_msg = (
+                    "❌ 실행이 취소됐습니다. 다시 `!novel-daily <episode>` 로 설정할 수 있어요."
+                    if _cancel_stage == "plan_approval"
+                    else "설정이 취소됐습니다."
+                )
                 await _send_text_with_token(
                     message.channel,
                     message.channel.id,
-                    "리뷰 등급 선택을 취소했습니다.",
+                    _cancel_msg,
                     manager_bot_token,
                 )
                 return
             if not content.startswith("!"):
-                chosen_tier = _parse_review_tier_choice(content)
-                if chosen_tier:
-                    DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
-                    command = CMD_DAILY
-                    arg_text = f"{pending_review_tier.get('arg_text', '')} --review-tier {chosen_tier}".strip()
-                else:
+                stage = str(pending_review_tier.get("stage", "review_tier"))
+                if stage == "review_tier":
+                    chosen_tier = _parse_review_tier_choice(content)
+                    if chosen_tier:
+                        next_arg_text = f"{pending_review_tier.get('arg_text', '')} --review-tier {chosen_tier}".strip()
+                        DAILY_PENDING_REVIEW_TIER[message.channel.id] = {
+                            "user_id": message.author.id,
+                            "stage": "outer_cycles",
+                            "arg_text": next_arg_text,
+                        }
+                        await _send_text_with_token(
+                            message.channel,
+                            message.channel.id,
+                            "이번 세션에서 outer cycle을 몇 번 돌릴까요? (`1`~`50`)\n"
+                            "`3` 빠른 확인 | `10` 기본 추천 | `25` 충분한 탐색 | `50` 최대\n"
+                            "숫자로 답장해주세요. 취소는 `취소`.",
+                            manager_bot_token,
+                        )
+                        return
                     await _send_text_with_token(
                         message.channel,
                         message.channel.id,
                         "리뷰 등급을 `mini` 또는 `premium`으로 보내주세요. `1/2`도 됩니다. 취소는 `취소`.",
+                        manager_bot_token,
+                    )
+                    return
+
+                if stage == "outer_cycles":
+                    chosen_outer_cycles = _parse_outer_cycles_choice(content)
+                    if chosen_outer_cycles is None:
+                        await _send_text_with_token(
+                            message.channel,
+                            message.channel.id,
+                            "outer cycle 수를 `1`에서 `50` 사이 숫자로 보내주세요. 취소는 `취소`.",
+                            manager_bot_token,
+                        )
+                        return
+
+                    final_arg_text = (
+                        f"{pending_review_tier.get('arg_text', '')} --outer-cycles {chosen_outer_cycles}"
+                    ).strip()
+                    DAILY_PENDING_REVIEW_TIER[message.channel.id] = {
+                        "user_id": message.author.id,
+                        "stage": "plan_approval",
+                        "arg_text": final_arg_text,
+                        "expires_at": time.monotonic() + 1800,  # 30분 TTL
+                    }
+                    plan_msg = _build_plan_preview(final_arg_text, chosen_outer_cycles)
+                    await _send_text_with_token(
+                        message.channel,
+                        message.channel.id,
+                        plan_msg,
+                        manager_bot_token,
+                    )
+                    return
+
+                # stage == "plan_approval"
+                lowered = content.strip().lower()
+                if lowered in {"1", "yes", "y", "승인", "시작", "ok", "ㅇㅋ"}:
+                    DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
+                    command = CMD_DAILY
+                    arg_text = pending_review_tier.get("arg_text", "")
+                elif lowered in {"2", "no", "n", "취소", "cancel", "거절"}:
+                    DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
+                    await _send_text_with_token(
+                        message.channel,
+                        message.channel.id,
+                        "❌ 실행이 취소됐습니다. 다시 `!novel-daily <episode>` 로 설정할 수 있어요.",
+                        manager_bot_token,
+                    )
+                    return
+                else:
+                    await _send_text_with_token(
+                        message.channel,
+                        message.channel.id,
+                        "**`1`** 로 시작  |  **`2`** 로 취소",
                         manager_bot_token,
                     )
                     return
@@ -1117,24 +1922,12 @@ async def async_main() -> None:
                     proc_line = f"\n🧠 백그라운드 프로세스: 종료됨 (`{stage}`, PID {pid})"
                 else:
                     proc_line = "\n🧠 백그라운드 프로세스: 없음"
-                token_line = (
-                    f"\n🔢 세션 누적 토큰: {int(metrics.get('total_tokens', 0)):,}"
-                    f" ({int(metrics.get('prompt_tokens', 0)):,} in + {int(metrics.get('completion_tokens', 0)):,} out)"
-                )
-                cost_line = (
-                    f"\n💸 세션 누적 비용(Codex CLI 제외): ${float(metrics.get('guardian', 0.0)) + float(metrics.get('simulation', 0.0)) + float(metrics.get('chapter', 0.0)) + float(metrics.get('auto_chapter', 0.0)) + float(metrics.get('manager', 0.0)) + float(metrics.get('auto_review', 0.0)) + float(metrics.get('code_review', 0.0)) + float(metrics.get('regen_check', 0.0)) + float(metrics.get('final_review', 0.0)) + float(metrics.get('feedback_parse', 0.0)):.4f}"
-                )
                 start_t = DAILY_START_TIMES.get(ch_id)
-                if start_t is not None:
-                    _el = time.monotonic() - start_t
-                    _em, _es = int(_el // 60), int(_el % 60)
-                    elapsed_line = f"\n⏱️ 경과 시간: {_em}분 {_es:02d}초"
-                else:
-                    elapsed_line = ""
+                usage_block = "\n" + _format_usage_summary(metrics, start_t)
                 await _send_text_with_token(
                     message.channel,
                     ch_id,
-                    f"📊 현재 파이프라인 상태: **{status}**{elapsed_line}{proc_line}{token_line}{cost_line}",
+                    f"📊 현재 파이프라인 상태: **{status}**{proc_line}{usage_block}",
                     manager_bot_token,
                 )
             else:
@@ -1146,9 +1939,102 @@ async def async_main() -> None:
                 )
             return
 
+        # ── !usage ────────────────────────────────────────────────────────────
+        if command == CMD_USAGE and not arg_text:
+            ch_id = message.channel.id
+            active_ev = DAILY_STOP_EVENTS.get(ch_id)
+            active_metrics = DAILY_SESSION_METRICS.get(ch_id)
+            is_active = bool(active_ev and not active_ev.is_set() and active_metrics)
+            if is_active:
+                start_t = DAILY_START_TIMES.get(ch_id)
+                status = DAILY_STATUS.get(ch_id)
+                prefix = f"📈 현재 세션 사용량" + (f" ({status})" if status else "")
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    f"{prefix}\n{_format_usage_summary(active_metrics, start_t)}",
+                    manager_bot_token,
+                )
+                return
+
+            metrics = DAILY_SESSION_METRICS.get(ch_id)
+            status = DAILY_STATUS.get(ch_id)
+            if metrics:
+                recent_snapshot = _get_recent_usage_snapshot(ch_id)
+                snapshot_text = _format_usage_summary_from_elapsed(
+                    metrics,
+                    recent_snapshot.get("elapsed_sec") if recent_snapshot else None,
+                )
+                prefix = f"📈 최근 세션 사용량" + (f" ({status})" if status else "")
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    f"{prefix}\n{snapshot_text}",
+                    manager_bot_token,
+                )
+                return
+
+            snapshot = _get_recent_usage_snapshot(ch_id)
+            if snapshot:
+                snapshot_metrics = snapshot.get("metrics") if isinstance(snapshot.get("metrics"), dict) else {}
+                snapshot_status = str(snapshot.get("status", "") or "").strip()
+                prefix = "📈 최근 세션 사용량"
+                if snapshot_status:
+                    prefix += f" ({snapshot_status})"
+                episode_key = str(snapshot.get("episode_key", "") or "").strip()
+                if episode_key:
+                    prefix += f"\n에피소드: `{episode_key}`"
+                body = _format_usage_summary_from_elapsed(snapshot_metrics, snapshot.get("elapsed_sec"))
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    f"{prefix}\n{body}",
+                    manager_bot_token,
+                )
+            else:
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    "📈 아직 이 채널의 사용량 기록이 없습니다.",
+                    manager_bot_token,
+                )
+            return
+
+        # ── !reboot ───────────────────────────────────────────────────────────
+        if command == CMD_SHUTDOWN and not arg_text:
+            ch_id = message.channel.id
+            ev = DAILY_STOP_EVENTS.get(ch_id)
+            if ev and not ev.is_set():
+                ev.set()
+            await _send_text_with_token(
+                message.channel,
+                ch_id,
+                "⏹️ 봇 종료합니다. 재시작하려면 서버에서 직접 실행해주세요.",
+                manager_bot_token,
+            )
+            await asyncio.sleep(1)
+            sys.exit(0)
+
+        if command == CMD_REBOOT and not arg_text:
+            ch_id = message.channel.id
+            DAILY_PENDING_REVIEW_TIER.pop(ch_id, None)  # plan_approval 상태 정리
+            # 실행 중인 파이프라인이 있으면 먼저 중단 요청
+            ev = DAILY_STOP_EVENTS.get(ch_id)
+            if ev and not ev.is_set():
+                ev.set()
+            await _send_text_with_token(
+                message.channel,
+                ch_id,
+                "🔄 봇 재부팅 중... 잠시 후 다시 연결됩니다.",
+                manager_bot_token,
+            )
+            await asyncio.sleep(1)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
         # ── !stop ─────────────────────────────────────────────────────────────
         if command == CMD_PIPELINE_STOP and not arg_text:
             ch_id = message.channel.id
+            DAILY_PENDING_REVIEW_TIER.pop(ch_id, None)  # plan_approval 상태 정리
             ev = DAILY_STOP_EVENTS.get(ch_id)
             if ev and not ev.is_set():
                 ev.set()
@@ -1216,6 +2102,46 @@ async def async_main() -> None:
                 )
             return
 
+        # ── !emotion [episode_key] ────────────────────────────────────────────
+        if command == CMD_EMOTION:
+            ch_id = message.channel.id
+            ep_filter = arg_text.strip() or DAILY_EPISODE_KEYS.get(ch_id) or None
+            await _send_text_with_token(
+                message.channel, ch_id,
+                f"🎭 감정 궤적 차트 생성 중{f' — `{ep_filter}`' if ep_filter else ''}...",
+                manager_bot_token,
+            )
+            try:
+                chart_path = await asyncio.to_thread(_make_emotion_chart, ep_filter)
+                if chart_path and chart_path.exists():
+                    ep_label = ep_filter or "최근 씬"
+                    await _send_file_with_token(
+                        message.channel, ch_id,
+                        chart_path,
+                        f"🎭 [{ep_label}] 씬별 감정 궤적",
+                        manager_bot_token,
+                    )
+                    chart_path.unlink(missing_ok=True)
+                    # 이미지 아래에 텍스트 요약도 전송
+                    text_summary = await asyncio.to_thread(_build_emotion_text_summary, ep_filter)
+                    if text_summary:
+                        await _send_text_with_token(
+                            message.channel, ch_id, text_summary, manager_bot_token,
+                        )
+                else:
+                    await _send_text_with_token(
+                        message.channel, ch_id,
+                        "⚠️ 씬 파일을 찾을 수 없습니다. `!novel-daily <episode>` 를 먼저 실행하세요.",
+                        manager_bot_token,
+                    )
+            except Exception as _e:
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    f"❌ 차트 생성 실패: {_e}",
+                    manager_bot_token,
+                )
+            return
+
         # ── !benchmark ────────────────────────────────────────────────────────
         if command == CMD_BENCHMARK:
             ep_filter = arg_text.strip() or None
@@ -1224,68 +2150,123 @@ async def async_main() -> None:
                 "🔍 벤치마크 데이터 수집 중...",
                 manager_bot_token,
             )
-            rows = await asyncio.to_thread(_collect_benchmark_rows, ep_filter)
+            active_snapshot = _get_recent_usage_snapshot(message.channel.id)
+            active_episode = None
+            if active_snapshot and active_snapshot.get("is_active"):
+                active_episode = str(active_snapshot.get("episode_key", "") or "").strip()
+            target_episode = active_episode or ep_filter
+            run_dir = await asyncio.to_thread(_resolve_latest_daily_run_dir, target_episode)
+            rows = await asyncio.to_thread(_load_session_benchmark_rows, run_dir) if run_dir else []
             if not rows:
                 await _send_text_with_token(
                     message.channel, message.channel.id,
-                    "⚠️ 완료된 파이프라인 실행 데이터가 없습니다 (auto_review_cycle*.json 파일 없음).",
+                    "⚠️ 현재 세션 또는 가장 최근 세션의 벤치마크 데이터가 없습니다.",
                     manager_bot_token,
                 )
                 return
-
-            # Group by episode key
-            from collections import defaultdict
-            grouped: dict[str, list[dict]] = defaultdict(list)
-            for r in rows:
-                grouped[r["ep_key"]].append(r)
-
-            for ep_key_name, ep_rows in grouped.items():
-                avgs = [r["avg"] for r in ep_rows]
-                best_i = avgs.index(max(avgs))
-                worst_i = avgs.index(min(avgs))
-                trend_arrow = "▲" if len(avgs) > 1 and avgs[-1] > avgs[0] else ("▼" if len(avgs) > 1 and avgs[-1] < avgs[0] else "─")
-
-                # Build text table
-                header = f"📊 **벤치마크 — {ep_key_name}**  ({len(ep_rows)}회 실행)\n"
-                sep = "─" * 64
-                col_hdr = f"{'#':>2}  {'날짜/시간':<12} {'긴장':>4} {'문체':>4} {'인과':>4} {'캐릭':>4} {'씬기':>4} {'평균':>5}  {'사이클':>4}"
-                lines = [header, f"```\n{sep}\n{col_hdr}\n{sep}"]
-                for i, r in enumerate(ep_rows, 1):
-                    marker = "★" if i - 1 == best_i else (" " if i - 1 != worst_i else "▽")
-                    lines.append(
-                        f"{i:>2}{marker} {r['date']}/{r['time']:<7} "
-                        f"{r['thrill']:>4} {r['style']:>4} {r['causality']:>4} "
-                        f"{r['character']:>4} {r['scene_fn']:>4} {r['avg']:>5.1f}  {r['cycles']:>4}"
-                    )
-                lines.append(sep)
+            ep_key_name = str(rows[-1].get("episode_id", run_dir.parent.name.split("_", 1)[-1] if run_dir else "unknown"))
+            scores = [float(r.get("score", 0.0)) for r in rows]
+            repetition_penalties = [float(r.get("repetition_penalty", 0.0)) for r in rows]
+            best_idx = max(range(len(scores)), key=lambda i: scores[i])
+            worst_idx = min(range(len(scores)), key=lambda i: scores[i])
+            cycle_ids = sorted({int(r.get("cycle_idx", 0)) for r in rows})
+            mode_label = "현재 세션" if active_episode else "가장 최근 세션"
+            last_rows = rows[-10:]
+            lines = [
+                f"📊 **벤치마크 — {ep_key_name}** ({mode_label})",
+                f"run: `{run_dir.relative_to(REPO_ROOT) if run_dir else '-'}`",
+                f"누적 subtrials: `{len(rows)}` | outer cycles 기록: `{', '.join(str(c) for c in cycle_ids)}`",
+                f"최고: `t{int(rows[best_idx].get('trial_idx', best_idx))}` {scores[best_idx]:.3f} | 최저: `t{int(rows[worst_idx].get('trial_idx', worst_idx))}` {scores[worst_idx]:.3f}",
+                f"시작→최근: `{scores[0]:.3f} → {scores[-1]:.3f}`",
+                f"평균 repetition_penalty: `-{sum(repetition_penalties) / max(1, len(repetition_penalties)):.3f}`",
+                "```",
+                "최근 10개 subtrials",
+            ]
+            for row in last_rows:
                 lines.append(
-                    f"최고: {max(avgs):.1f}/10 (#{best_i+1})  "
-                    f"최저: {min(avgs):.1f}/10 (#{worst_i+1})  "
-                    f"추세: {avgs[0]:.1f}→{avgs[-1]:.1f} {trend_arrow}"
+                    f"C{int(row.get('cycle_idx', 0))} "
+                    f"t{int(row.get('trial_idx', 0)):>2} "
+                    f"score={float(row.get('score', 0.0)):.3f} "
+                    f"(det {float(row.get('det', 0.0)):.3f} / llm {float(row.get('llm', 0.0)):.3f} / rep -{float(row.get('repetition_penalty', 0.0)):.3f})"
                 )
-                if len(avgs) > 1:
-                    delta = avgs[-1] - avgs[0]
-                    lines.append(f"총 변화: {delta:+.1f}점  평균 향상: {delta/(len(avgs)-1):+.2f}점/회")
-                lines.append("```")
-                table_text = "\n".join(lines)
-                await _send_text_with_token(
-                    message.channel, message.channel.id,
-                    table_text,
-                    manager_bot_token,
-                )
+            lines.append("```")
+            await _send_text_with_token(
+                message.channel,
+                message.channel.id,
+                "\n".join(lines),
+                manager_bot_token,
+            )
 
-                # Send chart
-                chart_path = await asyncio.to_thread(_build_benchmark_chart, ep_rows, ep_key_name)
-                if chart_path and chart_path.exists():
-                    try:
-                        await _send_file_with_token(
-                            message.channel, message.channel.id,
-                            chart_path, f"📈 점수 추이 차트 — {ep_key_name}",
-                            manager_bot_token,
-                        )
-                    except Exception:
-                        pass
-                    chart_path.unlink(missing_ok=True)
+            chart_path = await asyncio.to_thread(_build_session_benchmark_chart, rows, ep_key_name)
+            if chart_path and chart_path.exists():
+                try:
+                    await _send_file_with_token(
+                        message.channel,
+                        message.channel.id,
+                        chart_path,
+                        f"📈 세션 벤치마크 차트 — {ep_key_name}",
+                        manager_bot_token,
+                    )
+                except Exception:
+                    pass
+                chart_path.unlink(missing_ok=True)
+            return
+
+        # ── !parameter ────────────────────────────────────────────────────────
+        if command == CMD_PARAMETER:
+            ch_id = message.channel.id
+            active_metrics = DAILY_SESSION_METRICS.get(ch_id)
+            active_ev = DAILY_STOP_EVENTS.get(ch_id)
+            is_active = bool(active_ev and not active_ev.is_set() and active_metrics)
+            await _send_text_with_token(
+                message.channel, ch_id,
+                "🔍 파라미터 분석 중...",
+                manager_bot_token,
+            )
+
+            def _load_parameter_report() -> str:
+                import json as _json
+                from datetime import date as _date
+                _log_path = REPO_ROOT / "data" / "cycle_score_log.jsonl"
+                cycle_rows: list[dict] = []
+                if _log_path.exists():
+                    for line in _log_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            cycle_rows.append(_json.loads(line))
+                        except Exception:
+                            pass
+                if cycle_rows:
+                    if is_active:
+                        # Current session: only today's entries
+                        today = str(_date.today())
+                        cycle_rows = [r for r in cycle_rows if r.get("date", "") == today]
+                    else:
+                        # Latest completed session: last date block
+                        last_date = cycle_rows[-1].get("date", "")
+                        cycle_rows = [r for r in cycle_rows if r.get("date", "") == last_date]
+                return _build_parameter_report(cycle_rows or None)
+
+            report = await asyncio.to_thread(_load_parameter_report)
+            # Split if too long for Discord (2000 char limit)
+            if len(report) <= 1900:
+                await _send_text_with_token(
+                    message.channel, ch_id, report, manager_bot_token,
+                )
+            else:
+                # Send in two parts
+                mid = report.find("\n**🔧")
+                part1 = report[:mid] if mid > 0 else report[:1900]
+                part2 = report[mid:] if mid > 0 else report[1900:]
+                await _send_text_with_token(
+                    message.channel, ch_id, part1, manager_bot_token,
+                )
+                if part2:
+                    await _send_text_with_token(
+                        message.channel, ch_id, part2, manager_bot_token,
+                    )
             return
 
         # ── !novel-daily <episode_key> ─────────────────────────────────────────
@@ -1295,7 +2276,7 @@ async def async_main() -> None:
                 await message.channel.send(
                     "사용법: `!novel-daily <번호 또는 episode_key>`\n"
                     "예: `!novel-daily 1` / `!novel-daily 15`\n"
-                    "옵션: `--target-words 3500 --budget 4.0 --protagonist kim_sumin --review-tier mini|premium`"
+                    "옵션: `--target-words 3500 --budget 4.0 --protagonist kim_sumin --review-tier mini|premium --outer-cycles 3`"
                 )
                 return
             episode_key = daily_args[0]
@@ -1303,6 +2284,7 @@ async def async_main() -> None:
             budget_val = 4.0
             protagonist = "kim_sumin"
             review_tier: str | None = None
+            outer_cycles: int | None = None
             remaining = daily_args[1:]
             i = 0
             while i < len(remaining):
@@ -1314,6 +2296,8 @@ async def async_main() -> None:
                     protagonist = remaining[i + 1]; i += 2
                 elif remaining[i] == "--review-tier" and i + 1 < len(remaining):
                     review_tier = _parse_review_tier_choice(remaining[i + 1]); i += 2
+                elif remaining[i] == "--outer-cycles" and i + 1 < len(remaining):
+                    outer_cycles = _parse_outer_cycles_choice(remaining[i + 1]); i += 2
                 else:
                     i += 1
 
@@ -1322,6 +2306,7 @@ async def async_main() -> None:
             if review_tier is None:
                 DAILY_PENDING_REVIEW_TIER[ch_id] = {
                     "user_id": message.author.id,
+                    "stage": "review_tier",
                     "arg_text": arg_text,
                 }
                 await _send_text_with_token(
@@ -1331,6 +2316,25 @@ async def async_main() -> None:
                     "`1` 또는 `mini` — 빠르고 저렴\n"
                     "`2` 또는 `premium` — 정밀, 고품질\n"
                     "답장으로 보내주시면 시작합니다. 취소는 `취소`.",
+                    manager_bot_token,
+                )
+                return
+            if outer_cycles is None:
+                DAILY_PENDING_REVIEW_TIER[ch_id] = {
+                    "user_id": message.author.id,
+                    "stage": "outer_cycles",
+                    "arg_text": arg_text,
+                }
+                await _send_text_with_token(
+                    message.channel,
+                    ch_id,
+                    "이번 세션에서 outer cycle을 몇 번 돌릴까요?\n"
+                    "`1` 빠르게 확인\n"
+                    "`2` 중간\n"
+                    "`3` 기본 추천\n"
+                    "`4` 더 길게\n"
+                    "`5` 최대 탐색\n"
+                    "숫자로 답장해주세요. 취소는 `취소`.",
                     manager_bot_token,
                 )
                 return
@@ -1348,6 +2352,7 @@ async def async_main() -> None:
             DAILY_STATUS[ch_id] = f"시작 대기 — {episode_key}"
             DAILY_EPISODE_KEYS[ch_id] = episode_key  # for stop chart
             DAILY_START_TIMES[ch_id] = time.monotonic()
+            DAILY_START_TIMES_WALL[ch_id] = time.time()
             DAILY_SESSION_METRICS[ch_id] = {
                 "guardian": 0.0,
                 "simulation": 0.0,
@@ -1364,9 +2369,24 @@ async def async_main() -> None:
                 "total_tokens": 0,
                 "model_token_totals": {},
             }
+            _persist_usage_snapshot(
+                ch_id,
+                metrics=DAILY_SESSION_METRICS[ch_id],
+                status=DAILY_STATUS.get(ch_id),
+                episode_key=episode_key,
+                is_active=True,
+            )
 
             def _set_status(s: str) -> None:
                 DAILY_STATUS[ch_id] = s
+                ev = DAILY_STOP_EVENTS.get(ch_id)
+                _persist_usage_snapshot(
+                    ch_id,
+                    metrics=DAILY_SESSION_METRICS.get(ch_id),
+                    status=s,
+                    episode_key=DAILY_EPISODE_KEYS.get(ch_id),
+                    is_active=bool(ev and not ev.is_set()),
+                )
 
             def _set_process(stage: str | None, pid: int | None, command_text: str | None) -> None:
                 if stage is None or pid is None:
@@ -1380,6 +2400,14 @@ async def async_main() -> None:
 
             def _set_metrics(metrics: dict[str, Any]) -> None:
                 DAILY_SESSION_METRICS[ch_id] = dict(metrics)
+                ev = DAILY_STOP_EVENTS.get(ch_id)
+                _persist_usage_snapshot(
+                    ch_id,
+                    metrics=DAILY_SESSION_METRICS.get(ch_id),
+                    status=DAILY_STATUS.get(ch_id),
+                    episode_key=DAILY_EPISODE_KEYS.get(ch_id),
+                    is_active=bool(ev and not ev.is_set()),
+                )
 
             def _on_start_wait() -> None:
                 """파이프라인이 피드백 대기 상태 진입 시 호출."""
@@ -1396,6 +2424,7 @@ async def async_main() -> None:
                 "manager": None,
                 "programmer": None,
                 "sim": None,
+                "optimize": None,
                 "chapter": None,
                 "review": None,
                 "auto": None,
@@ -1403,6 +2432,10 @@ async def async_main() -> None:
                 "fixer": None,
                 "yaml_fixer": None,
                 "choice": None,
+                "mini_opt": None,
+                "mini_opt_sim": None,
+                "mini_opt_score": None,
+                "mini_opt_prog": None,
             }
             anchor_threads: dict[str, discord.abc.Messageable | None] = {
                 "start": None,
@@ -1412,6 +2445,7 @@ async def async_main() -> None:
                 "manager": None,
                 "programmer": None,
                 "sim": None,
+                "optimize": None,
                 "chapter": None,
                 "review": None,
                 "auto": None,
@@ -1419,15 +2453,22 @@ async def async_main() -> None:
                 "fixer": None,
                 "yaml_fixer": None,
                 "choice": None,
+                "mini_opt": None,
+                "mini_opt_sim": None,
+                "mini_opt_score": None,
+                "mini_opt_prog": None,
             }
 
             def _token_for_key(key: str | None) -> str:
-                if key in {"start", "manager", "choice"}:
+                if key in {"start", "manager", "choice", "mini_opt", "auto_review"}:
                     return manager_bot_token
-                if key in {"guardian_rules", "guardian_gpt", "review", "auto_review"}:
+                if key in {"guardian_rules", "guardian_gpt", "review", "mini_opt_score"}:
                     return reviewer_bot_token
-                if key in {"auto", "fixer", "yaml_fixer", "programmer", "reset"}:
+                if key in {"auto", "fixer", "yaml_fixer", "programmer", "reset",
+                           "mini_opt_prog"}:
                     return fixer_bot_token
+                if key in {"mini_opt_sim"}:
+                    return ""  # Simulator = main_bot_token (empty = main bot)
                 return ""
 
             def _anchor_key_for_text(text: str) -> str | None:
@@ -1445,14 +2486,20 @@ async def async_main() -> None:
                     return "programmer"
                 if text.startswith(f"{DAILY_TAG}[SIM] ⚙️ 시뮬레이션 시작"):
                     return "sim"
+                if text.startswith(f"{DAILY_TAG}[OPTIMIZE] 🔬 인라인 최적화 시작"):
+                    return "optimize"
                 if text.startswith(f"{DAILY_TAG}[CHAPTER] 📖 챕터 생성 중"):
                     return "chapter"
                 if text.startswith(f"{DAILY_TAG}[REVIEW] 🔍 품질 자동 검수 중"):
                     return "review"
-                if text.startswith(f"{DAILY_TAG}[AUTO] 🔄 AI 자동 개선 루프"):
-                    return "auto"  # 사이클마다 새 뜨레드 생성
+                if text.startswith(f"{DAILY_TAG}[AUTO] 🚀 AI 자동 개선 루프"):
+                    return "auto"  # 사이클마다 새 쓰레드 생성
                 if text.startswith(f"{DAILY_TAG}[AUTO] 📊 AI 리뷰 결과"):
                     return "auto_review"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 📊 Phase B 리뷰 결과"):
+                    return "auto_review"  # Manager anchor + thread
+                if text.startswith(f"{DAILY_TAG}[MINI-OPT] outer") and "완료" not in text:
+                    return "mini_opt"  # Manager anchor, new thread per outer cycle (group or 2-study)
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔧 Codex 수정 시작"):
                     return "fixer"
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 YAML 검수 시작"):
@@ -1468,7 +2515,7 @@ async def async_main() -> None:
                     return "reset"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] Config 규칙 검수 결과:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청"):
                     return "guardian_rules"
-                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧭 GPT 생성용 브리핑:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
                     return "guardian_gpt"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 💸"):
                     return "guardian_rules"
@@ -1486,7 +2533,7 @@ async def async_main() -> None:
                         return "chapter"
                 if text.startswith(f"{DAILY_TAG}[OPTIMIZE] "):
                     if "인라인 최적화 시작" not in text:
-                        return "chapter"
+                        return "optimize"
                 if text.startswith(f"{DAILY_TAG}[REVIEW] "):
                     if "품질 자동 검수 중" not in text:
                         return "review"
@@ -1494,9 +2541,19 @@ async def async_main() -> None:
                     return "auto_review"
                 if text.startswith(f"{DAILY_TAG}[AUTO] 📋 Codex 수정 진단"):
                     return "auto_review"
+                if text.startswith(f"{DAILY_TAG}[AUTO] 📊 Factor Analysis"):
+                    return "auto_review"  # Factor analysis detail → Phase B thread
                 if text.startswith(f"{DAILY_TAG}[AUTO] "):
                     if "AI 자동 개선 루프 시작" not in text:
                         return "auto"
+                if text.startswith(f"{DAILY_TAG}[MINI-OPT-SIM] "):
+                    return "mini_opt_sim"
+                if text.startswith(f"{DAILY_TAG}[MINI-OPT-SCORE] "):
+                    return "mini_opt_score"
+                if text.startswith(f"{DAILY_TAG}[MINI-OPT-PROG] "):
+                    return "mini_opt_prog"
+                if text.startswith(f"{DAILY_TAG}[MINI-OPT] "):
+                    return "mini_opt"  # group 완료 summary → Manager in thread
                 if text.startswith(f"{DAILY_TAG}[FIXER] 🔍 "):
                     if "YAML 검수 시작" not in text:
                         return "yaml_fixer"
@@ -1553,6 +2610,8 @@ async def async_main() -> None:
                     keys.append("programmer")
                 if text.startswith(f"{DAILY_TAG}[SIM] ✅ 시뮬레이션 완료"):
                     keys.append("sim")
+                if text.startswith(f"{DAILY_TAG}[OPTIMIZE] ✅ "):
+                    keys.append("optimize")
                 if text.startswith(f"{DAILY_TAG}[CHAPTER] ✅ 챕터 완성"):
                     keys.append("chapter")
                 if text.startswith(f"{DAILY_TAG}[REVIEW] ✅ 자동 검수 완료"):
@@ -1587,6 +2646,11 @@ async def async_main() -> None:
                         auto_archive_duration=1440,
                     )
                     anchor_threads[key] = thread
+                    # mini_opt sub-keys all share the same thread (different bots post inside)
+                    if key == "mini_opt":
+                        anchor_threads["mini_opt_sim"] = thread
+                        anchor_threads["mini_opt_score"] = thread
+                        anchor_threads["mini_opt_prog"] = thread
                     return thread
                 except Exception:
                     return None
@@ -1677,7 +2741,7 @@ async def async_main() -> None:
                 ch_id,
                 f"▶️ `!novel-daily {episode_key}` 시작\n"
                 f"리뷰 등급: `{review_tier}`\n"
-                "확인: `!status` | 중단: `!stop` | 챕터: `!chapter` | 벤치마크: `!benchmark`",
+                f"outer cycles: `{outer_cycles}`",
                 manager_bot_token,
             )
 
@@ -1701,6 +2765,7 @@ async def async_main() -> None:
                             no_discord=False,
                             stop_event=_stop_ev,
                             review_tier=review_tier,
+                            outer_max_cycles=outer_cycles,
                             set_status=_set_status,
                             set_process=_set_process,
                             set_metrics=_set_metrics,
@@ -1753,10 +2818,18 @@ async def async_main() -> None:
                         f"[ERROR] {type(exc).__name__}: {exc}",
                     )
                 finally:
+                    _persist_usage_snapshot(
+                        ch_id,
+                        metrics=DAILY_SESSION_METRICS.get(ch_id),
+                        status=DAILY_STATUS.get(ch_id),
+                        episode_key=DAILY_EPISODE_KEYS.get(ch_id),
+                        is_active=False,
+                    )
                     DAILY_PENDING_REVIEW_TIER.pop(ch_id, None)
                     DAILY_WAITING_FEEDBACK.discard(ch_id)
                     DAILY_PROCESS_INFO.pop(ch_id, None)
                     DAILY_START_TIMES.pop(ch_id, None)
+                    DAILY_START_TIMES_WALL.pop(ch_id, None)
                     if DAILY_FEEDBACK_QUEUES.get(ch_id) is _feedback_q:
                         DAILY_FEEDBACK_QUEUES.pop(ch_id, None)
                     if DAILY_STOP_EVENTS.get(ch_id) is _stop_ev:
@@ -1765,13 +2838,27 @@ async def async_main() -> None:
             asyncio.create_task(_run_daily_task())
             return
 
-        # ── !approve <req_id> ─────────────────────────────────────────────────
+        # ── !approve [req_id] ─────────────────────────────────────────────────
         if command == CMD_APPROVE:
             req_id = arg_text.split()[0] if arg_text else ""
+            # 인자 없으면 플랜 승인으로 처리
             if not req_id:
-                await message.channel.send("사용법: `!approve <req_id>`")
-                return
+                plan_pending = DAILY_PENDING_REVIEW_TIER.get(message.channel.id)
+                if (
+                    plan_pending
+                    and plan_pending.get("stage") == "plan_approval"
+                    and message.author.id == plan_pending.get("user_id")
+                ):
+                    DAILY_PENDING_REVIEW_TIER.pop(message.channel.id, None)
+                    command = CMD_DAILY
+                    arg_text = plan_pending.get("arg_text", "")
+                    # CMD_DAILY 핸들러로 fall-through (아래 if command == CMD_DAILY 블록 진입)
+                else:
+                    await message.channel.send("사용법: `!approve <req_id>`\n플랜 승인은 `1` 또는 `2` 로 입력해주세요.")
+                    return
 
+        # config change approve (req_id 있을 때만)
+        if command == CMD_APPROVE and req_id:
             pending_path = REPO_ROOT / "data" / "pending_config_changes.json"
             if not pending_path.exists():
                 await message.channel.send("⚠️ pending_config_changes.json 파일 없음")

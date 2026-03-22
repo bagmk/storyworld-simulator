@@ -1,13 +1,13 @@
-# Novel Writer
+# Storyworld Simulator
 
-에피소드 설정 파일을 넣으면, **소설 초고를 만들고 Discord 안에서 계속 개선해 나가는** 파이프라인입니다.
+에피소드 설정 파일을 넣으면, 캐릭터 상호작용을 시뮬레이션하고, 장면으로 압축한 뒤, 읽을 수 있는 한국어 소설 챕터로 생성하고, Discord 안에서 리뷰와 재실행까지 이어 가는 파이프라인입니다.
 
 이 저장소의 핵심 진입점은 `!novel-daily`입니다.  
 처음 보는 사람도 이 명령 하나만 이해하면 전체 구조를 빠르게 파악할 수 있습니다.
 
 ![Discord sample](Discord_sample.png)
 
----
+* * *
 
 ## 한눈에 보기
 
@@ -15,43 +15,118 @@
 
 - 에피소드 설정(YAML)을 읽고
 - 캐릭터 상호작용을 시뮬레이션하고
-- 장면을 압축한 뒤
+- raw turn log를 장면 단위로 압축한 뒤
 - 한국어 소설 챕터로 생성하고
-- 자동 리뷰와 사용자 피드백을 받아
+- 자동 리뷰와 사용자 피드백을 반영해
 - 코드 또는 스토리 설정까지 다시 수정하는
 
-**“생성 → 리뷰 → 개선 → 재실행” 루프**를 Discord 안에서 돌립니다.
+**“생성 → 리뷰 → 개선 → 재실행” 루프**를 Discord 안에서 운영합니다.
 
 핵심적으로는 이렇게 이해하면 됩니다.
 
-> **설정 파일 하나를 넣으면 초고를 만들고, Discord에서 읽고, 고치고, 다음 화로 넘길 수 있는 시스템**
+> 설정 파일 하나를 넣으면 초고를 만들고, Discord에서 읽고, 고치고, 다음 화로 넘길 수 있는 시스템
 
----
+* * *
 
-## 왜 흥미로운가
+## 왜 이 구조를 쓰는가
 
-보통 소설 초고를 다듬으려면 이런 작업을 따로 해야 합니다.
+LLM으로 소설을 바로 생성하면 보통 이런 문제가 생깁니다.
 
-1. 설정 파일 확인
-2. 시뮬레이션 실행
-3. 챕터 생성
-4. 품질 리뷰
-5. 피드백 정리
-6. 코드 또는 스토리 수정
-7. 다시 실행
+- 같은 내용을 조금씩 반복함
+- 설정은 맞는데 소설처럼 잘 읽히지 않음
+- 인물의 대화와 반응이 비슷해짐
+- 기술 설명이 과해져 장면이 멈춤
+- 장편에서 앞 화의 단서와 리듬이 쉽게 무너짐
 
-`!novel-daily`는 이 과정을 하나의 루프로 묶습니다.
+이 프로젝트는 그 문제를 **단계 분리**로 다룹니다.
+
+1. 먼저 **시뮬레이션**으로 “무슨 일이 벌어졌는가”를 생성합니다.
+2. 다음으로 **scene distillation**으로 반복적인 turn log를 장면으로 압축합니다.
+3. 마지막으로 **prose generation**으로 읽히는 문장으로 바꿉니다.
+4. 그리고 **polishing + feedback loop**로 문체, 분량, 앵커, 가독성을 정리합니다.
+
+즉,
+
+**사건 생성**과 **문장 생성**을 분리해서 장편 소설 품질을 더 안정적으로 관리하는 구조입니다.
+
+* * *
+
+## 전체 파이프라인
 
 ```text
 episode.yaml
-  -> Config Guardian
-  -> 시뮬레이션
-  -> 챕터 생성
-  -> 자동 리뷰
-  -> 리포트 생성
-  -> Discord 피드백 수집
-  -> 코드 수정 또는 스토리 수정
-  -> 자동 재실행
+  -> Config / Guardian checks
+  -> SimulationOrchestrator
+      -> DirectorAI guardrails
+      -> character turn loop
+      -> memory / clue / continuity updates
+  -> SceneDistiller
+      -> repeated turn compression
+      -> beat mapping
+      -> scene summaries
+  -> ProseGenerator
+      -> scene-by-scene prose
+      -> transition generation
+      -> chapter assembly
+  -> ChapterPolisher
+      -> bounded polish
+      -> anchor coverage correction
+      -> reader feedback pass
+  -> Discord review / user feedback
+  -> story fix or code fix
+  -> rerun
+```
+
+이 구조의 장점은, 문제가 생겼을 때 **어느 단계가 원인인지 분리해서 볼 수 있다**는 점입니다.
+
+- 시뮬레이션이 이상한가?
+- 장면 압축이 너무 거친가?
+- 산문 생성이 과하게 설명적인가?
+- 폴리싱이 지나치게 손을 대는가?
+
+각 문제를 서로 다른 층에서 다룰 수 있습니다.
+
+* * *
+
+## 가장 중요한 명령: `!novel-daily`
+
+처음 쓰는 사람은 다른 스크립트보다 이 명령부터 이해하는 것이 가장 좋습니다.
+
+`!novel-daily`는 아래 일을 한 번에 처리합니다.
+
+1. 에피소드 설정 검사
+2. 캐릭터 시뮬레이션 실행
+3. 챕터 생성
+4. 품질 리뷰 수행
+5. 사용자 피드백 수집
+6. 상태 저장 및 다음 실행 준비
+
+즉, **“한 화를 돌리고, 읽고, 고치고, 다음 화로 넘길지 결정하는 전체 작업 흐름”**이 Discord 안에서 돌아갑니다.
+
+* * *
+
+## 실제 Discord 흐름 예시
+
+```text
+User
+!novel-daily 1
+
+Bot
+리뷰 등급을 골라주세요.
+1 또는 mini      — 빠르고 저렴
+2 또는 premium   — 정밀, 고품질
+
+User
+2
+
+Bot
+▶️ !novel-daily ep01_academic_presentation 시작
+리뷰 등급: premium
+진행 상황 확인: !status | 중단: !stop
+
+Bot
+[GUARDIAN] Config 검수 시작
+...
 ```
 
 사용자 입장에서는 이렇게 느껴집니다.
@@ -61,7 +136,7 @@ episode.yaml
 - 마음에 안 드는 부분을 바로 수정 요청할 수 있다
 - 수정 후 다시 돌려보는 루프까지 연결된다
 
----
+* * *
 
 ## 입력과 출력 예시
 
@@ -86,145 +161,44 @@ episode:
 >
 > 청중 가운데 어떤 이들의 시선이 달랐다. 박수 대신 계산표를 보는 눈이었다. 표준적 경외가 아니라 적용 가능성을 재는 얼굴들이었다.
 
-즉, 이 저장소는 설정을 단순히 늘려 쓰는 것이 아니라,
-**시뮬레이션과 장면 구조화를 거쳐 읽을 수 있는 챕터로 변환**합니다.
+즉, 이 저장소는 설정을 단순히 늘려 쓰는 것이 아니라, **시뮬레이션과 장면 구조화를 거쳐 읽을 수 있는 챕터로 변환**합니다.
 
----
-
-## 가장 중요한 명령: `!novel-daily`
-
-처음 쓰는 사람은 다른 스크립트보다 이 명령부터 이해하는 것이 가장 좋습니다.
-
-`!novel-daily`는 아래 일을 한 번에 처리합니다.
-
-1. 에피소드 설정 검사
-2. 캐릭터 시뮬레이션 실행
-3. 챕터 생성
-4. 품질 리뷰 및 자동 개선
-5. 사용자 피드백 반영
-6. 상태 저장 및 다음 실행 준비
-
-즉,
-**“한 화를 돌리고, 읽고, 고치고, 다음으로 넘길지 결정하는 전체 작업 흐름”**이 Discord 안에서 돌아갑니다.
-
----
-
-## 실제 Discord 흐름 예시
-
-```text
-User
-!novel-daily 1
-
-Bot
-리뷰 등급을 골라주세요.
-1 또는 mini      — 빠르고 저렴
-2 또는 premium   — 정밀, 고품질
-
-User
-2
-
-Bot
-▶️ !novel-daily ep01_academic_presentation 시작
-리뷰 등급: premium
-진행 상황 확인: !status | 중단: !stop
-
-Bot
-[GUARDIAN] Config 검수 시작
-
-Bot
-[SIM] 시뮬레이션 시작
-
-Bot
-[SIM] Turn 7/28
-
-Bot
-[CHAPTER] 챕터 생성 중
-
-Bot
-[AUTO] AI 자동 개선 루프 1/20 시작
-
-Bot
-[REVIEW] 자동 검수 완료
-긴장감: 8/10
-문체: 8/10
-인과성: 7/10
-
-Bot
-개선 방향을 선택해주세요.
-1 코드 수정
-2 스토리 수정
-3 다음으로
-
-User
-1 초반 대사가 조금 딱딱하고 설명투야. 긴장감을 더 빨리 올려줘.
-
-Bot
-[CHOICE] 코드 수정 선택 — Codex Fixer 실행 중...
-
-Bot
-[CHAPTER] 수정된 코드로 챕터 재생성 중...
-
-Bot
-[DONE] 코드 수정 완료. 같은 화 재시도: !novel-daily ep01_academic_presentation
-```
-
-이 예시에서 핵심은 세 가지입니다.
-
-- 사용자는 Discord에서 명령만 입력하면 됩니다.
-- 봇은 실행, 리뷰, 개선, 재실행을 하나의 흐름으로 이어줍니다.
-- 마지막에는 “코드 수정 / 스토리 수정 / 다음 화 진행”을 다시 선택할 수 있습니다.
-
-진행 중 상태가 궁금하면 `!status`로 확인할 수 있습니다.
-
-```text
-User
-!status
-
-Bot
-현재 파이프라인 상태: 챕터 생성 중
-경과 시간: 6분 12초
-세션 누적 토큰: ...
-세션 누적 비용: ...
-```
-
----
+* * *
 
 ## 빠른 시작
 
-정말 처음이라면 아래 순서만 따라오면 됩니다.
+### 준비물
 
-1. Python 환경 준비
-2. OpenAI API 키 발급
-3. Discord 봇 생성 및 서버 초대
-4. `.env` 설정
-5. `python tools/discord_loop_bot.py` 실행
-6. Discord 채널에서 `!novel-daily 1` 입력
-
----
-
-## 준비물
-
-- Python 3.10 이상
+- Python 3.10+
 - OpenAI API 키
 - Discord 서버 1개
 - Discord 봇 토큰 1개 이상
 
-반드시 필요한 값:
+필수 환경 변수:
 
 - `OPENAI_API_KEY`
 - `DISCORD_BOT_TOKEN`
 
----
+선택 환경 변수:
 
-## 설치
+- `DISCORD_BOT_TOKEN2`
+- `DISCORD_BOT_TOKEN3`
+- `DISCORD_BOT_TOKEN4`
+- `DISCORD_ALERT_CHANNEL_ID`
 
-### 1) 프로젝트 폴더로 이동
+처음에는 **봇 1개만으로 시작하는 것을 권장**합니다.
+
+### 설치
+
+#### 1) 프로젝트 폴더로 이동
 
 ```bash
-cd "/Users/saesunkim/Documents/Novel Writter - 2026"
+cd /path/to/storyworld-simulator
 ```
 
-### 2) 가상환경 생성
+#### 2) 가상환경 생성
+
+macOS / Linux:
 
 ```bash
 python3 -m venv .venv
@@ -234,26 +208,17 @@ source .venv/bin/activate
 Windows:
 
 ```bash
+python -m venv .venv
 .venv\Scripts\activate
 ```
 
-### 3) 패키지 설치
+#### 3) 패키지 설치
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-## `.env` 설정
-
-먼저 예제 파일을 복사합니다.
-
-```bash
-cp .env.example .env
-```
-
-그다음 `.env`를 아래처럼 채웁니다.
+### `.env` 설정
 
 ```env
 OPENAI_API_KEY="sk-..."
@@ -264,379 +229,266 @@ DISCORD_BOT_TOKEN4=""
 DISCORD_ALERT_CHANNEL_ID=""
 ```
 
-설명:
+### 첫 실행
 
-- `OPENAI_API_KEY`: 필수
-- `DISCORD_BOT_TOKEN`: 필수
-- `DISCORD_BOT_TOKEN2/3/4`: 선택
-- `DISCORD_ALERT_CHANNEL_ID`: 선택. 설정하면 연결 끊김/복구 알림을 해당 채널로 전송
+```bash
+python tools/discord_loop_bot.py
+```
 
-처음에는 **봇 하나만** 설정하는 것을 권장합니다.
-
----
-
-## Discord 봇 설정
-
-이 단계에서 가장 자주 막히는 포인트는 두 가지입니다.
-
-1. 봇을 서버에 초대하지 않음
-2. `MESSAGE CONTENT INTENT`를 켜지 않음
-
-### 1) Application 생성
-
-- `https://discord.com/developers/applications` 접속
-- `New Application` 클릭
-- 예: `Novel Writer Daily`
-
-### 2) Bot 생성
-
-- 왼쪽 메뉴 `Bot`
-- `Add Bot`
-
-### 3) 토큰 발급
-
-- 같은 `Bot` 화면에서 토큰 확인
-- `.env`의 `DISCORD_BOT_TOKEN`에 입력
-
-### 4) Message Content Intent 켜기
-
-이 프로젝트는 슬래시 커맨드가 아니라 일반 메시지 명령을 읽습니다.
-예:
-
-- `!novel-daily 1`
-- `!status`
-- `!stop`
-
-따라서 `message.content`를 읽을 수 있도록 반드시 아래를 켜야 합니다.
-
-- `Bot` 메뉴
-- `Privileged Gateway Intents`
-- `MESSAGE CONTENT INTENT` 활성화
-
-이걸 빠뜨리면 봇은 접속되지만 명령을 읽지 못합니다.
-
-### 5) 서버에 초대하기
-
-`OAuth2 -> URL Generator`에서:
-
-- Scope: `bot`
-- 권장 권한:
-  - View Channels
-  - Send Messages
-  - Read Message History
-  - Add Reactions
-  - Attach Files
-  - Create Public Threads
-  - Send Messages in Threads
-
----
-
-## 첫 실행
-
-가장 쉬운 첫 명령은 이것입니다.
+그다음 Discord 채널에서:
 
 ```text
 !novel-daily 1
 ```
 
-에피소드 키를 알고 있다면 이렇게도 가능합니다.
+또는 episode key를 알고 있으면:
 
 ```text
 !novel-daily ep01_academic_presentation
 ```
 
-옵션까지 함께 주는 예:
+옵션 예시:
 
 ```text
 !novel-daily ep01_academic_presentation --target-words 3500 --budget 4.0 --protagonist kim_sumin --review-tier premium
 ```
 
-자주 쓰는 옵션:
+* * *
 
-- `--target-words 3500`: 목표 분량
-- `--budget 4.0`: 실행 예산
-- `--protagonist kim_sumin`: 주인공 ID
-- `--review-tier mini|premium`: 리뷰 방식
+## 자주 쓰는 명령어
 
----
-
-## 리뷰 티어
-
-`--review-tier`를 생략하면 Discord에서 먼저 물어봅니다.
+### 메인 실행
 
 ```text
-1 또는 mini      -> 빠르고 저렴
-2 또는 premium   -> 더 정밀
+!novel-daily 1
+!novel-daily ep01_academic_presentation
 ```
 
-### 모델 구성
-
-| 단계 | mini | premium |
-|---|---|---|
-| 시뮬레이션 — 에이전트 턴 | gpt-4o-mini | gpt-4o-mini |
-| 시뮬레이션 — 디렉터/산문 | gpt-5-mini | gpt-5-mini |
-| 챕터 생성 — 기본 구성 | gpt-4o-mini | gpt-4o-mini |
-| 챕터 생성 — 산문 생성 | gpt-4.1-mini | gpt-5-mini |
-| Guardian 분석 | gpt-4o-mini | gpt-4o |
-| Quality Reviewer | gpt-4o-mini | gpt-4o |
-| AI 루프 리뷰 | gpt-5-mini | gpt-4o |
-| Codex 코드 수정 | Codex CLI (`gpt-5.4-mini`) | Codex CLI (config 기본값) |
-| Regen 판단 LLM | gpt-4o-mini | gpt-4o |
-| Feedback 파싱 LLM | gpt-4o-mini | gpt-4o |
-
-메모:
-
-- mini 티어는 비용을 줄이면서도 long-context 품질을 확보하도록 조정되어 있습니다.
-- premium 티어는 리뷰와 판단 품질을 더 높게 가져갑니다.
-
----
-
-## 실행 중 무슨 일이 일어나는가
-
-`!novel-daily`를 실행하면 대략 아래 순서로 움직입니다.
+### 상태 확인
 
 ```text
-episode config
-  -> Config Guardian
-  -> Simulator
-  -> Chapter Generator
-  -> Auto Review / Auto Improve Loop
-  -> Final Review
-  -> 사용자 선택:
-       1 코드 수정
-       2 스토리 수정
-       3 다음으로 진행
-  -> story_state.json 업데이트
+!status
 ```
 
-실행 중에는 Discord 채널과 쓰레드에 단계별 메시지가 올라오고,
-완료 후에는 챕터 파일과 리포트 이미지도 받을 수 있습니다.
+### 중단
 
-### 단계별 봇 역할
+```text
+!stop
+```
 
-| 봇 | 토큰 | 담당 메시지 |
-|---|---|---|
-| Simulator | TOKEN1 | `[SIM]`, `[CHAPTER]` |
-| Reader | TOKEN2 | `[GUARDIAN]`, `[REVIEW]`, `[AUTO] 📊 리뷰 결과` |
-| Programmer | TOKEN3 | `[AUTO]` 루프, `[FIXER]` |
-| Manager | TOKEN4 | `[START]`, `[MANAGER]`, `[CHOICE]`, `[WAIT]`, `[DONE]` |
+### 리뷰 후 선택
 
-`TOKEN2/3/4`를 따로 설정하지 않으면 모두 메인 봇이 대신 보냅니다.
+리뷰가 끝나면 보통 아래 셋 중 하나를 고릅니다.
 
----
-
-## 사용자가 최종적으로 할 수 있는 선택
-
-리뷰가 끝나면 보통 세 가지 중 하나를 고르게 됩니다.
-
-### 1) 코드 수정
-
-예:
+#### 1) 코드 수정
 
 ```text
 1 초반 대사가 너무 딱딱해. 문장이 자주 끊겨.
 ```
 
-이 경우:
-
-- Codex가 코드 쪽을 수정합니다.
-- 챕터를 다시 생성합니다.
-- 필요하면 자동 재실행을 이어갑니다.
-
-### 2) 스토리 수정
-
-예:
+#### 2) 스토리 수정
 
 ```text
 2 수민이 너무 수동적이야. 초반부터 더 적극적으로 움직였으면 좋겠어.
 ```
 
-이 경우:
-
-- 에피소드 YAML을 수정합니다.
-- 수정 후 자동으로 YAML 문법 검수가 실행됩니다.
-
-### 3) 다음으로 진행
-
-예:
+#### 3) 다음 화 진행
 
 ```text
 3
 ```
 
-이 경우:
+* * *
 
-- 현재 결과를 승인합니다.
-- 다음 에피소드로 넘어갈 준비를 합니다.
-
----
-
-## 자주 쓰는 명령어
-
-### `!novel-daily`
-
-메인 명령입니다.
-
-```text
-!novel-daily 1
-!novel-daily ep01_academic_presentation
-!novel-daily ep01_academic_presentation --target-words 3200 --budget 4.0 --review-tier premium
-```
-
-### `!status`
-
-현재 파이프라인 상태를 확인합니다.
-
-- 현재 단계
-- 경과 시간
-- 누적 토큰
-- 누적 비용
-- 백그라운드 프로세스 상태
-
-### `!stop`
-
-현재 파이프라인 중단 요청을 보냅니다.
-중단 직후 지금까지의 실행 결과를 요약한 이미지가 자동 생성됩니다.
-
-### `!chapter`
-
-가장 최근 생성된 챕터 파일을 다시 받아옵니다.
-
-### `!benchmark [episode_key]`
-
-지금까지 실행된 품질 점수 추이를 정리해서 보여줍니다.
-
-```text
-!benchmark
-!benchmark ep01
-```
-
-### `!meitner <질문>`
-
-저장소 구조를 질문하는 도우미 명령입니다.
-
-```text
-!meitner daily pipeline이 어디서 시작돼?
-```
-
-### `!approve <req_id>` / `!reject <req_id>`
-
-고급 기능입니다. 승인 대기 중인 설정 변경 요청을 처리할 때 사용합니다.
-
----
-
-## 생성되는 파일들
-
-`!novel-daily`를 돌리면 보통 아래 경로에 실행 결과가 저장됩니다.
-
-```text
-output/daily/YYYYMMDD_<episode_key>/HHMMSS/
-```
-
-예:
-
-```text
-output/daily/20260320_ep01_academic_presentation/013820/
-```
-
-이 안에는 다음과 같은 파일들이 생길 수 있습니다.
-
-- `config_check.md`
-- `*_simulation.json`
-- `*_debug.log`
-- `*_chapter.txt`
-- `scorecard.txt`
-- `auto_review_cycle*.json`
-- `pipeline_report.png`
-
-상태 파일:
-
-- `data/story_state.json`
-- `data/pending_config_changes.json`
-
----
-
-## 결과 이미지 예시
-
-이 프로젝트는 텍스트만 주지 않고 실행 결과를 요약한 이미지도 생성할 수 있습니다.
-
-예를 들어 `pipeline_report.png`에는 이런 내용이 들어갈 수 있습니다.
-
-- 사이클별 품질 점수 추이
-- 단계별 비용
-- 단계별 소요 시간
-
-![Sample pipeline report](docs/assets/readme-pipeline-report.png)
-
----
-
-## Discord 없이 로컬에서만 테스트하기
-
-Discord를 붙이기 전에 로컬에서 내부 로직만 점검할 수도 있습니다.
-
-### 단일 시뮬레이션
-
-```bash
-python simulate.py \
-  --episode config/episodes/ep05_unexpected_visitors.yaml \
-  --characters config/characters.yaml \
-  --world config/world_facts.yaml \
-  --storyline config/storyline.yaml \
-  --budget 5.0
-```
-
-### 챕터 생성
-
-```bash
-python generate_chapter.py \
-  --episode ep05_unexpected_visitors \
-  --episode-config config/episodes/ep05_unexpected_visitors.yaml \
-  --protagonist kim_sumin \
-  --protagonist-name "Kim Sumin" \
-  --words 2000
-```
-
-### Daily pipeline만 실행
-
-```bash
-python tools/daily_pipeline.py --episode ep01_academic_presentation --no-discord
-```
-
----
-
-## 저장소 구조
+## 프로젝트 구조
 
 ```text
 simulate.py                 # 단일 에피소드 시뮬레이션
-generate_chapter.py         # 챕터 생성
+generate_chapter.py         # 챕터 생성 엔트리
 trial_simulate.py           # 반복 실험용 실행기
 
-config/                     # 세계관, 캐릭터, 에피소드 설정
+config/                     # 세계관 / 캐릭터 / 에피소드 설정
 src/novel_writer/           # 코어 로직
 tools/daily_pipeline.py     # !novel-daily 핵심 파이프라인
 tools/discord_loop_bot.py   # Discord 봇 엔트리포인트
 tests/                      # 테스트
-output/                     # 실행 산출물
-data/                       # 상태 파일
+output/                     # 생성 결과물
+data/                       # 상태 / policy / DB 관련 데이터
 ```
 
-처음 보는 사람은 아래 세 파일만 먼저 보면 흐름을 파악하기 쉽습니다.
+처음 보는 사람은 아래 파일부터 보는 것이 가장 좋습니다.
 
-- `tools/discord_loop_bot.py`
-- `tools/daily_pipeline.py`
-- `simulate.py`
+1. `tools/discord_loop_bot.py`
+2. `tools/daily_pipeline.py`
+3. `simulate.py`
 
----
+그다음 핵심 로직은 이 순서로 보면 이해가 빠릅니다.
+
+1. `src/novel_writer/orchestrator.py`
+2. `src/novel_writer/director.py`
+3. `src/novel_writer/scene_distiller.py`
+4. `src/novel_writer/prose_generator.py`
+5. `src/novel_writer/polisher.py`
+
+* * *
+
+## 핵심 컴포넌트 설명
+
+### 1) SimulationOrchestrator
+
+에피소드의 turn-based 상호작용을 실제로 굴리는 엔진입니다.
+
+역할:
+
+- 활성 캐릭터 선택
+- 턴별 컨텍스트 구성
+- LLM 액션 생성
+- Director 검수 통과 여부 판단
+- world state 적용
+- memory / clue / interaction 저장
+- 완료 조건 체크
+
+즉, **“이번 화에서 실제로 무슨 일이 벌어졌는가”**를 만듭니다.
+
+### 2) DirectorAI
+
+시뮬레이션이 엉뚱한 방향으로 새지 않도록 막는 감독 레이어입니다.
+
+예를 들어 이런 것을 관리합니다.
+
+- invariant check
+- knowledge leak check
+- storyline alignment
+- active cast selection
+- clue injection
+- completion / resolution check
+
+즉, **자유 생성은 허용하지만 스토리 가드레일은 유지**합니다.
+
+### 3) SceneDistiller
+
+시뮬레이션 turn log를 소설용 장면으로 압축합니다.
+
+이 단계가 중요한 이유는, turn log는 “사건 기록”에는 좋지만 그대로는 소설 초고로 쓰기 어렵기 때문입니다.
+
+Distiller는 다음을 수행합니다.
+
+- protagonist perspective filtering
+- scene boundary detection
+- repeated turn compression
+- key dialogue / actions / discoveries 추출
+- YAML beat와 cross-reference
+- distilled scene list 생성
+
+즉, **30~60개 이상의 raw turn을 6~12개의 서사 장면으로 정리**합니다.
+
+### 4) ProseGenerator
+
+압축된 장면을 실제 소설 문장으로 바꿉니다.
+
+주요 특징:
+
+- scene-by-scene prose generation
+- beat-aware context 사용
+- transition generation
+- chapter assembly
+- anchor preservation
+- chapter polishing 연동
+
+중요한 점은, 이 경로가 예전의 `novel_generator.py`처럼 raw turn log에서 바로 소설을 만드는 방식보다 **더 압축되고 더 통제된 입력**을 사용한다는 것입니다.
+
+### 5) ChapterPolisher
+
+최종 장의 문장을 정리하는 bounded polishing 단계입니다.
+
+이 단계는 의도적으로 제한되어 있습니다.
+
+- broad polish pass
+- anchor coverage correction pass
+- reader feedback final pass
+- deterministic cleanup / normalization
+
+즉, **장면 구조를 뒤엎지 않고 문장을 다듬는 역할**에 집중합니다.
+
+### 6) Runtime Policy (`rl_policy.py`)
+
+튜닝 가능한 런타임 파라미터를 프롬프트 밖으로 분리해 둔 레이어입니다.
+
+예:
+
+- scene target min / max
+- distiller temperature
+- prose scene / transition / polish temperature
+- history handling
+- fallback / guard 관련 값
+
+즉, “프롬프트를 계속 수동 수정”하는 대신 **조정 가능한 정책값으로 실험**할 수 있게 설계되어 있습니다.
+
+* * *
+
+## 이 프로젝트를 이해할 때 중요한 포인트
+
+### 이 프로젝트는 “좋은 프롬프트 하나”가 아니다
+
+핵심은 좋은 프롬프트 하나가 아니라, **반복 가능한 제작 루프**입니다.
+
+### 이 프로젝트는 “사건 생성”과 “문장 생성”을 분리한다
+
+- 시뮬레이션 = 사건/상호작용 생성
+- distillation = 장면 구조화
+- prose generation = 읽히는 문장 생성
+- polishing = 최종 품질 보정
+
+### Discord는 단순 채팅창이 아니라 운영 인터페이스다
+
+Discord 안에서:
+
+- 실행하고
+- 상태를 보고
+- 결과를 읽고
+- 피드백을 주고
+- 재실행을 결정합니다
+
+즉, 사용자 경험의 중심은 CLI가 아니라 **Discord 운영 루프**입니다.
+
+* * *
+
+## 처음 기여하거나 분석할 때 추천 순서
+
+### 사용 흐름부터 이해하고 싶다면
+
+1. `README.md`
+2. `tools/discord_loop_bot.py`
+3. `tools/daily_pipeline.py`
+
+### 시뮬레이션 구조를 보고 싶다면
+
+1. `src/novel_writer/orchestrator.py`
+2. `src/novel_writer/director.py`
+
+### 소설 생성 품질 문제를 보고 싶다면
+
+1. `src/novel_writer/scene_distiller.py`
+2. `src/novel_writer/prose_generator.py`
+3. `src/novel_writer/polisher.py`
+
+### 튜닝 / 실험 포인트를 보고 싶다면
+
+1. `rl_policy.py`
+2. review / feedback 관련 코드
+3. tests / trial runner
+
+* * *
 
 ## 자주 막히는 문제
 
 ### 봇은 켜졌는데 `!novel-daily`에 반응이 없다
 
-가장 흔한 원인:
+확인할 것:
 
-- `MESSAGE CONTENT INTENT`를 켜지 않음
-- 봇이 채널 메시지를 볼 권한이 없음
-- 잘못된 채널에서 테스트 중
+- Discord bot의 `MESSAGE CONTENT INTENT`가 켜져 있는지
+- 봇이 해당 채널을 읽을 권한이 있는지
+- 올바른 서버 / 채널에서 테스트 중인지
 
 ### `Set DISCORD_BOT_TOKEN in .env` 오류
 
@@ -645,163 +497,27 @@ data/                       # 상태 파일
 - `.env` 파일이 없거나
 - `DISCORD_BOT_TOKEN` 값이 비어 있음
 
-해결:
-
-```bash
-cp .env.example .env
-```
-
-후에 토큰을 정확히 넣습니다.
-
 ### `Set OPENAI_API_KEY in .env` 오류
 
 원인:
 
 - API 키가 없거나
-- `OPENAI_API_KEY`가 비어 있음
+- `OPENAI_API_KEY` 값이 비어 있음
 
-해결:
+* * *
 
-- OpenAI API 키를 발급받아 `.env`에 넣습니다.
+## 현재 권장 사용 방식
 
-### 파일 업로드가 안 된다
+현재 구조상 권장 경로는 다음과 같습니다.
 
-가능성:
+- **Discord에서 `!novel-daily`로 실행**
+- **scene distillation + prose generation 경로 사용**
+- **feedback loop를 통해 코드/스토리 수정 후 재실행**
 
-- `Attach Files` 권한 없음
+즉, 이 저장소는 단순한 챕터 생성 스크립트 모음이 아니라, **연재형 소설을 운영하고 개선하기 위한 제작 시스템**으로 보는 것이 가장 정확합니다.
 
-### 쓰레드 생성이 안 된다
+* * *
 
-가능성:
+## 한 줄 요약
 
-- `Create Public Threads`
-- `Send Messages in Threads`
-
-권한 중 하나 이상이 없음
-
-### 같은 채널에서 상태가 꼬이는 것 같다
-
-이유:
-
-- 이 봇은 채널 단위로 상태를 관리합니다.
-
-권장:
-
-- 실험을 분리하려면 채널도 분리하세요.
-
-### 봇이 자꾸 꺼진다 (권장: launchd 고정 실행)
-
-macOS에서는 터미널 종료/세션 종료 시 백그라운드 프로세스가 내려갈 수 있습니다.  
-아래처럼 `launchd`로 등록하면 자동 재시작됩니다.
-
-```bash
-# 상태 확인
-launchctl print gui/$(id -u)/com.novelwriter.discordbot
-
-# 재시작
-launchctl kickstart -k gui/$(id -u)/com.novelwriter.discordbot
-
-# 중지
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.novelwriter.discordbot.plist
-```
-
----
-
-## 고급 내부 동작
-
-이 섹션은 처음 읽는 사람에게 꼭 필요하지는 않지만,
-이 프로젝트가 단순 생성기가 아니라 **자기개선형 파이프라인**이라는 점을 보여줍니다.
-
-### AUTO 루프
-
-자동 개선 루프는 최대 20사이클까지 돌아갑니다.
-
-- 리뷰 점수 계산
-- Manager 분석
-- Codex 코드 수정
-- 챕터 재생성
-- 점수 비교
-
-평균 점수가 8.5 이상이면 조기 종료됩니다.
-
-### Codex Fixer
-
-Codex Fixer가 수정한 내용은 실제 소스 파일에 반영됩니다.
-예를 들어 아래 파일들이 직접 수정될 수 있습니다.
-
-- `prose_generator.py`
-- `scene_distiller.py`
-- `director.py`
-
-따라서 `git status`로 변경 내역을 확인하고,
-마음에 드는 결과가 나오면 직접 `git commit`으로 기록하는 것이 좋습니다.
-
-### 5사이클마다 심층 회고
-
-매니저는 단순히 현재 점수만 보는 것이 아니라,
-사이클 간 점수 변화와 코드 변경 이력을 함께 추적합니다.
-
-5사이클마다:
-
-1. 누적 코드 diff 분석
-2. 점수 이력 정리
-3. 강한 수정 방향 제시
-
-를 수행해 다음 Codex 수정 방향을 더 강하게 제한합니다.
-
-즉, 같은 실패를 반복하기보다
-**“어떤 종류의 수정이 실제로 점수 향상과 연결됐는가”**를 학습해 가는 구조입니다.
-
----
-
-## 자동 최적화 파이프라인
-
-### 매 에피소드 — 인라인 최적화 (5 trials)
-`!novel-daily` 실행 시 시뮬레이션 후 자동으로 5-trial mini-Optuna가 돌아갑니다.
-
-**최적화 대상 (10 파라미터):**
-- Distiller: `distiller_temperature`, `target_scenes`, `dialogue_compaction_strength`
-- Prose: `prose_scene_temperature`, `prose_paragraph_min/max_sentences`, `prose_transition_temperature`
-- Polish: `prose_polish_temperature`, `hold_pressure_peak`, `scene_closure_aggressiveness`
-
-**2단계 병렬 전략:**
-- Phase 1: Trial 0, 1 동시 실행 (탐색)
-- Phase 2: Trial 2, 3, 4 동시 실행 (Phase 1 결과로 TPE 가이드)
-
-결과는 `data/rl_policy.json`에 즉시 반영, `data/policy_score_log.jsonl`에 누적.
-
-### 5화마다 — 전체 Optuna 재튜닝
-5화치 실제 프로덕션 데이터(25개 포인트)로 orchestrator 포함 전체 재튜닝.
-백그라운드 실행: `output/optuna_auto_retune_YYYY-MM-DD.log`
-
-### Codex의 역할 (파라미터 최적화 외)
-Codex는 Optuna가 할 수 없는 작업에 집중:
-- **LLM 프롬프트 수정**: 낮은 점수 기준에 해당하는 system/user 프롬프트 개선
-- **새 파라미터 노출**: 하드코딩된 값 → `runtime_policy` 키 변환 (다음 Optuna 탐색 공간 확장)
-- **구조적 버그 수정**: 컴포넌트 간 인터페이스 문제
-
-Codex가 실행되기 전 Optuna 컨텍스트(최근 점수 추세, best params)가 fixer prompt에 자동 주입됩니다.
-
-### 검수 레이어
-
-| 단계 | 도구 | 대상 |
-|------|------|------|
-| Syntax | py_compile | 변경된 .py 파일 |
-| Regression | test_reader_feedback_guards | prose/distiller/director 변경 시 |
-| Smoke test | import check | 변경된 모듈 instantiation |
-| Param sync | param_sync_check | 새 runtime_policy 키 동기화 |
-| Code review | GPT-4o diff review | 모든 Codex 수정 |
-
----
-
-## 처음이라면 이렇게 시작하는 것을 권장
-
-1. `.env`에 `OPENAI_API_KEY`와 `DISCORD_BOT_TOKEN`만 넣기
-2. 봇 1개만 만들어 서버에 초대하기
-3. `MESSAGE CONTENT INTENT` 켜기
-4. `python tools/discord_loop_bot.py` 실행하기
-5. Discord에서 `!novel-daily 1` 입력하기
-6. 잘 돌면 그다음에 `premium`, 다중 봇 토큰, 세부 운영 방식으로 확장하기
-
-처음부터 reviewer / fixer / manager 봇을 모두 분리하면 설정 포인트가 많아집니다.
-먼저 단일 봇으로 한 번 성공시키고, 그다음 확장하는 편이 훨씬 쉽습니다.
+**Storyworld Simulator는 에피소드 설정 파일을 입력으로 받아, 캐릭터 시뮬레이션과 장면 압축을 거쳐 읽을 수 있는 소설 챕터를 만들고, Discord 안에서 리뷰와 재실행까지 이어 주는 AI 소설 제작 파이프라인입니다.**

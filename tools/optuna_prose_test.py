@@ -32,6 +32,7 @@ import json
 import logging
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 # ── Project root on sys.path ──────────────────────────────────────────────────
@@ -51,6 +52,10 @@ TARGET_WORDS   = 1200       # shorter target → faster LLM calls
 PROSE_MODEL    = "gpt-4.1-mini"
 BASE_MODEL     = "gpt-4o-mini"
 REVIEWER_MODEL = "gpt-4o-mini"
+_REPETITION_STOPWORDS = {
+    "그리고", "그러나", "하지만", "그래서", "정말", "아주", "매우", "조금",
+    "것", "수", "더", "또", "그", "이", "저", "때문", "정도",
+}
 PROSE_STYLE    = "third_person_close"
 BUDGET_USD     = 2.0        # per-trial budget cap
 
@@ -285,8 +290,8 @@ def _score_chapter(chapter_text: str) -> float:
     """
     det_score, det_detail = _score_deterministic(chapter_text)
     llm_score, llm_detail = _score_llm(chapter_text)
-
-    combined = round(0.4 * det_score + 0.6 * llm_score, 3)
+    repetition_penalty = _repetition_penalty(chapter_text)
+    combined = round(max(0.0, 0.4 * det_score + 0.6 * llm_score - repetition_penalty), 3)
 
     # Log all dimensions
     logger.info(
@@ -320,9 +325,52 @@ def _score_chapter(chapter_text: str) -> float:
         llm_detail.get("pacing_tension_balance", 0),
         llm_score,
     )
-    logger.info("  [COMBINED] %.3f  (det=%.2f × 0.4 + llm=%.2f × 0.6)", combined, det_score, llm_score)
+    logger.info(
+        "  [COMBINED] %.3f  (det=%.2f × 0.4 + llm=%.2f × 0.6 - rep=%.3f)",
+        combined, det_score, llm_score, repetition_penalty,
+    )
 
     return combined
+
+
+def _repetition_penalty(chapter_text: str) -> float:
+    text = str(chapter_text or "").strip()
+    if not text:
+        return 0.0
+
+    normalized = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", text.lower())
+    tokens = [tok for tok in normalized.split() if len(tok) >= 2 and tok not in _REPETITION_STOPWORDS]
+    if len(tokens) < 80:
+        return 0.0
+
+    token_counts = Counter(tokens)
+    repeated_token_ratio = sum(1 for count in token_counts.values() if count >= 6) / max(1, len(token_counts))
+    bigram_counts = Counter(zip(tokens, tokens[1:]))
+    repeated_bigram_ratio = sum(1 for count in bigram_counts.values() if count >= 3) / max(1, len(bigram_counts))
+
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?…])\s+|(?<=다\.)\s+", text)
+        if s.strip()
+    ]
+    local_repeat_hits = 0
+    for prev, curr in zip(sentences, sentences[1:]):
+        prev_norm = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", prev.lower()).split()
+        curr_norm = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", curr.lower()).split()
+        if not prev_norm or not curr_norm:
+            continue
+        prev_set, curr_set = set(prev_norm), set(curr_norm)
+        overlap = len(prev_set & curr_set) / max(1, len(prev_set | curr_set))
+        if overlap >= 0.72:
+            local_repeat_hits += 1
+
+    return round(
+        min(
+            1.5,
+            repeated_token_ratio * 2.0 + repeated_bigram_ratio * 2.5 + (local_repeat_hits / max(1, len(sentences))) * 3.0,
+        ),
+        3,
+    )
 
 
 # ── Optuna objective ──────────────────────────────────────────────────────────

@@ -22,8 +22,8 @@ episode:
         위상 드리프트, 실시간 보상, 온도 변화에 따른 편차. 이름만 달랐지, 구조는 같았다.
         발표를 듣는 동안 처음으로 이런 생각이 들었다.
         ‘내 아이디어가 틀린 게 아니라, 아직 구현할 환경이 없었던 건가.’
-      trigger: agent cross-checks telemetry/logs or mentally maps the talk onto prior research
-      inject_threshold: 0.38
+      trigger: Moreno mentions coherence scaling, drift compensation, or real-time control in the presentation; or Sumin reacts to a slide or number on screen
+      inject_threshold: 0.30
       inject_method: system_alert
 
     - id: clue_ep01_academic_presentation_c02
@@ -34,8 +34,8 @@ episode:
         특히 수식이 아니라 구현 조건이 적힌 장면—보정 주기, drift window, control latency—에서만
         동시에 시선이 고정됐다. 그 반응은 ‘흥미롭다’가 아니라 ‘쓸 수 있겠다’에 가까웠다.
         수민은 그 순간 처음으로, 이 발표가 논문 하나로 끝나지 않을 수도 있다는 생각을 한다.
-      trigger: a small environmental detail catches the protagonist's attention
-      inject_threshold: 0.48
+      trigger: Sumin notices audience members who are not typical academics; or any agent scans the room or comments on the audience; or Miller, Moreno, or an unnamed observer is described watching the screen
+      inject_threshold: 0.38
       inject_method: environmental_cue
 
     - id: clue_ep01_academic_presentation_c03
@@ -48,8 +48,8 @@ episode:
         “real-time viable if externally supported”
         대학원생의 세미나 메모처럼 보이지 않았다.
         아이디어를 이해하려는 필기가 아니라, 투자 가능성과 실행 가능성을 가르는 검토표 같았다.
-      trigger: protagonist notices a document, badge, or handwritten note related to the scene
-      inject_threshold: 0.56
+      trigger: any agent moves or writes during a slide; or Miller is seen making notes; or a physical object (notebook, badge, phone) appears in scene
+      inject_threshold: 0.46
       inject_method: document_artifact
 
     - id: clue_ep01_academic_presentation_c04
@@ -61,8 +61,8 @@ episode:
         마치 멘토라기보다, 누군가에게 넘기기 전에 최종 확인을 하는 사람처럼.
         그리고 낮은 목소리로 덧붙였다.
         “그건 혼자 오래 끌 수 있는 종류의 문제가 아니야.”
-      trigger: an NPC raises the point in conversation or asks a leading question
-      inject_threshold: 0.62
+      trigger: Moreno speaks directly to Sumin about her research, resources, or next steps; or any NPC asks about Sumin's experimental setup or progress
+      inject_threshold: 0.52
       inject_method: npc_question
 
     - id: clue_ep01_academic_presentation_c05
@@ -75,8 +75,8 @@ episode:
         그런 건 누군가가 의지를 갖고 밀어줘야만 가능하다.
         수민은 그 말을 듣는 순간 불쾌감보다 먼저 어떤 유혹을 느낀다.
         누군가 정말로 이걸 끝까지 밀어준다면?
-      trigger: an NPC raises the point in conversation or asks a leading question
-      inject_threshold: 0.68
+      trigger: Moreno mentions support, funding, resources, or external collaboration; or the conversation moves to what Sumin would need to make her idea real
+      inject_threshold: 0.58
       inject_method: npc_question
 
     - id: clue_ep01_academic_presentation_c06
@@ -90,8 +90,8 @@ episode:
         “공식 과제는 느리죠. 더 민첩한 지원 구조를 찾는 사람들도 있습니다.”
         그 문장은 협박보다 훨씬 더 위험했다.
         선택지처럼 들렸기 때문이다.
-      trigger: a new actor enters with unusual precision or knowledge
-      inject_threshold: 0.74
+      trigger: Miller speaks to Sumin directly; or any unnamed man approaches Sumin after the presentation; or Miller asks about her research environment or constraints
+      inject_threshold: 0.64
       inject_method: npc_offer
 
   resolved: []

@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import multiprocessing
+import os
 import re
 import sys
 import tempfile
@@ -29,6 +30,9 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 # ── 공통 상수 ─────────────────────────────────────────────────────────────────
+# NOTE: EPISODE_CONFIG filename ("ep01_academic_presentation") is the scenario name;
+# the episode.id field inside the YAML is "ep01_conference_shadow" — they refer to the
+# same episode. Keep EPISODE_ID in sync with the `episode.id` value in the YAML file.
 EPISODE_ID      = "ep01_conference_shadow"
 EPISODE_CONFIG  = "config/episodes/ep01_academic_presentation.yaml"
 CHARACTERS      = "config/characters.yaml"
@@ -103,15 +107,38 @@ def _save_study(study, out_dir: str, label: str) -> None:
     (out / "study_results.json").write_text(
         json.dumps(trials, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    if study.best_trial:
+    try:
+        best_trial = study.best_trial
+    except (ValueError, RuntimeError):
+        best_trial = None
+
+    if best_trial is not None:
         best = {"value": study.best_value, "params": study.best_params,
-                "trial_number": study.best_trial.number}
+                "trial_number": best_trial.number}
         (out / "best_params.json").write_text(
             json.dumps(best, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         logging.getLogger(label).info(
             "Best: %.4f  params: %s", study.best_value, study.best_params
         )
+
+
+def _per_trial_callback(out_dir: str, label: str):
+    """Persist results after every trial so monitor can show real-time progress."""
+    log = logging.getLogger(label)
+
+    def _callback(study, trial) -> None:
+        _save_study(study, out_dir, label)
+        completed = [t for t in study.trials if str(t.state) == "TrialState.COMPLETE" and t.value is not None]
+        values = ", ".join(f"T{t.number}={t.value:.3f}" for t in completed)
+        log.info(
+            "Progress %d/%d | all_values=[%s]",
+            len(completed),
+            len(study.trials),
+            values or "-",
+        )
+
+    return _callback
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -146,7 +173,7 @@ def _distiller_score(scenes: list) -> float:
     return _llm_score(text[:4000], criteria, "distiller")
 
 
-def run_distiller_study(n_trials: int) -> None:
+def run_distiller_study(n_trials: int, warmup_log: str | None = None) -> None:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     log = logging.getLogger("distiller")
@@ -211,7 +238,19 @@ def run_distiller_study(n_trials: int) -> None:
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=11),
     )
-    study.optimize(objective, n_trials=n_trials)
+    if warmup_log:
+        _distiller_keys = {
+            "distiller_temperature", "distiller_max_tokens", "target_scenes",
+            "prompt_char_limit", "confrontation_merge_strength",
+            "dialogue_compaction_strength", "role_cue_strength",
+        }
+        n_enqueued = _enqueue_warmup_trials(study, warmup_log, _distiller_keys)
+        log.info("Distiller warmup: %d trials enqueued from %s", n_enqueued, warmup_log)
+    study.optimize(
+        objective,
+        n_trials=n_trials,
+        callbacks=[_per_trial_callback("output/optuna_distiller", "distiller")],
+    )
     _save_study(study, "output/optuna_distiller", "distiller")
     log.info("Distiller study done. Best: %.4f", study.best_value if study.best_trial else 0)
 
@@ -307,7 +346,7 @@ def _orchestrator_score(turns: list[dict]) -> float:
         return 0.0
 
 
-def run_orchestrator_study(n_trials: int) -> None:
+def run_orchestrator_study(n_trials: int, warmup_log: str | None = None) -> None:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     log = logging.getLogger("orchestrator")
@@ -334,7 +373,8 @@ def run_orchestrator_study(n_trials: int) -> None:
         log.info("Trial %d | %s", trial.number, params)
 
         # Fresh temp DB per trial to avoid cross-contamination
-        tmp_db = tempfile.mktemp(suffix=f"_orch_trial{trial.number}.db")
+        _fd, tmp_db = tempfile.mkstemp(suffix=f"_orch_trial{trial.number}.db")
+        os.close(_fd)
         db.DB_PATH = tmp_db
         db.init_db()
 
@@ -391,7 +431,20 @@ def run_orchestrator_study(n_trials: int) -> None:
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=22),
     )
-    study.optimize(objective, n_trials=n_trials)
+    if warmup_log:
+        _orch_keys = {
+            "action_cap", "dialogue_cap", "inner_cap", "sentence_chars_max",
+            "max_sentences_per_paragraph", "max_jargon_terms_per_paragraph",
+            "needs_role_cues", "prefers_dialogue_compaction",
+            "prefers_analytical_wording_reduction", "repetition_jaccard_threshold",
+        }
+        n_enqueued = _enqueue_warmup_trials(study, warmup_log, _orch_keys)
+        log.info("Orchestrator warmup: %d trials enqueued from %s", n_enqueued, warmup_log)
+    study.optimize(
+        objective,
+        n_trials=n_trials,
+        callbacks=[_per_trial_callback("output/optuna_orchestrator", "orchestrator")],
+    )
     _save_study(study, "output/optuna_orchestrator", "orchestrator")
     log.info("Orchestrator study done. Best: %.4f", study.best_value if study.best_trial else 0)
 
@@ -468,7 +521,7 @@ def _polisher_comparative_score(source: str, polished: str) -> float:
         return 0.0
 
 
-def run_polisher_study(n_trials: int) -> None:
+def run_polisher_study(n_trials: int, warmup_log: str | None = None) -> None:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     log = logging.getLogger("polisher")
@@ -482,12 +535,26 @@ def run_polisher_study(n_trials: int) -> None:
     # Load best chapter from prose study as input
     chapter_path = Path(BEST_CHAPTER)
     if not chapter_path.exists():
-        # Fallback: find any trial chapter
-        candidates = sorted(Path("output/optuna_prose").glob("trial_*/ep01_*.txt"))
+        # Prefer best_params.json to find the actual best-scoring trial
+        _best_params_path = Path("output/optuna_prose/best_params.json")
+        if _best_params_path.exists():
+            try:
+                _best_info = json.loads(_best_params_path.read_text(encoding="utf-8"))
+                _best_num = _best_info.get("trial_number", None)
+                if _best_num is not None:
+                    _candidate = Path("output/optuna_prose") / f"trial_{_best_num:04d}" / f"{EPISODE_ID}_chapter.txt"
+                    if _candidate.exists():
+                        chapter_path = _candidate
+            except Exception:
+                pass
+    if not chapter_path.exists():
+        # Last resort: most recently modified chapter file (likely from latest trial)
+        candidates = sorted(Path("output/optuna_prose").glob("trial_*/ep01_*.txt"),
+                            key=lambda p: p.stat().st_mtime)
         if not candidates:
             log.error("No best chapter found — run optuna_prose_test.py first")
             return
-        chapter_path = candidates[0]
+        chapter_path = candidates[-1]
 
     source_text = chapter_path.read_text(encoding="utf-8")
     log.info("Polisher input: %s (%d words)", chapter_path, len(source_text.split()))
@@ -510,7 +577,7 @@ def run_polisher_study(n_trials: int) -> None:
             "hold_pressure_peak":              params["hold_pressure_peak"],
             "repeated_concern_loop_reduction": params["repeated_concern_loop_reduction"],
             # Keep best prose params
-            "prose_scene_temperature":         0.985,
+            "prose_scene_temperature":         0.72,
             "prose_paragraph_min_sentences":   3,
             "prose_paragraph_max_sentences":   4,
             "prose_enable_term_gloss":         False,
@@ -540,13 +607,11 @@ def run_polisher_study(n_trials: int) -> None:
         out_path = trial_dir / "polished_chapter.txt"
         out_path.write_text(polished, encoding="utf-8")
 
-        det_score  = _polisher_deterministic_score(polished)
-        llm_score  = _polisher_comparative_score(source_text, polished)
+        det_score = _polisher_deterministic_score(polished)
 
-        combined = round(0.4 * det_score + 0.6 * llm_score, 3)
-        log.info("Trial %d | det=%.2f llm=%.2f combined=%.3f", trial.number, det_score, llm_score, combined)
+        combined = det_score
+        log.info("Trial %d | det=%.3f (det-only)", trial.number, det_score)
         trial.set_user_attr("det_score", det_score)
-        trial.set_user_attr("llm_score", llm_score)
         return combined
 
     study = optuna.create_study(
@@ -554,7 +619,19 @@ def run_polisher_study(n_trials: int) -> None:
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=33),
     )
-    study.optimize(objective, n_trials=n_trials)
+    if warmup_log:
+        _polisher_keys = {
+            "prose_polish_temperature", "prose_anchor_fix_temperature", "clue_injection_timing",
+            "director_fallback_cast_size", "scene_closure_aggressiveness",
+            "hold_pressure_peak", "repeated_concern_loop_reduction",
+        }
+        n_enqueued = _enqueue_warmup_trials(study, warmup_log, _polisher_keys)
+        log.info("Polisher warmup: %d trials enqueued from %s", n_enqueued, warmup_log)
+    study.optimize(
+        objective,
+        n_trials=n_trials,
+        callbacks=[_per_trial_callback("output/optuna_polisher", "polisher")],
+    )
     _save_study(study, "output/optuna_polisher", "polisher")
     log.info("Polisher study done. Best: %.4f", study.best_value if study.best_trial else 0)
 
@@ -584,18 +661,26 @@ def _monitor(n_trials: int, selected: set | None = None) -> None:
                 continue
             try:
                 trials = json.loads(p.read_text())
-                completed = [t for t in trials if t["state"] == "TrialState.COMPLETE"]
-                if len(completed) > seen[name]:
-                    seen[name] = len(completed)
+                completed = [t for t in trials if t["state"] == "TrialState.COMPLETE" and t["value"] is not None]
+                if len(trials) > seen[name]:
+                    seen[name] = len(trials)
                     if completed:
-                        best_v = max(t["value"] for t in completed if t["value"] is not None)
+                        best_v = max(t["value"] for t in completed)
                         latest = completed[-1]
+                        values = ", ".join(f"T{t['number']}={t['value']:.3f}" for t in completed)
                         log.info(
-                            "[%s] %d/%d | latest=%.3f | best=%.3f | params=%s",
-                            name, len(completed), n_trials,
-                            latest["value"] or 0, best_v, latest["params"]
+                            "[%s] %d/%d complete | latest=%.3f | best=%.3f | all_values=[%s] | params=%s",
+                            name,
+                            len(completed),
+                            n_trials,
+                            latest["value"] or 0,
+                            best_v,
+                            values,
+                            latest["params"],
                         )
-                if len(completed) < n_trials:
+                _terminal = {"TrialState.COMPLETE", "TrialState.FAIL", "TrialState.PRUNED"}
+                n_terminal = sum(1 for t in trials if t["state"] in _terminal)
+                if n_terminal < n_trials:
                     all_done = False
             except Exception:
                 all_done = False
@@ -610,6 +695,40 @@ def _monitor(n_trials: int, selected: set | None = None) -> None:
 # 메인
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _enqueue_warmup_trials(study, log_path: str, study_param_keys: set, top_n: int = 3) -> int:
+    """Read policy_score_log.jsonl and enqueue top-N trial param sets as Optuna warmup.
+    Only enqueues params that overlap with the study's param space.
+    Returns number of trials enqueued."""
+    import json as _json
+    from pathlib import Path as _Path
+    lp = _Path(log_path)
+    if not lp.exists():
+        return 0
+    entries = []
+    for line in lp.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = _json.loads(line)
+            if "best_score" in e and "best_params" in e:
+                entries.append(e)
+        except Exception:
+            pass
+    if not entries:
+        return 0
+    # Sort by best_score descending, take top_n
+    top = sorted(entries, key=lambda e: e.get("best_score", 0.0), reverse=True)[:top_n]
+    enqueued = 0
+    for e in top:
+        params = e.get("best_params", {})
+        subset = {k: v for k, v in params.items() if k in study_param_keys}
+        if subset:
+            study.enqueue_trial(subset)
+            enqueued += 1
+    return enqueued
+
+
 def parse_args():
     import argparse
     p = argparse.ArgumentParser(description="3개 병렬 Optuna 스터디 (distiller / orchestrator / polisher)")
@@ -618,6 +737,10 @@ def parse_args():
         "--study", nargs="+", choices=["distiller", "orchestrator", "polisher"],
         default=["distiller", "orchestrator", "polisher"],
         help="실행할 스터디 지정 (default: 전체)",
+    )
+    p.add_argument(
+        "--warmup-log", default=None,
+        help="policy_score_log.jsonl 경로 — 상위 trials을 Optuna warmup으로 enqueue",
     )
     return p.parse_args()
 
@@ -635,8 +758,11 @@ def main() -> None:
     args = parse_args()
     n = args.trials
     selected = set(args.study)
+    warmup_log = args.warmup_log
 
     print(f"\n🚀 스터디 병렬 시작 ({', '.join(sorted(selected))}) — 각 {n} trials")
+    if warmup_log:
+        print(f"   Warmup log: {warmup_log}")
     for s in sorted(selected):
         print(f"   {s.capitalize()} → output/optuna_{s}/")
     print()
@@ -647,7 +773,7 @@ def main() -> None:
         "polisher":     run_polisher_study,
     }
     processes = [
-        multiprocessing.Process(target=study_map[s], args=(n,), name=s)
+        multiprocessing.Process(target=study_map[s], args=(n, warmup_log), name=s)
         for s in ("distiller", "orchestrator", "polisher")
         if s in selected
     ]

@@ -206,9 +206,17 @@ def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
 
 
 def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
-    raw_list = json.loads(Path(path).read_text(encoding="utf-8"))
+    raw_payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(raw_payload, dict):
+        raw_list = raw_payload.get("scenes", raw_payload.get("items", []))
+    else:
+        raw_list = raw_payload
+    if not isinstance(raw_list, list):
+        raise ValueError(f"Precomputed scenes payload must be a list: {path}")
     scenes: list[DistilledScene] = []
     for item in raw_list:
+        if not isinstance(item, dict):
+            continue
         turn_range = _normalize_turn_range(item.get("turn_range", [0, 0]))
         scenes.append(
             DistilledScene(
@@ -225,6 +233,9 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
                 narrative_summary=str(item.get("narrative_summary", "")),
                 pacing=str(item.get("pacing", "")),
                 raw_turn_count=max(1, _coerce_intish(item.get("raw_turn_count", 0), default=1)),
+                emotion_trajectory=_coerce_string_list(item.get("emotion_trajectory", [])),
+                tension_peaks=_coerce_string_list(item.get("tension_peaks", [])),
+                relationship_delta=str(item.get("relationship_delta", "")),
             )
         )
     return scenes

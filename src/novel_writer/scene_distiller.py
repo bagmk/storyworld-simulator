@@ -46,6 +46,9 @@ class DistilledScene:
     narrative_summary: str              # 2-3 sentence summary of what happens
     pacing: str                         # "opening" / "building" / "climax" / "resolution"
     raw_turn_count: int                 # How many raw turns were compressed
+    emotion_trajectory: list[str] = field(default_factory=list)  # Ordered emotional beats e.g. ["불안", "분노", "체념"]
+    tension_peaks: list[str] = field(default_factory=list)       # Key tension moments e.g. ["협박 공개", "침묵 후 거절"]
+    relationship_delta: str = ""                                  # Net relationship change e.g. "불신 → 잠정 협력"
 
     def to_dict(self) -> dict:
         return {
@@ -62,6 +65,9 @@ class DistilledScene:
             "narrative_summary": self.narrative_summary,
             "pacing": self.pacing,
             "raw_turn_count": self.raw_turn_count,
+            "emotion_trajectory": self.emotion_trajectory,
+            "tension_peaks": self.tension_peaks,
+            "relationship_delta": self.relationship_delta,
         }
 
 
@@ -196,6 +202,8 @@ class SceneDistiller:
     def _extract_beats(self) -> list[dict]:
         """Extract clue/beat definitions from episode config."""
         clues = self.episode_config.get("introduced_clues", [])
+        if not isinstance(clues, list):
+            clues = []
         beats = []
         compact_beats = self._reader_prefers_compact_beats()
         for c in clues:
@@ -236,6 +244,7 @@ class SceneDistiller:
             return self._fallback_chunk(interactions, beats, target_scenes)
 
         prompt = self._build_distill_prompt(request)
+        prompt = self._enforce_distill_prompt_budget(prompt, request.prompt_char_limit)
         result = self._call_distill_model(prompt)
         scenes_data = self._parse_distill_response(result)
         if not scenes_data:
@@ -355,6 +364,9 @@ class SceneDistiller:
             f"    \"key_actions\": [\"action description\"],\n"
             f"    \"discoveries\": [\"what was discovered\"],\n"
             f"    \"emotional_arc\": \"brief emotional trajectory\",\n"
+            f"    \"emotion_trajectory\": [\"감정1\", \"감정2\", \"감정3\"],\n"
+            f"    \"tension_peaks\": [\"tension moment 1\", \"tension moment 2\"],\n"
+            f"    \"relationship_delta\": \"관계 변화 (e.g. 불신 → 잠정 협력)\",\n"
             f"    \"beat_refs\": [\"clue_id_1\"],\n"
             f"    \"summary\": \"2-3 sentence narrative summary\",\n"
             f"    \"pacing\": \"building\"\n"
@@ -375,7 +387,8 @@ class SceneDistiller:
                 "If technical explanations repeat, keep only the clearest first mention.\n"
                 "If technical language implies a real operational change, preserve that change once so the scene still feels materially grounded.\n"
                 "If condition or responsibility language repeats, keep one concrete version and collapse the rest into consequence.\n"
-                "If dialogue feels explanatory, keep the shortest decisive line and move the follow-up into a visible action or reaction beat.\n"
+                "If dialogue feels explanatory, keep the shortest decisive line and move the follow-up into a visible action, reaction, or hesitation beat.\n"
+                "If the same support or cost point appears again, do not restate it twice; keep the strongest concrete mention and let the repeat become a reaction or choice.\n"
                 "Prefer concise summaries over long duplicate emotional narration.\n"
                 "Keep dialogue attribution explicit; avoid preserving multiple near-identical lines "
                 "from the same speaker, and preserve contrasting motives when two speakers sound similar.\n"
@@ -476,7 +489,7 @@ class SceneDistiller:
             )
         if self._reader_prefers_observable_emotion_evidence():
             adaptive_lines.append(
-                "Prefer observable emotion evidence (micro-action, gaze, posture) over abstract psychological explanation in summaries."
+                "Prefer observable emotion evidence (micro-action, gaze, posture, brief hesitation) over abstract psychological explanation in summaries."
             )
         if self._reader_wants_emotional_wave_contrast():
             adaptive_lines.append(
@@ -494,6 +507,54 @@ class SceneDistiller:
             sections.append("## Adaptive Distillation Guidance\n" + "\n".join(adaptive_lines) + "\n")
 
         return "\n".join(section.strip() for section in sections if section).strip() + "\n\n"
+
+    @staticmethod
+    def _drop_prompt_section(prompt: str, header: str) -> str:
+        marker = f"## {header}\n"
+        start = prompt.find(marker)
+        if start < 0:
+            return prompt
+        next_header = prompt.find("\n## ", start + len(marker))
+        if next_header < 0:
+            return prompt[:start].rstrip()
+        return (prompt[:start].rstrip() + "\n\n" + prompt[next_header + 1 :].lstrip()).strip()
+
+    def _enforce_distill_prompt_budget(self, prompt: str, max_chars: int) -> str:
+        if len(prompt) <= max_chars:
+            return prompt
+
+        trimmed = str(prompt)
+        drop_order = [
+            "Adaptive Distillation Guidance",
+            "Numeric Style Constraints",
+            "Jargon Watch Terms",
+            "Repetition Watch Terms",
+            "Transition and Cue Priority",
+            "Concrete Threat/Offer Priority",
+            "Reader Feedback Priorities",
+        ]
+        for header in drop_order:
+            trimmed = self._drop_prompt_section(trimmed, header)
+            if len(trimmed) <= max_chars:
+                logger.info("Distill prompt trimmed under budget by dropping section: %s", header)
+                return trimmed
+
+        if len(trimmed) > max_chars and "## Raw Simulation Log" in trimmed and "## Task\n" in trimmed:
+            log_idx = trimmed.find("## Raw Simulation Log")
+            task_idx = trimmed.find("## Task\n", log_idx)
+            if task_idx > log_idx:
+                head = trimmed[:log_idx]
+                tail = trimmed[task_idx:]
+                available = max_chars - len(head) - len(tail) - 4
+                if available > 400:
+                    prefix = trimmed[log_idx:task_idx]
+                    cut = prefix[:available].rstrip()
+                    trimmed = head.rstrip() + "\n\n" + cut + "\n\n" + tail.lstrip()
+
+        if len(trimmed) > max_chars:
+            trimmed = trimmed[:max_chars].rstrip()
+        logger.info("Distill prompt trimmed to budget: %d -> %d chars", len(prompt), len(trimmed))
+        return trimmed
 
     def _call_distill_model(self, prompt: str) -> str:
         return self.llm.chat(
@@ -536,6 +597,9 @@ class SceneDistiller:
                     narrative_summary=payload.get("summary", ""),
                     pacing=payload.get("pacing", "building"),
                     raw_turn_count=max(1, turn_end - turn_start + 1),
+                    emotion_trajectory=payload.get("emotion_trajectory") or [],
+                    tension_peaks=payload.get("tension_peaks") or [],
+                    relationship_delta=payload.get("relationship_delta") or "",
                 )
             )
         return scenes
@@ -1143,6 +1207,14 @@ class SceneDistiller:
         )
         emotional_parts = [p for p in (left.emotional_arc, right.emotional_arc) if str(p).strip()]
         summary = self._merge_scene_summaries(left.narrative_summary, right.narrative_summary)
+        merged_emotion_trajectory = self._dedupe_preserve_order(
+            list(left.emotion_trajectory) + list(right.emotion_trajectory)
+        )[:5]
+        merged_tension_peaks = self._dedupe_semantic_lines(
+            list(left.tension_peaks) + list(right.tension_peaks), limit=4
+        )
+        rel_delta_parts = [p for p in (left.relationship_delta, right.relationship_delta) if str(p).strip()]
+        merged_relationship_delta = rel_delta_parts[-1] if rel_delta_parts else ""
         return DistilledScene(
             scene_number=left.scene_number,
             title=left.title,
@@ -1157,6 +1229,9 @@ class SceneDistiller:
             narrative_summary=summary,
             pacing=pacing,
             raw_turn_count=left.raw_turn_count + right.raw_turn_count,
+            emotion_trajectory=merged_emotion_trajectory,
+            tension_peaks=merged_tension_peaks,
+            relationship_delta=merged_relationship_delta,
         )
 
     def _merge_scene_summaries(self, left: str, right: str) -> str:
@@ -2119,10 +2194,19 @@ class SceneDistiller:
             or self._summary_has_consequence_shift(sent)
             or self._summary_has_concrete_risk(sent)
         ]
+        reaction = [
+            sent for sent in sentences
+            if self._summary_has_reaction_or_sensory(sent)
+            or self._summary_is_mood_heavy(sent)
+        ]
         if not concrete:
             return sentences[:max(1, limit)]
-        abstract = [sent for sent in sentences if sent not in concrete]
-        prioritized = concrete + abstract[:1]
+        abstract = [sent for sent in sentences if sent not in concrete and sent not in reaction]
+        prioritized = list(concrete)
+        if reaction:
+            prioritized.extend(sent for sent in reaction if sent not in prioritized[: max(0, limit)])
+        if len(prioritized) < limit:
+            prioritized.extend(abstract[: max(0, limit - len(prioritized))])
         return prioritized[:max(1, limit)]
 
     def _summary_progress_score(self, text: str) -> int:
@@ -2326,6 +2410,10 @@ class SceneDistiller:
                 concrete += 3
             if self._summary_has_consequence_shift(line):
                 concrete += 2
+            if self._summary_has_reaction_or_sensory(line):
+                concrete += 1
+            if self._summary_is_mood_heavy(line):
+                concrete += 1
             if re.search(r"[0-9]", str(line or "")):
                 concrete += 1
             if re.search(r"[A-Z]{2,}|[\"“”'‘’]", str(line or "")):
@@ -2694,6 +2782,9 @@ class SceneDistiller:
                 narrative_summary="",
                 pacing="building",
                 raw_turn_count=len(chunk),
+                emotion_trajectory=[],
+                tension_peaks=[],
+                relationship_delta="",
             ))
 
         return scenes

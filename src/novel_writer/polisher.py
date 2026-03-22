@@ -263,10 +263,10 @@ class ChapterPolisher:
             f"- On first mention of a technical term/acronym, use one short inline cue only if clarity truly needs it\n"
             f"- If dense technical info appears, split into short sentences or short beat-style line breaks\n"
             f"- Improve speaker clarity in dialogue passages using short action/name cues\n"
-            f"- If a concept recurs (coherence/drift/latency classes), vary surface wording while keeping meaning stable\n"
+            f"- If a concept recurs (coherence/drift/latency classes), keep one stable core term and vary the surrounding sentence shape or consequence instead of synonym-swapping the term itself\n"
             f"- If 3+ consecutive sentences use same sensory channel, switch channel (sound/touch/temperature)\n"
             f"- If explanatory rhythm grows monotonous, use one grounded action/reaction sentence instead of a detached fragment\n"
-            f"- Preserve these anchor terms exactly when context allows: {anchors_text}\n"
+            f"- If an anchor term is missing, introduce it once verbatim when context allows; later callbacks may be shorter as long as the evidence stays clear: {anchors_text}\n"
             f"- If any anchor is missing, add it naturally without changing core events\n\n"
         )
         if profile.prefers_stable_term_reuse:

@@ -71,9 +71,22 @@ class DirectorAI:
         invariant_cfg = episode_config.get("character_invariants")
         if invariant_cfg is None:
             invariant_cfg = episode_config.get("characters", [])
+        if not isinstance(invariant_cfg, list):
+            invariant_cfg = []
         for char in invariant_cfg:
-            cid = char.get("id", "")
-            self.character_invariants[cid] = char.get("invariants", [])
+            if not isinstance(char, dict):
+                continue
+            cid = str(char.get("id", "")).strip()
+            if not cid:
+                continue
+            invariants = char.get("invariants", [])
+            if isinstance(invariants, str):
+                invariants = [invariants]
+            elif not isinstance(invariants, list):
+                invariants = []
+            self.character_invariants[cid] = [
+                str(item).strip() for item in invariants if str(item).strip()
+            ]
 
         raw_must_resolve = episode_config.get("must_resolve")
         if raw_must_resolve is None:
@@ -206,7 +219,12 @@ class DirectorAI:
 
         # Full LLM check only when suspicious
         hidden_summary = "\n".join(f"- {f}" for f in self._hidden_fact_texts)
-        known_clues_text = "\n".join(f"- {c}" for c in agent.memory.known_clues) or "(none)"
+        known_clues = getattr(getattr(agent, "memory", None), "known_clues", set()) or set()
+        if not isinstance(known_clues, (list, set, tuple)):
+            known_clues = [known_clues]
+        known_clues_text = "\n".join(
+            f"- {str(c).strip()}" for c in known_clues if str(c).strip()
+        ) or "(none)"
 
         prompt = (
             f"Check if this character is revealing information they shouldn't know.\n\n"
@@ -247,13 +265,17 @@ class DirectorAI:
         """Build text of everything an agent can legitimately observe/reference."""
         parts = []
         # Current scene description
-        if world.current_scene:
-            parts.append(f"[Scene] {world.current_scene[-400:]}")
+        current_scene = str(getattr(world, "current_scene", "") or "")
+        if current_scene:
+            parts.append(f"[Scene] {current_scene[-400:]}")
         # Visible context (last event, etc.)
-        for key, val in world.visible_context.items():
-            parts.append(f"[{key}] {str(val)[:200]}")
+        visible_context = getattr(world, "visible_context", {}) or {}
+        if isinstance(visible_context, dict):
+            for key, val in visible_context.items():
+                parts.append(f"[{key}] {str(val)[:200]}")
         # Recent interactions the agent witnessed
-        recent = agent.memory.recent_interactions(8)
+        memory = getattr(agent, "memory", None)
+        recent = memory.recent_interactions(8) if memory and hasattr(memory, "recent_interactions") else []
         if recent:
             recent_text = "\n".join(
                 f"  {ix.get('speaker_name', '?')}: {str(ix.get('content', ''))[:150]}"
@@ -287,7 +309,10 @@ class DirectorAI:
         if not current:
             return True, ""
 
-        active_ids = {aid for aid in world.active_agents if isinstance(aid, str)}
+        active_agents = getattr(world, "active_agents", []) or []
+        if not isinstance(active_agents, list):
+            active_agents = []
+        active_ids = {aid for aid in active_agents if isinstance(aid, str)}
         unplanned_entries = self._detect_unplanned_character_entries(
             proposed_action, active_ids, agents
         )
@@ -1480,6 +1505,10 @@ class DirectorAI:
             scene_focus_rule += (
                 "23) If the scene is about support, authority, access, or cost, prefer the speaker who can state the offer, limit, or price in one move.\n"
             )
+        if progress_signal.get("micro_reaction_needed"):
+            scene_focus_rule += (
+                "24) A visible reaction is still missing. Prefer the speaker who can answer with a glance, breath, small movement, or split choice before any explanation.\n"
+            )
         speaker_choice_rule = ""
         if preferred_speaker_id and preferred_speaker_id in active_ids:
             preferred_name = agent_map[preferred_speaker_id].name
@@ -1829,6 +1858,8 @@ class DirectorAI:
                 "concrete_risk": False,
                 "alert_signal": False,
                 "alert_pending_reaction": False,
+                "micro_reaction_needed": False,
+                "emotional_turn_required": False,
             }
 
         tension_curve = self._build_tension_curve(recent, agents)
@@ -1916,6 +1947,23 @@ class DirectorAI:
         alert_pending_reaction = alert_signal and not (
             decisive_shift or consequence_shift or motion_shift or emotional_shift
         )
+        micro_reaction_needed = alert_pending_reaction or inner_conflict or concrete_risk
+        emotional_turn_required = inner_conflict or emotional_flags["emotional_conflict"]
+        repetition_pressure = (
+            repeated_concern
+            or signal_stack
+            or technical_stall
+            or flat_tension
+            or explanation_loop
+            or repeated_alert_signal
+            or (repeated_openers >= 2 and mostly_dialogue)
+        )
+        pressure_peak = (
+            repetition_pressure
+            and (decisive_shift or emotional_shift)
+        ) or bool(tension_curve.get("peak"))
+        if alert_pending_reaction:
+            pressure_peak = True
         scene_conflict_note = ""
         if repeated_concern:
             if repeated_openers >= 1 or low_novelty:
@@ -1928,7 +1976,9 @@ class DirectorAI:
             else:
                 scene_conflict_note = "technical loop detected; shift from explanation to visible reaction, gesture, or choice"
         elif alert_pending_reaction:
-            scene_conflict_note = "alert has landed; a visible reaction is still pending"
+            scene_conflict_note = "alert has landed; a visible reaction or split motive is still pending"
+        elif inner_conflict:
+            scene_conflict_note = "protagonist conflict is active; surface hesitation through one visible cue before the next explanation"
         elif concrete_risk:
             scene_conflict_note = "concrete risk is active; name the limit, clause, access rule, or cost"
         elif emotional_shift and consequence_shift:
@@ -1957,21 +2007,6 @@ class DirectorAI:
         if not scene_external_cue and concrete_risk:
             scene_external_cue = "specific risk cue"
         concrete_turn = decisive_shift or consequence_shift or motion_shift
-        repetition_pressure = (
-            repeated_concern
-            or signal_stack
-            or technical_stall
-            or flat_tension
-            or explanation_loop
-            or repeated_alert_signal
-            or (repeated_openers >= 2 and mostly_dialogue)
-        )
-        pressure_peak = (
-            repetition_pressure
-            and (decisive_shift or emotional_shift)
-        ) or bool(tension_curve.get("peak"))
-        if alert_pending_reaction:
-            pressure_peak = True
         scene_boundary_ready = (
             (closure_ready and concrete_turn)
             or (repeated_concern and concrete_turn and len(recent) >= min_window)
@@ -2016,6 +2051,8 @@ class DirectorAI:
             "scene_boundary_ready": scene_boundary_ready,
             "alert_signal": alert_signal,
             "alert_pending_reaction": alert_pending_reaction,
+            "micro_reaction_needed": micro_reaction_needed,
+            "emotional_turn_required": emotional_turn_required,
             "scene_conflict_note": scene_conflict_note,
             "scene_external_cue": scene_external_cue,
             **emotional_flags,
@@ -2087,6 +2124,20 @@ class DirectorAI:
                     value -= 1.0
                 if intensity >= 0.5:
                     value += 0.5
+            if progress_signal.get("micro_reaction_needed"):
+                if aid == protagonist_id:
+                    value += 1.5
+                if emotion_family in {"anxious", "frustrated", "confident"}:
+                    value += 1.5
+                elif emotion_family == "curious":
+                    value += 0.5
+                if intensity >= 0.45:
+                    value += 0.25
+            if progress_signal.get("emotional_turn_required"):
+                if aid == protagonist_id:
+                    value += 1.0
+                if emotion_family in {"anxious", "frustrated", "relieved"}:
+                    value += 1.0
             if progress_signal.get("closure_ready"):
                 if emotion_family in {"confident", "relieved"}:
                     value += 1.5

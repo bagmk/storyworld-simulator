@@ -392,6 +392,17 @@ characters:
       - "Prioritizes national-security advantage over legality and individual welfare"
       - "Never admits wrongdoing directly; reframes as necessity and ‘risk management’"
       - "If an asset becomes unstable, he escalates pressure rather than stepping back"
+    arc_behavior:
+      early_contact: >
+        In first-contact scenes (ep01–ep03), Miller operates in soft-recruitment mode.
+        He asks precise technical questions, listens more than he speaks, and frames himself
+        as a resource rather than a threat. This IS his national-security strategy — he
+        identifies viable assets before applying pressure. Supportive or curious dialogue
+        in this phase does NOT violate his invariants; it expresses them covertly.
+        Do NOT flag soft-sell behavior as an invariant violation during early-contact arcs.
+      escalation: >
+        From ep04 onward, once Sumin has been assessed, Miller shifts to pressure bargains,
+        implicit threats, and bureaucratic leverage. Invariant enforcement applies fully here.
     goals:
       - "Secure control of the quantum pipeline (or neutralize it if uncontrollable)"
       - "Flip Sumin into a managed asset (or isolate him if he resists)"

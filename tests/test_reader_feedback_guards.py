@@ -325,6 +325,35 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         self.assertIn("수민은 자료를 다시 밀어 넣었다.", summary)
         self.assertNotIn("복도 소음이 스쳤다.", summary)
 
+    def test_scene_distiller_rebalances_summary_using_dialogue_pressure_anchor(self):
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config={},
+            reader_feedback=_feedback("외부 지원, 통제권, 책임 문제 반복을 압축"),
+        )
+        scene = DistilledScene(
+            scene_number=1,
+            title="지원 조건",
+            turn_range=(4, 6),
+            location="회의실",
+            characters_present=["수민", "Moreno"],
+            key_dialogue=[
+                {"speaker": "Moreno", "line": "지원은 내일 아침에 들어온다."},
+            ],
+            key_actions=[],
+            discoveries=[],
+            emotional_arc="경계",
+            beat_references=[],
+            narrative_summary="정적이 이어졌다.",
+            pacing="building",
+            raw_turn_count=3,
+        )
+
+        summary = distiller._rebalance_narrative_summary(scene)
+
+        self.assertIn("Moreno", summary)
+        self.assertIn("지원", summary)
+
     def test_director_detects_repeated_technical_exchange_without_emotional_shift(self):
         director = DirectorAI(
             episode_config={"summary": "기술 브리핑", "location": "회의실"},
@@ -344,6 +373,111 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
 
         self.assertTrue(signal["technical_stall"])
         self.assertTrue(signal["stalled"])
+
+    def test_director_scene_progress_signal_surfaces_conflict_note_and_external_cue(self):
+        director = DirectorAI(
+            episode_config={"summary": "지원 조건 충돌", "location": "회의실"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=DummyLLM(),
+            reader_feedback=_feedback("지원과 책임이 반복된다", "경보와 메모가 동시에 나온다"),
+        )
+        recent = [
+            {"speaker_id": "a", "action_type": "dialogue", "content": "메모가 테이블 위에 놓였다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "지원은 조건이 붙는다고 했다."},
+            {"speaker_id": "a", "action_type": "dialogue", "content": "책임은 누가 지는지 다시 물었다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "경보가 다시 울렸다."},
+        ]
+
+        signal = director._scene_progress_signal(recent)
+
+        self.assertTrue(signal["alert_signal"])
+        self.assertTrue(signal["alert_pending_reaction"])
+        self.assertIn("alert", signal["scene_conflict_note"])
+        self.assertTrue(signal["scene_external_cue"])
+
+    def test_director_alert_signal_requires_immediate_reaction(self):
+        director = DirectorAI(
+            episode_config={"summary": "경보 발생", "location": "복도"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=DummyLLM(),
+            reader_feedback=_feedback("경보가 울리면 바로 움직여라"),
+        )
+        recent = [
+            {"speaker_id": "a", "action_type": "dialogue", "content": "복도는 조용했다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "경보가 울렸다."},
+            {"speaker_id": "a", "action_type": "dialogue", "content": "누구도 대답하지 않았다."},
+            {"speaker_id": "b", "action_type": "dialogue", "content": "경보가 계속 울렸다."},
+        ]
+
+        signal = director._scene_progress_signal(recent)
+
+        self.assertTrue(signal["alert_signal"])
+        self.assertTrue(signal["alert_pending_reaction"])
+        self.assertTrue(signal["pressure_peak"])
+        self.assertTrue(signal["stalled"])
+
+    def test_director_prefers_reactive_speaker_after_alert(self):
+        director = DirectorAI(
+            episode_config={"summary": "경보 발생", "location": "복도"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=DummyLLM(),
+            reader_feedback=_feedback("경보가 울리면 바로 움직여라"),
+        )
+        agents = [
+            Agent(id="kim_sumin", name="수민", role="protagonist", bio="", invariants=[], goals=[]),
+            Agent(id="security", name="보안요원", role="supporting", bio="", invariants=[], goals=[]),
+        ]
+        agents[1].memory.emotional_state = {"anxious": 0.6}
+        agent_map = {agent.id: agent for agent in agents}
+        progress_signal = {
+            "stalled": False,
+            "closure_ready": False,
+            "technical_stall": False,
+            "flat_tension": False,
+            "explanation_loop": False,
+            "repeated_concern": False,
+            "signal_stack": False,
+            "emotional_shift": False,
+            "decisive_shift": False,
+            "pressure_peak": True,
+            "anxious_pressure": False,
+            "frustration_pressure": False,
+            "confidence_pressure": False,
+            "emotional_conflict": False,
+            "inner_conflict": False,
+            "concrete_risk": False,
+            "consequence_shift": False,
+            "motion_shift": False,
+            "scene_boundary_ready": False,
+            "alert_signal": True,
+            "alert_pending_reaction": True,
+        }
+
+        chosen = director._choose_next_speaker(
+            active_ids=["kim_sumin", "security"],
+            agent_map=agent_map,
+            recent_speakers=[],
+            progress_signal=progress_signal,
+            protagonist_id="kim_sumin",
+        )
+        end_scene, reason = director._should_end_scene(
+            progress_signal,
+            recent=[
+                {"speaker_id": "a", "action_type": "dialogue", "content": "복도는 조용했다."},
+                {"speaker_id": "b", "action_type": "dialogue", "content": "경보가 울렸다."},
+                {"speaker_id": "a", "action_type": "dialogue", "content": "누구도 대답하지 않았다."},
+                {"speaker_id": "b", "action_type": "dialogue", "content": "경보가 계속 울렸다."},
+            ],
+            prefers_scene_compaction=False,
+            current_end_scene=True,
+        )
+
+        self.assertEqual(chosen, "security")
+        self.assertFalse(end_scene)
+        self.assertIn("alert", reason)
 
     def test_director_feedback_helpers_delegate_to_reader_profile(self):
         fake_profile = SimpleNamespace(
@@ -1345,6 +1479,17 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
 
         self.assertIn("나는 숨을 골랐다.", cleaned)
         self.assertIn("나는 문 쪽을 먼저 봤다.", cleaned)
+
+    def test_prose_generator_detects_repeated_condition_responsibility_clauses(self):
+        prose = ProseGenerator(
+            llm=DummyLLM(),
+            episode_config={"id": "ep_test"},
+            reader_feedback=_feedback("조건과 책임 설명이 반복되면 줄여라"),
+        )
+
+        text = "조건이 먼저였다. 책임은 여전히 밀러에게 있었다. 통제권과 외부 지원을 다시 따졌다."
+
+        self.assertTrue(prose._has_repeated_condition_responsibility_clauses(text))
 
 
 if __name__ == "__main__":
