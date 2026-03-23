@@ -525,12 +525,14 @@ class DirectorAI:
         """Generate a natural in-world event that surfaces a clue."""
         builders = {
             "document_artifact": self._generate_document_artifact_event,
-            "system_alert": self._generate_system_alert_event,
+            # system_alert removed: generated warning/alarm events that fabricate
+            # dramatic public events not present in the authored scene structure.
+            # Clues authored with inject_method=system_alert now use environmental_cue.
             "npc_offer": self._generate_npc_offer_event,
             "npc_question": self._generate_npc_question_event,
             "environmental_cue": self._generate_environmental_cue_event,
         }
-        builder = builders.get(str(method or "").strip(), self._generate_generic_injection_event)
+        builder = builders.get(str(method or "").strip(), self._generate_environmental_cue_event)
         return builder(clue_content, trigger, world)
 
     def _generate_document_artifact_event(
@@ -554,27 +556,6 @@ class DirectorAI:
             "- If this reads like a transition beat, make the spatial handoff explicit.\n"
         )
         return self._render_injection_event(prompt, purpose="director_clue_document_artifact")
-
-    def _generate_system_alert_event(
-        self,
-        clue_content: str,
-        trigger: str,
-        world: WorldState,
-    ) -> str:
-        prompt = (
-            "You are staging a clue as a warning sound, alert tone, device message, or access denial.\n\n"
-            f"{self._scene_event_context(world)}"
-            f"Clue to surface: {clue_content}\n"
-            f"Suggested trigger: {trigger}\n\n"
-            f"{self._common_injection_guidance()}"
-            "Write 1-3 Korean sentences of scene narration.\n"
-            "Rules:\n"
-            "- State where the sound or alert comes from and who is closest to it.\n"
-            "- Keep the order concrete: source -> reaction -> next pressure.\n"
-            "- If there is a beep or warning text, tie it to a door, screen, badge reader, or phone.\n"
-            "- Avoid vague mood language without location.\n"
-        )
-        return self._render_injection_event(prompt, purpose="director_clue_system_alert")
 
     def _generate_npc_offer_event(
         self,

@@ -612,9 +612,10 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         world = WorldState(active_agents=["kim_sumin", "miller"], location="복도")
 
         with patch.object(orchestrator_module, "build_reader_profile", return_value=fake_profile) as builder:
+            from src.novel_writer.models import PhaseTracker
             orchestrator = SimulationOrchestrator(
                 agents=agents,
-                director=SimpleNamespace(),
+                director=SimpleNamespace(_phase_tracker=PhaseTracker()),
                 world=world,
                 llm=DummyLLM(),
                 episode_id="ep_test",
@@ -643,6 +644,7 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         builder.assert_called_once()
 
     def test_orchestrator_uses_reader_turn_guidance_without_legacy_helper_path(self):
+        from src.novel_writer.models import PhaseTracker
         agents = [
             Agent(id="kim_sumin", name="수민", role="protagonist", bio="", invariants=[], goals=[]),
             Agent(id="miller", name="Miller", role="supporting", bio="", invariants=[], goals=[]),
@@ -650,7 +652,7 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         world = WorldState(active_agents=["kim_sumin", "miller"], location="복도")
         orchestrator = SimulationOrchestrator(
             agents=agents,
-            director=SimpleNamespace(),
+            director=SimpleNamespace(_phase_tracker=PhaseTracker()),
             world=world,
             llm=DummyLLM(),
             episode_id="ep_test",
@@ -1495,6 +1497,191 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         text = "조건이 먼저였다. 책임은 여전히 밀러에게 있었다. 통제권과 외부 지원을 다시 따졌다."
 
         self.assertTrue(prose._has_repeated_condition_responsibility_clauses(text))
+
+    # ------------------------------------------------------------------ #
+    # Phase ordering and clue injection structural constraints
+    # ------------------------------------------------------------------ #
+
+    def test_system_alert_inject_method_not_in_dispatch(self):
+        """system_alert must not be a dispatch key — it fabricates alarm events."""
+        from src.novel_writer.director import DirectorAI
+        director = DirectorAI(
+            episode_config={"summary": "발표", "location": "강당"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=CaptureLLM(response="관찰 내용"),
+        )
+        # Verify system_alert is not in the dispatch table.
+        # Access the dispatch by checking what _generate_injection_event calls.
+        # We do this by verifying the method attribute does NOT exist.
+        self.assertFalse(hasattr(director, "_generate_system_alert_event"))
+
+    def test_system_alert_inject_method_falls_back_to_environmental_cue(self):
+        """A clue with inject_method=system_alert must not produce alarm/warning prose."""
+        from src.novel_writer.director import DirectorAI
+        from src.novel_writer.models import WorldState
+        director = DirectorAI(
+            episode_config={"summary": "학술 발표", "location": "강당"},
+            world_facts={},
+            clue_manager=ClueManager(),
+            llm=CaptureLLM(response="관찰 내용"),
+        )
+        world = WorldState(location="강당", current_scene="발표 중")
+        # Call directly — must not raise and must not use alarm-style prompt.
+        result = director._generate_injection_event(
+            clue_content="밀러가 행사장에 나타났다",
+            trigger="자연스러운 등장",
+            method="system_alert",
+            world=world,
+        )
+        # The CaptureLLM records the prompt; verify no alarm/warning keywords in it.
+        self.assertTrue(len(director.llm.calls) > 0)
+        prompt_text = str(director.llm.calls[-1])
+        for banned in ("warning sound", "alert tone", "access denial", "경보음", "access-denied"):
+            self.assertNotIn(banned, prompt_text,
+                msg=f"system_alert fallback prompt must not contain '{banned}'")
+
+    def test_phase_order_never_regresses_in_normalize_timeline(self):
+        """normalize_scene_timeline must clamp scene phase_id forward, never backward."""
+        ep_config = {
+            "phases": [
+                {"id": "presentation"},
+                {"id": "break_corridor"},
+                {"id": "sponsor_lounge"},
+            ],
+            "introduced_clues": [],
+        }
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config=ep_config,
+        )
+
+        def _make_scene(n, phase, turn_start):
+            return DistilledScene(
+                scene_number=n,
+                title=f"Scene {n}",
+                turn_range=(turn_start, turn_start + 2),
+                location="somewhere",
+                characters_present=[],
+                key_dialogue=[],
+                key_actions=[],
+                discoveries=[],
+                emotional_arc="",
+                beat_references=[],
+                narrative_summary="",
+                pacing="building",
+                raw_turn_count=3,
+                phase_id=phase,
+            )
+
+        # Scene 3 regresses to "presentation" after "break_corridor" and "sponsor_lounge".
+        scenes = [
+            _make_scene(1, "presentation", 0),
+            _make_scene(2, "break_corridor", 3),
+            _make_scene(3, "presentation", 6),   # regression — must be clamped
+            _make_scene(4, "sponsor_lounge", 9),
+        ]
+        result = distiller.normalize_scene_timeline(scenes)
+        phase_ids = [s.phase_id for s in result]
+        # Phase indices must be monotone non-decreasing.
+        phase_order = {"presentation": 0, "break_corridor": 1, "sponsor_lounge": 2}
+        indices = [phase_order[p] for p in phase_ids if p in phase_order]
+        for i in range(len(indices) - 1):
+            self.assertLessEqual(
+                indices[i], indices[i + 1],
+                msg=f"Phase regression at position {i}: {phase_ids[i]} → {phase_ids[i+1]}",
+            )
+
+    def test_allowed_phase_blocks_clue_injection_in_wrong_phase(self):
+        """A clue with allowed_phase=presentation must not inject during break_corridor."""
+        from src.novel_writer.models import ClueManager
+        clue_manager = ClueManager(
+            required_clues=[
+                {
+                    "id": "clue_presentation_only",
+                    "content": "발표 중 이상한 청중",
+                    "inject_threshold": 0.0,  # always eligible by threshold
+                    "allowed_phase": "presentation",
+                }
+            ]
+        )
+        result = clue_manager.needs_injection(
+            turn_progress=0.5,
+            current_phase_id="break_corridor",
+        )
+        self.assertIsNone(result, "Clue must not inject when current phase != allowed_phase")
+
+    def test_allowed_phase_permits_clue_in_correct_phase(self):
+        """A clue with allowed_phase=presentation must inject when phase matches."""
+        from src.novel_writer.models import ClueManager
+        clue_manager = ClueManager(
+            required_clues=[
+                {
+                    "id": "clue_presentation_only",
+                    "content": "발표 중 이상한 청중",
+                    "inject_threshold": 0.0,
+                    "allowed_phase": "presentation",
+                }
+            ]
+        )
+        result = clue_manager.needs_injection(
+            turn_progress=0.5,
+            current_phase_id="presentation",
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["id"], "clue_presentation_only")
+
+    def test_backfill_respects_allowed_phase(self):
+        """Beat with allowed_phase must be backfilled only to a scene in that phase."""
+        ep_config = {
+            "introduced_clues": [
+                {
+                    "id": "clue_pres",
+                    "content": "발표장 단서",
+                    "inject_threshold": 0.6,
+                    "allowed_phase": "presentation",
+                },
+            ],
+            "phases": [
+                {"id": "presentation"},
+                {"id": "break_corridor"},
+            ],
+        }
+        distiller = SceneDistiller(
+            llm=DummyLLM(),
+            episode_config=ep_config,
+        )
+
+        def _make_scene(n, phase):
+            return DistilledScene(
+                scene_number=n,
+                title=f"Scene {n}",
+                turn_range=(n, n + 1),
+                location="",
+                characters_present=[],
+                key_dialogue=[],
+                key_actions=[],
+                discoveries=[],
+                emotional_arc="",
+                beat_references=[],
+                narrative_summary="",
+                pacing="building",
+                raw_turn_count=2,
+                phase_id=phase,
+            )
+
+        scenes = [
+            _make_scene(1, "presentation"),
+            _make_scene(2, "break_corridor"),
+        ]
+        beats = [{"id": "clue_pres", "content": "발표장 단서", "allowed_phase": "presentation"}]
+        distiller._backfill_missing_beat_references(scenes, beats)
+
+        # clue_pres must be assigned to the presentation scene, not break_corridor.
+        self.assertIn("clue_pres", scenes[0].beat_references,
+            msg="Beat with allowed_phase=presentation must backfill to presentation scene")
+        self.assertNotIn("clue_pres", scenes[1].beat_references,
+            msg="Beat with allowed_phase=presentation must not backfill to break_corridor scene")
 
 
 if __name__ == "__main__":

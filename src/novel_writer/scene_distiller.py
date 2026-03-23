@@ -75,6 +75,12 @@ class DistilledScene:
     # Net changes to relationship pressure between specific pairs  [{pair, delta}]
     relationship_pressure_delta: list[dict] = field(default_factory=list)
 
+    # ── Delta-pipeline fields (Phase 3-A) ────────────────────────────────────
+    # ScenePlanItem linked from ScenePlanner (None if not using delta pipeline)
+    scene_plan_item: Optional[object] = field(default=None, compare=False)
+    # Whether DeltaVerifier confirmed delta was realized in the final prose
+    delta_realized: bool = False
+
     def to_dict(self) -> dict:
         return {
             "scene_number": self.scene_number,
@@ -102,7 +108,52 @@ class DistilledScene:
             "clue_state_delta": self.clue_state_delta,
             "institutional_state_delta": self.institutional_state_delta,
             "relationship_pressure_delta": self.relationship_pressure_delta,
+            "delta_realized": self.delta_realized,
         }
+
+
+def _link_plan_items_to_scenes(
+    scenes: "list[DistilledScene]",
+    plan: list,
+) -> "list[DistilledScene]":
+    """DistilledScene 목록과 ScenePlanItem 목록을 순서 기반으로 연결.
+
+    씬 수와 plan 수가 다를 경우: 짧은 쪽 기준으로 연결하고 나머지는 None.
+    """
+    result = []
+    for i, scene in enumerate(scenes):
+        plan_item = plan[i] if i < len(plan) else None
+        updated = DistilledScene(
+            scene_number=scene.scene_number,
+            title=scene.title,
+            turn_range=scene.turn_range,
+            location=scene.location,
+            characters_present=scene.characters_present,
+            key_dialogue=scene.key_dialogue,
+            key_actions=scene.key_actions,
+            discoveries=scene.discoveries,
+            emotional_arc=scene.emotional_arc,
+            beat_references=scene.beat_references,
+            narrative_summary=scene.narrative_summary,
+            pacing=scene.pacing,
+            raw_turn_count=scene.raw_turn_count,
+            emotion_trajectory=scene.emotion_trajectory,
+            tension_peaks=scene.tension_peaks,
+            relationship_delta=scene.relationship_delta,
+            dramatic_function=scene.dramatic_function,
+            phase_id=scene.phase_id,
+            location_from=scene.location_from,
+            location_to=scene.location_to,
+            entry_events=scene.entry_events,
+            exit_events=scene.exit_events,
+            clue_state_delta=scene.clue_state_delta,
+            institutional_state_delta=scene.institutional_state_delta,
+            relationship_pressure_delta=scene.relationship_pressure_delta,
+            scene_plan_item=plan_item,
+            delta_realized=scene.delta_realized,
+        )
+        result.append(updated)
+    return result
 
 
 @dataclass(frozen=True)
@@ -247,6 +298,7 @@ class SceneDistiller:
                     "id": c.get("id", ""),
                     "content": self._compress_beat_content(raw_content) if compact_beats else raw_content,
                     "method": c.get("inject_method", ""),
+                    "allowed_phase": c.get("allowed_phase") or c.get("allowed_phases"),
                 })
         return beats
 
@@ -713,14 +765,26 @@ class SceneDistiller:
         if not missing:
             return
 
+        beat_by_id = {beat.get("id"): beat for beat in beats}
         logger.warning("Beats not covered in distilled scenes: %s", missing)
         for beat_id in sorted(missing):
-            beat_text = next(
-                (beat.get("content", "") for beat in beats if beat.get("id") == beat_id),
-                "",
-            )
+            beat = beat_by_id.get(beat_id, {})
+            beat_text = beat.get("content", "")
+
+            # Respect allowed_phase: only assign this beat to scenes in the correct phase.
+            allowed = beat.get("allowed_phase")
+            if allowed:
+                if isinstance(allowed, str):
+                    allowed = [allowed]
+                phase_candidates = [s for s in scenes if s.phase_id in allowed]
+            else:
+                phase_candidates = scenes
+
+            # Fall back to all scenes only if no phase-matching scene exists.
+            candidates = phase_candidates if phase_candidates else scenes
+
             best = max(
-                scenes,
+                candidates,
                 key=lambda scene: self._token_overlap_score(
                     beat_text,
                     " ".join(scene.discoveries)
@@ -754,6 +818,32 @@ class SceneDistiller:
             return []
 
         ordered.sort(key=lambda s: (s.turn_range[0], s.turn_range[1], s.scene_number))
+
+        # Hard constraint: phase_id must never go backward.
+        # If a scene's phase appears earlier in the episode phase list than the
+        # previous scene's phase, clamp it forward to the current max phase.
+        ep_phases = (self.episode_config or {}).get("phases", [])
+        if ep_phases:
+            phase_order = {
+                p.get("id", ""): i
+                for i, p in enumerate(ep_phases)
+                if p.get("id")
+            }
+            max_phase_idx = 0
+            for scene in ordered:
+                scene_idx = phase_order.get(scene.phase_id, -1)
+                if scene_idx < 0:
+                    continue  # no phase set — leave untouched
+                if scene_idx < max_phase_idx:
+                    old_phase = scene.phase_id
+                    scene.phase_id = ep_phases[max_phase_idx].get("id", scene.phase_id)
+                    logger.warning(
+                        "Phase regression corrected: scene '%s' phase '%s' → '%s'",
+                        scene.title, old_phase, scene.phase_id,
+                    )
+                else:
+                    max_phase_idx = scene_idx
+
         normalized: list[DistilledScene] = []
         for scene in ordered:
             self._strip_stock_transition_cues(scene)
@@ -3259,3 +3349,42 @@ class SceneDistiller:
         if not toks_a or not toks_b:
             return 0.0
         return len(toks_a & toks_b) / len(toks_a | toks_b)
+
+    # ------------------------------------------------------------------ #
+    # Delta-pipeline: distill_with_plan (Phase 3-A)
+    # ------------------------------------------------------------------ #
+
+    def distill_with_plan(
+        self,
+        episode_id: str,
+        protagonist_id: str,
+        plan: "list",
+        target_scenes: Optional[int] = None,
+    ) -> list[DistilledScene]:
+        """기존 distill()에 ScenePlanItem 정보를 추가 주입하는 확장 메서드.
+
+        plan이 비어 있으면 기존 distill()로 폴백.
+        plan이 있으면 각 씬 프롬프트에 IrreversibleDelta와 must_include를 주입하고,
+        반환된 DistilledScene에 scene_plan_item을 링크합니다.
+
+        Parameters
+        ----------
+        episode_id     : DB에서 로드할 에피소드 ID
+        protagonist_id : 주인공 ID
+        plan           : list[ScenePlanItem] — ScenePlanner 출력
+        target_scenes  : None이면 len(plan) 사용
+        """
+        if not plan:
+            logger.warning("distill_with_plan: plan이 비어있어 기존 distill()로 폴백")
+            n = target_scenes or 8
+            return self.distill(episode_id, protagonist_id, n)
+
+        n = target_scenes or len(plan)
+
+        # 기존 distill() 실행
+        scenes = self.distill(episode_id, protagonist_id, n)
+
+        # ScenePlanItem과 DistilledScene 매핑 (순서 기반)
+        scenes = _link_plan_items_to_scenes(scenes, plan)
+
+        return scenes
