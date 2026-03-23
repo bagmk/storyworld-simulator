@@ -11,21 +11,6 @@ from enum import Enum
 from typing import Any
 
 
-class DramaticFunction(str, Enum):
-    ORIENTATION     = "orientation"
-    DISCOVERY       = "discovery"
-    WARNING         = "warning"
-    PRESSURE        = "pressure"
-    ETHICAL_FRAMING = "ethical_framing"
-    NEGOTIATION     = "negotiation"
-    REFUSAL         = "refusal"
-    CONDITION       = "condition_setting"
-    CONSEQUENCE     = "consequence"
-    TRANSITION      = "transition"
-    REVERSAL        = "reversal"
-    COMMITMENT      = "commitment"
-    UNKNOWN         = "unknown"
-
 
 class TurnFunction(str, Enum):
     WARNING     = "warning"

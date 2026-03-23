@@ -44,11 +44,10 @@ DEFAULT_POLICY: dict[str, Any] = {
     "force_progression_after_landed_pressure": True,
     "enable_voice_drift_check": False,         # lightweight, off by default
     "scene_constraint_enforcement_mode": "soft",    # "off" / "soft" / "strict"
-    "illegal_transition_handling_mode": "warn",     # "warn" / "block"
     "relation_drift_check_enabled": True,
     "first_entrant_landing_required": False,
     "require_explicit_transition_cues": False,
-    "illegal_transition_mode": "warn",      # warn / block
+    "illegal_transition_mode": "warn",      # "warn" / "block"
     "relation_context_injection_enabled": True,
 
     # ── Scene-state and progression control (Part 1, 9) ──────────────────────
