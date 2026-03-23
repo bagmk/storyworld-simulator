@@ -6,8 +6,11 @@ All structures are content-agnostic — story details come from YAML configs.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
+import logging
 from typing import TYPE_CHECKING, Optional
 import json
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.novel_writer.scene_constraints import SceneConstraint
@@ -218,6 +221,78 @@ class WorldState:
 
 
 # ---------------------------------------------------------------------------
+# Phase Tracker
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PhaseTracker:
+    """
+    Tracks the current narrative phase of an episode.
+
+    phases: list of dicts loaded from episode YAML ``phases:`` key.
+    Each phase dict must have ``id`` and optionally ``location`` / ``description``.
+
+    Backward-compatible: if no phases defined, current_phase_id returns "".
+    """
+    phases: list[dict] = field(default_factory=list)
+    current_index: int = 0
+
+    @property
+    def current_phase_id(self) -> str:
+        if self.phases and self.current_index < len(self.phases):
+            return str(self.phases[self.current_index].get("id", ""))
+        return ""
+
+    @property
+    def current_phase(self) -> dict:
+        if self.phases and self.current_index < len(self.phases):
+            return self.phases[self.current_index]
+        return {}
+
+    @property
+    def is_last_phase(self) -> bool:
+        return not self.phases or self.current_index >= len(self.phases) - 1
+
+    def advance(self) -> bool:
+        """Manually advance to the next phase. Returns True if advanced."""
+        if self.current_index + 1 < len(self.phases):
+            self.current_index += 1
+            logger.info("[PhaseTracker] Advanced to phase %s (index %d)",
+                        self.current_phase_id, self.current_index)
+            return True
+        return False
+
+    def try_advance_by_location(self, location: str) -> bool:
+        """Advance if the next phase's location matches the given location."""
+        if not location or self.is_last_phase:
+            return False
+        next_idx = self.current_index + 1
+        if next_idx < len(self.phases):
+            next_phase_loc = str(self.phases[next_idx].get("location", ""))
+            if next_phase_loc and next_phase_loc == location:
+                self.current_index = next_idx
+                logger.info("[PhaseTracker] Location-triggered advance → phase %s",
+                            self.current_phase_id)
+                return True
+        return False
+
+    def to_prompt_block(self) -> str:
+        """Return a compact prompt-injection string describing the current phase."""
+        phase = self.current_phase
+        if not phase:
+            return ""
+        parts = [f"Current phase: {phase.get('id', '')}"]
+        if phase.get("location"):
+            parts.append(f"Location: {phase['location']}")
+        if phase.get("description"):
+            parts.append(f"Phase description: {phase['description']}")
+        total = len(self.phases)
+        if total > 1:
+            parts.append(f"Phase {self.current_index + 1} of {total}")
+        return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Clue Manager
 # ---------------------------------------------------------------------------
 
@@ -256,12 +331,15 @@ class ClueManager:
         turn_progress: float,
         threshold_overrides: dict[str, float] | None = None,
         scene_constraint: "SceneConstraint | None" = None,
+        current_phase_id: str = "",
     ) -> Optional[dict]:
         """
         Return a clue that needs director injection if it hasn't surfaced
         by a certain % of the episode (defined per-clue or default 0.6).
         threshold_overrides: Guardian이 화별로 지정한 {clue_id: threshold} — YAML 기본값을 덮어씀.
         scene_constraint: optional per-scene constraint to block disallowed clues.
+        current_phase_id: if set, clues with allowed_phase/allowed_phases will only
+                          inject when the current phase matches.
         """
         from src.novel_writer.scene_constraints import check_clue_legality
         overrides = threshold_overrides or {}
@@ -269,6 +347,14 @@ class ClueManager:
             clue_id = clue.get("id")
             threshold = overrides.get(clue_id, clue.get("inject_threshold", 0.6))
             if clue_id not in self.introduced and turn_progress >= threshold:
+                # Phase gate: skip clue if current phase doesn't match allowed phases
+                if current_phase_id:
+                    allowed = clue.get("allowed_phase") or clue.get("allowed_phases")
+                    if allowed:
+                        if isinstance(allowed, str):
+                            allowed = [allowed]
+                        if current_phase_id not in allowed:
+                            continue
                 if not check_clue_legality(clue_id, scene_constraint, log_prefix="[ClueManager]"):
                     continue
                 return clue

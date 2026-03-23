@@ -236,8 +236,19 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
                 emotion_trajectory=_coerce_string_list(item.get("emotion_trajectory", [])),
                 tension_peaks=_coerce_string_list(item.get("tension_peaks", [])),
                 relationship_delta=str(item.get("relationship_delta", "")),
+                phase_id=str(item.get("phase_id", "")),
+                location_from=str(item.get("location_from", "")),
+                location_to=str(item.get("location_to", "")),
+                entry_events=_coerce_string_list(item.get("entry_events", [])),
+                exit_events=_coerce_string_list(item.get("exit_events", [])),
+                clue_state_delta=_coerce_string_list(item.get("clue_state_delta", [])),
+                institutional_state_delta=_coerce_string_list(item.get("institutional_state_delta", [])),
+                relationship_pressure_delta=_coerce_string_list(item.get("relationship_pressure_delta", [])),
             )
         )
+        # Restore dramatic_function (stored as plain attribute, not dataclass field)
+        if item.get("dramatic_function"):
+            scenes[-1].dramatic_function = str(item["dramatic_function"])
     return scenes
 
 

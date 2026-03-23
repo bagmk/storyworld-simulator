@@ -17,7 +17,7 @@ REVIEW_CHECKLIST.md 파일 안의 검수 프롬프트를 실행해줘
 ## 검수 프롬프트 (복사해서 사용)
 
 ```
-다음 22가지 항목을 순서대로 전부 검수해줘.
+다음 24가지 항목을 순서대로 전부 검수해줘.
 코드를 직접 읽고 확인해야 하며, 추측으로 답하지 마.
 문제가 있으면 파일명:라인번호와 함께 구체적으로 알려줘.
 
@@ -33,8 +33,8 @@ REVIEW_CHECKLIST.md 파일 안의 검수 프롬프트를 실행해줘
 
    수정된 파일                         → 우선 검수 항목
    ──────────────────────────────────────────────────────
-   discord_loop_bot.py                 → 1, 2, 3, 4, 5, 13, 16
-   daily_pipeline.py                   → 1, 3, 4, 7, 9, 10, 14
+   discord_loop_bot.py                 → 1, 2, 3, 4, 5, 13, 16, 24
+   daily_pipeline.py                   → 1, 3, 4, 7, 9, 10, 14, 23
    inline_optimizer.py                 → 1, 7, 9, 11, 12, 15
    src/novel_writer/prose_generator.py → 7, 8, 14
    src/novel_writer/scene_distiller.py → 7, 8, 14
@@ -317,15 +317,37 @@ generate_chapter.py에서 씬 JSON을 읽어 DistilledScene을 재구성하는 �
   DistilledScene 생성자에서 dataclass default로 처리하는지
 
 ─────────────────────────────────────────────────────────
+항목 23. GPT Fixer 전역 Lock stop_event 대응 확인
+─────────────────────────────────────────────────────────
+
+daily_pipeline.py에서 _get_codex_fixer_lock()과 _CODEX_FIXER_LOCK을 찾아서:
+- lock 대기(async with fixer_lock) 중 stop_event가 set되어도 lock 획득 대기가 취소되지 않는지 확인
+  (현재 async with는 stop_event를 모름 — !stop 입력해도 fixer 대기 채널은 멈추지 않음)
+- asyncio.wait_for 또는 stop_event 체크 루프로 대기를 중단하는 로직이 있는지 확인
+- 없다면: lock 대기 최대 시간(timeout)을 설정해서 무한 대기를 방지하는지 확인
+- lock 획득 후 예외 발생 시 async with 구조로 lock이 정상 해제되는지 확인
+
+─────────────────────────────────────────────────────────
+항목 24. cycle_score_log.jsonl 동기 읽기 블로킹 확인
+─────────────────────────────────────────────────────────
+
+discord_loop_bot.py에서 !parameter, !benchmark 명령 핸들러를 찾아서:
+- cycle_score_log.jsonl, policy_score_log.jsonl 읽기가 메인 asyncio 루프에서 동기로 실행되는지 확인
+  (open().read() 형태면 파일이 크면 Discord 이벤트 루프 블로킹 가능)
+- asyncio.to_thread 또는 loop.run_in_executor로 감싸여 있는지 확인
+- 파일이 없을 때(첫 실행) FileNotFoundError 처리가 있는지 확인
+- 읽은 데이터가 Discord 2000자 제한을 초과할 때 청크 분할 처리가 올바른지 확인
+
+─────────────────────────────────────────────────────────
 항목 22. 체크리스트 자가 업데이트 (항상 마지막에 실행)
 ─────────────────────────────────────────────────────────
 
-위 1~16개 항목 검수를 마친 뒤, 아래를 수행해줘.
+위 1~23개 항목 검수를 마친 뒤, 아래를 수행해줘.
 
 1. `git diff HEAD` 또는 수정된 파일 목록을 확인해서
    이번 코드 변경에서 새로 등장한 개념·컴포넌트·데이터 흐름을 파악해줘.
 
-2. 현재 REVIEW_CHECKLIST.md의 항목 1~16과 비교해서
+2. 현재 REVIEW_CHECKLIST.md의 항목 1~24과 비교해서
    아래 기준으로 새 검수 항목이 필요한지 판단해줘:
 
    - 새로운 명령어(CMD_*)가 추가됐는가?

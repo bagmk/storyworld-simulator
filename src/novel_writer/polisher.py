@@ -12,12 +12,26 @@ It should not invent beats, reorder scenes, or reinterpret scene structure.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Optional
+
+# Pre-compiled patterns used in structural repair and redundancy scan
+_RE_PARAGRAPH_SPLIT = re.compile(r'\n{2,}')
+_RE_KOREAN_SENTENCE_SPLIT = re.compile(
+    r'(?<=[다요죠]\.)\s+|(?<=[다요죠]\!)\s+|(?<=[다요죠]\?)\s+'
+)
 
 from .llm_client import LLMClient
 from .reader_profile import ReaderProfile, build_reader_profile
 from .review_feedback import build_feedback_prompt_block
+from .scene_state import (
+    detect_abstract_tension_without_consequence,
+    count_stock_body_cues,
+    count_stock_connective_openers,
+    count_abstract_tension_nouns,
+    STOCK_CONNECTIVES,
+)
 
 
 @dataclass(frozen=True)
@@ -144,6 +158,10 @@ class ChapterPolisher:
         chapter_anchors: Optional[list[str]],
         prose_adapter,
     ) -> str:
+        # ── Structural scan before LLM polish (Part 8) ───────────────────────
+        if self.runtime_policy.get("structural_repair_before_polish", True):
+            text = self._structural_repair_pass(text, prose_adapter)
+
         polished = self.run_llm_polish(text, target_words, style, chapter_anchors, prose_adapter)
         polished = self.ensure_anchor_coverage(
             polished,
@@ -214,21 +232,25 @@ class ChapterPolisher:
 
     def _pre_polish_redundancy_scan(self, text: str) -> str:
         """
-        Lightweight Python-side pass before LLM polish.
-        Detects and flags adjacent paragraph redundancy patterns.
+        Python-side structural scan before LLM polish pass.
         Returns a guidance string to include in the polish prompt.
+        Checks: suspension run, abstract tension without consequence,
+        stock connective overuse, stock body cue excess.
         """
-        import re
-        paragraphs = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()]
+        import logging
+        _log = logging.getLogger(__name__)
+
+        paragraphs = [p.strip() for p in _RE_PARAGRAPH_SPLIT.split(text) if p.strip()]
         if len(paragraphs) < 3:
             return ""
 
-        # Check for adjacent paragraphs ending on same suspension pattern
+        guidance_parts: list[str] = []
+
+        # 1. Adjacent paragraphs ending on same suspension pattern
         SUSPENSION_ENDINGS = [
             "었다.", "있었다.", "들었다.", "느꼈다.", "생각했다.",
             "스쳤다.", "맴돌았다.", "울렸다.",
         ]
-
         suspension_run = 0
         max_suspension_run = 0
         for p in paragraphs:
@@ -237,15 +259,115 @@ class ChapterPolisher:
                 max_suspension_run = max(max_suspension_run, suspension_run)
             else:
                 suspension_run = 0
-
-        guidance_parts = []
         if max_suspension_run >= 3:
             guidance_parts.append(
-                f"WARNING: {max_suspension_run} consecutive paragraphs end on the same internal-suspension pattern. "
-                f"Break this by ending at least one paragraph on action, consequence, decision, or physical movement instead."
+                f"WARNING: {max_suspension_run} consecutive paragraphs end on the same suspension pattern. "
+                "End at least one on action, consequence, decision, or physical movement."
+            )
+
+        # 2. Abstract tension without nearby concrete consequence
+        flagged_tension = detect_abstract_tension_without_consequence(paragraphs, window=2)
+        if flagged_tension:
+            _log.info(
+                "[Polisher] Abstract tension without consequence in %d para(s): %s",
+                len(flagged_tension), flagged_tension[:5],
+            )
+            guidance_parts.append(
+                f"WARNING: {len(flagged_tension)} paragraph(s) contain repeated abstract danger/pressure/choice language "
+                "without a concrete consequence nearby. After each abstract tension beat, show one concrete result: "
+                "blocked access, document reveal, person exit, changed room state, or forced decision."
+            )
+
+        # 3. Stock connective opener overuse
+        conn_counts = count_stock_connective_openers(paragraphs)
+        heavy_conns = {k: v for k, v in conn_counts.items() if v >= 3}
+        if heavy_conns:
+            _log.info("[Polisher] Stock connective opener overuse: %s", heavy_conns)
+            conn_str = ", ".join(f"'{k}'(×{v})" for k, v in heavy_conns.items())
+            guidance_parts.append(
+                f"WARNING: Stock connective openers overused: {conn_str}. "
+                "Replace at least half with gaze shifts, footsteps, object cues, or paragraph-opening subject names."
+            )
+
+        # 4. Stock body cue excess (cap per chapter = 3×scene cap)
+        body_counts = count_stock_body_cues(text)
+        body_cap = int(self.runtime_policy.get("repeated_body_cue_cap_per_scene", 2)) * 3
+        heavy_body = {k: v for k, v in body_counts.items() if v > body_cap}
+        if heavy_body:
+            _log.info("[Polisher] Stock body cues exceeding chapter cap (%d): %s", body_cap, heavy_body)
+            body_str = ", ".join(f"'{k}'(×{v})" for k, v in list(heavy_body.items())[:5])
+            guidance_parts.append(
+                f"WARNING: Repeated stock gesture cues: {body_str}. "
+                "Vary or remove later occurrences — substitute with room reaction, object movement, or posture shift."
+            )
+
+        # 5. Abstract tension noun overuse
+        noun_counts = count_abstract_tension_nouns(text)
+        noun_cap = int(self.runtime_policy.get("abstract_tension_noun_cap_per_scene", 4)) * 2
+        over_noun = {k: v for k, v in noun_counts.items() if v > noun_cap}
+        if over_noun:
+            _log.info("[Polisher] Abstract tension nouns over chapter cap: %s", over_noun)
+            noun_str = ", ".join(f"'{k}'(×{v})" for k, v in list(over_noun.items())[:5])
+            guidance_parts.append(
+                f"WARNING: Abstract tension nouns overused: {noun_str}. "
+                "Replace later occurrences with a concrete institutional or physical anchor."
             )
 
         return "\n".join(guidance_parts)
+
+    def _structural_repair_pass(self, text: str, prose_adapter) -> str:
+        """
+        Deterministic structural repair before LLM polish.
+
+        Repairs that can be done reliably without LLM:
+        1. Deduplicate near-identical adjacent paragraph openings (subject reset)
+        2. Cap stock connective openers (replace excess with blank paragraph break)
+        3. Remove exact duplicate sentences within a 5-sentence window
+        """
+        import logging
+        _log = logging.getLogger(__name__)
+
+        if not text:
+            return text
+
+        paragraphs = [p.strip() for p in _RE_PARAGRAPH_SPLIT.split(text) if p.strip()]
+        if len(paragraphs) < 2:
+            return text
+
+        # 1. Remove exact duplicate adjacent sentences within paragraphs
+        repaired: list[str] = []
+        for para in paragraphs:
+            sentences = _RE_KOREAN_SENTENCE_SPLIT.split(para)
+            seen: list[str] = []
+            for sent in sentences:
+                sent_stripped = sent.strip()
+                if not sent_stripped:
+                    continue
+                # Exact duplicate of immediately previous sentence → skip
+                if seen and sent_stripped == seen[-1]:
+                    _log.info("[Polisher] Removed exact duplicate sentence in paragraph.")
+                    continue
+                seen.append(sent_stripped)
+            repaired.append(" ".join(seen))
+
+        # 2. Cap stock connective openers — if 3+ paragraphs start with same connector,
+        #    replace the 3rd+ occurrences by removing the opener (keep rest of sentence)
+        for conn in STOCK_CONNECTIVES:
+            count = 0
+            for i, para in enumerate(repaired):
+                if para.startswith(conn):
+                    count += 1
+                    if count >= 3:
+                        # Remove opening connective
+                        stripped = para[len(conn):].lstrip(" ,.")
+                        if stripped:
+                            repaired[i] = stripped[0].upper() + stripped[1:] if stripped else stripped
+                            _log.info(
+                                "[Polisher] Removed excess stock connective opener '%s' from paragraph %d.",
+                                conn, i,
+                            )
+
+        return "\n\n".join(repaired)
 
     def run_llm_polish(
         self,

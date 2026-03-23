@@ -26,6 +26,12 @@ from .llm_client import LLMClient
 from . import database as db
 from .reader_profile import ReaderProfile, build_reader_profile
 from .review_feedback import build_feedback_prompt_block
+from .scene_state import (
+    DramaticFunctionLabel,
+    ScenePhaseRecord,
+    SceneProgressionTracker,
+    DRAMATIC_FUNCTION_PROGRESSION_SET,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +57,24 @@ class DistilledScene:
     relationship_delta: str = ""                                  # Net relationship change e.g. "불신 → 잠정 협력"
     dramatic_function: str = "unknown"                           # DramaticFunction value
 
+    # ── Structural-progression fields (Part 6) ───────────────────────────────
+    # Opaque ID for the narrative phase this scene belongs to (e.g., "act1_confrontation")
+    phase_id: str = ""
+    # Location the scene started from (for multi-location scenes)
+    location_from: str = ""
+    # Location the scene moved to (empty if scene stayed in one place)
+    location_to: str = ""
+    # Cast arrivals that happened during this scene  [{name, method}]
+    entry_events: list[dict] = field(default_factory=list)
+    # Cast departures that happened during this scene  [{name, reason}]
+    exit_events: list[dict] = field(default_factory=list)
+    # Net changes to clue/information state  [{clue_id, change}]
+    clue_state_delta: list[dict] = field(default_factory=list)
+    # Net changes to institutional/access state  [{entity, change}]
+    institutional_state_delta: list[dict] = field(default_factory=list)
+    # Net changes to relationship pressure between specific pairs  [{pair, delta}]
+    relationship_pressure_delta: list[dict] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         return {
             "scene_number": self.scene_number,
@@ -69,6 +93,15 @@ class DistilledScene:
             "emotion_trajectory": self.emotion_trajectory,
             "tension_peaks": self.tension_peaks,
             "relationship_delta": self.relationship_delta,
+            "dramatic_function": self.dramatic_function,
+            "phase_id": self.phase_id,
+            "location_from": self.location_from,
+            "location_to": self.location_to,
+            "entry_events": self.entry_events,
+            "exit_events": self.exit_events,
+            "clue_state_delta": self.clue_state_delta,
+            "institutional_state_delta": self.institutional_state_delta,
+            "relationship_pressure_delta": self.relationship_pressure_delta,
         }
 
 
@@ -602,6 +635,14 @@ class SceneDistiller:
                 emotion_trajectory=payload.get("emotion_trajectory") or [],
                 tension_peaks=payload.get("tension_peaks") or [],
                 relationship_delta=payload.get("relationship_delta") or "",
+                phase_id=payload.get("phase_id", ""),
+                location_from=payload.get("location_from", ""),
+                location_to=payload.get("location_to", ""),
+                entry_events=payload.get("entry_events") or [],
+                exit_events=payload.get("exit_events") or [],
+                clue_state_delta=payload.get("clue_state_delta") or [],
+                institutional_state_delta=payload.get("institutional_state_delta") or [],
+                relationship_pressure_delta=payload.get("relationship_pressure_delta") or [],
             )
             scene_obj.dramatic_function = str(sd.get("dramatic_function", "unknown"))
             scenes.append(scene_obj)
@@ -1006,35 +1047,118 @@ class SceneDistiller:
 
         return merged
 
+    def _scene_has_structural_transition(self, scene: DistilledScene) -> bool:
+        """True if this scene contains an entry/exit/location-change event that should not be merged away."""
+        if scene.entry_events or scene.exit_events:
+            return True
+        if scene.location_from and scene.location_to and scene.location_from != scene.location_to:
+            return True
+        if scene.clue_state_delta or scene.institutional_state_delta:
+            return True
+        # Fallback: check location field change vs title hints
+        loc = (scene.location or "").lower()
+        summary = (scene.narrative_summary or "").lower()
+        transition_cues = ("퇴장", "입장", "이동", "나갔", "들어왔", "자리를 떴", "복도", "로비", "문을 열", "문을 닫")
+        return any(cue in loc or cue in summary for cue in transition_cues)
+
     def _post_distill_same_function_merge(
         self, scenes: list[DistilledScene], aggressiveness: int
     ) -> list[DistilledScene]:
-        """Merge adjacent scenes with same dramatic_function if aggressiveness > 0."""
+        """Merge adjacent scenes with same dramatic_function if aggressiveness > 0.
+
+        Enhanced: now preserves structural transitions (entry/exit/location-change)
+        and uses SceneProgressionTracker to prevent backslide.
+        """
         if aggressiveness == 0 or len(scenes) <= 2:
             return scenes
 
-        PROGRESSION_FUNCTIONS = {"reversal", "commitment", "consequence", "transition", "revelation"}
+        # Minimum cast overlap ratio to trigger merge (from policy if available)
+        policy = getattr(self, "runtime_policy", {}) or {}
+        min_overlap = float(policy.get("adjacent_same_function_cast_overlap_min", 0.5))
+
+        tracker = SceneProgressionTracker(policy=policy)
         merged = list(scenes)
         changed = True
         while changed:
             changed = False
             for i in range(len(merged) - 1):
                 a, b = merged[i], merged[i + 1]
-                if a.dramatic_function == b.dramatic_function and \
-                   a.dramatic_function not in PROGRESSION_FUNCTIONS and \
-                   a.dramatic_function != "unknown":
-                    # check if cast overlaps
-                    cast_a = set(a.characters_present)
-                    cast_b = set(b.characters_present)
-                    if len(cast_a & cast_b) >= max(1, min(len(cast_a), len(cast_b)) - 1):
-                        logger.info(
-                            "Post-distill merge: scene %d + %d (both '%s', overlapping cast)",
-                            a.scene_number, b.scene_number, a.dramatic_function
-                        )
-                        merged_scene = self._merge_scene_pair(a, b)
-                        merged[i:i+2] = [merged_scene]
-                        changed = True
-                        break
+
+                fn_a = DramaticFunctionLabel.from_string(a.dramatic_function)
+                fn_b = DramaticFunctionLabel.from_string(b.dramatic_function)
+
+                # Never merge progression-marking functions
+                if fn_a != fn_b:
+                    continue
+                if fn_a.is_progression_function():
+                    continue
+                if fn_a == DramaticFunctionLabel.UNKNOWN:
+                    continue
+
+                # Never merge if either scene has a structural transition
+                b_has_transition = self._scene_has_structural_transition(b)
+                if b_has_transition:
+                    logger.debug(
+                        "Post-distill merge skipped: scene %d has structural transition (entry/exit/access)",
+                        b.scene_number,
+                    )
+                    continue
+
+                # Check cast overlap ratio
+                cast_a = set(a.characters_present)
+                cast_b = set(b.characters_present)
+                union = cast_a | cast_b
+                if not union:
+                    continue
+                overlap_ratio = len(cast_a & cast_b) / len(union)
+                if overlap_ratio < min_overlap:
+                    continue
+
+                # Backslide guard: check if merging would replay an already-completed phase
+                record_b = ScenePhaseRecord(
+                    scene_number=b.scene_number,
+                    dramatic_function=fn_b.value,
+                    location=b.location or "",
+                    cast_key=frozenset(b.characters_present),
+                    had_structural_transition=b_has_transition,
+                )
+                if tracker.would_backslide(record_b):
+                    logger.info(
+                        "[SceneState] Backslide prevented: scene %d ('%s') already seen with same cast/location/function",
+                        b.scene_number, fn_b.value,
+                    )
+                    continue
+
+                logger.info(
+                    "[SceneState] Post-distill merge: scene %d + %d (both '%s', cast_overlap=%.0f%%)",
+                    a.scene_number, b.scene_number, fn_a.value, overlap_ratio * 100,
+                )
+                merged_scene = self._merge_scene_pair(a, b)
+                merged[i:i+2] = [merged_scene]
+                changed = True
+                break
+
+            # Record all current scenes into tracker after each pass
+            if changed:
+                tracker = SceneProgressionTracker(policy=policy)
+                for s in merged:
+                    tracker.record(ScenePhaseRecord(
+                        scene_number=s.scene_number,
+                        dramatic_function=s.dramatic_function,
+                        location=s.location or "",
+                        cast_key=frozenset(s.characters_present),
+                        had_structural_transition=self._scene_has_structural_transition(s),
+                    ))
+                # Check for dramatic loop in the current scene list
+                loop_signal = tracker.detect_loop(
+                    window=3,
+                    same_conflict_threshold=int(policy.get("same_conflict_loop_turn_threshold", 3)),
+                )
+                if loop_signal:
+                    logger.warning(
+                        "[SceneState] Dramatic loop detected in post-merge scene list: %s", loop_signal
+                    )
+
         return merged
 
     def _adjacent_scene_merge_score(self, left: DistilledScene, right: DistilledScene) -> int:
@@ -1262,6 +1386,33 @@ class SceneDistiller:
         )
         rel_delta_parts = [p for p in (left.relationship_delta, right.relationship_delta) if str(p).strip()]
         merged_relationship_delta = rel_delta_parts[-1] if rel_delta_parts else ""
+        # Structural-progression fields: preserve left's origin, right's destination;
+        # accumulate entry/exit events from both; union deltas.
+        loc_from = left.location_from or left.location or ""
+        loc_to = right.location_to or right.location or ""
+        merged_entry_events = list(left.entry_events) + [
+            e for e in right.entry_events
+            if e not in left.entry_events
+        ]
+        merged_exit_events = list(left.exit_events) + [
+            e for e in right.exit_events
+            if e not in left.exit_events
+        ]
+        merged_clue_delta = list(left.clue_state_delta) + [
+            d for d in right.clue_state_delta if d not in left.clue_state_delta
+        ]
+        merged_inst_delta = list(left.institutional_state_delta) + [
+            d for d in right.institutional_state_delta if d not in left.institutional_state_delta
+        ]
+        merged_rel_pressure = list(left.relationship_pressure_delta) + [
+            d for d in right.relationship_pressure_delta if d not in left.relationship_pressure_delta
+        ]
+        # Dramatic function: prefer the right scene's function unless it is unknown
+        fn_right = DramaticFunctionLabel.from_string(right.dramatic_function)
+        fn_left = DramaticFunctionLabel.from_string(left.dramatic_function)
+        merged_function = (
+            fn_right.value if fn_right != DramaticFunctionLabel.UNKNOWN else fn_left.value
+        )
         return DistilledScene(
             scene_number=left.scene_number,
             title=left.title,
@@ -1279,6 +1430,15 @@ class SceneDistiller:
             emotion_trajectory=merged_emotion_trajectory,
             tension_peaks=merged_tension_peaks,
             relationship_delta=merged_relationship_delta,
+            dramatic_function=merged_function,
+            phase_id=left.phase_id or right.phase_id,
+            location_from=loc_from,
+            location_to=loc_to,
+            entry_events=merged_entry_events,
+            exit_events=merged_exit_events,
+            clue_state_delta=merged_clue_delta,
+            institutional_state_delta=merged_inst_delta,
+            relationship_pressure_delta=merged_rel_pressure,
         )
 
     def _merge_scene_summaries(self, left: str, right: str) -> str:

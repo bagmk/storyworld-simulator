@@ -142,6 +142,18 @@ ProcessFn = Callable[[str | None, int | None, str | None], None] | None
 MetricsFn = Callable[[dict[str, Any]], None] | None
 
 
+def _is_quota_error(exc: BaseException) -> bool:
+    """OpenAI 크레딧/쿼터 초과 오류인지 확인 (exception chain 포함)."""
+    _MARKERS = ("insufficient_quota", "exceeded your current quota", "you exceeded your current quota")
+    node: BaseException | None = exc
+    while node is not None:
+        msg = str(node).lower()
+        if any(m in msg for m in _MARKERS):
+            return True
+        node = node.__cause__ or node.__context__
+    return False
+
+
 def _use_premium_review_tier(review_tier: str) -> bool:
     return str(review_tier).strip().lower() == "premium"
 
@@ -157,8 +169,8 @@ def _llm_premium_model_for_tier(review_tier: str) -> str:
     return "gpt-4o-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
 
 def _llm_review_model_for_tier(review_tier: str) -> str:
-    """AI 루프 리뷰 모델. mini 티어이면 gpt-5-mini (판단 품질 유지). 그 외엔 gpt-4o."""
-    return "gpt-5-mini" if _use_mini_review_tier(review_tier) else "gpt-4o"
+    """AI 루프 리뷰 모델. 모든 티어에서 gpt-5-mini 사용."""
+    return "gpt-5-mini"
 
 def _codex_model_for_tier(review_tier: str) -> str | None:
     """mini 티어이면 gpt-5.4-mini, 그 외엔 None (config.toml 기본값 사용)."""
@@ -317,14 +329,39 @@ def _generate_quality_chart(
             + float(tracker.get("feedback_parse", 0.0))
         ),
     }
-    cost_vals_nonzero = [(l, v) for l, v in cat_cost.items() if v > 0.0001]
+    # 임계값을 1e-6으로 낮춤: gpt-4.1-mini는 비용이 거의 0이지만 존재는 표시
+    cost_vals_nonzero = [(l, v) for l, v in cat_cost.items() if v > 1e-6]
+    # 비용이 전부 0이면 토큰 기반으로 대체 표시 (카테고리별 토큰 추정)
+    if not cost_vals_nonzero:
+        _model_tok = tracker.get("model_token_totals", {})
+        _total_tok = sum(int(v) for v in _model_tok.values()) if _model_tok else 0
+        if _total_tok > 0:
+            cost_vals_nonzero = [(f"{l} ({int(v):,}tok 추정)", 1.0) for l, v in [
+                ("시뮬레이션", float(tracker_t.get("simulator", 0)) * 300),
+                ("챕터생성", float(tracker_t.get("chapter_gen", 0) + tracker_t.get("auto_improve", 0)) * 300),
+                ("리뷰", float(tracker_t.get("quality_review", 0) + tracker_t.get("guardian", 0)) * 100),
+            ] if v > 0]
 
-    # ── 소요 시간: 3개 카테고리로 합산 ────────────────────────────────────────
+    # ── 소요 시간: 카테고리로 합산 ──────────────────────────────────────────────
+    # 리뷰: guardian + baseline_review + auto_improve_review(루프 내 Phase B/C) + quality_review
+    # 챕터생성: chapter_gen(초기) + auto_chapter_gen(Phase C 재생성)
+    # AI개선루프: auto_improve 전체에서 리뷰/재생성/Codex 시간을 제외한 순수 Optuna 탐색
     tracker_t = time_tracker or {}
+    _codex_sec = float(tracker.get("codex_fixer_sec", 0.0))
+    _review_in_loop = tracker_t.get("auto_improve_review", 0.0)
+    _regen_in_loop  = tracker_t.get("auto_chapter_gen", 0.0)
+    _loop_pure = max(0.0, tracker_t.get("auto_improve", 0.0) - _codex_sec - _review_in_loop - _regen_in_loop)
     cat_time = {
         "시뮬레이션": tracker_t.get("simulator", 0.0),
-        "챕터생성":   tracker_t.get("chapter_gen", 0.0) + tracker_t.get("auto_improve", 0.0),
-        "리뷰":       tracker_t.get("quality_review", 0.0) + tracker_t.get("guardian", 0.0),
+        "챕터생성":   tracker_t.get("chapter_gen", 0.0) + _regen_in_loop,
+        "AI개선루프": _loop_pure,
+        "Codex픽서":  _codex_sec,
+        "리뷰":       (
+            tracker_t.get("guardian", 0.0)
+            + tracker_t.get("baseline_review", 0.0)
+            + _review_in_loop
+            + tracker_t.get("quality_review", 0.0)
+        ),
     }
     time_vals_nonzero = [(l, v) for l, v in cat_time.items() if v > 0.5]
 
@@ -373,6 +410,50 @@ def _generate_quality_chart(
             if total_value > 0:
                 model_token_nonzero.append((str(model), total_value))
         model_token_nonzero.sort(key=lambda item: item[1], reverse=True)
+
+    # time_tracker가 None이면 cost_tracker 안에 _time_tracker 키로 내장된 것을 꺼냄
+    if time_tracker is None and isinstance(tracker, dict):
+        _embedded = tracker.get("_time_tracker")
+        if isinstance(_embedded, dict):
+            tracker_t = _embedded
+            _codex_sec_e = float(tracker.get("codex_fixer_sec", 0.0))
+            _rev_in_loop_e  = tracker_t.get("auto_improve_review", 0.0)
+            _regen_in_loop_e = tracker_t.get("auto_chapter_gen", 0.0)
+            _loop_pure_e = max(0.0, tracker_t.get("auto_improve", 0.0) - _codex_sec_e - _rev_in_loop_e - _regen_in_loop_e)
+            cat_time = {
+                "시뮬레이션": tracker_t.get("simulator", 0.0),
+                "챕터생성":   tracker_t.get("chapter_gen", 0.0) + _regen_in_loop_e,
+                "AI개선루프": _loop_pure_e,
+                "Codex픽서":  _codex_sec_e,
+                "리뷰":       (
+                    tracker_t.get("guardian", 0.0)
+                    + tracker_t.get("baseline_review", 0.0)
+                    + _rev_in_loop_e
+                    + tracker_t.get("quality_review", 0.0)
+                ),
+            }
+            time_vals_nonzero = [(l, v) for l, v in cat_time.items() if v > 0.5]
+            # model time 재계산
+            _mt = {}
+            _sim = tracker_t.get("simulator", 0.0)
+            _mt["gpt-4o-mini"] = _mt.get("gpt-4o-mini", 0.0) + _sim * 0.50
+            _mt["gpt-5-mini"]  = _mt.get("gpt-5-mini", 0.0)  + _sim * 0.50
+            _ch = tracker_t.get("chapter_gen", 0.0)
+            _mt["gpt-4o-mini"] = _mt.get("gpt-4o-mini", 0.0) + _ch * 0.40
+            _ch_prose = "gpt-4.1-mini" if _is_mini else "gpt-5-mini"
+            _mt[_ch_prose] = _mt.get(_ch_prose, 0.0) + _ch * 0.60
+            _guard = tracker_t.get("guardian", 0.0)
+            _gkey = "gpt-4o" if _is_premium else "gpt-4o-mini"
+            _mt[_gkey] = _mt.get(_gkey, 0.0) + _guard
+            _qr = tracker_t.get("quality_review", 0.0)
+            _mt[_gkey] = _mt.get(_gkey, 0.0) + _qr
+            _ai = tracker_t.get("auto_improve", 0.0)
+            _mt["Codex CLI"]   = _mt.get("Codex CLI", 0.0) + _ai * 0.50
+            _mt[_ch_prose]     = _mt.get(_ch_prose, 0.0)   + _ai * 0.20
+            _mt["gpt-4o-mini"] = _mt.get("gpt-4o-mini", 0.0) + _ai * 0.10
+            _rkey = _llm_review_model_for_tier(review_tier)
+            _mt[_rkey] = _mt.get(_rkey, 0.0) + _ai * 0.20
+            model_time_nonzero = [(m, t) for m, t in _mt.items() if t > 0.5]
 
     has_scores  = len(cycles) > 0
     has_costs   = len(cost_vals_nonzero) > 0
@@ -1237,6 +1318,12 @@ async def step_guardian(
             )
             await notify(f"{DAILY_TAG}[GUARDIAN] 🎛️ 추천 파라미터 (캐시): {param_summary}")
             await notify(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료 — 캐시된 브리핑 사용")
+            # 캐시된 브리핑 내용 미리보기 (최대 900자)
+            if cached_briefing and cached_briefing.strip():
+                _preview = cached_briefing.strip()[:900]
+                if len(cached_briefing.strip()) > 900:
+                    _preview += "\n… (이하 생략)"
+                await notify(f"{DAILY_TAG}[GUARDIAN] 📝 캐시된 브리핑 내용:\n{_preview}")
         return True, briefing_path, cached_params
 
     if notify:
@@ -1714,10 +1801,10 @@ async def step_inline_optimize(
         logger.warning("[INLINE_OPT] quality_review_latest load failed: %s", exc)
 
     # Cost strategy:
-    # - 5 inline trials: gpt-4o-mini only
+    # - 5 inline trials: base=gpt-4o-mini, premium=gpt-5-mini (씬 증류 + 산문 생성 일치)
     # - final single upgrade pass: gpt-4.1-mini
     base_model = "gpt-4o-mini"
-    premium_model = "gpt-4o-mini"
+    premium_model = "gpt-5-mini"
     final_upgrade_model = "gpt-4.1-mini"
 
     if notify:
@@ -3198,10 +3285,16 @@ async def _run_gpt_fixer(
             return False, "GPT Fixer 중단됨"
 
         raw = response.choices[0].message.content or ""
+        finish_reason = response.choices[0].finish_reason
         try:
             output_log_path.write_text(raw, encoding="utf-8")
         except Exception:
             pass
+
+        if finish_reason == "length":
+            if notify:
+                await notify(f"{DAILY_TAG}[FIXER] ⛔ GPT 응답이 max_tokens 제한으로 잘렸습니다 (finish_reason=length). 더 작은 작업 단위로 시도하세요.")
+            return False, "GPT 응답 토큰 초과로 JSON 잘림 (finish_reason=length)"
 
         data = json.loads(raw)
         files_to_write: list[dict] = data.get("files", [])
@@ -3336,6 +3429,7 @@ async def step_auto_improve_loop(
     daily_cycle: int = 1,
     manager_period: int = MANAGER_PERIOD,
     outer_max_cycles: int | None = None,
+    time_tracker: dict[str, float] | None = None,
 ) -> Path:
     """
     배치 파라미터 탐색 + Codex 코드 픽스 루프.
@@ -3350,6 +3444,8 @@ async def step_auto_improve_loop(
                → 통과 시 종료, 3회 소진 시 outer loop 재시작 (수정된 코드로 재탐색)
 
     총 최대 챕터 생성: outer 3 × (25 trials + 3 regen) = 84회
+
+    time_tracker: 전달 시 루프 내부 시간을 auto_improve_review / auto_chapter_gen 키로 누적.
     """
     current_chapter = chapter_path
 
@@ -3379,7 +3475,7 @@ async def step_auto_improve_loop(
             "character_profiles": _char_profiles,
             "reader_feedback": _reader_fb,
             "base_model": "gpt-4o-mini",
-            "premium_model": "gpt-4o-mini",
+            "premium_model": "gpt-5-mini",
         }
     except Exception as _ctx_exc:
         logger.warning("[AUTO] context load failed: %s — param optimization disabled", _ctx_exc)
@@ -3485,6 +3581,13 @@ async def step_auto_improve_loop(
                         )
             except Exception as _batch_exc:
                 logger.warning("[AUTO] Phase A batch failed (outer %d): %s", outer_cycle, _batch_exc)
+                if _is_quota_error(_batch_exc):
+                    if notify:
+                        await notify(
+                            f"{DAILY_TAG}[AUTO] 💸 OpenAI 크레딧 부족 — Phase A outer {outer_cycle} 중단\n"
+                            f"OpenAI 계정에 크레딧을 충전한 뒤 다시 실행해주세요."
+                        )
+                    break
                 if notify:
                     await notify(f"{DAILY_TAG}[AUTO] ⚠️ Phase A 실패: {_batch_exc}")
 
@@ -3493,6 +3596,7 @@ async def step_auto_improve_loop(
             set_status(f"AUTO outer {outer_cycle}/{_outer_max} — AI 리뷰 중...")
 
         chapter_text = current_chapter.read_text(encoding="utf-8", errors="replace")
+        _phaseB_t0 = time.monotonic()
         try:
             _rev_llm = LLMClient(
                 model=_llm_review_model_for_tier(review_tier),
@@ -3513,8 +3617,19 @@ async def step_auto_improve_loop(
             _rev_budget = _rev_llm.budget_summary()
         except Exception as _rev_exc:
             if notify:
-                await notify(f"{DAILY_TAG}[AUTO] ⚠️ AI 리뷰 실패 ({_rev_exc}), outer loop 종료")
+                if _is_quota_error(_rev_exc):
+                    await notify(
+                        f"{DAILY_TAG}[AUTO] 💸 OpenAI 크레딧 부족 — outer {outer_cycle}에서 루프 중단\n"
+                        f"OpenAI 계정에 크레딧을 충전한 뒤 다시 실행해주세요."
+                    )
+                else:
+                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ AI 리뷰 실패 ({_rev_exc}), outer loop 종료")
             break
+        finally:
+            if time_tracker is not None:
+                time_tracker["auto_improve_review"] = (
+                    time_tracker.get("auto_improve_review", 0.0) + (time.monotonic() - _phaseB_t0)
+                )
 
         thrill    = int(review_json.get("thrill_score_10", 0))
         style     = int(review_json.get("style_score_10", 0))
@@ -3646,11 +3761,15 @@ async def step_auto_improve_loop(
             backup_dir = await asyncio.to_thread(_backup_target_files, run_dir, _global_fixer_cycle)
 
             fixer_prompt = _build_codex_fixer_prompt(review_json, manager_instructions=_manager_instructions)
+            _codex_t0 = time.monotonic()
             ok, summary = await _run_codex_fixer(
                 fixer_prompt, run_dir, _global_fixer_cycle,
                 set_process=set_process, notify=notify,
                 stop_event=stop_event, codex_model=_codex_model_for_tier(review_tier),
             )
+            _codex_elapsed = time.monotonic() - _codex_t0
+            if cost_tracker is not None:
+                cost_tracker["codex_fixer_sec"] = float(cost_tracker.get("codex_fixer_sec", 0.0)) + _codex_elapsed
             if not ok:
                 if notify:
                     await notify(f"{DAILY_TAG}[AUTO] ❌ Codex 실패 ({_cycle_label}): {summary}")
@@ -3727,6 +3846,7 @@ async def step_auto_improve_loop(
                     cached_scenes = _sc
 
             _regen_tracker: dict[str, float] = {"chapter": 0.0}
+            _regen_t0 = time.monotonic()
             new_chapter = await step_chapter_gen(
                 episode_key, run_dir, daily_cycle, target_words, budget, protagonist,
                 notify=notify, upload=upload, set_status=set_status,
@@ -3744,6 +3864,10 @@ async def step_auto_improve_loop(
                     cost_tracker.get("auto_chapter", 0.0)
                     + float(_regen_tracker.get("chapter", 0.0))
                 )
+            if time_tracker is not None:
+                time_tracker["auto_chapter_gen"] = (
+                    time_tracker.get("auto_chapter_gen", 0.0) + (time.monotonic() - _regen_t0)
+                )
             if new_chapter is None:
                 if notify:
                     await notify(f"{DAILY_TAG}[AUTO] ⚠️ 재생성 실패")
@@ -3752,6 +3876,7 @@ async def step_auto_improve_loop(
             # Score check — rollback if significantly worse
             new_text = new_chapter.read_text(encoding="utf-8", errors="replace")
             _chk_json = review_json   # fallback: keep current review if check fails
+            _chk_t0 = time.monotonic()
             try:
                 _chk_llm = LLMClient(
                     model=_llm_review_model_for_tier(review_tier),
@@ -3773,6 +3898,11 @@ async def step_auto_improve_loop(
             except Exception as _chk_exc:
                 logger.warning("[AUTO] regen score check failed: %s", _chk_exc)
                 new_avg = avg
+            finally:
+                if time_tracker is not None:
+                    time_tracker["auto_improve_review"] = (
+                        time_tracker.get("auto_improve_review", 0.0) + (time.monotonic() - _chk_t0)
+                    )
 
             if new_avg < avg - 0.5:
                 if notify:
@@ -4193,7 +4323,7 @@ async def run_daily_pipeline(
     }
     time_tracker: dict[str, float] = {}
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
 
     async def _stop_and_return(step_label: str, step_name: str) -> dict[str, Any]:
         if set_status:
@@ -4257,7 +4387,7 @@ async def run_daily_pipeline(
                                guardian_briefing_path=guardian_briefing_path,
                                reset_emotions=reset_emotions)
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
     if not ok2:
             if stop_event and stop_event.is_set():
                 return await _stop_and_return("Simulator 단계", "simulator")
@@ -4283,7 +4413,7 @@ async def run_daily_pipeline(
             review_tier=review_tier,
         )
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
     if chapter_path is None:
             if stop_event and stop_event.is_set():
                 return await _stop_and_return("Chapter Gen 단계", "chapter_gen")
@@ -4295,6 +4425,66 @@ async def run_daily_pipeline(
         _ch_min = int(time_tracker["chapter_gen"] // 60)
         _ch_sec = int(time_tracker["chapter_gen"] % 60)
         await notify(f"{DAILY_TAG}[CHAPTER] ⏱️ 소요 시간: {_ch_min}분 {_ch_sec:02d}초")
+
+    # ── Step 3.1: 베이스라인 AI 리뷰 (최적화 진입 전 기준점 확보) ──────────────
+    if notify:
+        await notify(f"{DAILY_TAG}[AUTO] 📊 베이스라인 챕터 리뷰 중...")
+    _baseline_rev_t0 = time.monotonic()
+    try:
+        _base_chapter_text = chapter_path.read_text(encoding="utf-8", errors="replace")
+        _base_rev_llm = LLMClient(
+            model=_llm_review_model_for_tier(review_tier),
+            premium_model="gpt-4o",
+            budget_usd=1.5,
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+        )
+        _base_story_ctx = await asyncio.to_thread(_load_story_context_for_review)
+        _base_review_raw = await asyncio.to_thread(
+            _base_rev_llm.chat,
+            [{"role": "user", "content": _build_ai_reviewer_prompt(_base_chapter_text, _base_story_ctx)}],
+            use_premium=_use_premium_review_tier(review_tier),
+            purpose="baseline_reviewer",
+            max_tokens=1400,
+        )
+        _base_cleaned = re.sub(r"```(?:json)?\n?", "", _base_review_raw).strip().rstrip("`")
+        _base_review_json = json.loads(_base_cleaned)
+        _base_rev_budget = _base_rev_llm.budget_summary()
+        _record_budget_usage(cost_tracker, cost_tracker, _base_rev_budget, cost_key="auto_review")
+        if set_metrics:
+            set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
+
+        _base_thrill    = int(_base_review_json.get("thrill_score_10", 0))
+        _base_style     = int(_base_review_json.get("style_score_10", 0))
+        _base_causality = int(_base_review_json.get("causality_score_10", 0))
+        _base_character = int(_base_review_json.get("character_score_10", 0))
+        _base_scene_fn  = int(_base_review_json.get("scene_function_score_10", 0))
+        _base_avg = (_base_thrill + _base_style + _base_causality + _base_character + _base_scene_fn) / 5
+        _base_verdict = _base_review_json.get("one_line_verdict", "")
+        _base_mood = "🟢" if _base_avg >= 8.0 else "🟡" if _base_avg >= 7.0 else "🔴"
+        if notify:
+            await notify(
+                f"{DAILY_TAG}[AUTO] 📊 베이스라인 리뷰 결과 {_base_mood}\n"
+                f"긴장감: {_base_thrill}/10 | 문체: {_base_style}/10 | 인과성: {_base_causality}/10 | "
+                f"캐릭터: {_base_character}/10 | 씬기능: {_base_scene_fn}/10 | **평균: {_base_avg:.1f}/10**"
+                + (f"\n💬 {_base_verdict}" if _base_verdict else "")
+            )
+        # 베이스라인 리뷰 파일 저장 (auto_review_cycle0.json)
+        _base_review_path = run_dir / "auto_review_cycle0.json"
+        _base_review_path.write_text(
+            json.dumps(_base_review_json, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception as _base_exc:
+        logger.warning("[BASELINE] 베이스라인 리뷰 실패 (무시하고 최적화 진행): %s", _base_exc)
+        if notify:
+            if _is_quota_error(_base_exc):
+                await notify(
+                    f"{DAILY_TAG}[AUTO] 💸 OpenAI 크레딧 부족 — 베이스라인 리뷰 실패\n"
+                    f"OpenAI 계정에 크레딧을 충전한 뒤 다시 실행해주세요."
+                )
+            else:
+                await notify(f"{DAILY_TAG}[AUTO] ⚠️ 베이스라인 리뷰 실패 ({_base_exc}), 최적화 계속 진행")
+    finally:
+        time_tracker["baseline_review"] = time.monotonic() - _baseline_rev_t0
 
     # ── Step 3.5: AI 자동 개선 루프 (AI 리뷰 → Codex Fixer → 챕터 재생성) ──
     if notify:
@@ -4316,10 +4506,11 @@ async def run_daily_pipeline(
         metrics=cost_tracker,
         daily_cycle=cycle,
         outer_max_cycles=outer_max_cycles,
+        time_tracker=time_tracker,
     )
     time_tracker["auto_improve"] = time.monotonic() - _t0
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
 
     # ── Save quality review scores → data/quality_review_latest.json + policy log ──
     try:
@@ -4355,7 +4546,7 @@ async def run_daily_pipeline(
     )
     time_tracker["quality_review"] = time.monotonic() - _t0
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
     if scorecard is None:
         if stop_event and stop_event.is_set():
             return await _stop_and_return("Final Review 단계", "quality_review")
@@ -4489,7 +4680,7 @@ async def run_daily_pipeline(
                 if new_chapter:
                     chapter_path = new_chapter
                     if set_metrics:
-                        set_metrics(dict(cost_tracker))
+                        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
             else:
                 if notify:
                     await notify(f"{DAILY_TAG}[CHOICE] ❌ 코드 수정 실패: {summary}")
@@ -4590,7 +4781,7 @@ async def run_daily_pipeline(
                 outer_max_cycles=_extra_cycles,
             )
             if set_metrics:
-                set_metrics(dict(cost_tracker))
+                set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
             await _show_choice_menu()
             continue
 
@@ -4611,7 +4802,7 @@ async def run_daily_pipeline(
     parsed = parse_feedback_with_llm(raw_feedback, episode_key, llm)
     _record_budget_usage(cost_tracker, cost_tracker, llm.budget_summary(), cost_key="feedback_parse")
     if set_metrics:
-        set_metrics(dict(cost_tracker))
+        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
     if choice == "next":
         parsed["approved_next_episode"] = True
     elif choice in ("code", "story", "optimize"):

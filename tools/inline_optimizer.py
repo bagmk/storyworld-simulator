@@ -54,6 +54,25 @@ _REPETITION_STOPWORDS = {
 }
 
 
+def _extract_episode_stopwords(episode_id: str) -> set[str]:
+    """Extract episode-specific vocabulary from its config YAML.
+
+    Words that appear 3+ times in the episode config are domain/character vocabulary
+    expected to repeat in the generated text — they should not count as prose repetition.
+    """
+    try:
+        import yaml  # type: ignore
+        config_path = _REPO_ROOT / "config" / "episodes" / f"{episode_id}.yaml"
+        if not config_path.exists():
+            return set()
+        raw = config_path.read_text(encoding="utf-8")
+        text = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", raw.lower())
+        counts = Counter(t for t in text.split() if len(t) >= 2)
+        return {t for t, c in counts.items() if c >= 3}
+    except Exception:
+        return set()
+
+
 def _build_criterion_weights(quality_focus: dict | None) -> dict[str, float]:
     """Return per-LLM-criterion weight multipliers.
     Criteria mapped to low-scoring quality dimensions get higher weight.
@@ -108,11 +127,15 @@ Return ONLY this JSON (no text before or after):
 # ── Parameter space ───────────────────────────────────────────────────────────
 
 def _param_space(trial, base_policy: dict) -> dict:
+    p_min = trial.suggest_int("prose_paragraph_min_sentences", 2, 4)
+    p_max = trial.suggest_int("prose_paragraph_max_sentences", 3, 5)
+    if p_min > p_max:
+        p_min = p_max
     return {
         "distiller_temperature":         trial.suggest_float("distiller_temperature", 0.05, 0.45),
         "prose_scene_temperature":       trial.suggest_float("prose_scene_temperature", 0.55, 0.85),
-        "prose_paragraph_min_sentences": trial.suggest_int("prose_paragraph_min_sentences", 2, 4),
-        "prose_paragraph_max_sentences": trial.suggest_int("prose_paragraph_max_sentences", 3, 5),
+        "prose_paragraph_min_sentences": p_min,
+        "prose_paragraph_max_sentences": p_max,
         "prose_transition_temperature":  trial.suggest_float("prose_transition_temperature", 0.3, 0.7),
         "prose_polish_temperature":      trial.suggest_float("prose_polish_temperature", 0.2, 0.6),
         "hold_pressure_peak":            trial.suggest_categorical("hold_pressure_peak", [0, 1]),
@@ -227,7 +250,8 @@ def _score_chapter(
     else:
         llm = gpt_score
 
-    repetition_penalty = _repetition_penalty(chapter_text)
+    episode_stopwords = _extract_episode_stopwords(episode_id)
+    repetition_penalty = _repetition_penalty(chapter_text, extra_stopwords=episode_stopwords)
     # det 비중 축소 (0.2) — LLM 판단을 최대한 반영 (0.8)
     combined = round(max(0.0, 0.2 * float(det or 0.0) + 0.8 * float(llm or 0.0) - float(repetition_penalty or 0.0)), 3)
     logger.info(
@@ -239,21 +263,22 @@ def _score_chapter(
     return combined, det, llm, repetition_penalty
 
 
-def _repetition_penalty(chapter_text: str) -> float:
+def _repetition_penalty(chapter_text: str, extra_stopwords: set[str] | None = None) -> float:
     text = str(chapter_text or "").strip()
     if not text:
         return 0.0
 
+    all_stopwords = _REPETITION_STOPWORDS | (extra_stopwords or set())
     normalized = re.sub(r"[^0-9A-Za-z가-힣\s]", " ", text.lower())
-    tokens = [tok for tok in normalized.split() if len(tok) >= 2 and tok not in _REPETITION_STOPWORDS]
+    tokens = [tok for tok in normalized.split() if len(tok) >= 2 and tok not in all_stopwords]
     if len(tokens) < 80:
         return 0.0
 
     token_counts = Counter(tokens)
-    repeated_token_ratio = sum(1 for count in token_counts.values() if count >= 6) / max(1, len(token_counts))
+    repeated_token_ratio = sum(1 for count in token_counts.values() if count >= 8) / max(1, len(token_counts))
     bigrams = list(zip(tokens, tokens[1:]))
     bigram_counts = Counter(bigrams)
-    repeated_bigram_ratio = sum(1 for count in bigram_counts.values() if count >= 3) / max(1, len(bigram_counts))
+    repeated_bigram_ratio = sum(1 for count in bigram_counts.values() if count >= 4) / max(1, len(bigram_counts))
 
     sentences = [
         s.strip()
@@ -268,7 +293,7 @@ def _repetition_penalty(chapter_text: str) -> float:
             continue
         prev_set, curr_set = set(prev_norm), set(curr_norm)
         overlap = len(prev_set & curr_set) / max(1, len(prev_set | curr_set))
-        if overlap >= 0.72:
+        if overlap >= 0.80:
             local_repeat_hits += 1
 
     penalty = min(
@@ -749,10 +774,56 @@ def trigger_full_optuna_background(repo_root: Path, trials: int = 30) -> None:
     logger.info("Full Optuna re-tune launched in background → %s", log_file)
 
 
+def _recent_cycle_ai_avg(episode_id: str, n_cycles: int = 3) -> float | None:
+    """Return the mean AI review avg from the last n_cycles entries for this episode.
+
+    Returns None if no qualifying entries found.
+    """
+    import json as _json
+    csl = CYCLE_SCORE_LOG
+    if not csl.exists():
+        return None
+    try:
+        lines = [l for l in csl.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except OSError:
+        return None
+    avgs: list[float] = []
+    for line in reversed(lines):
+        if len(avgs) >= n_cycles:
+            break
+        try:
+            row = _json.loads(line)
+        except Exception:
+            continue
+        if row.get("episode_id") != episode_id:
+            continue
+        ai_rev = row.get("ai_review") or {}
+        avg = ai_rev.get("avg")
+        if avg is not None:
+            avgs.append(float(avg))
+    return sum(avgs) / len(avgs) if avgs else None
+
+
 def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> None:
-    """Write inline optimizer best params back to rl_policy.json."""
+    """Write inline optimizer best params back to rl_policy.json.
+
+    Guard: only writes if recent AI reviewer avg >= 7.0.
+    Prevents proxy-metric wins from overwriting the policy when
+    the final quality reviewer disagrees.
+    """
     import json
     from datetime import date
+
+    # ── AI reviewer quality guard ─────────────────────────────────────────────
+    recent_avg = _recent_cycle_ai_avg(episode_id)
+    if recent_avg is not None and recent_avg < 7.0:
+        logger.warning(
+            "update_rl_policy SKIPPED — recent AI review avg=%.2f < 7.0 for %s "
+            "(proxy score=%.3f). Policy unchanged.",
+            recent_avg, episode_id, best_score,
+        )
+        return
+
     policy_path = _REPO_ROOT / "data" / "rl_policy.json"
     try:
         policy = json.loads(policy_path.read_text(encoding="utf-8")) if policy_path.exists() else {}
@@ -774,9 +845,14 @@ def update_rl_policy(best_params: dict, best_score: float, episode_id: str) -> N
         "date": str(date.today()),
         "episode_id": episode_id,
         "score": round(best_score, 4),
+        "ai_review_avg": round(recent_avg, 3) if recent_avg is not None else None,
     }
     policy_path.write_text(json.dumps(policy, indent=2, ensure_ascii=False), encoding="utf-8")
-    logger.info("rl_policy.json updated → version %s score=%.3f", policy["version"], best_score)
+    logger.info(
+        "rl_policy.json updated → version %s score=%.3f ai_avg=%s",
+        policy["version"], best_score,
+        f"{recent_avg:.2f}" if recent_avg is not None else "n/a",
+    )
 
 
 # ── Cycle score logging ────────────────────────────────────────────────────────
@@ -888,22 +964,24 @@ _PARAM_PROSE_RANGES: dict[str, tuple] = {
 }
 
 
-def _narrow_width_from_n_trials(n_past_trials: int) -> float:
+def _narrow_width_from_n_trials(n_past_trials: int, force_wide: bool = False) -> float:
     """Compute search width_ratio based on accumulated trial count.
 
-    Fix A: start raised 0.30→0.50, floor raised 0.12→0.25.
+    Fix A: start raised 0.30→0.50, floor raised 0.25→0.40.
     Prevents premature convergence in multimodal quality landscapes.
     Schedule: shrinks 15% every 10 trials.
 
+    force_wide: if True (consecutive AI-score drops detected), reset to 0.50.
+
     Examples:
       0  trials → 0.50 (wide)
-     10  trials → 0.425
-     20  trials → 0.361
-     30  trials → 0.307
-     50  trials → 0.221
-    100+ trials → ~0.25 (floor)
+     10  trials → 0.50 (capped at floor=0.40 quickly)
+     20  trials → 0.40 (floor)
+     50+ trials → 0.40 (floor)
     """
-    return max(0.25, 0.50 * (0.85 ** (n_past_trials // 10)))
+    if force_wide:
+        return 0.50
+    return max(0.40, 0.50 * (0.85 ** (n_past_trials // 10)))
 
 
 def _param_space_narrow(trial, base_policy: dict, width_ratio: float = 0.30) -> dict:
@@ -943,11 +1021,12 @@ def _param_space_narrow(trial, base_policy: dict, width_ratio: float = 0.30) -> 
             params[name] = trial.suggest_int(name, c_lo, c_hi)
         elif kind == "cat":
             choices: list = list(spec[1])
-            if current is not None and current in choices:
-                # Pin to current value — no exploration for categoricals in narrow mode
-                params[name] = trial.suggest_categorical(name, [current])
-            else:
-                params[name] = trial.suggest_categorical(name, choices)
+            # Always use full choices — pinning to [current] blocks exploration entirely
+            params[name] = trial.suggest_categorical(name, choices)
+    # Guard: prose_paragraph_min_sentences must not exceed max_sentences
+    if "prose_paragraph_min_sentences" in params and "prose_paragraph_max_sentences" in params:
+        if params["prose_paragraph_min_sentences"] > params["prose_paragraph_max_sentences"]:
+            params["prose_paragraph_min_sentences"] = params["prose_paragraph_max_sentences"]
     return params
 
 
@@ -1006,6 +1085,18 @@ def _enqueue_warmup_trials(study, psl_path: str, warmup_keys: set) -> int:
         best_score = row.get("best_score")
         if best_score is None or not best_params:
             continue
+
+        # Quality guard: skip warmup entries where the final AI reviewer avg < 7.0
+        qr = row.get("quality_review_scores") or {}
+        if qr:
+            scores = [v for k, v in qr.items() if k != "avg" and isinstance(v, (int, float))]
+            qr_avg = qr.get("avg") or (sum(scores) / len(scores) if scores else None)
+            if qr_avg is not None and float(qr_avg) < 7.0:
+                logger.debug(
+                    "_enqueue_warmup_trials: skipping row date=%s score=%.3f qr_avg=%.2f < 7.0",
+                    row.get("date", "?"), float(best_score), float(qr_avg),
+                )
+                continue
 
         # Filter to keys that are in both warmup_keys and dist_map
         trial_params: dict = {}
@@ -1184,10 +1275,12 @@ def _param_space_from_ranges(trial, param_ranges: dict, base_policy: dict, width
             params[name] = trial.suggest_int(name, c_lo, c_hi)
         elif kind == "cat":
             choices: list = list(spec[1])
-            if current is not None and current in choices:
-                params[name] = trial.suggest_categorical(name, [current])
-            else:
-                params[name] = trial.suggest_categorical(name, choices)
+            # Always use full choices — pinning to [current] blocks exploration entirely
+            params[name] = trial.suggest_categorical(name, choices)
+    # Guard: prose_paragraph_min_sentences must not exceed max_sentences
+    if "prose_paragraph_min_sentences" in params and "prose_paragraph_max_sentences" in params:
+        if params["prose_paragraph_min_sentences"] > params["prose_paragraph_max_sentences"]:
+            params["prose_paragraph_min_sentences"] = params["prose_paragraph_max_sentences"]
     return params
 
 
@@ -1270,21 +1363,56 @@ async def run_mini_reoptimize(
         sampler=_make_sampler("prose"),
     )
 
+    # ── Consecutive AI-score drop detection (Fix B-3) ────────────────────────
+    # Read last 3 cycle entries for this episode; if AI avg is strictly declining
+    # over 2+ steps, force wide search to escape the local optimum.
+    _force_wide_search = False
+    if cycle_idx >= 2:
+        import json as _json_csl
+        _csl = CYCLE_SCORE_LOG
+        _recent_avgs: list[float] = []
+        if _csl.exists():
+            for _ln in reversed(_csl.read_text(encoding="utf-8").splitlines()):
+                if len(_recent_avgs) >= 3:
+                    break
+                _ln = _ln.strip()
+                if not _ln:
+                    continue
+                try:
+                    _r = _json_csl.loads(_ln)
+                except Exception:
+                    continue
+                if _r.get("episode_id") != episode_id:
+                    continue
+                _ai = (_r.get("ai_review") or {}).get("avg")
+                if _ai is not None:
+                    _recent_avgs.append(float(_ai))
+        # Strictly declining: each successive value lower than the previous
+        if len(_recent_avgs) >= 2 and all(
+            _recent_avgs[i] > _recent_avgs[i + 1] for i in range(len(_recent_avgs) - 1)
+        ):
+            _force_wide_search = True
+            logger.warning(
+                "[MINI-OPT] consecutive AI-avg drops detected %s → forcing wide search (width=0.50)",
+                list(reversed(_recent_avgs)),
+            )
+
     # Warm-start both studies from accumulated cross-episode data
     n_warmup_sim = _enqueue_warmup_trials(study_sim, str(_psl), set(_PARAM_SIM_RANGES)) if _psl.exists() else 0
     n_warmup_prose = _enqueue_warmup_trials(study_prose, str(_psl), set(_PARAM_PROSE_RANGES)) if _psl.exists() else 0
     n_past = n_warmup_sim + n_warmup_prose
 
     logger.info(
-        "[MINI-OPT] episode=%s cycle=%d n_sim=%d n_prose_per_sim=%d warmup_sim=%d warmup_prose=%d",
-        episode_id, cycle_idx, n_sim_trials, n_prose_per_sim, n_warmup_sim, n_warmup_prose,
+        "[MINI-OPT] episode=%s cycle=%d n_sim=%d n_prose_per_sim=%d warmup_sim=%d warmup_prose=%d force_wide=%s",
+        episode_id, cycle_idx, n_sim_trials, n_prose_per_sim, n_warmup_sim, n_warmup_prose, _force_wide_search,
     )
 
     if notify_fn:
+        _wide_note = " ⚠️ force_wide=True" if _force_wide_search else ""
         await notify_fn(
             f"[MINI-OPT] outer {cycle_idx} — 2-study 시작 "
             f"({n_sim_trials} distill × {n_prose_per_sim} prose = {n_sim_trials * n_prose_per_sim}회, "
-            f"warmup sim={n_warmup_sim} prose={n_warmup_prose})"
+            f"warmup sim={n_warmup_sim} prose={n_warmup_prose}){_wide_note}"
         )
 
     trial_scores: list[float] = []
@@ -1295,8 +1423,8 @@ async def run_mini_reoptimize(
 
     # ── Outer loop: sim params ─────────────────────────────────────────────
     for sim_i in range(n_sim_trials):
-        width_sim = _narrow_width_from_n_trials(n_past // 2 + sim_i)
-        width_prose = _narrow_width_from_n_trials(n_past // 2 + global_prose_idx)
+        width_sim = _narrow_width_from_n_trials(n_past // 2 + sim_i, force_wide=_force_wide_search)
+        width_prose = _narrow_width_from_n_trials(n_past // 2 + global_prose_idx, force_wide=_force_wide_search)
 
         # Sample sim params
         sim_optuna_trial = study_sim.ask()

@@ -12,6 +12,7 @@ import json
 import os
 import random
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -77,6 +78,7 @@ DAILY_START_TIMES: dict[int, float] = {}   # channel_id → pipeline start time 
 DAILY_EPISODE_KEYS: dict[int, str] = {}    # channel_id → episode key (kept after stop for chart)
 DAILY_START_TIMES_WALL: dict[int, float] = {}  # channel_id → pipeline start time (wall clock)
 DAILY_REVIEW_TIERS: dict[int, str] = {}        # channel_id → review_tier ("mini" / "premium")
+MEITNER_PENDING: dict[int, dict[str, Any]] = {}  # channel_id → {question, plan, backend, awaiting_modification}
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -477,13 +479,20 @@ def _top_level_repo_snapshot() -> str:
 
 
 def _repo_file_inventory(limit: int = 220) -> str:
-    rc, out, _ = _run_cmd(
-        ["rg", "--files", "README.md", "src", "tools", "config", "tests"],
-        timeout_sec=20,
-    )
-    if rc != 0:
-        return ""
-    files = [line.strip() for line in out.splitlines() if line.strip()]
+    search_roots = ["README.md", "src", "tools", "config", "tests"]
+    files: list[str] = []
+    for root in search_roots:
+        p = REPO_ROOT / root
+        if p.is_file():
+            files.append(str(p.relative_to(REPO_ROOT)))
+        elif p.is_dir():
+            for f in sorted(p.rglob("*")):
+                if f.is_file():
+                    files.append(str(f.relative_to(REPO_ROOT)))
+                    if len(files) >= limit:
+                        break
+        if len(files) >= limit:
+            break
     return "\n".join(files[:limit])
 
 
@@ -515,14 +524,24 @@ def _repo_search_excerpt(question: str, max_lines: int = 120) -> str:
     terms = _extract_repo_search_terms(question)
     if not terms:
         return ""
-    cmd = ["rg", "-n", "-S"]
-    for term in terms:
-        cmd.extend(["-e", term])
-    cmd.extend(["README.md", "src", "tools", "config", "tests"])
-    rc, out, err = _run_cmd(cmd, timeout_sec=25)
-    if rc not in (0, 1):
-        return f"(search failed: {err[:240]})"
-    matches = [line for line in out.splitlines() if line.strip()]
+    patterns = [re.compile(re.escape(t), re.IGNORECASE) for t in terms]
+    search_roots = ["README.md", "src", "tools", "config", "tests"]
+    matches: list[str] = []
+    for root in search_roots:
+        p = REPO_ROOT / root
+        candidates = [p] if p.is_file() else (sorted(p.rglob("*.py")) + sorted(p.rglob("*.yaml")) + sorted(p.rglob("*.md")) if p.is_dir() else [])
+        for filepath in candidates:
+            if not filepath.is_file():
+                continue
+            try:
+                for lineno, line in enumerate(filepath.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                    if any(pat.search(line) for pat in patterns):
+                        rel = filepath.relative_to(REPO_ROOT)
+                        matches.append(f"{rel}:{lineno}:{line.rstrip()}")
+                        if len(matches) >= max_lines:
+                            return "\n".join(matches)
+            except Exception:
+                continue
     return "\n".join(matches[:max_lines])
 
 
@@ -563,12 +582,229 @@ def _build_meitner_prompt(question: str) -> str:
     )
 
 
+_CODEX_USAGE_LIMIT_MARKER = "you've hit your usage limit"
+
+
+def _is_codex_usage_limit(text: str) -> bool:
+    return _CODEX_USAGE_LIMIT_MARKER in text.lower()
+
+
+def _meitner_pick_backend() -> str:
+    """Return 'claude', 'codex', or 'llm' based on available CLI tools and API keys."""
+    has_openai = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    claude_bin = shutil.which("claude") or "/opt/homebrew/bin/claude"
+    codex_bin  = shutil.which("codex")
+    if shutil.os.path.isfile(claude_bin):
+        return "claude"
+    if has_openai and codex_bin:
+        return "codex"
+    return "llm"
+
+
+_MEITNER_MOD_KEYWORDS = (
+    # Korean
+    "고쳐", "수정해", "수정하", "바꿔", "바꾸", "변경해", "변경하",
+    "추가해", "추가하", "삭제해", "삭제하", "제거해", "제거하",
+    "리팩", "이름 바꿔", "리네임", "업데이트해", "교체해",
+    # English
+    "fix", "edit", "change", "modify", "update", "delete",
+    "add ", "remove", "refactor", "rename", "replace", "rewrite",
+)
+
+def _meitner_is_modification(question: str) -> bool:
+    """Return True if the question requests a file edit/fix rather than a read-only query."""
+    q = question.lower()
+    return any(kw in q for kw in _MEITNER_MOD_KEYWORDS)
+
+
+def _meitner_get_plan(question: str, extra_context: str = "") -> str:
+    """Use LLM to generate a human-readable plan for the requested change (no actual edits)."""
+    from src.novel_writer.llm_client import LLMClient as _LC
+    prompt = _build_meitner_prompt(question + ("\n\n" + extra_context if extra_context else ""))
+    llm = _LC(
+        model="gpt-4o-mini",
+        premium_model="gpt-5-mini",
+        budget_usd=0.5,
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
+    )
+    plan_system = (
+        "You are Meitner, a senior engineer for the Novel Writer codebase. "
+        "The user has requested a code change. Describe EXACTLY what you plan to do: "
+        "which file(s), which line(s) or section(s), what the change is. "
+        "Be specific and concise. Do NOT make any changes — this is a plan only. "
+        "Respond in Korean if the user's question is in Korean. "
+        "Format: numbered list of steps, each mentioning the file path."
+    )
+    return llm.chat(
+        [{"role": "user", "content": prompt}],
+        plan_system, True, "meitner_plan", None, 600,
+    )
+
+
+def _meitner_run_cli(question: str, backend: str, timeout: int = 300) -> tuple[bool, str]:
+    """
+    Run Claude Code CLI or Codex CLI with full permissions, return (success, output).
+    Both CLIs run in REPO_ROOT so they have full access to all project files.
+    """
+    system_ctx = (
+        "You are Meitner, a senior engineer for the Novel Writer codebase. "
+        "You have full read/write access to all files in this repository. "
+        "When asked to fix something: read the relevant file first, then apply precise edits. "
+        "When asked to explain or investigate: read the relevant files and give a concise answer. "
+        "Always cite concrete file paths and line numbers. "
+        "Respond in Korean when the user's question is in Korean."
+    )
+    if backend == "claude":
+        cmd = [
+            "claude",
+            "-p",
+            f"{system_ctx}\n\n{question.strip()}",
+            "--dangerously-skip-permissions",
+            "--output-format", "text",
+            "--no-session-persistence",
+        ]
+    elif backend == "codex":
+        cmd = [
+            "codex", "exec",
+            "--dangerously-bypass-approvals-and-sandbox",
+            f"{system_ctx}\n\n{question.strip()}",
+        ]
+    else:
+        return False, ""
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        combined = output + "\n" + stderr
+        # Codex usage limit — treat as hard failure so caller can try another backend
+        if _is_codex_usage_limit(combined):
+            return False, f"[Codex 사용량 초과]\n{stderr[:400]}"
+        # codex exec writes progress headers to stderr and the actual answer to stdout.
+        # If stdout is empty but stderr has real content (not just the codex header block),
+        # treat stderr as the output so we don't incorrectly fall back to GPT.
+        if not output and stderr:
+            _header_only = all(
+                line.strip() == "" or line.startswith(("---", "workdir:", "model:", "provider:",
+                "approval:", "sandbox:", "reasoning", "session id:", "user"))
+                for line in stderr.splitlines()
+            )
+            if _header_only:
+                return False, f"[종료코드 {result.returncode}]\n{stderr[:800]}"
+            output = stderr
+        elif result.returncode != 0 and not output:
+            return False, f"[종료코드 {result.returncode}]\n{stderr[:800]}"
+        return True, output
+    except subprocess.TimeoutExpired:
+        return False, f"⏱️ {timeout}초 타임아웃 초과"
+    except Exception as exc:
+        return False, str(exc)
+
+
+async def _meitner_send_chunks(
+    channel: discord.abc.Messageable,
+    channel_id: int,
+    bot_token: str,
+    header: str,
+    text: str,
+) -> None:
+    """Split long text into ≤1800-char Discord messages."""
+    remaining = text
+    first = True
+    while remaining:
+        if len(remaining) <= 1800:
+            chunk, remaining = remaining, ""
+        else:
+            split_at = remaining.rfind("\n", 0, 1800)
+            if split_at <= 0:
+                split_at = 1800
+            chunk = remaining[:split_at]
+            remaining = remaining[split_at:].lstrip("\n")
+        prefix = header if first else f"**Meitner (계속)**\n"
+        first = False
+        await _send_text_with_token(channel, channel_id, prefix + chunk, bot_token, required=False)
+
+
 async def run_meitner_agent(
     channel: discord.abc.Messageable,
     question: str,
     channel_id: int,
     bot_token: str,
 ) -> None:
+    backend = _meitner_pick_backend()
+    backend_label = {"claude": "Claude Code CLI", "codex": "Codex CLI", "llm": "GPT-5-mini"}.get(backend, backend)
+
+    # ── 수정 요청이면 Plan-first 플로우 ─────────────────────────────────────
+    if _meitner_is_modification(question):
+        await _send_text_with_token(
+            channel, channel_id,
+            f"📋 Meitner 변경 계획 수립 중... [{backend_label}]",
+            bot_token, required=False,
+        )
+        try:
+            plan = await asyncio.to_thread(_meitner_get_plan, question)
+        except Exception as exc:
+            plan = f"(계획 생성 실패: {exc})"
+
+        MEITNER_PENDING[channel_id] = {
+            "question": question,
+            "plan": plan,
+            "backend": backend,
+            "backend_label": backend_label,
+            "awaiting_modification": False,
+        }
+        approval_msg = (
+            f"📋 **Meitner 변경 계획** [{backend_label}]\n\n"
+            f"{plan}\n\n"
+            "─────────────────────────────\n"
+            "**1** ✅ 승인 — 지금 바로 적용\n"
+            "**2** ❌ 취소\n"
+            "**3** ✏️ 수정안 제안 (다르게 해줘)"
+        )
+        await _send_text_with_token(channel, channel_id, approval_msg, bot_token, required=False)
+        return
+
+    # ── 읽기 전용 질문 ────────────────────────────────────────────────────
+    await _send_text_with_token(
+        channel, channel_id,
+        f"🔍 Meitner 분석 중... [{backend_label}]",
+        bot_token, required=False,
+    )
+
+    if backend in ("claude", "codex"):
+        ok, output = await asyncio.to_thread(_meitner_run_cli, question, backend)
+        if ok and output:
+            await _meitner_send_chunks(channel, channel_id, bot_token,
+                                       f"**Meitner [{backend_label}]**\n", output)
+            return
+        # Codex usage limit → retry with Claude before falling back to GPT
+        if not ok and backend == "codex" and output and "[Codex 사용량 초과]" in output:
+            claude_bin = shutil.which("claude") or "/opt/homebrew/bin/claude"
+            if shutil.os.path.isfile(claude_bin):
+                await _send_text_with_token(
+                    channel, channel_id,
+                    "⚠️ Codex 사용량 초과 — Claude CLI로 재시도합니다.",
+                    bot_token, required=False,
+                )
+                ok, output = await asyncio.to_thread(_meitner_run_cli, question, "claude")
+                if ok and output:
+                    await _meitner_send_chunks(channel, channel_id, bot_token,
+                                               "**Meitner [Claude CLI]**\n", output)
+                    return
+        if not ok and output:
+            await _send_text_with_token(
+                channel, channel_id,
+                f"⚠️ {backend_label} 실패, GPT 폴백:\n```\n{output[:400]}\n```",
+                bot_token, required=False,
+            )
+
+    # LLM fallback
     prompt = _build_meitner_prompt(question)
     llm = LLMClient(
         model="gpt-4o-mini",
@@ -579,16 +815,13 @@ async def run_meitner_agent(
     system = (
         "You are Meitner, a repository explorer for this Novel Writer codebase. "
         "Answer only from the provided repository context. If context is insufficient, say so clearly. "
-        "Keep answers concise, practical, and cite concrete repo paths in backticks."
+        "Keep answers concise, practical, and cite concrete repo paths in backticks. "
+        "Respond in Korean when the user's question is in Korean."
     )
     answer = await asyncio.to_thread(
         llm.chat,
         [{"role": "user", "content": prompt}],
-        system,
-        True,
-        "discord_meitner",
-        None,
-        1000,
+        system, True, "discord_meitner", None, 1000,
     )
     await _send_text_with_token(channel, channel_id, answer, bot_token, required=False)
 
@@ -1343,7 +1576,15 @@ async def _send_team_reconnect_celebration(
         "!reboot             봇 재부팅\n"
         "!shutdown           봇 완전 종료\n"
         "!killdup            중복 실행된 봇 프로세스 종료 (1개만 유지)\n"
-        "!meitner <질문>      저장소 구조·코드 질문\n"
+        "─────────────────────────────────────\n"
+        "!meitner <내용>      코드 질문 / 파일 수정 AI 에이전트\n"
+        "  [백엔드 자동 선택] Claude Code CLI → Codex CLI → GPT 순\n"
+        "  · 질문: 코드 설명, 에러 원인, 구조 파악 → 바로 답변\n"
+        "  · 수정 요청: 파일 편집·버그픽스 → 계획 먼저 보여줌\n"
+        "    계획 승인: 1 ✅ 승인 / 2 ❌ 취소 / 3 ✏️ 수정안 제안\n"
+        "    (3 선택 후 수정 내용 입력 → 새 계획 재확인)\n"
+        "  예) !meitner daily_pipeline.py 500줄 근처 에러 왜?\n"
+        "  예) !meitner quality_reviewer.py gpt-4o → gpt-5-mini 바꿔줘\n"
         "```"
     )
     try:
@@ -1902,18 +2143,101 @@ async def async_main() -> None:
                     )
                     return
 
+        # ── Meitner plan approval flow ────────────────────────────────────────
+        ch_id = message.channel.id
+        _meitner_state = MEITNER_PENDING.get(ch_id)
+        if _meitner_state:
+            # 수정안 텍스트 대기 중 (3번 선택 후)
+            if _meitner_state.get("awaiting_modification"):
+                modification_note = content
+                revised_q = (
+                    _meitner_state["question"]
+                    + f"\n\n[사용자 수정 요청]: {modification_note}"
+                )
+                _meitner_state["awaiting_modification"] = False
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    "📋 수정된 계획 수립 중...",
+                    manager_bot_token, required=False,
+                )
+                try:
+                    new_plan = await asyncio.to_thread(_meitner_get_plan, revised_q)
+                except Exception as exc:
+                    new_plan = f"(계획 재생성 실패: {exc})"
+                _meitner_state["question"] = revised_q
+                _meitner_state["plan"] = new_plan
+                approval_msg = (
+                    f"📋 **Meitner 수정된 변경 계획** [{_meitner_state['backend_label']}]\n\n"
+                    f"{new_plan}\n\n"
+                    "─────────────────────────────\n"
+                    "**1** ✅ 승인 — 지금 바로 적용\n"
+                    "**2** ❌ 취소\n"
+                    "**3** ✏️ 수정안 제안 (다르게 해줘)"
+                )
+                await _send_text_with_token(message.channel, ch_id, approval_msg, manager_bot_token, required=False)
+                return
+
+            # 승인 / 취소 / 수정안
+            if content == "1":
+                MEITNER_PENDING.pop(ch_id, None)
+                _be = _meitner_state["backend"]
+                _be_label = _meitner_state["backend_label"]
+                _q = _meitner_state["question"]
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    f"✅ 승인됨. [{_be_label}] 적용 중...",
+                    manager_bot_token, required=False,
+                )
+                async def _run_meitner_edit() -> None:
+                    if _be in ("claude", "codex"):
+                        ok, output = await asyncio.to_thread(_meitner_run_cli, _q, _be)
+                        if ok and output:
+                            await _meitner_send_chunks(
+                                message.channel, ch_id, manager_bot_token,
+                                f"✅ **Meitner [{_be_label}] 완료**\n", output,
+                            )
+                        else:
+                            await _send_text_with_token(
+                                message.channel, ch_id,
+                                f"⚠️ 실행 실패:\n```\n{output[:600]}\n```",
+                                manager_bot_token, required=False,
+                            )
+                    else:
+                        await _send_text_with_token(
+                            message.channel, ch_id,
+                            "⚠️ CLI 없음 — 직접 수정할 수 없습니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY` 확인.",
+                            manager_bot_token, required=False,
+                        )
+                asyncio.create_task(_run_meitner_edit())
+                return
+
+            if content == "2":
+                MEITNER_PENDING.pop(ch_id, None)
+                await _send_text_with_token(
+                    message.channel, ch_id, "❌ 취소됨.", manager_bot_token, required=False,
+                )
+                return
+
+            if content == "3":
+                _meitner_state["awaiting_modification"] = True
+                await _send_text_with_token(
+                    message.channel, ch_id,
+                    "✏️ 어떻게 수정할까요? 원하는 변경 사항을 설명해주세요.",
+                    manager_bot_token, required=False,
+                )
+                return
+
         if command == CMD_MEITNER:
             question = arg_text
             if not question:
                 await message.channel.send("사용법: !meitner <repo에 대해 물어볼 내용>")
                 return
-            await message.channel.send("Meitner가 저장소를 탐색하는 중입니다.")
             try:
                 await run_meitner_agent(
                     message.channel,
                     question,
                     message.channel.id,
-                    token,
+                    manager_bot_token,
                 )
             except Exception as exc:
                 await message.channel.send(f"Meitner 실행 실패: {type(exc).__name__}: {exc}")
@@ -1997,6 +2321,19 @@ async def async_main() -> None:
                     f"{prefix}\n{snapshot_text}",
                     manager_bot_token,
                 )
+                # 완료 후에도 차트 생성
+                _ep_key = DAILY_EPISODE_KEYS.get(ch_id)
+                _run_dir = _resolve_latest_daily_run_dir(_ep_key) if _ep_key else None
+                _tier = DAILY_REVIEW_TIERS.get(ch_id, "premium")
+                if _run_dir:
+                    try:
+                        _chart = await asyncio.to_thread(
+                            _generate_quality_chart, _ep_key, _run_dir, metrics, None, _tier
+                        )
+                        if _chart:
+                            await _send_file_with_token(message.channel, ch_id, _chart, "📊 품질 차트", manager_bot_token)
+                    except Exception as _ce:
+                        logger.warning("[USAGE] chart gen failed: %s", _ce)
                 return
 
             snapshot = _get_recent_usage_snapshot(ch_id)
@@ -2016,6 +2353,19 @@ async def async_main() -> None:
                     f"{prefix}\n{body}",
                     manager_bot_token,
                 )
+                # 리부트 후에도 snapshot의 episode_key로 차트 생성
+                if episode_key:
+                    _run_dir = _resolve_latest_daily_run_dir(episode_key)
+                    _tier = DAILY_REVIEW_TIERS.get(ch_id, "premium")
+                    if _run_dir:
+                        try:
+                            _chart = await asyncio.to_thread(
+                                _generate_quality_chart, episode_key, _run_dir, snapshot_metrics, None, _tier
+                            )
+                            if _chart:
+                                await _send_file_with_token(message.channel, ch_id, _chart, "📊 품질 차트", manager_bot_token)
+                        except Exception as _ce:
+                            logger.warning("[USAGE] snapshot chart gen failed: %s", _ce)
             else:
                 await _send_text_with_token(
                     message.channel,
@@ -2608,7 +2958,13 @@ async def async_main() -> None:
                     return "reset"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] Config 규칙 검수 결과:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ Config 변경 요청"):
                     return "guardian_rules"
-                if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧭 GPT 생성용 브리핑:") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료") or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패"):
+                if (
+                    text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧠 GPT 분석 리포트:")
+                    or text.startswith(f"{DAILY_TAG}[GUARDIAN] 🧭 GPT 생성용 브리핑:")
+                    or text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료")
+                    or text.startswith(f"{DAILY_TAG}[GUARDIAN] ⚠️ GPT 분석 실패")
+                    or text.startswith(f"{DAILY_TAG}[GUARDIAN] 📝 캐시된 브리핑 내용:")
+                ):
                     return "guardian_gpt"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 💸"):
                     return "guardian_rules"

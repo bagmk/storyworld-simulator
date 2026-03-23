@@ -270,10 +270,12 @@ python tools/discord_loop_bot.py
 !status
 ```
 
-### 중단
+### 중단 및 재시작
 
 ```text
-!stop
+!stop       # 현재 채널 파이프라인 중단
+!reboot     # 봇 프로세스 재시작
+!shutdown   # 봇 종료
 ```
 
 ### 리뷰 후 선택
@@ -521,3 +523,112 @@ Discord 안에서:
 ## 한 줄 요약
 
 **Storyworld Simulator는 에피소드 설정 파일을 입력으로 받아, 캐릭터 시뮬레이션과 장면 압축을 거쳐 읽을 수 있는 소설 챕터를 만들고, Discord 안에서 리뷰와 재실행까지 이어 주는 AI 소설 제작 파이프라인입니다.**
+
+* * *
+
+## API 사용 지도
+
+파이프라인 1회 실행 시 어떤 단계에서 어떤 모델을 사용하는지 정리한 참조 문서입니다.
+
+### 티어 선택 로직
+
+실행 시 `review_tier`를 `premium`(기본) 또는 `mini`로 지정하면 일부 모델이 달라집니다.
+
+| 구분 | mini 티어 | premium 티어 (기본) |
+|---|---|---|
+| 리뷰 모델 | `gpt-5-mini` | `gpt-5-mini` (고정) |
+| 프리미엄 승격 대상 | `gpt-4o-mini` 유지 | `gpt-4o` 로 승격 |
+| Codex 모델 | `gpt-5.4-mini` 명시 | config.toml 기본값 |
+
+### 단계별 API 호출
+
+#### Step 1 — Guardian (config 검수 + 브리핑)
+
+| 용도 | mini | premium |
+|---|---|---|
+| 컨텍스트 분석 + 브리핑 생성 | `gpt-4o-mini` | `gpt-4o` |
+
+캐시 히트 시 GPT 호출 없음 (YAML 해시 기반 캐시).
+
+#### Step 2 — Simulator (에이전트 내러티브 시뮬레이션)
+
+호출 빈도가 가장 높은 단계. `generate_chapter.py` subprocess 내부에서 실행.
+
+| 용도 | 기본 모델 | mini 티어 시 |
+|---|---|---|
+| 에이전트 턴 (`agent_turn`) | `gpt-4o-mini` | `gpt-4o-mini` |
+| 디렉터 체크 (불변조건·클루·씬 등) | `gpt-4o-mini` | `gpt-4o-mini` |
+| 씬 증류 (`scene_distillation`) | `gpt-5-mini` | `gpt-4.1-mini` |
+| 산문 생성 (`prose_scene_gen`) | `gpt-5-mini` | `gpt-4.1-mini` |
+| 산문 가독성 수정 | `gpt-5-mini` | `gpt-4.1-mini` |
+| 산문 전환 (`prose_transition`) | `gpt-5-mini` | `gpt-4.1-mini` |
+| 폴리셔 (`prose_polish`) | `gpt-5-mini` | `gpt-4.1-mini` |
+| 앵커 수정 (`prose_anchor_fix`) | `gpt-5-mini` | `gpt-4.1-mini` |
+
+> 논리·구조 판단 → `gpt-4o-mini` / 씬 증류 + 글쓰기 전체 → `gpt-5-mini` (`gpt-4.1-mini`)
+
+#### Step 3 — 초기 챕터 생성 + Optuna 5-trial
+
+Simulator와 동일한 모델 구조. base=`gpt-4o-mini`, premium=`gpt-5-mini` (씬 증류·산문 모두 동일 모델로 일치).
+
+#### Step 3.1 — 베이스라인 AI 리뷰
+
+최적화 루프 진입 전 기준점 확보용.
+
+| 용도 | mini | premium |
+|---|---|---|
+| 챕터 품질 점수 (5항목) | `gpt-5-mini` | `gpt-5-mini` → `gpt-4o` 승격 |
+
+#### Step 3.5 — AI 자동 개선 루프
+
+파이프라인 실행 시간의 대부분을 차지하는 핵심 루프.
+
+**Phase A — Optuna 25-trial 파라미터 탐색**
+
+| 용도 | 모델 | 호출 횟수 |
+|---|---|---|
+| GPT 산문 채점 (8항목) | `gpt-4o-mini` | 시험당 **3회** × 25 = 75회 |
+| Claude 산문 채점 (앙상블, 편향 보정) | `claude-haiku-4-5-20251001` | 시험당 **3회** × 25 = 75회 |
+| 씬 증류 + 산문 생성 | `gpt-5-mini` (base와 동일 모델로 통일) | 25회 |
+
+**Phase B — 사이클 AI 리뷰** (outer cycle마다 1회)
+
+| 용도 | mini | premium |
+|---|---|---|
+| 품질 리뷰 (5항목) | `gpt-5-mini` | `gpt-5-mini` → `gpt-4o` 승격 |
+
+**Phase C — Codex 픽서 + 재생성** (inner cycle마다)
+
+| 용도 | mini | premium |
+|---|---|---|
+| 매니저 분석 (`manager_synthesis`) | `gpt-4o-mini` | `gpt-4o` |
+| **Codex CLI** 코드 수정 | `gpt-5.4-mini` | config.toml 기본값 |
+| 코드 리뷰 (`code_review`) | `gpt-4o-mini` | `gpt-4o` |
+| 챕터 재생성 | Simulator와 동일 | |
+| 재생성 후 점수 체크 | `gpt-5-mini` | `gpt-4o` |
+
+#### Step 4 — 최종 품질 리뷰
+
+| 용도 | mini | premium |
+|---|---|---|
+| 최종 품질 스코어카드 | `gpt-4o-mini` | `gpt-4o` |
+
+### API별 역할 요약
+
+| API | 역할 |
+|---|---|
+| `gpt-4o-mini` | 논리 판단 전반 — 에이전트 턴, 디렉터 체크, 매니저, 코드리뷰, Optuna 채점 |
+| `gpt-5-mini` | 씬 증류 + 실제 글쓰기 전체 — 산문 생성·전환·폴리싱, 사이클 리뷰 |
+| `gpt-4.1-mini` | mini 티어에서 `gpt-5-mini` 대체 + 오류 진단 |
+| `gpt-4o` | premium 티어 리뷰 승격 — Guardian, 최종 리뷰, 매니저 |
+| `claude-haiku-4-5-20251001` | Optuna 채점 앙상블 (GPT 자기편향 보정, 시험당 3회) |
+| `Codex CLI` | `.py` 파일 직접 수정 (Phase C), 챕터·오류 리뷰 |
+
+### 1회 실행 시 API 호출 횟수 추정 (outer 3 × inner 3 기준)
+
+| API | 호출 수 (최대) |
+|---|---|
+| `gpt-4o-mini` (Optuna 채점) | **225회** (25 × 3runs × 3outer) |
+| `claude-haiku-4-5` (Optuna 채점) | **225회** (동일) |
+| `gpt-5-mini` (산문 생성) | **75회** (25 × 3outer) + 리뷰 |
+| `Codex CLI` (코드 수정) | **최대 9회** (3outer × 3inner) |

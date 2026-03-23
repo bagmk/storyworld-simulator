@@ -50,6 +50,54 @@ DEFAULT_POLICY: dict[str, Any] = {
     "require_explicit_transition_cues": False,
     "illegal_transition_mode": "warn",      # warn / block
     "relation_context_injection_enabled": True,
+
+    # ── Scene-state and progression control (Part 1, 9) ──────────────────────
+    # Turns of same cast+location+function before backslide guard fires
+    "scene_backslide_window": 3,
+    # Whether to hard-block backslide (True) or just log a warning (False)
+    "scene_backslide_block": True,
+
+    # ── Dramatic-function enforcement (Part 2, 9) ─────────────────────────────
+    # Merge adjacent scenes with same function when cast overlaps >= this ratio
+    "adjacent_same_function_scene_merge": True,
+    # Minimum cast overlap ratio for same-function merge to fire
+    "adjacent_same_function_cast_overlap_min": 0.5,
+
+    # ── Dialogue contrast (Part 3, 9) ─────────────────────────────────────────
+    # Inject per-character agenda block into prose generation prompts
+    "agenda_injection_enabled": True,
+    # Flag dialogue that only restates theme without demand/offer/refusal/etc.
+    "dialogue_function_check_enabled": True,
+
+    # ── Tension → consequence (Part 5, 9) ────────────────────────────────────
+    # Require concrete consequence within N paragraphs of abstract tension
+    "require_tension_cashout_paragraphs": 2,
+    # Max occurrences of abstract tension nouns per scene before flagging
+    "abstract_tension_noun_cap_per_scene": 4,
+
+    # ── Scene blocking (Part 7, 9) ────────────────────────────────────────────
+    # Inject spatial/blocking cue into scene prose prompt
+    "blocking_detail_bias": True,
+    # Require first-entrant landing (body-in-space) before high-stakes dialogue
+    "enforce_first_entrant_landing": True,
+    # Institutional-specificity vocabulary required when stakes are political/technical
+    "institutional_specificity_bias": True,
+
+    # ── Polisher structural repair (Part 8, 9) ────────────────────────────────
+    # Run structural scan before LLM polish pass
+    "structural_repair_before_polish": True,
+    # Enable relation-drift check in polisher structural scan
+    "enable_relation_drift_check_in_polish": True,
+    # Enable voice-drift check in polisher structural scan
+    "enable_voice_drift_check_in_polish": False,   # slightly heavier, off by default
+    # Enable joint voice+relation drift check
+    "enable_voice_relation_joint_check": False,
+
+    # ── Observability (Part 10) ───────────────────────────────────────────────
+    # Log when abstract tension is found without concrete consequence
+    "log_tension_without_consequence": True,
+    # Log when stock body cues exceed cap
+    "log_stock_cue_excess": True,
 }
 
 

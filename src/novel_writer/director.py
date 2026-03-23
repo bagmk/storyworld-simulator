@@ -18,7 +18,7 @@ import logging
 import re
 from typing import Any, Optional
 
-from .models import Agent, WorldState, ClueManager
+from .models import Agent, WorldState, ClueManager, PhaseTracker
 from .llm_client import LLMClient
 from .reader_profile import build_reader_profile
 from . import database as db
@@ -138,6 +138,15 @@ class DirectorAI:
         )
         self._active_scene_state: SceneState = SceneState()
         self._voice_profiles: dict[str, VoiceProfile] = {}  # populated lazily
+
+        # Phase tracking — backward-compatible: empty if no phases in YAML
+        _phases = episode_config.get("phases", []) if isinstance(episode_config, dict) else []
+        self._phase_tracker: PhaseTracker = PhaseTracker(phases=list(_phases))
+        if _phases:
+            logger.info("[Director] PhaseTracker ready: %d phases, first=%s",
+                        len(_phases), self._phase_tracker.current_phase_id)
+        # Sync scene state phase_id from tracker
+        self._active_scene_state.phase_id = self._phase_tracker.current_phase_id
 
     # ------------------------------------------------------------------ #
     # 1. Invariant Check
@@ -472,6 +481,7 @@ class DirectorAI:
             turn_progress,
             threshold_overrides=threshold_overrides,
             scene_constraint=constraint,
+            current_phase_id=self._phase_tracker.current_phase_id,
         )
         if not clue:
             return None
@@ -3497,11 +3507,21 @@ class DirectorAI:
                 return constraint
         return None
 
-    def record_turn(self, content: str, speaker_id: str = "") -> None:
+    def record_turn(self, content: str, speaker_id: str = "",
+                    location: str = "") -> None:
         """Called after each simulation turn to update scene state."""
         fn = classify_turn_function(content)
         self._active_scene_state.record_turn_function(fn)
         self._active_scene_state.turn_count += 1
+
+        # Try location-triggered phase advancement
+        if location and self._phase_tracker.try_advance_by_location(location):
+            old_phase = self._active_scene_state.phase_id
+            self._active_scene_state.phase_id = self._phase_tracker.current_phase_id
+            self._log("phase_advance", "director",
+                      f"Phase advanced {old_phase!r} → {self._active_scene_state.phase_id!r} "
+                      f"(location: {location!r})",
+                      {"location": location})
 
         threshold = int(self._policy_get(
             "same_conflict_loop_turn_threshold",
@@ -3511,6 +3531,20 @@ class DirectorAI:
             self._log("repetition_control", "director",
                       f"Loop detected: {fn.value} repeating at turn {self._active_scene_state.turn_count}",
                       {"speaker_id": speaker_id, "turn_function": fn.value})
+
+    @property
+    def current_phase_id(self) -> str:
+        """Current narrative phase id, or "" if no phases defined."""
+        return self._phase_tracker.current_phase_id
+
+    def advance_phase(self) -> bool:
+        """Manually advance to the next narrative phase. Returns True if advanced."""
+        advanced = self._phase_tracker.advance()
+        if advanced:
+            self._active_scene_state.phase_id = self._phase_tracker.current_phase_id
+            self._log("phase_advance", "director",
+                      f"Manual phase advance → {self._active_scene_state.phase_id!r}", {})
+        return advanced
 
     def get_forced_progression_hint(self) -> str:
         """Returns a hint string when loop detected, empty string otherwise."""

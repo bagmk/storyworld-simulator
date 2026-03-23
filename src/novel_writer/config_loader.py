@@ -17,7 +17,7 @@ from typing import Any
 
 import yaml
 
-from .models import Agent, WorldState, ClueManager
+from .models import Agent, WorldState, ClueManager, PhaseTracker
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +97,21 @@ def load_episode(path: str) -> dict:
             c.setdefault("id", f"clue_{i+1:03d}")
             c.setdefault("inject_threshold", 0.6)
             c.setdefault("inject_method", "environmental_cue")
+            # Preserve phase gating fields as-is
             normalised_clues.append(c)
     ep["introduced_clues"] = normalised_clues
+
+    # Parse phases — normalize each entry, preserve order
+    raw_phases = ep.get("phases", [])
+    normalised_phases = []
+    for i, p in enumerate(raw_phases):
+        if not isinstance(p, dict):
+            continue
+        if not p.get("id"):
+            logger.warning("Episode %s: phase at index %d has no 'id' — skipping", ep.get("id"), i)
+            continue
+        normalised_phases.append(p)
+    ep["phases"] = normalised_phases
 
     # Compute max_turns from recommended_length if not set
     if "max_turns" not in ep:
@@ -259,6 +272,24 @@ def build_clue_manager(episode_config: dict, world_facts: dict) -> ClueManager:
     manager = ClueManager(required_clues=required)
     logger.info("ClueManager ready with %d required clues", len(required))
     return manager
+
+
+# ---------------------------------------------------------------------------
+# PhaseTracker Builder
+# ---------------------------------------------------------------------------
+
+def build_phase_tracker(episode_config: dict) -> PhaseTracker:
+    """
+    Build a PhaseTracker from the normalized episode config.
+    If the episode has no ``phases:`` key, returns an empty tracker
+    (current_phase_id == ""), which is fully backward-compatible.
+    """
+    phases = episode_config.get("phases", [])
+    tracker = PhaseTracker(phases=list(phases))
+    if phases:
+        logger.info("PhaseTracker ready: %d phases — first=%s",
+                    len(phases), tracker.current_phase_id)
+    return tracker
 
 
 # ---------------------------------------------------------------------------

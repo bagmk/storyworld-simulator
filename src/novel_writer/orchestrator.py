@@ -310,6 +310,9 @@ class SimulationOrchestrator:
                 ) or "(none)",
             )
 
+        # Notify director of completed turn (scene-state tracking + phase advancement)
+        self.director.record_turn(text, speaker_id=agent.id, location=self.world.location)
+
         # Update memories of ALL agents (with perspective filters)
         self._propagate_memory(interaction, agent)
 
@@ -402,10 +405,14 @@ class SimulationOrchestrator:
         # First line of summary (truncated)
         summary_line = summary.strip().split("\n")[0][:200] if summary else ""
 
+        # Current phase context (if phases defined in YAML)
+        phase_block = self.director._phase_tracker.to_prompt_block()
+
         lines = [
             f"Episode {ep_num} of {total_episodes} ({arc_phase})",
             f"Setting: {location}" if location else "",
             f"Scene: {summary_line}" if summary_line else "",
+            phase_block if phase_block else "",
             f"Pacing: {pacing} — {tone}",
             "",
             "IMPORTANT: Stay grounded in the current setting. "

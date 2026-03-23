@@ -32,6 +32,16 @@ from .reader_profile import ReaderProfile, build_reader_profile
 from .scene_distiller import DistilledScene
 from . import database as db
 from .review_feedback import build_feedback_prompt_block, count_feedback_term_occurrences
+from .scene_state import (
+    DramaticFunctionLabel,
+    CharacterAgenda,
+    extract_character_agendas,
+    detect_abstract_tension_without_consequence,
+    count_stock_body_cues,
+    count_abstract_tension_nouns,
+    count_stock_connective_openers,
+    DRAMATIC_FUNCTION_PRESSURE_SET,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +196,7 @@ class ProseGenerator:
             diagnostics.get("jargon_repeat_terms", 0),
             diagnostics.get("max_visual_streak", 0),
         )
+        self._log_scene_state_diagnostics(final)
 
         # Write
         out_path = self.output_dir / f"{episode_id}_chapter.txt"
@@ -331,6 +342,171 @@ class ProseGenerator:
             if parts:
                 lines.append(f"- {name}: " + " | ".join(parts))
         return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # Character Agendas (Part 3)
+    # ------------------------------------------------------------------ #
+
+    def _build_character_agendas_block(
+        self,
+        scene: DistilledScene,
+        protagonist_name: str,
+    ) -> str:
+        """Return a compact agenda block for non-protagonist in-scene characters.
+
+        Reads agenda/scene_agenda/invariants from character_profiles YAML.
+        Returns an empty string if no meaningful agenda data is found.
+        """
+        if not self.runtime_policy.get("agenda_injection_enabled", True):
+            return ""
+        agendas = extract_character_agendas(
+            characters_present=scene.characters_present,
+            character_profiles=self.character_profiles,
+            protagonist_id=protagonist_name,
+        )
+        lines = [a.to_prompt_line() for a in agendas if not a.is_empty()]
+        if not lines:
+            return ""
+        return "## Character Agendas (씬 내 즉각적 욕구)\n" + "\n".join(lines) + "\n\n"
+
+    # ------------------------------------------------------------------ #
+    # Scene Blocking Cues (Part 7)
+    # ------------------------------------------------------------------ #
+
+    def _build_scene_blocking_block(self, scene: DistilledScene) -> str:
+        """Return a spatial/blocking cue block for the scene.
+
+        Pulls from entry_events, exit_events, and location_from/to fields
+        added in Part 6.  Falls back to generic blocking guidance when no
+        structured data is available.
+        """
+        if not self.runtime_policy.get("blocking_detail_bias", True):
+            return ""
+
+        parts: list[str] = []
+
+        # Location movement
+        loc_from = (scene.location_from or "").strip()
+        loc_to = (scene.location_to or "").strip()
+        if loc_from and loc_to and loc_from != loc_to:
+            parts.append(f"- 씬은 '{loc_from}'에서 시작해 '{loc_to}'로 이동합니다. 이 공간 이동을 구체적 행동(발걸음, 문, 시선)으로 표시하세요.")
+
+        # Entry / exit events
+        for ev in (scene.entry_events or []):
+            name = ev.get("name", "") or ev.get("character", "")
+            method = ev.get("method", "") or ev.get("how", "")
+            if name:
+                detail = f"({method})" if method else ""
+                parts.append(
+                    f"- {name}이(가) 씬에 등장합니다{detail}. 대화 전에 먼저 공간 내 위치를 잡아주세요 "
+                    f"(누가 먼저 알아봤는지, 어디에 서 있는지)."
+                )
+        for ev in (scene.exit_events or []):
+            name = ev.get("name", "") or ev.get("character", "")
+            if name:
+                parts.append(f"- {name}이(가) 씬에서 퇴장합니다. 퇴장을 물리적 행동(발걸음, 문, 등을 돌림)으로 표시하세요.")
+
+        # Generic blocking guidance when no structured events
+        if not parts:
+            parts.append(
+                "- 이 씬의 주요 순간에 인물들의 공간적 위치를 한 번 이상 명시하세요: "
+                "누가 어디에 서 있는지, 누가 누구 쪽으로 다가가는지, 출입구/테이블/벽 등 공간 요소를 활용해 긴장을 만드세요."
+            )
+
+        if self.runtime_policy.get("enforce_first_entrant_landing", True):
+            new_entrants = [ev.get("name", ev.get("character", "")) for ev in (scene.entry_events or [])]
+            if new_entrants:
+                names_str = ", ".join(n for n in new_entrants if n)
+                parts.append(
+                    f"- 첫 등장 인물({names_str})은 반드시 공간에 먼저 '착지'시키세요: "
+                    f"몸이 어디 있는지, 주인공이 언제 알아봤는지, 한 가지 시각적 단서. 그 다음에 대화."
+                )
+
+        if not parts:
+            return ""
+        return "## Scene Blocking\n" + "\n".join(parts) + "\n\n"
+
+    # ------------------------------------------------------------------ #
+    # Dramatic Function Contrast (Part 2, 7)
+    # ------------------------------------------------------------------ #
+
+    def _build_dramatic_function_block(self, scene: DistilledScene, scene_index: int, total_scenes: int) -> str:
+        """Return a dramatic-function guidance block for the prose prompt.
+
+        Enforces functional contrast between adjacent scenes: if two adjacent
+        scenes share a pressure-family function, the prompt instructs the writer
+        to differentiate via leverage/resistance/consequence rather than re-stating.
+        """
+        fn = DramaticFunctionLabel.from_string(scene.dramatic_function)
+        if fn == DramaticFunctionLabel.UNKNOWN:
+            return ""
+
+        fn_label = fn.value
+        parts: list[str] = [f"- 이 씬의 주 극적 기능: **{fn_label}**"]
+
+        # Pressure-family: require cash-out
+        if fn_label in DRAMATIC_FUNCTION_PRESSURE_SET:
+            parts.append(
+                "- 압박/설득/경고는 추상 언어로 반복하지 말고, "
+                "구체적 대가(접근 차단, 문서, 기한, 권한 변경, 물리적 차단)로 한 번 '현금화'하세요."
+            )
+
+        # Structural function: explicitly mark the transition
+        if fn == DramaticFunctionLabel.TRANSITION:
+            parts.append(
+                "- 전환 씬: 공간 이동이나 인물 진입/퇴장을 명확한 물리적 행동으로 표시하세요."
+            )
+
+        if fn == DramaticFunctionLabel.REVELATION:
+            parts.append(
+                "- 폭로/발견: 정보가 착지한 직후 즉각적인 반응(행동, 침묵, 이동)이 따라와야 합니다."
+            )
+
+        if fn == DramaticFunctionLabel.CONSEQUENCE:
+            parts.append(
+                "- 결과 씬: 앞서 내려진 결정의 구체적 효과(차단, 취소, 허가, 알림)를 먼저 보여준 뒤 감정 처리로 이동하세요."
+            )
+
+        if not parts:
+            return ""
+        return "## Dramatic Function\n" + "\n".join(parts) + "\n\n"
+
+    # ------------------------------------------------------------------ #
+    # Institutional Stakes (Part 7)
+    # ------------------------------------------------------------------ #
+
+    def _build_institutional_stakes_block(self, scene: DistilledScene) -> str:
+        """Inject institutional-specificity cue when the scene involves power/access stakes.
+
+        Only fires when policy flag is on AND scene has relevant state deltas.
+        """
+        if not self.runtime_policy.get("institutional_specificity_bias", True):
+            return ""
+
+        has_inst_delta = bool(scene.institutional_state_delta)
+        fn = DramaticFunctionLabel.from_string(scene.dramatic_function)
+        is_pressure_fn = fn.value in DRAMATIC_FUNCTION_PRESSURE_SET
+
+        if not (has_inst_delta or is_pressure_fn):
+            return ""
+
+        parts: list[str] = []
+        if scene.institutional_state_delta:
+            for delta in scene.institutional_state_delta[:3]:
+                entity = delta.get("entity", "")
+                change = delta.get("change", "")
+                if entity and change:
+                    parts.append(f"- [{entity}]: {change}")
+
+        guidance = (
+            "## Institutional Stakes\n"
+            "이 씬에서 권력/접근/제도적 상태가 변합니다. "
+            "긴장을 추상 명사로 반복하지 말고, 아래 중 하나 이상의 구체적 연산으로 표현하세요:\n"
+            "  허가/차단 / 문서/메모 / 감시/감사 / 기한/테스트 창 / 소유권/프로토콜 / 접근 배지/코드\n"
+        )
+        if parts:
+            guidance += "\n".join(parts) + "\n"
+        return guidance + "\n"
 
     def _build_voice_profiles_block(self, speakers: list[str]) -> str:
         """Build a compact voice profile block for the given speaker IDs."""
@@ -564,6 +740,12 @@ class ProseGenerator:
         )
         scene_character_guide = self._build_scene_character_guide(scene.characters_present)
 
+        # ── New structural blocks (Parts 2, 3, 7) ────────────────────────
+        character_agendas_block = self._build_character_agendas_block(scene, protagonist_name)
+        scene_blocking_block = self._build_scene_blocking_block(scene)
+        dramatic_function_block = self._build_dramatic_function_block(scene, scene_index, total_scenes)
+        institutional_stakes_block = self._build_institutional_stakes_block(scene)
+
         continuity = ""
         if prev_section_tail:
             continuity = (
@@ -588,8 +770,26 @@ class ProseGenerator:
         emotion_ctx = self._build_emotion_context(scene)
         if emotion_ctx:
             prompt += f"## Emotional Dynamics\n{emotion_ctx}\n\n"
+        # ── Structural blocks injected before style guidance ──────────────
+        if dramatic_function_block:
+            prompt += dramatic_function_block
+        if character_agendas_block:
+            prompt += character_agendas_block
+        if scene_blocking_block:
+            prompt += scene_blocking_block
+        if institutional_stakes_block:
+            prompt += institutional_stakes_block
         prompt += (
             f"## POV and Time Guidance\n{pov_and_time}\n"
+            f"## Style and Literary Quality\n"
+            f"- Use the most specific noun available for what the POV character would actually perceive in this location; prefer concrete over categorical.\n"
+            f"- Ground each scene in one tactile or auditory detail native to that physical space — let that single image carry the atmosphere instead of summarizing it.\n"
+            f"- One striking concrete image per scene is enough; do not explain or paraphrase it afterward.\n\n"
+            f"## Sentence Variety\n"
+            f"- Vary Korean sentence-final endings across adjacent sentences: do not use the same grammatical form (e.g., -했다 / -었다) three times in a row.\n"
+            f"- Mix declarative (-다), connective (-는데, -고, -며), and noun-final endings so the cadence rises and settles naturally.\n"
+            f"- Vary sentence openings: do not let three nearby sentences share the same subject+verb pattern.\n"
+            f"- Mix short (under 10 words), medium, and longer sentences with deliberate contrast; one short sentence at peak tension, surrounded by fuller context sentences.\n\n"
             f"## Readability and Rhythm Constraints\n"
             f"- Keep paragraph rhythm breathable: usually {readability['paragraph_min']}-{readability['paragraph_max']} sentences per paragraph.\n"
             f"- Keep most sentences under about {sentence_cap} words; split explanatory chains before they sprawl.\n"
@@ -4104,6 +4304,60 @@ class ProseGenerator:
             "transition_opener_repeats": float(transition_repeat_count),
             "pattern_warning_count": float(len(self.detect_repetition_pattern_warnings(text))),
         }
+
+    # ------------------------------------------------------------------ #
+    # Scene-State Diagnostics (Part 10)
+    # ------------------------------------------------------------------ #
+
+    def _log_scene_state_diagnostics(self, text: str) -> None:
+        """Log observability signals from scene_state module on the final chapter text."""
+        if not text:
+            return
+        policy = self.runtime_policy or {}
+
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+        # Abstract tension without consequence
+        if policy.get("log_tension_without_consequence", True):
+            flagged = detect_abstract_tension_without_consequence(
+                paragraphs,
+                window=int(policy.get("require_tension_cashout_paragraphs", 2)),
+            )
+            if flagged:
+                logger.info(
+                    "[SceneState] Abstract tension without concrete consequence found in %d paragraph(s): indices %s",
+                    len(flagged), flagged[:5],
+                )
+
+        # Abstract tension noun overuse
+        noun_counts = count_abstract_tension_nouns(text)
+        cap = int(policy.get("abstract_tension_noun_cap_per_scene", 4))
+        over_cap = {k: v for k, v in noun_counts.items() if v > cap}
+        if over_cap:
+            logger.info(
+                "[SceneState] Abstract tension nouns exceeding cap (%d): %s",
+                cap, over_cap,
+            )
+
+        # Stock body cue overuse
+        if policy.get("log_stock_cue_excess", True):
+            body_counts = count_stock_body_cues(text)
+            body_cap = int(policy.get("repeated_body_cue_cap_per_scene", 2))
+            over_body = {k: v for k, v in body_counts.items() if v > body_cap}
+            if over_body:
+                logger.info(
+                    "[SceneState] Stock body cues exceeding cap (%d): %s",
+                    body_cap, over_body,
+                )
+
+        # Stock connective overuse
+        conn_counts = count_stock_connective_openers(paragraphs)
+        for conn, cnt in conn_counts.items():
+            if cnt >= 3:
+                logger.info(
+                    "[SceneState] Stock connective '%s' opens %d paragraphs — consider diversifying.",
+                    conn, cnt,
+                )
 
     def _warn_sensory_streak(self, text: str, streak_limit: int = 3) -> None:
         """
