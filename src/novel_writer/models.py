@@ -129,10 +129,13 @@ class Agent:
     visual_profile: dict = field(default_factory=dict)
     memory: Memory = field(default_factory=Memory)
     persona: dict = field(default_factory=dict)  # dynamic personality state
+    arc_note: str = ""  # phase-specific behaviour notes (from arc_behavior in YAML)
 
     @classmethod
     def from_config(cls, cfg: dict) -> "Agent":
         """Build an Agent from a character YAML block."""
+        arc_behavior = cfg.get("arc_behavior") or {}
+        arc_parts = [str(v).strip() for v in arc_behavior.values() if v]
         a = cls(
             id=cfg["id"],
             name=cfg["name"],
@@ -143,6 +146,7 @@ class Agent:
             visual_profile=cfg.get("visual_profile", {}) or {},
             invariants=cfg.get("invariants", []),
             goals=cfg.get("goals", []),
+            arc_note=" | ".join(arc_parts),
         )
         # Seed relationship matrix from config
         for other_id, val in cfg.get("initial_relationships", {}).items():

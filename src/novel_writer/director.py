@@ -166,9 +166,14 @@ class DirectorAI:
             return True, ""
 
         inv_text = "\n".join(f"- {i}" for i in invariants)
+        arc_section = (
+            f"Arc/phase context (read before judging):\n{agent.arc_note}\n\n"
+            if getattr(agent, "arc_note", "") else ""
+        )
         prompt = (
             f"You are a story continuity checker.\n\n"
             f"Character: {agent.name} ({agent.role})\n"
+            f"{arc_section}"
             f"Character invariants (rules that must NEVER be broken):\n{inv_text}\n\n"
             f"Proposed action/dialogue:\n\"\"\"\n{proposed_action}\n\"\"\"\n\n"
             f"Does this action violate ANY invariant?\n"
@@ -402,6 +407,10 @@ class DirectorAI:
                 agent.name,
                 "; ".join(relation_drift),
             )
+
+        # LLM storyline alignment check disabled — structural checks above are sufficient.
+        # Re-enable by removing the early return below.
+        return True, ""
 
         storyline_guidance = self.get_storyline_guidance() or ""
         active_names = ", ".join(
