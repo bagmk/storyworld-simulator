@@ -252,8 +252,8 @@ def _score_chapter(
 
     episode_stopwords = _extract_episode_stopwords(episode_id)
     repetition_penalty = _repetition_penalty(chapter_text, extra_stopwords=episode_stopwords)
-    # det 비중 축소 (0.2) — LLM 판단을 최대한 반영 (0.8)
-    combined = round(max(0.0, 0.2 * float(det or 0.0) + 0.8 * float(llm or 0.0) - float(repetition_penalty or 0.0)), 3)
+    # LLM 점수만 사용
+    combined = round(max(0.0, float(llm or 0.0)), 3)
     logger.info(
         "[SCORE] det=%.2f gpt=%.2f(×%d) claude=%.2f(×%d) ensemble=%.2f rep_penalty=%.3f combined=%.3f focus=%s",
         det, gpt_score, _LLM_SCORE_RUNS, claude_score, _LLM_SCORE_RUNS,
