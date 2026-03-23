@@ -957,6 +957,11 @@ class ReaderFeedbackGuardsTest(unittest.TestCase):
         polisher = ChapterPolisher(
             llm=DummyLLM(),
             episode_config={"id": "ep_test"},
+            runtime_policy={
+                "anchor_coverage_pass": True,
+                "reader_feedback_pass": True,
+                "structural_repair_before_polish": False,
+            },
         )
         call_order: list[str] = []
 

@@ -169,20 +169,22 @@ class ChapterPolisher:
             text = self._structural_repair_pass(text, prose_adapter)
 
         polished = self.run_llm_polish(text, target_words, style, chapter_anchors, prose_adapter)
-        polished = self.ensure_anchor_coverage(
-            polished,
-            chapter_anchors or [],
-            target_words,
-            style,
-            prose_adapter,
-        )
-        polished = self.apply_reader_feedback_pass(
-            polished,
-            target_words,
-            style,
-            chapter_anchors,
-            prose_adapter,
-        )
+        if self.runtime_policy.get("anchor_coverage_pass", False):
+            polished = self.ensure_anchor_coverage(
+                polished,
+                chapter_anchors or [],
+                target_words,
+                style,
+                prose_adapter,
+            )
+        if self.runtime_policy.get("reader_feedback_pass", False):
+            polished = self.apply_reader_feedback_pass(
+                polished,
+                target_words,
+                style,
+                chapter_anchors,
+                prose_adapter,
+            )
         return self.apply_deterministic_cleanup(
             polished,
             style,

@@ -3164,7 +3164,17 @@ async def _run_codex_fixer(
         if notify:
             await notify(f"{DAILY_TAG}[FIXER] ⏳ Codex 수정 중... ({mins}분 경과)")
 
-    async with _get_codex_fixer_lock():
+    fixer_lock = _get_codex_fixer_lock()
+    while True:
+        try:
+            await asyncio.wait_for(fixer_lock.acquire(), timeout=5.0)
+            break
+        except asyncio.TimeoutError:
+            if stop_event and stop_event.is_set():
+                if notify:
+                    await notify(f"{DAILY_TAG}[FIXER] ⏹ stop 요청으로 lock 대기 취소")
+                return 1, "[FIXER] stop 요청으로 lock 대기 취소"
+    try:
         rc, output = await _stream_subprocess(
             cmd,
             on_line=_on_fixer_line,
@@ -3175,6 +3185,8 @@ async def _run_codex_fixer(
             on_process_started=(lambda pid: set_process("codex_fixer", pid, " ".join(cmd))) if set_process else None,
             on_process_ended=(lambda: set_process(None, None, None)) if set_process else None,
         )
+    finally:
+        fixer_lock.release()
 
     # 남은 버퍼 전송
     if _buffer and notify:

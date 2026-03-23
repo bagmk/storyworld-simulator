@@ -403,7 +403,8 @@ def _load_session_benchmark_rows(run_dir: Path) -> list[dict]:
         cycle_log = REPO_ROOT / "data" / "cycle_score_log.jsonl"
         if episode_id and cycle_count > 0 and cycle_log.exists():
             matching: list[dict] = []
-            for line in cycle_log.read_text(encoding="utf-8").splitlines():
+            all_lines = cycle_log.read_text(encoding="utf-8").splitlines()
+            for line in all_lines[-2000:]:
                 line = line.strip()
                 if not line:
                     continue

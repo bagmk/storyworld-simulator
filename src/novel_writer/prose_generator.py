@@ -51,6 +51,53 @@ COLON_DIALOGUE_LABEL_BAN = (
 )
 
 
+def _attach_plan_items_to_scenes(
+    scenes: list[DistilledScene],
+    plan_items: list,
+) -> list[DistilledScene]:
+    """DistilledScene에 scene_plan_item이 없으면 plan_items를 순서 기반으로 연결."""
+    result = []
+    for i, scene in enumerate(scenes):
+        if scene.scene_plan_item is not None:
+            result.append(scene)
+            continue
+        plan_item = plan_items[i] if i < len(plan_items) else None
+        if plan_item is None:
+            result.append(scene)
+            continue
+        updated = DistilledScene(
+            scene_number=scene.scene_number,
+            title=scene.title,
+            turn_range=scene.turn_range,
+            location=scene.location,
+            characters_present=scene.characters_present,
+            key_dialogue=scene.key_dialogue,
+            key_actions=scene.key_actions,
+            discoveries=scene.discoveries,
+            emotional_arc=scene.emotional_arc,
+            beat_references=scene.beat_references,
+            narrative_summary=scene.narrative_summary,
+            pacing=scene.pacing,
+            raw_turn_count=scene.raw_turn_count,
+            emotion_trajectory=scene.emotion_trajectory,
+            tension_peaks=scene.tension_peaks,
+            relationship_delta=scene.relationship_delta,
+            dramatic_function=scene.dramatic_function,
+            phase_id=scene.phase_id,
+            location_from=scene.location_from,
+            location_to=scene.location_to,
+            entry_events=scene.entry_events,
+            exit_events=scene.exit_events,
+            clue_state_delta=scene.clue_state_delta,
+            institutional_state_delta=scene.institutional_state_delta,
+            relationship_pressure_delta=scene.relationship_pressure_delta,
+            scene_plan_item=plan_item,
+            delta_realized=scene.delta_realized,
+        )
+        result.append(updated)
+    return result
+
+
 class ProseGenerator:
     """
     Generates literary prose from distilled scenes and YAML beat definitions.
@@ -669,24 +716,9 @@ class ProseGenerator:
             f"  - {d}" for d in scene.discoveries
         ) or "  (no discoveries)"
 
-        # Beat context — what YAML says should happen
-        beat_context = ""
-        matched_beats: list[tuple[str, str]] = []
-        if scene.beat_references:
-            matched_beats = [
-                (ref, ep.get("beat_by_id", {}).get(ref, ""))
-                for ref in scene.beat_references
-                if ep.get("beat_by_id", {}).get(ref, "")
-            ]
-            if matched_beats:
-                beat_context = "Original story beats for this scene:\n" + "\n".join(
-                    f"  - [{bid}] {btxt}" for bid, btxt in matched_beats
-                )
-
         # Extract concrete anchors (numbers/codenames/proper terms) that must survive.
         anchor_source = "\n".join(
             [d for d in scene.discoveries if isinstance(d, str)]
-            + [btxt for _, btxt in matched_beats if btxt]
         )
         anchors = self._extract_anchor_terms(anchor_source)
         anchors_text = ", ".join(anchors[:16]) if anchors else "(none)"
@@ -711,7 +743,7 @@ class ProseGenerator:
         sentence_cap = self._feedback_sentence_word_cap(default=25)
         sensory_cap = self._feedback_sensory_channel_cap(default=2)
         emotion_repeat_cap = self._feedback_emotion_repeat_cap(default=1)
-        term_glossary = self._build_scene_term_glossary(scene, matched_beats, blocked_terms=established)
+        term_glossary = self._build_scene_term_glossary(scene, [], blocked_terms=established)
 
         system = (
             "You are writing a Korean serialized techno-thriller chapter scene.\n"
@@ -763,13 +795,9 @@ class ProseGenerator:
             f"Protagonist: {ep['protagonist']}\n\n"
             f"## Scene: {scene.title}\n"
             f"Position: {position}\n"
-            f"Emotional arc: {scene.emotional_arc}\n"
             f"Location: {scene.location}\n"
             f"Characters: {', '.join(scene.characters_present)}\n\n"
         )
-        emotion_ctx = self._build_emotion_context(scene)
-        if emotion_ctx:
-            prompt += f"## Emotional Dynamics\n{emotion_ctx}\n\n"
         # ── Structural blocks injected before style guidance ──────────────
         if dramatic_function_block:
             prompt += dramatic_function_block
@@ -847,7 +875,6 @@ class ProseGenerator:
             f"Dialogue source status: {'simulation key dialogue exists' if has_source_dialogue else 'simulation key dialogue sparse; infer naturally'}\n\n"
             f"Key actions:\n{actions_text}\n\n"
             f"Discoveries/revelations:\n{discoveries_text}\n\n"
-            f"Scene summary: {scene.narrative_summary}\n\n"
         )
         if self._feedback_mentions("누구의 말", "누가 말", "누가 누구", "화자", "대사 구분", "헷갈", "이름이 반복", "인물", "역할", "구분", "호칭", "이름", "말투", "어투", "톤", "speaker"):
             prompt += (
@@ -1136,8 +1163,6 @@ class ProseGenerator:
                 f"{self.guardian_briefing}\n\n"
             )
 
-        if beat_context:
-            prompt += f"## Original Story Beats\n{beat_context}\n\n"
         if anchors:
             prompt += (
             f"## Must-Keep Evidence Anchors\n"
@@ -2194,71 +2219,8 @@ class ProseGenerator:
         episode_context: dict,
         style: str,
     ) -> str:
-        """Combine prose sections with internal monologue transitions."""
-        if len(sections) <= 1:
-            return sections[0] if sections else ""
-
-        style = self._effective_style(style)
-        pov = "first person" if style == "first_person" else "third person close"
-        parts = [sections[0]]
-
-        for i in range(1, len(sections)):
-            prev_scene = scenes[i - 1] if i - 1 < len(scenes) else None
-            next_scene = scenes[i] if i < len(scenes) else None
-
-            bridge = self._generate_transition(
-                prev_tail=sections[i - 1][-300:],
-                next_head=sections[i][:300],
-                prev_scene=prev_scene,
-                next_scene=next_scene,
-                pov=pov,
-            )
-            bridge = self._ensure_transition_marker(bridge)
-            parts.append(bridge)
-            parts.append(sections[i])
-
-        return "\n\n".join(parts)
-
-    def _generate_transition(
-        self,
-        prev_tail: str,
-        next_head: str,
-        prev_scene: Optional[DistilledScene],
-        next_scene: Optional[DistilledScene],
-        pov: str,
-    ) -> str:
-        """Generate a 2-4 sentence transition between scenes."""
-        prev_title = prev_scene.title if prev_scene else "previous scene"
-        next_title = next_scene.title if next_scene else "next scene"
-        prev_loc = (prev_scene.location if prev_scene and prev_scene.location else "unknown")
-        next_loc = (next_scene.location if next_scene and next_scene.location else "unknown")
-        next_chars = ", ".join((next_scene.characters_present if next_scene else [])[:4]) or "unknown"
-
-        prompt = (
-            f"Write a 2-4 sentence {pov} brief scene transition.\n\n"
-            f"Leaving: '{prev_title}'\n"
-            f"Leaving location: {prev_loc}\n"
-            f"...{prev_tail}\n\n"
-            f"Entering: '{next_title}'\n"
-            f"Entering location: {next_loc}\n"
-            f"Entering characters (important): {next_chars}\n"
-            f"{next_head}...\n\n"
-            f"The transition should feel like a natural breath between moments: "
-            f"one concrete movement + one short thought + one attention shift. "
-            f"Make spatial continuity explicit in one sentence, and avoid abstract wording. "
-            f"{'The bridge must include one concrete object, doorway, or room-state cue instead of a vague connective beat. ' if self.runtime_policy.get('prefer_concrete_transition_cue') else ''}"
-            f"Vary the bridge phrasing; do not reuse the same stock opener as the previous transition. "
-            f"Do not begin with stock time adverbs like '그 직후' or '잠시 뒤'; "
-            f"use movement, gaze, doorway, hallway, or object handling instead. "
-            f"Write in Korean. Write ONLY the transition text."
-        )
-        return self.llm.chat(
-            [{"role": "user", "content": prompt}],
-            purpose="prose_transition",
-            use_premium=True,
-            temperature=float(self.runtime_policy.get("prose_transition_temperature", 0.7) or 0.7),
-            max_tokens=200,
-        )
+        """Combine prose sections with hard scene breaks."""
+        return "\n\n---\n\n".join(s for s in sections if s)
 
     # ------------------------------------------------------------------ #
     # Polish
@@ -4570,3 +4532,77 @@ class ProseGenerator:
             compact = re.sub(r"\s+", " ", raw)
             lines.append(f"  - [{cid}] {compact}")
         return "\n".join(lines) if lines else "  - (none)"
+
+    # ------------------------------------------------------------------ #
+    # Delta-pipeline: generate_chapter_with_plan (Phase 3-B)
+    # ------------------------------------------------------------------ #
+
+    def generate_chapter_with_plan(
+        self,
+        scenes: list[DistilledScene],
+        plan_items: list,
+        protagonist_name: str = "Kim Sumin",
+        style: str = "third_person_close",
+        target_words: int = 3500,
+    ) -> str:
+        """ScenePlanItem 정보를 포함해 장을 생성하는 확장 메서드.
+
+        기존 generate_chapter() 기능에 더해:
+        - scene.scene_plan_item.must_include를 씬 프롬프트에 주입
+        - scene.scene_plan_item.banned를 기존 금지 규칙과 합산
+        - IrreversibleDelta의 cost/turning_point를 씬 컨텍스트에 추가
+
+        plan_items가 없거나 비어있으면 기존 generate_chapter()로 폴백.
+        """
+        if not plan_items:
+            logger.warning("generate_chapter_with_plan: plan_items 없음 — 기존 generate_chapter()로 폴백")
+            return self.generate_chapter(scenes, protagonist_name, style, target_words)
+
+        # DistilledScene에 ScenePlanItem이 없는 경우 순서 기반으로 연결
+        enhanced_scenes = _attach_plan_items_to_scenes(scenes, plan_items)
+
+        # scene_guidance_by_index 구성: 각 씬 인덱스에 delta/must_include 정보 주입
+        guidance: dict[int, str] = {}
+        for i, scene in enumerate(enhanced_scenes):
+            plan_item = scene.scene_plan_item
+            if plan_item is None:
+                continue
+            lines = []
+            # Delta 핵심 정보
+            delta = getattr(plan_item, "irreversible_delta", None)
+            if delta:
+                lines.append(
+                    f"[DELTA 요구사항] 이 씬은 다음 불가역 변화를 반드시 실현해야 합니다:\n"
+                    f"  - 유형: {delta.kind}\n"
+                    f"  - 전환점: {getattr(plan_item, 'turning_point', '')}\n"
+                    f"  - 대가(cost): {delta.cost}\n"
+                    f"  - 근거: {delta.rationale}"
+                )
+            # must_include 항목
+            must = getattr(plan_item, "must_include", ())
+            if must:
+                lines.append(
+                    "[반드시 포함] 다음 요소를 이 씬 산문에 포함하세요:\n"
+                    + "\n".join(f"  - {m}" for m in must)
+                )
+            # banned 항목 (기존 COLON_DIALOGUE_LABEL_BAN과 합산)
+            banned = getattr(plan_item, "banned", ())
+            if banned:
+                lines.append(
+                    "[추가 금지] 다음 표현/형식을 이 씬에서 사용하지 마세요:\n"
+                    + "\n".join(f"  - {b}" for b in banned)
+                )
+            if lines:
+                guidance[i] = "\n\n".join(lines)
+
+        # scene_guidance_by_index를 인스턴스 속성으로 임시 주입
+        original_guidance = self.scene_guidance_by_index
+        try:
+            self.scene_guidance_by_index = {**original_guidance, **guidance}
+            result = self.generate_chapter(
+                enhanced_scenes, protagonist_name, style, target_words
+            )
+        finally:
+            self.scene_guidance_by_index = original_guidance
+
+        return result
