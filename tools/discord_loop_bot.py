@@ -3176,6 +3176,8 @@ async def async_main() -> None:
                     return "guardian_rules"
                 if text.startswith(f"{DAILY_TAG}[GUARDIAN] 🤖 GPT 컨텍스트 분석 중"):
                     return "guardian_gpt"
+                if text.startswith(f"{DAILY_TAG}[GUARDIAN] ✅ Config 검수 완료 — 캐시된 브리핑 사용"):
+                    return "guardian_gpt"
                 if text.startswith(f"{DAILY_TAG}[MANAGER] 🧠 "):
                     return "manager"
                 if text.startswith(f"{DAILY_TAG}[PROGRAMMER] 🧪 코드 검수 시작"):

@@ -1,0 +1,40 @@
+{
+  "last_completed_episode": "ep01_academic_presentation",
+  "arc_position": {
+    "act": 1,
+    "act_name": "setup",
+    "episode_num": 0
+  },
+  "character_states": {
+    "kim_sumin": {
+      "emotional_summary": "초기 상태 — 긴장감 없음, 중립",
+      "key_relationships": {},
+      "known_clues": [],
+      "arc_status": "초기"
+    }
+  },
+  "episode_summaries": {
+    "ep01_academic_presentation": {
+      "one_line": "제네바 컨퍼런스 센터에서 모레노 교수의 초전도 큐비트 발표가 열린다. 수민은 발표를 들으며 단순한 성능 향상을 넘어, 자신의 보상 회로 아이디어가 실제 시스템 수준에서 통할 수 있",
+      "key_events": [],
+      "user_scores": {
+        "긴장감": 1,
+        "캐릭터": 1,
+        "흐름": 1,
+        "재미": 1
+      },
+      "feedback": {
+        "approved_next_episode": false,
+        "specific_issues": [
+          "챕터 생성 실패",
+          "ValueError: invalid literal for int() with base 10: 'T11'"
+        ],
+        "positive_notes": [],
+        "raw_feedback": "1 [CHAPTER] ❌ 챕터 생성 실패 (rc=1):\n\nrecent call last):\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/generate_chapter.py\", line 827, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/generate_chapter.py\", line 746, in main\n    scenes = distiller.distill(\n        episode_id=episode_id,\n        protagonist_id=args.protagonist,\n        target_scenes=target_scenes,\n    )\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/src/novel_writer/scene_distiller.py\", line 126, in distill\n    scenes = self._llm_distill(pov, beats, protagonist_id, target_scenes)\n  File \"/Users/saesunkim/Documents/Novel Writter - 2026/src/novel_writer/scene_distiller.py\", line 403, in _llm_distill\n    raw_start = int(sd.get(\"turn_start\", 0) or 0)\nValueError: invalid literal for int() with base 10: 'T11'\n\n\n왜 실패한거야!"
+      },
+      "completed_at": "2026-03-20",
+      "cycle_count": 2
+    }
+  },
+  "active_clues": {}
+}

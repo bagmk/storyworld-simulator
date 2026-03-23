@@ -476,6 +476,11 @@ class DirectorAI:
         threshold_overrides: dict[str, float] = {}
         if isinstance(self.episode_config, dict):
             threshold_overrides = self.episode_config.get("clue_thresholds") or {}
+
+        # Auto-advance phase when all current-phase clues are introduced,
+        # or when the next phase's first clue has passed its threshold.
+        self._maybe_advance_phase_by_clues(turn_progress)
+
         constraint = self._get_active_constraint()
         clue = self.clue_manager.needs_injection(
             turn_progress,
@@ -3545,6 +3550,68 @@ class DirectorAI:
             self._log("phase_advance", "director",
                       f"Manual phase advance → {self._active_scene_state.phase_id!r}", {})
         return advanced
+
+    def _maybe_advance_phase_by_clues(self, turn_progress: float) -> None:
+        """Auto-advance phase when story progress warrants moving to the next phase.
+
+        Two triggers (either is sufficient):
+        1. All clues assigned to the current phase have already been introduced.
+        2. The first unintroduced clue of the NEXT phase has passed its inject_threshold
+           (meaning the current phase is "overdue" — advance so the clue can fire).
+        """
+        if self._phase_tracker.is_last_phase or not self._phase_tracker.phases:
+            return
+
+        phases = self._phase_tracker.phases
+        current_phase_id = self._phase_tracker.current_phase_id
+
+        def _allowed_phases(clue: dict) -> list[str]:
+            ap = clue.get("allowed_phase") or clue.get("allowed_phases")
+            if not ap:
+                return []
+            return [ap] if isinstance(ap, str) else list(ap)
+
+        # Clues assigned exclusively to the current phase
+        current_phase_clues = [
+            c for c in self.clue_manager.required_clues
+            if current_phase_id in _allowed_phases(c)
+        ]
+        pending_current = [
+            c for c in current_phase_clues
+            if c.get("id") not in self.clue_manager.introduced
+        ]
+
+        # Trigger 1: all current-phase clues introduced
+        if current_phase_clues and not pending_current:
+            old = self._phase_tracker.current_phase_id
+            if self._phase_tracker.advance():
+                self._active_scene_state.phase_id = self._phase_tracker.current_phase_id
+                self._log("phase_advance", "director",
+                          f"Auto-advance (all clues done): {old!r} → {self._active_scene_state.phase_id!r}",
+                          {"turn_progress": round(turn_progress, 3)})
+            return
+
+        # Trigger 2: next phase's earliest clue has passed its threshold
+        next_idx = self._phase_tracker.current_index + 1
+        if next_idx < len(phases):
+            next_phase_id = str(phases[next_idx].get("id", ""))
+            next_clues = [
+                c for c in self.clue_manager.required_clues
+                if next_phase_id in _allowed_phases(c)
+                and c.get("id") not in self.clue_manager.introduced
+            ]
+            if next_clues:
+                earliest_threshold = min(
+                    c.get("inject_threshold", 0.6) for c in next_clues
+                )
+                if turn_progress >= earliest_threshold:
+                    old = self._phase_tracker.current_phase_id
+                    if self._phase_tracker.advance():
+                        self._active_scene_state.phase_id = self._phase_tracker.current_phase_id
+                        self._log("phase_advance", "director",
+                                  f"Auto-advance (next phase threshold reached): {old!r} → {self._active_scene_state.phase_id!r}",
+                                  {"turn_progress": round(turn_progress, 3),
+                                   "triggered_by_threshold": earliest_threshold})
 
     def get_forced_progression_hint(self) -> str:
         """Returns a hint string when loop detected, empty string otherwise."""

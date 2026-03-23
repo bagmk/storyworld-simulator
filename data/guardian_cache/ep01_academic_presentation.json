@@ -1,0 +1,19 @@
+{
+  "source_hash": "985d9d11eca6199ea487a6aca8d99897",
+  "generated_at": "2026-03-22T22:44:43.187044",
+  "params": {
+    "fallback_cast_size": 3,
+    "hold_pressure_peak": 1,
+    "prefer_concrete_offer_detail": 1,
+    "prefer_concrete_threat_detail": 0,
+    "prose_scene_temperature": 0.75,
+    "clue_thresholds": {
+      "clue_ep01_academic_presentation_c01": 0.3,
+      "clue_ep01_academic_presentation_c02": 0.38,
+      "clue_ep01_academic_presentation_c03": 0.52,
+      "clue_ep01_academic_presentation_c04": 0.68,
+      "clue_ep01_academic_presentation_c05": 0.84
+    }
+  },
+  "briefing_text": "## 이번 화 핵심 연결\n- 이전 화에서 모레노 교수의 발표가 수민에게 새로운 가능성을 제시했다.\n- 벤과의 접촉을 통해 수민은 경쟁과 협력의 경계가 모호해짐을 감지한다.\n- 이번 화에서는 QuantumFront의 자원과 외부 지원의 필요성이 더욱 강조된다.\n\n## 캐릭터 진행 가이드\n- 주인공 수민은 자신의 연구 가치가 외부에서 인식되고 있음을 인지하며 갈등하는 감정을 가진다.\n- 벤은 수민에게 실용적 성공과 정부 지원의 교차점에서 압박을 가하며 유혹적인 제안을 한다.\n- 모레노는 수민의 기술적 방향성을 재확인하며 지원의 필요성을 강조하지만, 그 의미를 간과하게 된다.\n\n## 클루와 복선 운용\n- 수민의 보상 회로 아이디어의 재발견 및 외부 지원의 필요성은 이번 화에서 계속 강조된다.\n- 벤의 DARPA 계약과 Greyshore Capital의 언급은 수민의 의사결정에 중요한 영향을 미친다.\n- 이번 화에서 \"기술은 도구다\"라는 모레노의 철학적 맥락을 다시 짚지 않도록 주의해야 한다.\n\n## 게이트와 금지 사항\n- 수민의 해킹 능력과 외부 지원 구상의 세부 사항은 과도하게 설명하지 말아야 한다.\n- 벤과의 관계에서 수민이 결정을 내리기 전의 긴장감을 절대 해소하지 말 것.\n- 다음 화의 사건과 결과를 미리 공개하지 말 것.\n\n## 장면 운영 지시\n- 수민과 벤의 대화에서 긴장과 갈등의 흐름을 잘 조절해야 한다.\n- 수민의 내적 갈등을 드러내되, 지나치게 감정적이지 않도록 조절할 것.\n- 이번 화의 끝에서 벤의 유혹에 대한 수민의 반응을 미해결로 남겨놓아 긴장을 유지할 것.\n\n## 짧은 실행 메모\n- 수민의 내적 갈등을 강조하라.\n- 벤의 유혹적인 제안을 수민이 경계하는 방식으로 표현하라.\n- 모레노의 조언이 수민에게 새로운 시각을 제공하도록 설정하라.\n\n## 파라미터 추천\nRECOMMENDED_CAST_SIZE: 3  \nRECOMMENDED_HOLD_PRESSURE_PEAK: 1  \nRECOMMENDED_PREFER_CONCRETE_OFFER: 1  \nRECOMMENDED_PREFER_CONCRETE_THREAT: 0  \nRECOMMENDED_PROSE_SCENE_TEMPERATURE: 0.75  \n\nCLUE_THRESHOLD: clue_ep01_academic_presentation_c01=0.30  \nCLUE_THRESHOLD: clue_ep01_academic_presentation_c02=0.38  \nCLUE_THRESHOLD: clue_ep01_academic_presentation_c03=0.52  \nCLUE_THRESHOLD: clue_ep01_academic_presentation_c04=0.68  \nCLUE_THRESHOLD: clue_ep01_academic_presentation_c05=0.84  "
+}

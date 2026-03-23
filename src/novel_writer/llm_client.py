@@ -25,14 +25,21 @@ logger = logging.getLogger(__name__)
 
 # ── Model pricing (USD per 1K tokens, input/output) ──────────────────────────
 MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "gpt-4o":             (0.005,  0.015),
+    # GPT-4.1 family
+    "gpt-4.1":            (0.002,  0.008),
+    "gpt-4.1-mini":       (0.0004, 0.0016),
+    "gpt-4.1-nano":       (0.0001, 0.0004),
+    # GPT-4o family
+    "gpt-4o":             (0.0025, 0.010),
     "gpt-4o-mini":        (0.00015, 0.0006),
+    # GPT-5 family
+    "gpt-5":              (0.015,  0.060),
     "gpt-5-mini":         (0.00025, 0.002),
     "gpt-5-mini-2025-08-07": (0.00025, 0.002),
+    # Legacy
     "gpt-4-turbo":        (0.01,   0.03),
     "gpt-4":              (0.03,   0.06),
     "gpt-3.5-turbo":      (0.0005, 0.0015),
-    # Add more models here as needed
 }
 
 DEFAULT_CHEAP_MODEL   = "gpt-4o-mini"

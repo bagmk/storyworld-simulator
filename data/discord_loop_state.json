@@ -42,5 +42,40 @@
   "1479970119072612384:1480316513348096060:ep01_academic_presentation": {
     "cycle": 8,
     "updated_at": 1773014786
+  },
+  "__usage_sessions__": {
+    "1479970119072612384": {
+      "status": "AUTO outer 1/25 — 파라미터 탐색 중...",
+      "episode_key": "1",
+      "is_active": true,
+      "metrics": {
+        "guardian": 0.002769,
+        "simulation": 0.024595,
+        "chapter": 0.036645,
+        "auto_chapter": 0.0,
+        "manager": 0.0,
+        "auto_review": 0.003263,
+        "code_review": 0.0,
+        "regen_check": 0.0,
+        "final_review": 0.0,
+        "feedback_parse": 0.0,
+        "prompt_tokens": 192121,
+        "completion_tokens": 23022,
+        "total_tokens": 215143,
+        "model_token_totals": {
+          "gpt-4o-mini": 154316,
+          "gpt-4.1-mini": 53055,
+          "gpt-5-mini": 7772
+        },
+        "_time_tracker": {
+          "guardian": 39.126105959003326,
+          "simulator": 241.76351045799674,
+          "chapter_gen": 241.46172704099445
+        }
+      },
+      "started_at": 1774233842.636367,
+      "elapsed_sec": 545,
+      "updated_at": 1774234387
+    }
   }
 }
