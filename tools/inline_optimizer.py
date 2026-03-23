@@ -473,6 +473,7 @@ async def run_inline_optimize(
     notify_fn=None,
     quality_focus: dict | None = None,
     final_upgrade_model: str | None = None,
+    cost_tracker: dict | None = None,
 ) -> tuple[Path, dict, float, list[float]]:
     """
     Run 5-trial mini-Optuna loop (Phase 1: 2 parallel, Phase 2: 3 parallel).
@@ -668,6 +669,11 @@ async def run_inline_optimize(
                     f"`{final_meta.get('chapter_file', final_path.name)}` "
                     f"({int(final_meta.get('word_count', 0))}단어)"
                 )
+            if cost_tracker is not None:
+                cost_tracker["phase_a_trials"] = (
+                    float(cost_tracker.get("phase_a_trials", 0.0))
+                    + float((final_llm.budget_summary() or {}).get("spent_usd", 0.0))
+                )
             if final_path.exists() and final_path.stat().st_size > 0 and final_score >= best_score:
                 best_src = final_path
                 best_score = final_score
@@ -679,6 +685,16 @@ async def run_inline_optimize(
             logger.warning("Final upgrade generation failed: %s", exc)
             if notify_fn:
                 await notify_fn(f"[OPTIMIZE] ⚠️ 최종 업그레이드 생성 실패: {exc}")
+
+    # ── Accumulate trial LLM costs into cost_tracker ─────────────────────────
+    if cost_tracker is not None:
+        trial_llms_spent = sum(
+            float((llm.budget_summary() or {}).get("spent_usd", 0.0))
+            for llm in [*p1_llms, *p2_llms]
+        )
+        cost_tracker["phase_a_trials"] = (
+            float(cost_tracker.get("phase_a_trials", 0.0)) + trial_llms_spent
+        )
 
     # Copy best chapter to run_dir
     best_chapter_path = run_dir / f"{episode_id}_chapter.md"
@@ -879,8 +895,8 @@ def log_cycle_score(
     if cost_tracker:
         _cost_keys = [
             "guardian", "simulation", "chapter", "auto_chapter",
-            "manager", "auto_review", "code_review", "regen_check",
-            "final_review", "feedback_parse",
+            "phase_a_trials", "manager", "auto_review", "code_review",
+            "regen_check", "final_review", "feedback_parse",
         ]
         for k in _cost_keys:
             v = float(cost_tracker.get(k, 0.0))

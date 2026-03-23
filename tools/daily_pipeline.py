@@ -601,6 +601,7 @@ def _total_cost_line(cost_tracker: dict[str, Any] | None) -> str:
         "simulation",
         "chapter",
         "auto_chapter",
+        "phase_a_trials",
         "manager",
         "auto_review",
         "code_review",
@@ -608,7 +609,7 @@ def _total_cost_line(cost_tracker: dict[str, Any] | None) -> str:
         "final_review",
         "feedback_parse",
     ]
-    labels = ["가디언", "시뮬", "초기챕터", "AUTO챕터", "매니저", "AUTO리뷰", "코드리뷰", "재점검", "최종리뷰", "피드백"]
+    labels = ["가디언", "시뮬", "초기챕터", "AUTO챕터", "Phase A트라이얼", "매니저", "AUTO리뷰", "코드리뷰", "재점검", "최종리뷰", "피드백"]
     total = sum(float(tracker.get(k, 0.0)) for k in keys)
     parts = " + ".join(
         f"{l} {float(tracker.get(k, 0.0)):.4f}"
@@ -1831,6 +1832,7 @@ async def step_inline_optimize(
             notify_fn=notify,
             quality_focus=quality_focus,
             final_upgrade_model=final_upgrade_model,
+            cost_tracker=cost_tracker,
         )
     except Exception as exc:
         logger.warning("[INLINE_OPT] run_inline_optimize failed: %s", exc)

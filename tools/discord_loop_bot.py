@@ -99,6 +99,7 @@ def _session_cost_total(metrics: dict[str, Any]) -> float:
             "simulation",
             "chapter",
             "auto_chapter",
+            "phase_a_trials",
             "manager",
             "auto_review",
             "code_review",
@@ -1801,6 +1802,263 @@ def _build_benchmark_chart(rows: list[dict], ep_key: str) -> Path | None:
     return out_path
 
 
+def _generate_parameter_image(
+    session_cycle_rows: list[dict] | None,
+    current_policy: dict,
+    out_path: "Path | None" = None,
+) -> "Path | None":
+    """Render parameter state + cycle history as a PNG image."""
+    import tempfile
+    import math
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib import font_manager as _fm
+    from pathlib import Path as _Path
+
+    # Try to find a font that supports both Korean and ASCII
+    _PREFERRED = ["Apple SD Gothic Neo", "AppleGothic", "Malgun Gothic", "NanumGothic",
+                  "Noto Sans CJK KR", "Noto Sans KR", "Arial Unicode MS", "DejaVu Sans"]
+    _available = {f.name for f in _fm.fontManager.ttflist}
+    _font = next((f for f in _PREFERRED if f in _available), None)
+
+    GROUPS = {
+        "Distiller": [
+            "distiller_temperature", "distiller_max_tokens",
+            "target_scenes", "scene_target_bias", "scene_target_min", "scene_target_max",
+            "prose_history_max_episodes",
+        ],
+        "Prose": [
+            "prose_transition_temperature",
+            "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
+            "prose_scene_readability_temperature",
+        ],
+        "Polish": [
+            "prose_polish_temperature", "prose_anchor_fix_temperature",
+        ],
+        "Flags / Reader": [
+            "prose_enable_term_gloss",
+            "prefer_concrete_transition_cue", "prefer_scene_exit_on_stall",
+            "director_fallback_cast_size",
+            "reader_prefers_dialogue_compaction",
+            "reader_prefers_analytical_wording_reduction",
+            "repetition_jaccard_threshold",
+        ],
+        "Guardian": [
+            "prose_scene_temperature",
+            "hold_pressure_peak",
+            "prefer_concrete_offer_detail",
+            "prefer_concrete_threat_detail",
+        ],
+    }
+
+    def _fmt(v):
+        if v is None:
+            return "—"
+        if isinstance(v, float):
+            return f"{v:.3f}"
+        if isinstance(v, bool):
+            return "T" if v else "F"
+        return str(v)
+
+    SCORE_COLORS = {  # AI avg band → cell bg color
+        "high":  "#c6efce",  # green ≥ 7.0
+        "mid":   "#ffeb9c",  # yellow 6.0–7.0
+        "low":   "#ffc7ce",  # red < 6.0
+    }
+
+    def _score_color(avg):
+        if avg >= 7.0:
+            return SCORE_COLORS["high"]
+        if avg >= 6.0:
+            return SCORE_COLORS["mid"]
+        return SCORE_COLORS["low"]
+
+    rows = (session_cycle_rows or [])[-5:]   # 최근 5사이클만
+    has_history = bool(rows)
+
+    # ── Determine tracked params for history table ──────────────────────────
+    if has_history:
+        changed_params: set[str] = set()
+        for r in rows:
+            changed_params.update(r.get("cycle_params", {}).keys())
+        tracked = [p for grp in GROUPS.values() for p in grp if p in changed_params]
+    else:
+        tracked = []
+
+    # ── Figure layout ────────────────────────────────────────────────────────
+    n_cycles = len(rows)
+    n_history_rows = len(tracked) + 2  # +1 header +1 score row
+    n_current_params = sum(
+        sum(1 for p in ps if current_policy.get(p) is not None)
+        for ps in GROUPS.values()
+    ) + len(GROUPS)  # group headers
+
+    history_h = max(1.5, n_history_rows * 0.32) if has_history else 0
+    current_h = max(2.0, n_current_params * 0.26)
+    fig_h = history_h + current_h + 0.8
+    fig_w = 10  # 고정 폭 — 히스토리 5열 + 현재값 모두 충분
+
+    fig = plt.figure(figsize=(fig_w, fig_h), facecolor="#1e1e2e")
+
+    if has_history:
+        gs = gridspec.GridSpec(2, 1, figure=fig, hspace=0.35,
+                               height_ratios=[history_h, current_h],
+                               top=0.96, bottom=0.02, left=0.01, right=0.99)
+        ax_hist = fig.add_subplot(gs[0])
+        ax_cur  = fig.add_subplot(gs[1])
+    else:
+        gs = gridspec.GridSpec(1, 1, figure=fig,
+                               top=0.96, bottom=0.02, left=0.01, right=0.99)
+        ax_cur = fig.add_subplot(gs[0])
+        ax_hist = None
+
+    for ax in ([ax_hist, ax_cur] if ax_hist else [ax_cur]):
+        ax.axis("off")
+        ax.set_facecolor("#1e1e2e")
+
+    font_kw = {"fontfamily": _font} if _font else {}
+
+    # ── History table ─────────────────────────────────────────────────────
+    if ax_hist is not None and tracked and rows:
+        cycle_labels = [f"C{r['cycle_idx']}" for r in rows]
+        # Build cell data: rows = params, cols = cycles + current
+        col_labels = cycle_labels + ["현재"]
+        table_data = []
+        cell_colors = []
+        for param in tracked:
+            row_vals = []
+            row_colors = []
+            for r in rows:
+                v = r.get("cycle_params", {}).get(param)
+                row_vals.append(_fmt(v))
+                row_colors.append("#2a2a3e")
+            cur_v = current_policy.get(param)
+            row_vals.append(_fmt(cur_v))
+            row_colors.append("#3a3a5e")
+            table_data.append(row_vals)
+            cell_colors.append(row_colors)
+
+        # Score row
+        score_vals = []
+        score_colors_row = []
+        for r in rows:
+            avg = r.get("ai_review", {}).get("avg", 0.0)
+            score_vals.append(f"{avg:.1f}")
+            score_colors_row.append(_score_color(avg))
+        score_vals.append("(현재)")
+        score_colors_row.append("#3a3a5e")
+        table_data.append(score_vals)
+        cell_colors.append(score_colors_row)
+
+        row_labels = [p.replace("_", "_\n") if len(p) > 28 else p for p in tracked] + ["AI avg"]
+
+        ax_hist.set_title("📈 사이클별 파라미터 변화", color="white", fontsize=11,
+                          fontweight="bold", pad=6, loc="left", **font_kw)
+        tbl = ax_hist.table(
+            cellText=table_data,
+            rowLabels=row_labels,
+            colLabels=col_labels,
+            cellLoc="center",
+            loc="center",
+            cellColours=cell_colors,
+        )
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(8)
+        tbl.scale(1, 1.4)
+
+        # Style cells
+        for (row_i, col_i), cell in tbl.get_celld().items():
+            cell.set_edgecolor("#444466")
+            cell.set_linewidth(0.5)
+            if row_i == 0:  # header row
+                cell.set_facecolor("#3d3d5c")
+                cell.get_text().set_color("white")
+                cell.get_text().set_fontweight("bold")
+            elif col_i == -1:  # row label
+                cell.set_facecolor("#2d2d4e")
+                cell.get_text().set_color("#aaaacc")
+                cell.get_text().set_fontsize(7)
+            elif row_i == len(tracked) + 1:  # score row
+                cell.get_text().set_color("#222222")
+                cell.get_text().set_fontweight("bold")
+            else:
+                cell.get_text().set_color("#ddddff")
+            if _font:
+                cell.get_text().set_fontfamily(_font)
+
+    # ── Current values table ─────────────────────────────────────────────
+    ax_cur.set_title("🔧 현재 파라미터", color="white", fontsize=11,
+                     fontweight="bold", pad=6, loc="left", **font_kw)
+
+    cur_rows = []
+    cur_colors = []
+    cur_row_labels = []
+
+    for grp_name, params in GROUPS.items():
+        visible = [(p, current_policy[p]) for p in params if current_policy.get(p) is not None]
+        if not visible:
+            continue
+        # Group header pseudo-row
+        cur_rows.append(["", ""])
+        cur_colors.append(["#2d2d4e", "#2d2d4e"])
+        cur_row_labels.append(f"── {grp_name} ──")
+        for p, v in visible:
+            cur_rows.append([p, _fmt(v)])
+            cur_colors.append(["#252535", "#252535"])
+            cur_row_labels.append("")
+
+    if cur_rows:
+        tbl2 = ax_cur.table(
+            cellText=cur_rows,
+            colLabels=["파라미터", "현재값"],
+            cellLoc="left",
+            loc="center",
+            cellColours=cur_colors,
+        )
+        tbl2.auto_set_font_size(False)
+        tbl2.set_fontsize(8)
+        tbl2.scale(1, 1.2)
+
+        col_widths = {0: 0.65, 1: 0.35}
+        for (row_i, col_i), cell in tbl2.get_celld().items():
+            cell.set_edgecolor("#333355")
+            cell.set_linewidth(0.4)
+            if col_i in col_widths:
+                cell.set_width(col_widths[col_i])
+            if row_i == 0:  # header
+                cell.set_facecolor("#3d3d5c")
+                cell.get_text().set_color("white")
+                cell.get_text().set_fontweight("bold")
+            elif col_i == 0:
+                txt = cur_rows[row_i - 1][0]
+                if txt == "":  # group header
+                    cell.set_facecolor("#2d2d4e")
+                    # find row label
+                    lbl = cur_row_labels[row_i - 1]
+                    cell.get_text().set_text(lbl)
+                    cell.get_text().set_color("#88aaff")
+                    cell.get_text().set_fontweight("bold")
+                else:
+                    cell.get_text().set_color("#aaaacc")
+                    cell.get_text().set_fontsize(8)
+            else:
+                cell.get_text().set_color("#ddddff")
+            if _font:
+                cell.get_text().set_fontfamily(_font)
+
+    # Save
+    if out_path is None:
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        out_path = _Path(tmp.name)
+        tmp.close()
+
+    fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    return out_path
+
+
 def _build_parameter_report(
     session_cycle_rows: list[dict] | None,
 ) -> str:
@@ -2666,49 +2924,44 @@ async def async_main() -> None:
                 manager_bot_token,
             )
 
-            def _load_parameter_report() -> str:
+            def _load_parameter_image() -> "Path | None":
                 import json as _json
+                from pathlib import Path as _Path
                 from datetime import date as _date
+                _policy_path = REPO_ROOT / "data" / "rl_policy.json"
+                try:
+                    _cur = _json.loads(_policy_path.read_text(encoding="utf-8"))
+                except Exception:
+                    _cur = {}
                 _log_path = REPO_ROOT / "data" / "cycle_score_log.jsonl"
-                cycle_rows: list[dict] = []
+                _cycle_rows: list[dict] = []
                 if _log_path.exists():
-                    for line in _log_path.read_text(encoding="utf-8").splitlines():
-                        line = line.strip()
-                        if not line:
+                    for _line in _log_path.read_text(encoding="utf-8").splitlines():
+                        _line = _line.strip()
+                        if not _line:
                             continue
                         try:
-                            cycle_rows.append(_json.loads(line))
+                            _cycle_rows.append(_json.loads(_line))
                         except Exception:
                             pass
-                if cycle_rows:
+                if _cycle_rows:
                     if is_active:
-                        # Current session: only today's entries
                         today = str(_date.today())
-                        cycle_rows = [r for r in cycle_rows if r.get("date", "") == today]
+                        _cycle_rows = [r for r in _cycle_rows if r.get("date", "") == today]
                     else:
-                        # Latest completed session: last date block
-                        last_date = cycle_rows[-1].get("date", "")
-                        cycle_rows = [r for r in cycle_rows if r.get("date", "") == last_date]
-                return _build_parameter_report(cycle_rows or None)
+                        last_date = _cycle_rows[-1].get("date", "")
+                        _cycle_rows = [r for r in _cycle_rows if r.get("date", "") == last_date]
+                return _generate_parameter_image(_cycle_rows or None, _cur)
 
-            report = await asyncio.to_thread(_load_parameter_report)
-            # Split if too long for Discord (2000 char limit)
-            if len(report) <= 1900:
-                await _send_text_with_token(
-                    message.channel, ch_id, report, manager_bot_token,
+            img_path = await asyncio.to_thread(_load_parameter_image)
+            if img_path:
+                await _send_file_with_token(
+                    message.channel, ch_id, img_path, "📊 파라미터 현황", manager_bot_token
                 )
             else:
-                # Send in two parts
-                mid = report.find("\n**🔧")
-                part1 = report[:mid] if mid > 0 else report[:1900]
-                part2 = report[mid:] if mid > 0 else report[1900:]
                 await _send_text_with_token(
-                    message.channel, ch_id, part1, manager_bot_token,
+                    message.channel, ch_id, "⚠️ 파라미터 이미지 생성 실패", manager_bot_token,
                 )
-                if part2:
-                    await _send_text_with_token(
-                        message.channel, ch_id, part2, manager_bot_token,
-                    )
             return
 
         # ── !novel-daily <episode_key> ─────────────────────────────────────────
