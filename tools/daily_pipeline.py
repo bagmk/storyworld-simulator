@@ -3666,6 +3666,17 @@ async def step_auto_improve_loop(
                 f"한줄평: {verdict}"
             )
 
+        # ── 사이클 best 챕터 디스코드 업로드 ────────────────────────────────
+        if upload and current_chapter and current_chapter.exists():
+            try:
+                _wc = len(current_chapter.read_text(encoding="utf-8", errors="replace").split())
+                await upload(
+                    current_chapter,
+                    f"📖 outer {outer_cycle} best 챕터 — 평균 {avg:.1f}/10 | {_wc}단어",
+                )
+            except Exception as _up_exc:
+                logger.warning("[AUTO] chapter upload failed (outer %d): %s", outer_cycle, _up_exc)
+
         # factor analysis — 25 trials 데이터가 바로 쌓여 있으므로 즉시 유효
         _ai_review_scores = {
             "thrill": thrill, "style": style, "causality": causality,
