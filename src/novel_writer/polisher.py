@@ -33,6 +33,12 @@ from .scene_state import (
     STOCK_CONNECTIVES,
 )
 
+# Korean suspension-ending patterns used in _pre_polish_redundancy_scan
+_SUSPENSION_ENDINGS = (
+    "었다.", "있었다.", "들었다.", "느꼈다.", "생각했다.",
+    "스쳤다.", "맴돌았다.", "울렸다.",
+)
+
 
 @dataclass(frozen=True)
 class ChapterPolishProfile:
@@ -247,14 +253,10 @@ class ChapterPolisher:
         guidance_parts: list[str] = []
 
         # 1. Adjacent paragraphs ending on same suspension pattern
-        SUSPENSION_ENDINGS = [
-            "었다.", "있었다.", "들었다.", "느꼈다.", "생각했다.",
-            "스쳤다.", "맴돌았다.", "울렸다.",
-        ]
         suspension_run = 0
         max_suspension_run = 0
         for p in paragraphs:
-            if any(p.endswith(e) for e in SUSPENSION_ENDINGS):
+            if any(p.endswith(e) for e in _SUSPENSION_ENDINGS):
                 suspension_run += 1
                 max_suspension_run = max(max_suspension_run, suspension_run)
             else:
