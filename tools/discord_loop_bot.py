@@ -251,7 +251,7 @@ def _parse_outer_cycles_choice(text: str) -> int | None:
 def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
     """outer_cycles 확정 후 사용자에게 보여줄 실행 플랜 미리보기."""
     from tools.daily_pipeline import (
-        AUTO_OUTER_MAX_CYCLES, AUTO_INNER_MAX_CYCLES,
+        AUTO_OUTER_MAX_CYCLES,
         AUTO_BATCH_TRIALS, AUTO_BATCH_GROUP_SIZE,
     )
 
@@ -287,9 +287,7 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
     n_sim_groups = AUTO_BATCH_TRIALS // AUTO_BATCH_GROUP_SIZE   # 5
     n_prose_per_sim = AUTO_BATCH_GROUP_SIZE                     # 5
     total_chapters_phase_a = AUTO_BATCH_TRIALS                  # 25
-    total_chapters_phase_c = AUTO_INNER_MAX_CYCLES              # 3 regen
-    max_chapters_per_outer = total_chapters_phase_a + total_chapters_phase_c
-    max_chapters_total = AUTO_OUTER_MAX_CYCLES * max_chapters_per_outer  # per daily cycle
+    max_chapters_total = AUTO_OUTER_MAX_CYCLES * total_chapters_phase_a  # per daily cycle
 
     # 파라미터 수: sim study 4개 + prose study 6개
     n_sim_params = 4
@@ -310,7 +308,7 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
             f"  📖 3. 챕터 생성 1회",
             f"  📊 4. 베이스라인 AI 리뷰 1회 (스코어카드 출력)",
             f"",
-            f"  ⏩ Phase A(Optuna) / Phase C(GPT Fixer) 건너뜀",
+            f"  ⏩ Phase A(Optuna) 건너뜀",
             "─────────────────────────────────────",
             "**`1`** 로 시작  |  **`2`** 로 취소",
         ]
@@ -327,11 +325,9 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
     # outer_cycles 기반 전체 수치 계산
     total_sims        = outer_cycles                                      # 시뮬레이션 횟수
     total_phase_a     = outer_cycles * total_chapters_phase_a             # Phase A 챕터 총합
-    total_phase_c     = outer_cycles * total_chapters_phase_c             # Phase C 재생성 총합
-    total_chapters    = outer_cycles * max_chapters_per_outer             # 전체 최대 챕터
-    inner_max         = AUTO_INNER_MAX_CYCLES
-    # AI 리뷰 횟수: Phase B 1회 + Phase C 재생성마다 1회 + 최종 1회
-    total_reviews     = outer_cycles * (1 + inner_max) + 1
+    total_chapters    = outer_cycles * total_chapters_phase_a             # 전체 최대 챕터
+    # AI 리뷰 횟수: Phase B 1회 + 최종 1회
+    total_reviews     = outer_cycles + 1
 
     sim_param_names   = "distiller_temp / target_scenes / dialogue_compaction / scene_closure"
     prose_param_names = "prose_scene_temp / para_min / para_max / transition_temp / polish_temp / hold_pressure"
@@ -347,9 +343,8 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
         "**전체 규모 요약:**",
         f"  🎬  시뮬레이션      : **{total_sims}회** (outer cycle당 1회, {sim_turns_label}턴)",
         f"  📄  Phase A 챕터    : **{total_phase_a}개** ({outer_cycles}회 × {total_chapters_phase_a}개)",
-        f"  🔧  Phase C 재생성  : 최대 **{total_phase_c}개** ({outer_cycles}회 × {inner_max}회)",
-        f"  📦  전체 최대 챕터  : **{total_chapters}개** ({outer_cycles}×({total_chapters_phase_a}+{inner_max}))",
-        f"  🔍  AI 리뷰         : 최대 **{total_reviews}회** (Phase B {outer_cycles}회 + Phase C 최대 {outer_cycles * inner_max}회 + 최종 1회)",
+        f"  📦  전체 최대 챕터  : **{total_chapters}개** ({outer_cycles}×{total_chapters_phase_a})",
+        f"  🔍  AI 리뷰         : 최대 **{total_reviews}회** (Phase B {outer_cycles}회 + 최종 1회)",
         "─────────────────────────────────────",
         "**각 Outer Cycle 내부 흐름:**",
         f"",
@@ -365,8 +360,6 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
         f"       • 탐색 폭: ±25% → 누적 trial 증가할수록 자동 축소",
         f"     Phase B — AI 리뷰 **1회** + Factor Analysis",
         f"       → 점수 ≥ 9.5/10 달성 시 즉시 조기 종료",
-        f"     Phase C — GPT Fixer 최대 **{inner_max}회** (재생성마다 AI 리뷰 1회)",
-        f"       → 코드 수정 → 챕터 재생성 → AI 리뷰 → 점수 비교 → 하락 시 자동 롤백",
         f"",
         f"  📖 4. 최종 AI 리뷰 **1회** + 품질 스코어카드 출력",
         f"       평가 항목: 긴장감 / 문체 / 인과성 / 캐릭터 / 장면기능 (각 10점)",
@@ -446,9 +439,7 @@ def _load_session_benchmark_rows(run_dir: Path) -> list[dict]:
                         "trial_idx": int(subtrial.get("trial_idx", 0)),
                         "global_trial_idx": int(subtrial.get("trial_idx", 0)),
                         "score": float(subtrial.get("score", 0.0)),
-                        "det": float(subtrial.get("det", 0.0)),
                         "llm": float(subtrial.get("llm", 0.0)),
-                        "repetition_penalty": float(subtrial.get("repetition_penalty", 0.0)),
                         "params": dict(subtrial.get("params", {})),
                     })
     rows.sort(key=lambda row: (int(row.get("cycle_idx", 0)), int(row.get("trial_idx", 0))))
@@ -2889,7 +2880,6 @@ async def async_main() -> None:
                 return
             ep_key_name = str(rows[-1].get("episode_id", run_dir.parent.name.split("_", 1)[-1] if run_dir else "unknown"))
             scores = [float(r.get("score", 0.0)) for r in rows]
-            repetition_penalties = [float(r.get("repetition_penalty", 0.0)) for r in rows]
             best_idx = max(range(len(scores)), key=lambda i: scores[i])
             worst_idx = min(range(len(scores)), key=lambda i: scores[i])
             cycle_ids = sorted({int(r.get("cycle_idx", 0)) for r in rows})
@@ -2898,10 +2888,9 @@ async def async_main() -> None:
             lines = [
                 f"📊 **벤치마크 — {ep_key_name}** ({mode_label})",
                 f"run: `{run_dir.relative_to(REPO_ROOT) if run_dir else '-'}`",
-                f"누적 subtrials: `{len(rows)}` | outer cycles 기록: `{', '.join(str(c) for c in cycle_ids)}`",
+                f"누적 subtrials: `{len(rows)}` | outer cycles: `{', '.join(str(c) for c in cycle_ids)}`",
                 f"최고: `t{int(rows[best_idx].get('trial_idx', best_idx))}` {scores[best_idx]:.3f} | 최저: `t{int(rows[worst_idx].get('trial_idx', worst_idx))}` {scores[worst_idx]:.3f}",
                 f"시작→최근: `{scores[0]:.3f} → {scores[-1]:.3f}`",
-                f"평균 repetition_penalty: `-{sum(repetition_penalties) / max(1, len(repetition_penalties)):.3f}`",
                 "```",
                 "최근 10개 subtrials",
             ]
@@ -2909,8 +2898,7 @@ async def async_main() -> None:
                 lines.append(
                     f"C{int(row.get('cycle_idx', 0))} "
                     f"t{int(row.get('trial_idx', 0)):>2} "
-                    f"score={float(row.get('score', 0.0)):.3f} "
-                    f"(det {float(row.get('det', 0.0)):.3f} / llm {float(row.get('llm', 0.0)):.3f} / rep -{float(row.get('repetition_penalty', 0.0)):.3f})"
+                    f"score={float(row.get('score', 0.0)):.3f}"
                 )
             lines.append("```")
             await _send_text_with_token(
