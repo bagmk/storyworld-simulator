@@ -1044,10 +1044,9 @@ def _guardian_cache_path(episode_key: str) -> Path:
 
 
 def _compute_guardian_source_hash(episode_key: str, window: int = 3) -> str:
-    """현재 화 ±window YAML + story_context.yaml 내용의 MD5 해시."""
+    """현재 화 + 이전 window화 YAML 내용의 MD5 해시 (미래 화 제외)."""
     import hashlib
     ep_dir = REPO_ROOT / "config" / "episodes"
-    story_ctx = REPO_ROOT / "config" / "story_context.yaml"
 
     all_ep_files = sorted(ep_dir.glob("ep*.yaml"))
     current_idx = next(
@@ -1064,10 +1063,7 @@ def _compute_guardian_source_hash(episode_key: str, window: int = 3) -> str:
     paths: list[Path] = []
     if current_idx is not None:
         start = max(0, current_idx - window)
-        end = min(len(all_ep_files) - 1, current_idx + window)
-        paths = all_ep_files[start:end + 1]
-    if story_ctx.exists():
-        paths.append(story_ctx)
+        paths = all_ep_files[start:current_idx + 1]  # 미래 화 제외
 
     h = hashlib.md5()
     for p in paths:
@@ -1108,15 +1104,11 @@ def _save_guardian_cache(episode_key: str, guardian_params: dict, briefing_text:
 
 def _load_context_window_for_guardian(episode_key: str, window: int = 3) -> dict:
     """
-    Load story_context.yaml + the current episode ±window YAML files.
+    Load the current episode YAML + up to `window` previous episodes only.
+    Future episodes are intentionally excluded to prevent character/plot leakage.
     Returns {"story_context": str, "episodes": list[{"key": str, "role": str, "text": str}]}
     """
     ep_dir = REPO_ROOT / "config" / "episodes"
-    story_context_path = REPO_ROOT / "config" / "story_context.yaml"
-
-    story_context_text = ""
-    if story_context_path.exists():
-        story_context_text = story_context_path.read_text(encoding="utf-8")
 
     # Build sorted list of all episode files
     all_ep_files = sorted(ep_dir.glob("ep*.yaml"))
@@ -1124,12 +1116,11 @@ def _load_context_window_for_guardian(episode_key: str, window: int = 3) -> dict
     # Find index of current episode
     current_idx = None
     for i, f in enumerate(all_ep_files):
-        if f.stem == episode_key or f.stem.startswith(episode_key.split("_")[0] + "_") or f.stem == episode_key:
+        if f.stem == episode_key or f.stem.startswith(episode_key.split("_")[0] + "_"):
             current_idx = i
             break
-    # Fallback: match by ep number prefix
     if current_idx is None:
-        ep_num = episode_key[:4]  # e.g. "ep22"
+        ep_num = episode_key[:4]
         for i, f in enumerate(all_ep_files):
             if f.stem.startswith(ep_num):
                 current_idx = i
@@ -1138,22 +1129,16 @@ def _load_context_window_for_guardian(episode_key: str, window: int = 3) -> dict
     episodes_ctx = []
     if current_idx is not None:
         start = max(0, current_idx - window)
-        end = min(len(all_ep_files) - 1, current_idx + window)
-        for i in range(start, end + 1):
+        for i in range(start, current_idx + 1):   # current only + previous, NO future
             f = all_ep_files[i]
-            if i < current_idx:
-                role = f"이전 {current_idx - i}화 전"
-            elif i == current_idx:
-                role = "현재 화 (작성 대상)"
-            else:
-                role = f"다음 {i - current_idx}화 후"
+            role = "현재 화 (작성 대상)" if i == current_idx else f"이전 {current_idx - i}화 전"
             try:
                 text = f.read_text(encoding="utf-8")
             except Exception:
                 text = "(읽기 실패)"
             episodes_ctx.append({"key": f.stem, "role": role, "text": text})
 
-    return {"story_context": story_context_text, "episodes": episodes_ctx}
+    return {"story_context": "", "episodes": episodes_ctx}
 
 
 def _build_guardian_gpt_prompt(context: dict, rule_report: str) -> str:
@@ -1164,12 +1149,7 @@ def _build_guardian_gpt_prompt(context: dict, rule_report: str) -> str:
     return f"""당신은 소설 프로젝트의 Config Guardian입니다.
 아래 자료를 읽고 현재 작성 대상 에피소드를 위한 생성용 브리핑을 작성하세요.
 
-## 전체 스토리 컨텍스트 (story_context.yaml)
-```yaml
-{context["story_context"]}
-```
-
-## 인접 에피소드 YAML (현재 화 ±3화)
+## 에피소드 YAML (현재 화 + 이전 화들)
 {ep_blocks}
 
 ## 규칙 기반 자동 검수 결과
@@ -1179,9 +1159,8 @@ def _build_guardian_gpt_prompt(context: dict, rule_report: str) -> str:
 목표:
 - 뒤 단계의 chapter generation / director / prose_generator가 바로 프롬프트에 넣어 쓸 수 있는 짧고 실행 가능한 브리핑이어야 한다.
 - 감상문/평가문처럼 길게 해설하지 말고, "무엇을 지키고 무엇을 피해야 하는지"를 작가 지시문처럼 써라.
-- 앞뒤 화 연결, 캐릭터 arc, 복선/클루, gates를 반영하되 추상적 칭찬은 최소화하라.
-- 다음 화 정보는 현재 화의 직접 내용처럼 요약하지 마라. 다음 화 YAML은 오직 현재 화에서 금지해야 할 조기 공개, 남겨야 할 미해결 긴장, 모순 방지 체크를 위해서만 사용하라.
-- 특히 "ep02에서는 ...", "다음 화에서 ..."처럼 미래 사건을 현재 화 브리핑의 핵심 연결 bullet에 직접 쓰지 마라.
+- 이전 화 YAML은 흐름 연결과 모순 방지에만 사용하라. 현재 화에 등장하지 않는 캐릭터를 브리핑에 포함하지 마라.
+- 현재 화 YAML에 명시된 캐릭터/장소/클루만 브리핑에 등장시켜라.
 
 출력 형식:
 다음 헤더를 반드시 그대로 사용하고, 각 항목은 짧은 bullet 위주로 작성하라.
@@ -1603,7 +1582,18 @@ async def step_chapter_gen(
         "--output", str(run_dir),
         "--words", str(target_words),
         "--budget", str(budget * 0.5),
+        "--style", "first_person",
     ]
+    # Read prose_mode from episode YAML if available (narrative.prose_mode)
+    try:
+        import yaml as _yaml
+        ep_data = _yaml.safe_load(ep_file.read_text(encoding="utf-8")) or {}
+        ep_narrative = (ep_data.get("episode") or ep_data).get("narrative") or {}
+        ep_prose_mode = ep_narrative.get("prose_mode", "").strip()
+        if ep_prose_mode:
+            cmd += ["--prose-mode", ep_prose_mode]
+    except Exception:
+        pass  # prose_mode will fall back to default in generate_chapter.py
     if _use_mini_review_tier(review_tier):
         cmd += ["--model", "gpt-4o-mini", "--premium", "gpt-4.1-mini"]
     if prev_review:
