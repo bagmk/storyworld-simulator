@@ -50,6 +50,78 @@ COLON_DIALOGUE_LABEL_BAN = (
     "- 본문에서 `이름: \"대사\"` 형식(예: `수민: \"...\"`)을 절대 사용하지 말 것.\n"
 )
 
+# ── Prose Mode Definitions ─────────────────────────────────────────────────
+# Each mode defines the system prompt persona, and controls which prompt
+# blocks (pressure cash-out, institutional stakes, concrete materialization)
+# are enabled or disabled.
+
+PROSE_MODE_TECHNO_THRILLER = "techno_thriller"
+PROSE_MODE_INTROSPECTIVE_ACADEMIC = "introspective_academic"
+PROSE_MODE_LITERARY_LAB_REALISM = "literary_lab_realism"
+
+_PROSE_MODE_SYSTEM_PROMPTS: dict[str, str] = {
+    PROSE_MODE_TECHNO_THRILLER: (
+        "You are writing a Korean serialized techno-thriller chapter scene.\n"
+        "Prioritize dramatic flow, subtext, and character individuality over metrics.\n"
+        "No benchmark-style quotas or checklists. Write as a real novel scene.\n"
+    ),
+    PROSE_MODE_INTROSPECTIVE_ACADEMIC: (
+        "You are writing a Korean literary chapter scene in introspective-academic mode.\n"
+        "Prioritize immediate perception, interior noticing, and observational fidelity.\n"
+        "Narrate from the protagonist's sensory field: what is seen, heard, felt, and inferred — in that order.\n"
+        "External power should register as strangeness or mismatch, not as dramatic confrontation.\n"
+        "Keep institutional tension inferential: logos, glances, unfamiliar attendees, short questions, business cards.\n"
+        "Do NOT materialize institutional stakes beyond source evidence: no badges, security procedures, government reviews, deadlines, or access restrictions unless the source scene explicitly contains them.\n"
+        "Dialogue should feel like research conversation gradually tilted, not functional negotiation.\n"
+        "Let unease remain partially unnamed. Prefer surface symptoms over explanatory labels.\n"
+        "Do not convert tension into offer/resistance/cost/decision structures unless the scene evidence explicitly does so.\n"
+        "Preserve strict chronological order of observation.\n"
+        "No benchmark-style quotas or checklists. Write as a real literary novel scene.\n"
+    ),
+    PROSE_MODE_LITERARY_LAB_REALISM: (
+        "You are writing a Korean literary chapter scene in lab-realism mode.\n"
+        "Prioritize technical noticing, research rhythm, and quiet internal shifts.\n"
+        "Ground scenes in lab instruments, screens, data patterns, and researcher habits.\n"
+        "Let tension emerge from technical details that don't quite fit, rather than from dramatic confrontation.\n"
+        "Keep dialogue sparse, natural, and grounded in shared technical vocabulary.\n"
+        "Institutional pressure appears as funding emails, protocol changes, visitor logs — not as direct confrontation.\n"
+        "No benchmark-style quotas or checklists. Write as a real literary novel scene.\n"
+    ),
+}
+
+# Controls per prose mode: which aggressive prompt blocks are enabled
+_PROSE_MODE_CONTROLS: dict[str, dict] = {
+    PROSE_MODE_TECHNO_THRILLER: {
+        "pressure_cashout_enabled": True,
+        "institutional_stakes_enabled": True,
+        "concrete_materialization_enabled": True,
+        "aggressive_scene_guidance": True,
+    },
+    PROSE_MODE_INTROSPECTIVE_ACADEMIC: {
+        "pressure_cashout_enabled": False,
+        "institutional_stakes_enabled": False,
+        "concrete_materialization_enabled": False,
+        "aggressive_scene_guidance": False,
+    },
+    PROSE_MODE_LITERARY_LAB_REALISM: {
+        "pressure_cashout_enabled": False,
+        "institutional_stakes_enabled": False,
+        "concrete_materialization_enabled": True,
+        "aggressive_scene_guidance": False,
+    },
+}
+
+DEFAULT_PROSE_MODE = PROSE_MODE_TECHNO_THRILLER
+
+
+def resolve_prose_mode(episode_config: dict) -> str:
+    """Resolve prose_mode from episode config, with fallback to default."""
+    narrative = episode_config.get("narrative") or {}
+    mode = narrative.get("prose_mode", "").strip()
+    if mode in _PROSE_MODE_SYSTEM_PROMPTS:
+        return mode
+    return DEFAULT_PROSE_MODE
+
 
 def _attach_plan_items_to_scenes(
     scenes: list[DistilledScene],
@@ -135,6 +207,10 @@ class ProseGenerator:
         self.previous_episode_context = previous_episode_context
         self.include_all_episode_context = include_all_episode_context
         self.runtime_policy = runtime_policy or {}
+        self.prose_mode = resolve_prose_mode(episode_config)
+        self.prose_mode_controls = _PROSE_MODE_CONTROLS.get(
+            self.prose_mode, _PROSE_MODE_CONTROLS[DEFAULT_PROSE_MODE]
+        )
         self.reader_profile: ReaderProfile = build_reader_profile(reader_feedback)
         self.reader_feedback = self.reader_profile.as_dict()
         self.guardian_briefing = guardian_briefing or ""
@@ -227,14 +303,18 @@ class ProseGenerator:
             prose_sections, scenes, episode_context, style
         )
 
-        final = self.chapter_polisher.polish_chapter(
-            combined,
-            target_words=target_words,
-            style=style,
-            protagonist_name=protagonist_name,
-            chapter_anchors=coverage_anchors,
-            prose_adapter=self,
-        )
+        if self.runtime_policy.get("_skip_polish_entirely"):
+            final = combined
+            logger.info("Polisher skipped (--skip-polish flag)")
+        else:
+            final = self.chapter_polisher.polish_chapter(
+                combined,
+                target_words=target_words,
+                style=style,
+                protagonist_name=protagonist_name,
+                chapter_anchors=coverage_anchors,
+                prose_adapter=self,
+            )
         diagnostics = self._collect_style_diagnostics(final)
         logger.info(
             "Style diagnostics | avg_par_sent=%.2f long_sent_ratio=%.2f jargon_repeats=%d sensory_streak=%d",
@@ -526,7 +606,10 @@ class ProseGenerator:
         """Inject institutional-specificity cue when the scene involves power/access stakes.
 
         Only fires when policy flag is on AND scene has relevant state deltas.
+        Disabled entirely in introspective_academic and literary_lab_realism modes.
         """
+        if not self.prose_mode_controls.get("institutional_stakes_enabled", True):
+            return ""
         if not self.runtime_policy.get("institutional_specificity_bias", True):
             return ""
 
@@ -746,10 +829,8 @@ class ProseGenerator:
         term_glossary = self._build_scene_term_glossary(scene, [], blocked_terms=established)
 
         system = (
-            "You are writing a Korean serialized techno-thriller chapter scene.\n"
-            "Prioritize dramatic flow, subtext, and character individuality over metrics.\n"
-            "No benchmark-style quotas or checklists. Write as a real novel scene.\n"
-            "Avoid repetitive dialogue tags like '말했다/물었다' in consecutive lines; "
+            _PROSE_MODE_SYSTEM_PROMPTS.get(self.prose_mode, _PROSE_MODE_SYSTEM_PROMPTS[DEFAULT_PROSE_MODE])
+            + "Avoid repetitive dialogue tags like '말했다/물었다' in consecutive lines; "
             "prefer action beats, gaze shifts, silence, interruption, and sentence rhythm to track speakers.\n"
             "Do not turn stage directions or narration into quoted speech.\n"
             "Use signature verbal tics only when context clearly demands it; avoid catchphrase repetition.\n"
@@ -902,7 +983,9 @@ class ProseGenerator:
                 "- When support, control, or pressure repeats across nearby lines, vary the leverage or consequence instead of paraphrasing the same motive.\n"
                 "- Once a motive is clear, make later tension come from collision, concession, or pressure change.\n\n"
             )
-        if self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항"):
+        if self.prose_mode_controls.get("pressure_cashout_enabled", True) and (
+            self.runtime_policy.get("hold_pressure_peak") or self.runtime_policy.get("prefer_concrete_offer_detail") or self.runtime_policy.get("prefer_concrete_threat_detail") or self._feedback_mentions("위험", "대가", "통제", "계약", "경비", "시설", "보안", "배지", "명함", "조항")
+        ):
             prompt += (
                 "## Pressure Cash-Out Priority\n"
                 "- When a coercive offer or pressure tactic appears, do not leave the cost abstract.\n"
@@ -910,6 +993,14 @@ class ProseGenerator:
                 "- If the scene already includes one body reaction, do not add another mirrored body beat; let the next sentence carry the consequence or forced choice.\n"
                 "- If the source material only implies danger, keep the implication concrete and physical; do not explain the threat in summary language.\n"
                 "- After the offer lands, the next beat should be consequence, refusal, or a forced choice, not another paraphrase of the warning.\n\n"
+            )
+        elif self.prose_mode == PROSE_MODE_INTROSPECTIVE_ACADEMIC:
+            prompt += (
+                "## Evidence Boundary (Introspective Mode)\n"
+                "- Do NOT add badges, security procedures, government reviews, deadlines, or access restrictions that are not in the source evidence.\n"
+                "- Institutional unease should be conveyed ONLY through surface symptoms: logos, glances, unfamiliar attendees, short questions, business cards, note exchanges.\n"
+                "- Keep tension inferential. The protagonist notices and wonders; the narrator does not explain.\n"
+                "- Do not convert an ambiguous approach into a negotiation scene with offer/resistance/cost/decision.\n\n"
             )
         if self._feedback_mentions("문장 구조", "반복적인 문장 구조", "비슷한 리듬", "같은 리듬", "단조", "지루", "반복되는 표현", "묘사가 반복"):
             prompt += (
@@ -974,13 +1065,17 @@ class ProseGenerator:
                 "- Avoid extended back-to-back expository quotes without movement.\n"
                 "- Keep only one key explanatory quote per local beat and compress the rest.\n\n"
             )
-        if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
+        # Transition prompt blocks are gated in introspective/literary modes.
+        # With LOCATION as structured state, prose no longer needs to generate
+        # explicit transition sentences — the world state already carries handoffs.
+        _transition_prompts_enabled = self.prose_mode_controls.get("aggressive_scene_guidance", True)
+        if _transition_prompts_enabled and self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
             prompt += (
                 "## Transition Clarity Priority\n"
                 "- When scene location or focus shifts, insert one short transition sentence.\n"
                 "- Keep transition lines concrete and action-based, not analytical.\n\n"
             )
-        if self.runtime_policy.get("prefer_concrete_transition_cue"):
+        if _transition_prompts_enabled and self.runtime_policy.get("prefer_concrete_transition_cue"):
             prompt += (
                 "## Concrete Transition Cue Priority\n"
                 "- Make the bridge carry one specific movement, object, or doorway cue so the reader can see the handoff.\n"
@@ -1244,12 +1339,12 @@ class ProseGenerator:
                 "\nUse action/gesture beats to externalize emotion before adding inner analysis."
                 "\nWhen a character decides, show the decision once through a small body cue or habitual motion instead of narrating the same feeling twice."
             )
-        if self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
+        if _transition_prompts_enabled and self._feedback_mentions("장면 전환", "전환", "복도", "발표장", "흐름"):
             prompt += (
                 "\nAt each location/focus change, include a short transition sentence to keep flow explicit."
                 "\nIf the previous scene ended on a risk or offer, carry one concrete consequence cue into the transition instead of repeating the same warning."
             )
-        if self._feedback_flag_enabled("clarify_event_transitions"):
+        if _transition_prompts_enabled and self._feedback_flag_enabled("clarify_event_transitions"):
             prompt += (
                 "\nWhen a memo, alert, or named arrival shifts the scene, give it one clean sentence with location before interpretation."
             )
@@ -2041,7 +2136,7 @@ class ProseGenerator:
     ) -> str:
         """
         Build short plain-language gloss hints for frequent technical terms.
-        Keeps jargon readable without flattening techno-thriller tone.
+        Keeps jargon readable without flattening the narrative tone.
         """
         if not bool(self.runtime_policy.get("prose_enable_term_gloss", True)):
             return ""

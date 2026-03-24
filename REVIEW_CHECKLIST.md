@@ -17,7 +17,7 @@ REVIEW_CHECKLIST.md 파일 안의 검수 프롬프트를 실행해줘
 ## 검수 프롬프트 (복사해서 사용)
 
 ```
-다음 24가지 항목을 순서대로 전부 검수해줘.
+다음 25가지 항목을 순서대로 전부 검수해줘.
 코드를 직접 읽고 확인해야 하며, 추측으로 답하지 마.
 문제가 있으면 파일명:라인번호와 함께 구체적으로 알려줘.
 
@@ -31,21 +31,28 @@ REVIEW_CHECKLIST.md 파일 안의 검수 프롬프트를 실행해줘
 
 2. 수정된 파일을 아래 매핑표와 대조해서 관련 항목 번호를 추려줘:
 
-   수정된 파일                         → 우선 검수 항목
+   수정된 파일                              → 우선 검수 항목
    ──────────────────────────────────────────────────────
-   discord_loop_bot.py                 → 1, 2, 3, 4, 5, 13, 16, 24
-   daily_pipeline.py                   → 1, 3, 4, 7, 9, 10, 14, 23
-   inline_optimizer.py                 → 1, 7, 9, 11, 12, 15
-   src/novel_writer/prose_generator.py → 7, 8, 14
-   src/novel_writer/scene_distiller.py → 7, 8, 14
-   src/novel_writer/polisher.py        → 7, 8, 14
-   src/novel_writer/director.py        → 7, 8, 14
-   src/novel_writer/llm_client.py      → 9, 11
-   tools/optuna_multi_study.py         → 12
-   tools/optuna_prose_test.py          → 12
-   data/rl_policy.json                 → 7
-   tests/test_reader_feedback_guards.py → 14
-   README.md                           → 6
+   discord_loop_bot.py                      → 1, 2, 3, 4, 5, 13, 16, 24
+   daily_pipeline.py                        → 1, 3, 4, 7, 9, 10, 14
+   inline_optimizer.py                      → 1, 7, 9, 11, 12, 15
+   src/novel_writer/prose_generator.py      → 7, 8, 14
+   src/novel_writer/scene_distiller.py      → 7, 8, 14
+   src/novel_writer/polisher.py             → 7, 8, 14
+   src/novel_writer/director.py             → 7, 8, 14
+   src/novel_writer/llm_client.py           → 9, 11
+   src/novel_writer/delta_types.py          → 8, 14, 25
+   src/novel_writer/character_voice.py      → 14, 25
+   src/novel_writer/plan_verifier.py        → 14, 26
+   src/novel_writer/episode_arc_planner.py  → 14, 27
+   src/novel_writer/scene_planner.py        → 7, 8, 14, 26, 27
+   generate_chapter.py                      → 7, 8, 14, 21, 25, 26, 27
+   tools/optuna_multi_study.py              → 12
+   tools/optuna_prose_test.py               → 12
+   data/rl_policy.json                      → 7
+   data/story_state.json                    → 25
+   tests/test_reader_feedback_guards.py     → 14
+   README.md                                → 6
 
 3. 결과를 이렇게 출력해줘:
    "변경된 파일: X개
@@ -108,7 +115,6 @@ discord_loop_bot.py → run_daily_pipeline() 호출부를 읽고:
 daily_pipeline.py에서 [AUTO] 📋 학습 계획 브리핑 메시지를 찾아서:
 - Phase A trial 수가 AUTO_BATCH_TRIALS 상수와 일치하는지
 - Phase B 설명(AI 리뷰 + Factor Analysis)이 실제 코드 흐름과 일치하는지
-- Phase C 설명(코드 수정 최대 N회)이 AUTO_INNER_MAX_CYCLES와 일치하는지
 - outer cycle 수가 사용자 입력값(_outer_max)으로 정확히 표시되는지
 - 총 최대 챕터 생성 계산식이 실제 루프 구조와 일치하는지
 - YAML 자동 피드백(Fix E) 같은 추가 단계가 있다면 플랜에 포함되어 있는지
@@ -175,14 +181,12 @@ inline_optimizer.py와 daily_pipeline.py에서:
 - 모든 trial이 budget 초과로 실패했을 때의 fallback 처리가 있는지
 
 ─────────────────────────────────────────────────────────
-항목 10. Git 상태 및 auto-commit 충돌 확인
+항목 10. Git auto-commit 충돌 확인
 ─────────────────────────────────────────────────────────
 
-daily_pipeline.py에서 GPT fixer가 git commit을 수행하는 코드를 찾아서:
-- 파이프라인 시작 전 git working tree가 clean한지 확인하는 로직이 있는지
+daily_pipeline.py에서 스토리 수정(_git_commit_story_fix) git commit 코드를 찾아서:
 - uncommitted changes가 있을 때 auto-commit이 의도치 않은 파일을 포함하지 않는지
 - git commit 실패 시(hook 오류, 권한 오류 등) 파이프라인이 크래시 없이 계속되는지
-- rollback 로직이 있다면 git reset/restore가 의도한 파일만 대상으로 하는지
 
 ─────────────────────────────────────────────────────────
 항목 11. 앙상블 스코어 fallback 확인
@@ -291,17 +295,6 @@ tools/cost_estimator.py와 discord_loop_bot.py의 _build_plan_preview를 찾아�
 - 첫 실행(레코드 0개) 상태에서 플랜 미리보기의 비용 안내가 fallback 수치임을
   사용자에게 명확히 표시하는지
 
-─────────────────────────────────────────────────────────
-항목 20. GPT Fixer 전역 Lock 다중 채널 영향 확인
-─────────────────────────────────────────────────────────
-
-daily_pipeline.py에서 _get_codex_fixer_lock()과 _CODEX_FIXER_LOCK을 찾아서:
-- 이 lock이 전역(모든 채널 공유)인지, 채널별로 분리되는지 확인
-- 두 채널이 동시에 Phase C(GPT Fixer)에 진입할 때 한 채널이
-  다른 채널의 fixer 완료를 기다려야 하는지
-- lock 대기 중 stop_event가 set되어도 대기에서 빠져나올 수 있는지
-  (asyncio.wait_for 또는 stop_event 체크 로직 확인)
-- lock 획득 후 예외 발생 시 lock이 정상 해제되는지 (async with 구조인지)
 
 ─────────────────────────────────────────────────────────
 항목 21. Fix D 감정 필드 역직렬화 경로 확인
@@ -316,16 +309,6 @@ generate_chapter.py에서 씬 JSON을 읽어 DistilledScene을 재구성하는 �
 - to_dict()가 새 필드를 포함하지만 구버전 JSON 파싱 시 빠진 필드를
   DistilledScene 생성자에서 dataclass default로 처리하는지
 
-─────────────────────────────────────────────────────────
-항목 23. GPT Fixer 전역 Lock stop_event 대응 확인
-─────────────────────────────────────────────────────────
-
-daily_pipeline.py에서 _get_codex_fixer_lock()과 _CODEX_FIXER_LOCK을 찾아서:
-- lock 대기(async with fixer_lock) 중 stop_event가 set되어도 lock 획득 대기가 취소되지 않는지 확인
-  (현재 async with는 stop_event를 모름 — !stop 입력해도 fixer 대기 채널은 멈추지 않음)
-- asyncio.wait_for 또는 stop_event 체크 루프로 대기를 중단하는 로직이 있는지 확인
-- 없다면: lock 대기 최대 시간(timeout)을 설정해서 무한 대기를 방지하는지 확인
-- lock 획득 후 예외 발생 시 async with 구조로 lock이 정상 해제되는지 확인
 
 ─────────────────────────────────────────────────────────
 항목 24. cycle_score_log.jsonl 동기 읽기 블로킹 확인
@@ -342,12 +325,12 @@ discord_loop_bot.py에서 !parameter, !benchmark 명령 핸들러를 찾아서:
 항목 22. 체크리스트 자가 업데이트 (항상 마지막에 실행)
 ─────────────────────────────────────────────────────────
 
-위 1~23개 항목 검수를 마친 뒤, 아래를 수행해줘.
+위 1~25개 항목 검수를 마친 뒤, 아래를 수행해줘.
 
 1. `git diff HEAD` 또는 수정된 파일 목록을 확인해서
    이번 코드 변경에서 새로 등장한 개념·컴포넌트·데이터 흐름을 파악해줘.
 
-2. 현재 REVIEW_CHECKLIST.md의 항목 1~24과 비교해서
+2. 현재 REVIEW_CHECKLIST.md의 항목 1~25와 비교해서
    아래 기준으로 새 검수 항목이 필요한지 판단해줘:
 
    - 새로운 명령어(CMD_*)가 추가됐는가?
@@ -373,6 +356,7 @@ discord_loop_bot.py에서 !parameter, !benchmark 명령 핸들러를 찾아서:
    "REVIEW_CHECKLIST.md에 아래 항목을 추가할까요?"
    → 사용자가 "응" 또는 "추가해줘"라고 하면 REVIEW_CHECKLIST.md를 직접 수정해서
      항목 번호를 이어서 추가하고, 상단 "다음 N가지 항목" 숫자도 함께 업데이트해줘.
+     → 항목 제거 시에는 "다음 N가지 항목" 숫자도 반드시 줄여줘.
 
 5. 추가할 항목이 없으면:
    "이번 변경에서 새로운 검수 항목은 필요하지 않습니다." 라고 말해줘.
@@ -387,4 +371,58 @@ discord_loop_bot.py에서 !parameter, !benchmark 명령 핸들러를 찾아서:
 ❌ 크래시 위험 — 파일명:라인번호 + 즉시 수정 필요
 
 마지막에 수정이 필요한 항목만 모아서 우선순위 순으로 정리해줘.
+
+─────────────────────────────────────────────────────────
+항목 25. Delta Pipeline story_state 스키마 확인
+─────────────────────────────────────────────────────────
+
+배경: IrreversibleDelta v2, EpisodeArcPlan, CharacterVoiceProfile이 모두
+story_state.json에 새 키로 축적된다. 키 충돌, 읽기 누락, 직렬화 실패를 검수.
+
+확인 포인트:
+- data/story_state.json에 "extracted_deltas", "arc_plans", "character_voices",
+  "delta_coverage_stats" 키가 모두 존재하는지 (최초 실행 시 없으면 기본값으로 처리되는지)
+- persist_deltas_to_state(), persist_arc_plan() 호출 결과가 실제 파일에 기록되는지
+- CharacterVoiceProfile.to_dict() → story_state["character_voices"] 저장 경로가
+  generate_chapter.py 또는 daily_pipeline.py에 연결되어 있는지
+- delta_realized 필드가 구버전 *_scenes.json 재로드 시 기본값 False로 안전하게 처리되는지
+  (generate_chapter.py:_load_precomputed_scenes() 확인 — 최근 수정됨)
+
+─────────────────────────────────────────────────────────
+항목 26. PlanVerifier + DistillVerifier 파이프라인 삽입 확인
+─────────────────────────────────────────────────────────
+
+배경: PlanVerifier가 Stage 1.5-D, DistillVerifier가 Stage 1.75에 새로 삽입됐다.
+verifier 실패 시 파이프라인이 크래시 없이 계속 진행되는지 확인.
+
+확인 포인트:
+- generate_chapter.py Stage 1.5-D: PlanVerifier.verify_plan() 실패 시
+  plan_items가 폐기되지 않고 best-effort로 유지되는지 (has_critical() 체크)
+- generate_chapter.py Stage 1.75: DistillVerifier.verify_all() 예외 발생 시
+  try/except로 파이프라인이 계속되는지
+- PlanVerificationResult, DistillVerificationResult가 story_state에 저장되는지,
+  또는 로그만 남기는지 (현재 설계 확인)
+- 수리 힌트(repair_hints)가 실제로 재계획을 트리거하는 로직이 있는지, 아니면
+  경고 로그만 출력하는지 (현재는 로그만 — 향후 자동 수리 연결 여부)
+
+─────────────────────────────────────────────────────────
+항목 27. EpisodeArcPlanner → ScenePlanner 제약 전달 확인
+─────────────────────────────────────────────────────────
+
+배경: EpisodeArcPlanner가 생성한 EpisodeArcPlan이 ScenePlanner.plan(arc_plan=...)으로
+전달되어 forbidden_reveals, target_arc_shape, chapter_hard_delta_targets가 반영되는지 확인.
+
+확인 포인트:
+- generate_chapter.py Stage 1.5-A~C: arc_plan이 ScenePlanner.plan()에 올바르게 전달되는지
+- scene_planner.py: _inject_forbidden_reveals()가 withhold 튜플을 올바르게 병합하는지
+  (기존 withhold와 forbidden_reveals 중복 제거 확인)
+- _assign_reveal_sequence()가 plan_items의 reveal_type을 단조롭게 덮어쓰지 않는지
+  (이미 LLM이 설정한 reveal_type은 유지되는지 확인)
+- EpisodeArcPlanner 폴백 계획(LLM 없이)이 생성한 EpisodeArcPlan의
+  chapter_hard_delta_targets가 실제로 delta_level="hard" 승격에 반영되는지
+  (_promote_hard_deltas()의 rationale 매칭 로직 확인)
+- story_state["arc_plans"]에 저장된 이전 에피소드 unresolved_tensions가
+  다음 에피소드 arc_plan 생성 시 올바르게 인계되는지
+  (_extract_unresolved_from_state() 확인)
+
 ```

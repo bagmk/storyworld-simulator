@@ -39,7 +39,15 @@ from src.novel_writer.config_loader import load_episode, load_characters
 from src.novel_writer.llm_client import LLMClient
 from src.novel_writer.scene_distiller import SceneDistiller
 from src.novel_writer.scene_distiller import DistilledScene
-from src.novel_writer.prose_generator import ProseGenerator
+from src.novel_writer.prose_generator import (
+    ProseGenerator,
+    resolve_prose_mode,
+    PROSE_MODE_TECHNO_THRILLER,
+    PROSE_MODE_INTROSPECTIVE_ACADEMIC,
+    PROSE_MODE_LITERARY_LAB_REALISM,
+    _PROSE_MODE_CONTROLS,
+    DEFAULT_PROSE_MODE,
+)
 from src.novel_writer import database as db
 from src.novel_writer.rl_policy import load_policy, tuned_scene_target, episode_runtime_policy
 from src.novel_writer.env_loader import load_project_env
@@ -53,6 +61,13 @@ from src.novel_writer.review_feedback import (
     load_reader_review,
     resolve_reader_review_path,
 )
+# Delta-pipeline imports (Phase 4 + v2)
+from src.novel_writer.delta_extractor import DeltaExtractor, persist_deltas_to_state
+from src.novel_writer.scene_planner import ScenePlanner
+from src.novel_writer.delta_verifier import DeltaVerifier, build_delta_coverage_stats
+from src.novel_writer.plan_verifier import PlanVerifier, DistillVerifier, summarize_plan_verification
+from src.novel_writer.episode_arc_planner import EpisodeArcPlanner, persist_arc_plan
+from src.novel_writer.character_voice import load_voice_profiles
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -114,6 +129,19 @@ def parse_args() -> argparse.Namespace:
                    help="Optional guardian GPT analysis text file for story continuity steering")
     p.add_argument("--precomputed-scenes", default="",
                    help="Optional precomputed scenes JSON path to skip scene distillation")
+    p.add_argument("--no-delta", action="store_true",
+                   help="Disable IrreversibleDelta pipeline and use legacy distill/prose flow")
+    p.add_argument("--prose-mode", default="",
+                   choices=["", "techno_thriller", "introspective_academic", "literary_lab_realism"],
+                   help="Override prose mode (default: from episode YAML narrative.prose_mode)")
+    p.add_argument("--skip-polish", action="store_true",
+                   help="Skip all polisher passes (debug: see raw prose output)")
+    p.add_argument("--skip-reader-feedback-pass", action="store_true",
+                   help="Skip reader-feedback polisher pass (debug)")
+    p.add_argument("--evidence-strict", action="store_true",
+                   help="Enforce strict evidence boundary: no institutional materialization beyond source")
+    p.add_argument("--fresh-run", action="store_true",
+                   help="Ignore precomputed scenes / cached interactions and regenerate from scratch")
     return p.parse_args()
 
 
@@ -169,9 +197,27 @@ def _apply_reader_feedback_pipeline_overrides(reader_feedback: dict) -> dict:
     return build_reader_profile(reader_feedback).as_dict()
 
 
-def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict) -> dict:
+def _chapter_runtime_policy(base_policy: dict, reader_feedback: dict, prose_mode: str = "") -> dict:
     policy = dict(base_policy or {})
     profile = build_reader_profile(reader_feedback)
+
+    # In introspective/literary modes, suppress aggressive pressure flags
+    mode_controls = _PROSE_MODE_CONTROLS.get(prose_mode, _PROSE_MODE_CONTROLS.get(DEFAULT_PROSE_MODE, {}))
+    if not mode_controls.get("pressure_cashout_enabled", True):
+        # Explicitly disable pressure materialization flags
+        policy["hold_pressure_peak"] = 0
+        policy["prefer_concrete_offer_detail"] = 0
+        policy["prefer_concrete_threat_detail"] = 0
+        policy["institutional_specificity_bias"] = False
+        # Keep transition and stall controls at reduced level
+        policy["prefer_concrete_transition_cue"] = 0
+        policy["prefer_scene_exit_on_stall"] = 0
+        # Enable introspective-specific controls
+        policy["reflection_continuity"] = 1
+        policy["observational_fidelity"] = 1
+        policy["inference_conservatism"] = 1
+        return policy
+
     needs_pressure_concreteness = (
         profile.reports_stalled_progression()
         or profile.prefers_stronger_scene_compaction()
@@ -244,6 +290,7 @@ def _load_precomputed_scenes(path: str) -> list[DistilledScene]:
                 clue_state_delta=_coerce_string_list(item.get("clue_state_delta", [])),
                 institutional_state_delta=_coerce_string_list(item.get("institutional_state_delta", [])),
                 relationship_pressure_delta=_coerce_string_list(item.get("relationship_pressure_delta", [])),
+                delta_realized=bool(item.get("delta_realized", False)),
             )
         )
         # Restore dramatic_function (stored as plain attribute, not dataclass field)
@@ -473,7 +520,33 @@ def _build_repetition_guard(scene: DistilledScene, reader_feedback: dict) -> str
     return "\n".join(lines)
 
 
-def _build_scene_guidance(scene: DistilledScene, reader_feedback: dict) -> str:
+def _build_introspective_scene_guidance(scene: DistilledScene, reader_feedback: dict) -> str:
+    """Build scene guidance for introspective_academic / literary_lab_realism modes.
+
+    Preserves observational order, avoids functional confrontation framing.
+    """
+    lines = [
+        "서사 제약 (introspective mode):",
+        "- 관찰 순서를 보존하라: 주인공이 본 순서대로 서술하고, 시간축을 되감지 마라.",
+        "- 내면 관찰을 대면/압박보다 우선하라.",
+        "- 대화를 제안/저항/비용 기능으로 환원하지 마라. 대화는 연구적 사고를 조금씩 흔드는 접점이다.",
+        "- 불안은 부분적으로 이름 붙이지 않은 채 남겨라.",
+        "- 제도적 긴장은 증거에 명시된 표면 징후(로고, 시선, 짧은 질문, 명함, 메모)까지만 허용하라.",
+        "- source evidence에 없는 배지/절차/감시/기한/접근 제한을 추가하지 마라.",
+    ]
+    profile = build_reader_profile(reader_feedback)
+    if profile.reports_stalled_progression():
+        lines.append(
+            "- 전개 정체가 지적되었으므로, 같은 심리를 되풀이하지 말고 관찰 → 내면 반응 → 다음 관찰로 이어라."
+        )
+    lines.append("")
+    lines.append(_build_repetition_guard(scene, reader_feedback))
+    return "\n".join(lines)
+
+
+def _build_scene_guidance(scene: DistilledScene, reader_feedback: dict, prose_mode: str = "") -> str:
+    if prose_mode in (PROSE_MODE_INTROSPECTIVE_ACADEMIC, PROSE_MODE_LITERARY_LAB_REALISM):
+        return _build_introspective_scene_guidance(scene, reader_feedback)
     sections = [
         _create_character_interaction(scene, reader_feedback),
         _build_tension(scene, reader_feedback),
@@ -522,6 +595,12 @@ def main() -> None:
             args.episode,
             episode_id,
         )
+    # Resolve prose mode (CLI override > episode YAML > default)
+    if args.prose_mode:
+        episode_config.setdefault("narrative", {})["prose_mode"] = args.prose_mode
+    prose_mode = resolve_prose_mode(episode_config)
+    logger.info("Prose mode: %s", prose_mode)
+
     rl_policy = load_policy()
     episode_config["_rl_runtime"] = episode_runtime_policy(rl_policy)
     reader_feedback: dict = {}
@@ -554,7 +633,21 @@ def main() -> None:
         else:
             logger.warning("Reader review file parsed but yielded no actionable guidance: %s", review_path)
     normalized_reader_feedback = _apply_reader_feedback_pipeline_overrides(reader_feedback)
-    chapter_runtime_policy = _chapter_runtime_policy(rl_policy, normalized_reader_feedback)
+    chapter_runtime_policy = _chapter_runtime_policy(rl_policy, normalized_reader_feedback, prose_mode=prose_mode)
+    # Apply --evidence-strict: force-disable all institutional materialization
+    if getattr(args, "evidence_strict", False):
+        chapter_runtime_policy["hold_pressure_peak"] = 0
+        chapter_runtime_policy["prefer_concrete_offer_detail"] = 0
+        chapter_runtime_policy["prefer_concrete_threat_detail"] = 0
+        chapter_runtime_policy["institutional_specificity_bias"] = False
+    # Apply --skip-polish / --skip-reader-feedback-pass
+    if getattr(args, "skip_polish", False):
+        chapter_runtime_policy["structural_repair_before_polish"] = False
+        chapter_runtime_policy["anchor_coverage_pass"] = False
+        chapter_runtime_policy["reader_feedback_pass"] = False
+        chapter_runtime_policy["_skip_polish_entirely"] = True
+    if getattr(args, "skip_reader_feedback_pass", False):
+        chapter_runtime_policy["reader_feedback_pass"] = False
     steering_flags = [
         key for key in (
             "hold_pressure_peak",
@@ -671,7 +764,7 @@ def main() -> None:
         runtime_policy=chapter_runtime_policy,
         reader_feedback=normalized_reader_feedback,
     )
-    if args.precomputed_scenes:
+    if args.precomputed_scenes and not getattr(args, "fresh_run", False):
         scenes = _load_precomputed_scenes(args.precomputed_scenes)
         distill_elapsed = 0.0
         logger.info(
@@ -729,6 +822,81 @@ def main() -> None:
         )
     logger.info("Scene data → %s", scenes_path)
 
+    # === Stage 1.5: Delta Pipeline (IrreversibleDelta + v2) ===
+    use_delta_pipeline = not getattr(args, "no_delta", False)
+    plan_items = []
+    arc_plan = None
+    story_state_path = Path("data/story_state.json")  # Stage 2.5에서도 참조하므로 블록 밖에 정의
+    if use_delta_pipeline:
+        logger.info("─── Stage 1.5: Delta Pipeline ───")
+        try:
+            # story_state.json 로드 (arc_planner / voice profiles 참조용)
+            if story_state_path.exists():
+                import json as _json
+                story_state = _json.loads(story_state_path.read_text(encoding="utf-8"))
+            else:
+                story_state = {}
+
+            # 1-A. EpisodeArcPlanner: 에피소드 수준 호 계획 (v2)
+            arc_planner = EpisodeArcPlanner(llm=llm)
+            arc_plan = arc_planner.plan(
+                episode_config=episode_config,
+                story_state=story_state,
+                interactions=interactions,
+            )
+            logger.info(
+                "  EpisodeArcPlan: hard_targets=%d, forbidden=%d, arc_shape=%r",
+                len(arc_plan.chapter_hard_delta_targets),
+                len(arc_plan.forbidden_reveals),
+                arc_plan.target_arc_shape,
+            )
+
+            # 1-B. DeltaExtractor: 시뮬레이션 로그 → IrreversibleDelta 목록
+            delta_extractor = DeltaExtractor(
+                llm=llm,
+                use_llm_cost_inference=True,
+            )
+            deltas = delta_extractor.extract(interactions, episode_config, story_state)
+            logger.info("  Extracted %d deltas from interactions", len(deltas))
+
+            # 1-C. ScenePlanner: delta → ScenePlanItem 목록 (arc_plan 제약 포함)
+            scene_planner = ScenePlanner(llm=llm)
+            plan_items = scene_planner.plan(
+                interactions=interactions,
+                deltas=deltas,
+                episode_config=episode_config,
+                story_state=story_state,
+                target_scenes=len(scenes),
+                arc_plan=arc_plan,
+            )
+            logger.info("  Created %d scene plan items", len(plan_items))
+
+            # 1-D. PlanVerifier: 계획 품질 사전 검증 (v2)
+            plan_verifier = PlanVerifier()
+            plan_verify_result = plan_verifier.verify_plan(plan_items, episode_id)
+            logger.info("  %s", summarize_plan_verification(plan_verify_result))
+            if plan_verify_result.has_critical():
+                logger.warning(
+                    "  PlanVerifier: 크리티컬 실패 — 폴백 유지 후 계속 진행\n    %s",
+                    "\n    ".join(plan_verify_result.repair_hints[:3]),
+                )
+                # 크리티컬 실패해도 plan_items는 유지 (best-effort)
+
+            # 1-E. story_state.json에 delta + arc_plan 축적
+            story_state = persist_deltas_to_state(story_state, episode_id, deltas)
+            story_state = persist_arc_plan(story_state, arc_plan)
+            story_state_path.parent.mkdir(parents=True, exist_ok=True)
+            story_state_path.write_text(
+                json.dumps(story_state, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logger.info("  Delta + arc_plan persisted → data/story_state.json")
+
+        except Exception as exc:
+            logger.warning("Delta pipeline failed (%s) — falling back to legacy flow", exc)
+            plan_items = []
+            arc_plan = None
+
     # === Stage 2: Prose Generation ===
     logger.info("─── Stage 2: Prose Generation ───")
     prose_gen = ProseGenerator(
@@ -740,17 +908,77 @@ def main() -> None:
         runtime_policy=chapter_runtime_policy,
         reader_feedback=normalized_reader_feedback,
         guardian_briefing=guardian_briefing,
-        scene_guidance_by_index={idx: _build_scene_guidance(scene, normalized_reader_feedback) for idx, scene in enumerate(scenes)},
+        scene_guidance_by_index={idx: _build_scene_guidance(scene, normalized_reader_feedback, prose_mode=prose_mode) for idx, scene in enumerate(scenes)},
     )
 
     prose_start = datetime.utcnow()
-    chapter_path = prose_gen.generate_chapter(
-        scenes=scenes,
-        protagonist_name=args.protagonist_name,
-        style=resolved_style,
-        target_words=target_words,
-    )
+    if use_delta_pipeline and plan_items:
+        chapter_path = prose_gen.generate_chapter_with_plan(
+            scenes=scenes,
+            plan_items=plan_items,
+            protagonist_name=args.protagonist_name,
+            style=resolved_style,
+            target_words=target_words,
+        )
+    else:
+        chapter_path = prose_gen.generate_chapter(
+            scenes=scenes,
+            protagonist_name=args.protagonist_name,
+            style=resolved_style,
+            target_words=target_words,
+        )
     prose_elapsed = (datetime.utcnow() - prose_start).total_seconds()
+
+    # === Stage 1.75: DistillVerifier (씬 증류 직후) ===
+    if use_delta_pipeline and plan_items and scenes:
+        try:
+            distill_verifier = DistillVerifier(llm=None)
+            distill_results = distill_verifier.verify_all(scenes, plan_items)
+            distill_passed = sum(1 for r in distill_results if r.passed)
+            logger.info(
+                "  DistillVerifier: %d/%d scenes passed",
+                distill_passed, len(distill_results),
+            )
+            for r in distill_results:
+                if not r.passed:
+                    for hint in r.repair_hints[:2]:
+                        logger.warning("    DistillVerifier hint: %s", hint)
+        except Exception as exc:
+            logger.warning("DistillVerifier failed: %s", exc)
+
+    # === Stage 2.5: ProseVerifier (산문 생성 직후) ===
+    if use_delta_pipeline and plan_items:
+        try:
+            verifier = DeltaVerifier(llm=None)  # 결정론적만 (LLM 비용 절약)
+            chapter_text_for_verify = Path(chapter_path).read_text(encoding="utf-8")
+            # 씬 경계 분할 (단순 분할: plan_items 수에 맞게)
+            total_chars = len(chapter_text_for_verify)
+            chunk_size = max(1, total_chars // max(len(plan_items), 1))
+            prose_chunks = [
+                chapter_text_for_verify[i * chunk_size:(i + 1) * chunk_size]
+                for i in range(len(plan_items))
+            ]
+            verify_results = verifier.verify_all(prose_chunks, plan_items)
+            passed = sum(1 for r in verify_results if r.delta_realized)
+            logger.info(
+                "  ProseVerifier (delta): %d/%d scenes passed",
+                passed, len(verify_results),
+            )
+            for r in verify_results:
+                if not r.passed and r.repair_hint:
+                    logger.warning("    ProseVerifier hint [%s]: %s", r.scene_id, r.repair_hint[:120])
+
+            # coverage stats를 story_state에 추가
+            if story_state_path.exists():
+                story_state = json.loads(story_state_path.read_text(encoding="utf-8"))
+                stats = build_delta_coverage_stats(verify_results, episode_id)
+                story_state.setdefault("delta_coverage_stats", {}).update(stats)
+                story_state_path.write_text(
+                    json.dumps(story_state, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+        except Exception as exc:
+            logger.warning("ProseVerifier failed: %s", exc)
 
     # === Report ===
     chapter_text = Path(chapter_path).read_text(encoding="utf-8")

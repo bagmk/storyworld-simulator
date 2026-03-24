@@ -395,6 +395,122 @@ def _resolve_latest_daily_run_dir(ep_filter: str | None = None) -> Path | None:
     return max(run_dirs, key=lambda p: p.stat().st_mtime)
 
 
+def _load_review_score_flow(run_dir: Path) -> list[tuple[str, dict]]:
+    """Load per-cycle AI review scores in pipeline order.
+
+    Returns list of (label, scores_dict) where scores_dict has:
+      thrill, style, causality, character, scene_fn, avg (all /10)
+    Labels: 'baseline', 'outer1', 'outer2', ..., 'final'
+    """
+    import json as _json
+    results: list[tuple[str, dict]] = []
+
+    def _parse_scores(d: dict) -> dict | None:
+        keys = ["thrill_score_10", "style_score_10", "causality_score_10",
+                "character_score_10", "scene_function_score_10"]
+        vals = [d.get(k) for k in keys]
+        if all(v is None for v in vals):
+            return None
+        scores = {
+            "thrill":    int(d.get("thrill_score_10", 0)),
+            "style":     int(d.get("style_score_10", 0)),
+            "causality": int(d.get("causality_score_10", 0)),
+            "character": int(d.get("character_score_10", 0)),
+            "scene_fn":  int(d.get("scene_function_score_10", 0)),
+        }
+        scores["avg"] = round(sum(scores.values()) / 5, 2)
+        return scores
+
+    # auto_review_cycle0 = baseline, cycle1..N = outer cycles
+    cycle_files = sorted(run_dir.glob("auto_review_cycle*.json"))
+    for p in cycle_files:
+        try:
+            d = _json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        sc = _parse_scores(d)
+        if sc is None:
+            continue
+        stem = p.stem  # e.g. "auto_review_cycle0"
+        num = stem.replace("auto_review_cycle", "")
+        label = "baseline" if num == "0" else f"outer{num}"
+        results.append((label, sc))
+
+    # Final quality review scorecard scores from quality_review_latest.json
+    qrl = REPO_ROOT / "data" / "quality_review_latest.json"
+    if qrl.exists():
+        try:
+            qd = _json.loads(qrl.read_text(encoding="utf-8"))
+            raw = qd.get("scores", {})
+            if raw:
+                sc = {
+                    "thrill":    int(raw.get("thrill", 0)),
+                    "style":     int(raw.get("style", 0)),
+                    "causality": int(raw.get("causality", 0)),
+                    "character": int(raw.get("character", 0)),
+                    "scene_fn":  int(raw.get("scene_function", 0)),
+                }
+                sc["avg"] = round(sum(sc.values()) / 5, 2)
+                results.append(("final", sc))
+        except Exception:
+            pass
+
+    return results
+
+
+def _format_review_flow_block(flow: list[tuple[str, dict]]) -> str:
+    """Render review score flow as a code block table."""
+    if not flow:
+        return ""
+    cols = ["thrill", "style", "causality", "character", "scene_fn", "avg"]
+    header = f"{'단계':<12}" + "".join(f"{c:>10}" for c in cols)
+    sep = "─" * len(header)
+    lines = ["```", header, sep]
+    prev_avg: float | None = None
+    for label, sc in flow:
+        avg = sc["avg"]
+        if prev_avg is not None:
+            arrow = " ↑" if avg > prev_avg else (" ↓" if avg < prev_avg else " →")
+        else:
+            arrow = ""
+        row = (
+            f"{label + arrow:<12}"
+            + "".join(f"{sc[c]:>10}" for c in cols[:-1])
+            + f"{avg:>10.1f}"
+        )
+        lines.append(row)
+        prev_avg = avg
+    lines += [sep, "```"]
+    return "\n".join(lines)
+
+
+def _format_usage_block(metrics: dict) -> str:
+    """Render per-step cost breakdown as a code block table."""
+    steps = [
+        ("guardian",      "Guardian 브리핑"),
+        ("simulation",    "Simulator"),
+        ("chapter",       "초기 챕터 생성"),
+        ("phase_a_trials","Optuna 25-trial"),
+        ("auto_review",   "사이클 AI 리뷰"),
+        ("final_review",  "최종 품질 리뷰"),
+        ("feedback_parse","피드백 파싱"),
+        ("auto_chapter",  "AUTO 챕터 재생성"),
+        ("manager",       "매니저 분석"),
+        ("code_review",   "코드 리뷰"),
+        ("regen_check",   "재생성 점수 체크"),
+    ]
+    lines = ["```", f"{'단계':<24} {'비용(USD)':>10}  {'비율':>6}", "─" * 44]
+    total = sum(float(metrics.get(k, 0.0)) for k, _ in steps)
+    for key, label in steps:
+        v = float(metrics.get(key, 0.0))
+        if v < 0.000001:
+            continue
+        pct = v / total * 100 if total > 0 else 0
+        lines.append(f"{label:<24} ${v:>9.4f}  {pct:>5.1f}%")
+    lines += ["─" * 44, f"{'합계':<24} ${total:>9.4f}", "```"]
+    return "\n".join(lines)
+
+
 def _load_session_benchmark_rows(run_dir: Path) -> list[dict]:
     log_path = run_dir / SESSION_BENCHMARK_LOG
     rows: list[dict] = []
@@ -2094,32 +2210,16 @@ def _build_parameter_report(
 
     # ── Parameter groups ────────────────────────────────────────────────────
     GROUPS = {
-        "Distiller": [
-            "distiller_temperature", "distiller_max_tokens",
-            "target_scenes", "scene_target_bias", "scene_target_min", "scene_target_max",
-            "prose_history_max_episodes",
+        "Sim (Optuna)": [
+            "distiller_temperature",
         ],
-        "Prose": [
+        "Prose (Optuna)": [
+            "prose_scene_temperature",
+            "prose_paragraph_min_sentences",
+            "prose_paragraph_max_sentences",
             "prose_transition_temperature",
-            "prose_paragraph_min_sentences", "prose_paragraph_max_sentences",
-            "prose_scene_readability_temperature",
-        ],
-        "Polish": [
-            "prose_polish_temperature", "prose_anchor_fix_temperature",
-        ],
-        "Flags / Reader": [
-            "prose_enable_term_gloss",
-            "prefer_concrete_transition_cue", "prefer_scene_exit_on_stall",
-            "director_fallback_cast_size",  # 고정값=4, 탐색 제외
-            "reader_prefers_dialogue_compaction",
-            "reader_prefers_analytical_wording_reduction",
-            "repetition_jaccard_threshold",
-        ],
-        "Guardian (per-episode)": [
-            "prose_scene_temperature",        # Guardian이 화별 문체 온도 결정
-            "hold_pressure_peak",             # Guardian이 압박 유지 여부 결정
-            "prefer_concrete_offer_detail",   # Guardian이 제안 구체화 결정
-            "prefer_concrete_threat_detail",  # Guardian이 위협 구체화 결정
+            "prose_polish_temperature",
+            "hold_pressure_peak",
         ],
     }
 
@@ -2138,30 +2238,47 @@ def _build_parameter_report(
         # Header row
         cycle_cols = [f"outer{r['cycle_idx']}" for r in session_cycle_rows]
         col_w = max(9, max(len(c) for c in cycle_cols))
-        hdr = f"{'파라미터':<38} " + " ".join(f"{c:>{col_w}}" for c in cycle_cols) + f"  {'현재':>{col_w}}"
+        # +1 for arrow character appended to values
+        hdr = f"{'파라미터':<38} " + " ".join(f"{c:>{col_w+1}}" for c in cycle_cols) + f"  {'현재':>{col_w+1}}"
         lines.append(hdr)
         lines.append("─" * len(hdr))
 
         for param in tracked:
-            vals = []
-            for r in session_cycle_rows:
-                v = r.get("cycle_params", {}).get(param)
+            raw_vals = [r.get("cycle_params", {}).get(param) for r in session_cycle_rows]
+            display_vals = []
+            for i, v in enumerate(raw_vals):
                 if v is None:
-                    vals.append("-")
-                elif isinstance(v, float):
-                    vals.append(f"{v:.3f}")
+                    display_vals.append("-")
+                    continue
+                v_str = f"{v:.3f}" if isinstance(v, float) else str(v)
+                # arrow vs previous cycle
+                prev = next((raw_vals[j] for j in range(i - 1, -1, -1) if raw_vals[j] is not None), None)
+                if i > 0 and prev is not None:
+                    try:
+                        arrow = "↑" if float(v) > float(prev) else ("↓" if float(v) < float(prev) else "→")
+                    except (TypeError, ValueError):
+                        arrow = " "
+                    display_vals.append(f"{v_str}{arrow}")
                 else:
-                    vals.append(str(v))
+                    display_vals.append(v_str)
             cur_v = current_policy.get(param)
             cur_str = f"{cur_v:.3f}" if isinstance(cur_v, float) else str(cur_v) if cur_v is not None else "-"
-            row = f"{param:<38} " + " ".join(f"{v:>{col_w}}" for v in vals) + f"  {cur_str:>{col_w}}"
+            # arrow from last cycle to current
+            last_v = next((v for v in reversed(raw_vals) if v is not None), None)
+            if last_v is not None and cur_v is not None:
+                try:
+                    cur_arrow = "↑" if float(cur_v) > float(last_v) else ("↓" if float(cur_v) < float(last_v) else "→")
+                except (TypeError, ValueError):
+                    cur_arrow = " "
+                cur_str = f"{cur_str}{cur_arrow}"
+            row = f"{param:<38} " + " ".join(f"{v:>{col_w+1}}" for v in display_vals) + f"  {cur_str:>{col_w+1}}"
             lines.append(row)
 
         # Score row
         lines.append("─" * len(hdr))
         score_vals = [f"{r['ai_review'].get('avg', 0):.1f}" for r in session_cycle_rows]
         lines.append(
-            f"{'AI avg':>38} " + " ".join(f"{v:>{col_w}}" for v in score_vals) + f"  {'(현재)':>{col_w}}"
+            f"{'AI avg':>38} " + " ".join(f"{v:>{col_w+1}}" for v in score_vals) + f"  {'(현재)':>{col_w+1}}"
         )
         lines.append("```")
         lines.append("")
@@ -2871,56 +2988,114 @@ async def async_main() -> None:
             target_episode = active_episode or ep_filter
             run_dir = await asyncio.to_thread(_resolve_latest_daily_run_dir, target_episode)
             rows = await asyncio.to_thread(_load_session_benchmark_rows, run_dir) if run_dir else []
-            if not rows:
+            mode_label = "현재 세션" if active_episode else "가장 최근 세션"
+
+            # ── 1. 헤더 ──────────────────────────────────────────────────────
+            ep_key_name = "unknown"
+            if rows:
+                ep_key_name = str(rows[-1].get("episode_id", run_dir.parent.name.split("_", 1)[-1] if run_dir else "unknown"))
+            elif run_dir:
+                chapter_candidates = sorted(run_dir.glob("*_chapter.txt"))
+                if chapter_candidates:
+                    ep_key_name = chapter_candidates[0].name.replace("_chapter.txt", "")
+
+            header_lines = [f"📊 **벤치마크 — {ep_key_name}** ({mode_label})"]
+            if run_dir:
+                header_lines.append(f"run: `{run_dir.relative_to(REPO_ROOT)}`")
+            await _send_text_with_token(
+                message.channel, message.channel.id,
+                "\n".join(header_lines), manager_bot_token,
+            )
+
+            # ── 2. 리뷰 점수 흐름 (baseline → outerN → final) ─────────────
+            flow = await asyncio.to_thread(_load_review_score_flow, run_dir) if run_dir else []
+            if flow:
+                flow_block = _format_review_flow_block(flow)
+                await _send_text_with_token(
+                    message.channel, message.channel.id,
+                    "**📈 리뷰 점수 흐름** (긴장감·문체·인과성·캐릭터·씬기능·평균)\n" + flow_block,
+                    manager_bot_token,
+                )
+
+            # ── 3. Optuna 서브트라이얼 ────────────────────────────────────
+            if rows:
+                scores = [float(r.get("score", 0.0)) for r in rows]
+                best_idx = max(range(len(scores)), key=lambda i: scores[i])
+                worst_idx = min(range(len(scores)), key=lambda i: scores[i])
+                cycle_ids = sorted({int(r.get("cycle_idx", 0)) for r in rows})
+                last_rows = rows[-10:]
+                subtrial_lines = [
+                    f"누적 subtrials: `{len(rows)}` | outer cycles: `{', '.join(str(c) for c in cycle_ids)}`",
+                    f"최고: `t{int(rows[best_idx].get('trial_idx', best_idx))}` {scores[best_idx]:.3f} | 최저: `t{int(rows[worst_idx].get('trial_idx', worst_idx))}` {scores[worst_idx]:.3f}",
+                    f"시작→최근: `{scores[0]:.3f} → {scores[-1]:.3f}`",
+                    "```",
+                    "최근 10개 subtrials",
+                ]
+                for row in last_rows:
+                    subtrial_lines.append(
+                        f"C{int(row.get('cycle_idx', 0))} "
+                        f"t{int(row.get('trial_idx', 0)):>2} "
+                        f"score={float(row.get('score', 0.0)):.3f}"
+                    )
+                subtrial_lines.append("```")
+                await _send_text_with_token(
+                    message.channel, message.channel.id,
+                    "\n".join(subtrial_lines), manager_bot_token,
+                )
+
+            # ── 4. 단계별 Usage / 비용 ────────────────────────────────────
+            metrics: dict = {}
+            if active_snapshot:
+                metrics = dict(active_snapshot.get("metrics") or {})
+            # fallback: cycle_score_log의 가장 최근 cost_breakdown 합산
+            if not any(float(metrics.get(k, 0)) > 0 for k in ("guardian", "simulation", "chapter", "final_review")):
+                try:
+                    from tools.inline_optimizer import CYCLE_SCORE_LOG as _CSL
+                    if _CSL.exists():
+                        _all = [
+                            json.loads(l) for l in _CSL.read_text(encoding="utf-8").splitlines()
+                            if l.strip()
+                        ]
+                        if ep_key_name != "unknown":
+                            _all = [r for r in _all if r.get("episode_id") == ep_key_name]
+                        if _all:
+                            merged: dict[str, float] = {}
+                            for rec in _all:
+                                for k, v in rec.get("cost_breakdown", {}).items():
+                                    merged[k] = merged.get(k, 0.0) + float(v)
+                            metrics = merged
+                except Exception:
+                    pass
+            if any(float(metrics.get(k, 0)) > 0 for k in ("guardian", "simulation", "chapter", "final_review", "phase_a_trials", "auto_review")):
+                usage_block = _format_usage_block(metrics)
+                total_tokens = int(metrics.get("total_tokens", 0))
+                token_note = f"총 토큰: {total_tokens:,}" if total_tokens else ""
+                await _send_text_with_token(
+                    message.channel, message.channel.id,
+                    "**💰 단계별 Usage / 비용**" + (f"  ({token_note})" if token_note else "") + "\n" + usage_block,
+                    manager_bot_token,
+                )
+            elif not rows and not flow:
                 await _send_text_with_token(
                     message.channel, message.channel.id,
                     "⚠️ 현재 세션 또는 가장 최근 세션의 벤치마크 데이터가 없습니다.",
                     manager_bot_token,
                 )
-                return
-            ep_key_name = str(rows[-1].get("episode_id", run_dir.parent.name.split("_", 1)[-1] if run_dir else "unknown"))
-            scores = [float(r.get("score", 0.0)) for r in rows]
-            best_idx = max(range(len(scores)), key=lambda i: scores[i])
-            worst_idx = min(range(len(scores)), key=lambda i: scores[i])
-            cycle_ids = sorted({int(r.get("cycle_idx", 0)) for r in rows})
-            mode_label = "현재 세션" if active_episode else "가장 최근 세션"
-            last_rows = rows[-10:]
-            lines = [
-                f"📊 **벤치마크 — {ep_key_name}** ({mode_label})",
-                f"run: `{run_dir.relative_to(REPO_ROOT) if run_dir else '-'}`",
-                f"누적 subtrials: `{len(rows)}` | outer cycles: `{', '.join(str(c) for c in cycle_ids)}`",
-                f"최고: `t{int(rows[best_idx].get('trial_idx', best_idx))}` {scores[best_idx]:.3f} | 최저: `t{int(rows[worst_idx].get('trial_idx', worst_idx))}` {scores[worst_idx]:.3f}",
-                f"시작→최근: `{scores[0]:.3f} → {scores[-1]:.3f}`",
-                "```",
-                "최근 10개 subtrials",
-            ]
-            for row in last_rows:
-                lines.append(
-                    f"C{int(row.get('cycle_idx', 0))} "
-                    f"t{int(row.get('trial_idx', 0)):>2} "
-                    f"score={float(row.get('score', 0.0)):.3f}"
-                )
-            lines.append("```")
-            await _send_text_with_token(
-                message.channel,
-                message.channel.id,
-                "\n".join(lines),
-                manager_bot_token,
-            )
 
-            chart_path = await asyncio.to_thread(_build_session_benchmark_chart, rows, ep_key_name)
-            if chart_path and chart_path.exists():
-                try:
-                    await _send_file_with_token(
-                        message.channel,
-                        message.channel.id,
-                        chart_path,
-                        f"📈 세션 벤치마크 차트 — {ep_key_name}",
-                        manager_bot_token,
-                    )
-                except Exception:
-                    pass
-                chart_path.unlink(missing_ok=True)
+            # ── 5. 차트 (PNG) ─────────────────────────────────────────────
+            if rows:
+                chart_path = await asyncio.to_thread(_build_session_benchmark_chart, rows, ep_key_name)
+                if chart_path and chart_path.exists():
+                    try:
+                        await _send_file_with_token(
+                            message.channel, message.channel.id,
+                            chart_path,
+                            f"📈 세션 벤치마크 차트 — {ep_key_name}",
+                            manager_bot_token,
+                        )
+                    except Exception:
+                        pass
+                    chart_path.unlink(missing_ok=True)
             return
 
         # ── !parameter ────────────────────────────────────────────────────────
@@ -2935,15 +3110,10 @@ async def async_main() -> None:
                 manager_bot_token,
             )
 
-            def _load_parameter_image() -> "Path | None":
+            def _load_parameter_report() -> str:
                 import json as _json
                 from pathlib import Path as _Path
                 from datetime import date as _date
-                _policy_path = REPO_ROOT / "data" / "rl_policy.json"
-                try:
-                    _cur = _json.loads(_policy_path.read_text(encoding="utf-8"))
-                except Exception:
-                    _cur = {}
                 _log_path = REPO_ROOT / "data" / "cycle_score_log.jsonl"
                 _cycle_rows: list[dict] = []
                 if _log_path.exists():
@@ -2962,17 +3132,12 @@ async def async_main() -> None:
                     else:
                         last_date = _cycle_rows[-1].get("date", "")
                         _cycle_rows = [r for r in _cycle_rows if r.get("date", "") == last_date]
-                return _generate_parameter_image(_cycle_rows or None, _cur)
+                return _build_parameter_report(_cycle_rows or None)
 
-            img_path = await asyncio.to_thread(_load_parameter_image)
-            if img_path:
-                await _send_file_with_token(
-                    message.channel, ch_id, img_path, "📊 파라미터 현황", manager_bot_token
-                )
-            else:
-                await _send_text_with_token(
-                    message.channel, ch_id, "⚠️ 파라미터 이미지 생성 실패", manager_bot_token,
-                )
+            report_text = await asyncio.to_thread(_load_parameter_report)
+            await _send_text_with_token(
+                message.channel, ch_id, report_text, manager_bot_token,
+            )
             return
 
         # ── !novel-daily <episode_key> ─────────────────────────────────────────

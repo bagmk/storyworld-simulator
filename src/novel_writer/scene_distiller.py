@@ -214,6 +214,9 @@ class SceneDistiller:
         self.runtime_policy = runtime_policy or {}
         self.reader_profile: ReaderProfile = build_reader_profile(reader_feedback)
         self.reader_feedback = self.reader_profile.as_dict()
+        # Resolve prose mode for evidence-boundary-aware distillation
+        narrative = self.episode_config.get("narrative") or {}
+        self.prose_mode = narrative.get("prose_mode", "").strip() or "techno_thriller"
 
     # ------------------------------------------------------------------ #
     # Public: Distill Episode
@@ -262,7 +265,24 @@ class SceneDistiller:
     def _filter_perspective(
         self, interactions: list[dict], protagonist_id: str
     ) -> list[dict]:
-        """Keep only interactions the protagonist witnessed."""
+        """Keep only interactions the protagonist witnessed.
+
+        Control events (loop_guard transitions) are excluded from the
+        distillation input to prevent system-marker prose from leaking
+        into the narrative.  Clue injection events are included but
+        their LLM-generated event_text is replaced with the authored
+        YAML clue content when available, to avoid injecting repetitive
+        "signal sentence" prose.
+        """
+        # Build a clue content lookup from episode YAML
+        clue_content_map: dict[str, str] = {}
+        for clue in (self.episode_config.get("introduced_clues") or []):
+            if isinstance(clue, dict):
+                cid = str(clue.get("id", "")).strip()
+                content = str(clue.get("content", "")).strip()
+                if cid and content:
+                    clue_content_map[cid] = content
+
         filtered = []
         for ix in interactions:
             if not isinstance(ix, dict):
@@ -271,7 +291,38 @@ class SceneDistiller:
                 filtered.append({**ix, "_is_self": True})
                 continue
             if ix.get("action_type") == "director_event":
-                filtered.append({**ix, "_is_scene": True})
+                metadata = ix.get("metadata") or {}
+                if isinstance(metadata, str):
+                    try:
+                        import json
+                        metadata = json.loads(metadata)
+                    except (ValueError, TypeError):
+                        metadata = {}
+
+                # EXCLUDE control events from distillation:
+                # - loop_guard triggers (legacy check)
+                # - any event_kind == "control_transition" (new structured metadata)
+                if metadata.get("trigger") == "loop_guard" or metadata.get("event_kind") == "control_transition":
+                    logger.debug(
+                        "Filtering out control event (trigger=%s, event_kind=%s) at turn %s",
+                        metadata.get("trigger", ""), metadata.get("event_kind", ""),
+                        ix.get("turn", "?"),
+                    )
+                    continue
+
+                # For clue injections, prefer YAML-authored clue content
+                # over LLM-generated event_text to reduce signal-sentence leakage
+                clue_id = metadata.get("clue_id", "")
+                if clue_id and clue_id in clue_content_map:
+                    ix = {
+                        **ix,
+                        "content": clue_content_map[clue_id],
+                        "_is_scene": True,
+                        "_event_kind": "clue_injection_diegetic",
+                    }
+                else:
+                    ix = {**ix, "_is_scene": True, "_event_kind": "clue_injection_diegetic"}
+                filtered.append(ix)
                 continue
             content = ix.get("content", "")
             # Skip other characters' inner thoughts (wrapped in [])
@@ -435,6 +486,24 @@ class SceneDistiller:
             f"37. Avoid reusing the same framing clause at the start of adjacent summaries, especially stock phrases like '답이 바로 나오지 않는 사이'; vary with action, reaction, or consequence.\n\n"
             f"38. If a bridge or explanation clause already appeared once nearby, keep it once and convert later mentions into changed consequence, movement, or decision.\n\n"
         )
+        # ── Prose-mode-specific distillation rules ─────────────────────────
+        if self.prose_mode in ("introspective_academic", "literary_lab_realism"):
+            prompt += (
+                f"\n## Evidence Boundary Rules (introspective mode)\n"
+                f"39. Preserve strict phase order from the episode config. "
+                f"Do NOT merge scenes across different phases (e.g., presentation vs corridor vs lounge).\n"
+                f"40. Each scene summary must describe what the protagonist OBSERVED, not what the narrator INTERPRETS.\n"
+                f"41. Do NOT add institutional details (badges, security, government review, deadlines, access restrictions) "
+                f"that are not explicitly present in the simulation log turns.\n"
+                f"42. Keep summaries as observation ledgers: event steps in order, "
+                f"explicit evidence seen, and allowed inferences only.\n"
+                f"43. If a clue is 'weak' (a glance, a logo, an unfamiliar face), keep it weak in the summary. "
+                f"Do NOT escalate it into a confrontation, negotiation, or institutional event.\n"
+                f"44. Named character entrances must respect phase boundaries: "
+                f"if Miller is assigned to sponsor_lounge, he must NOT appear in the presentation or corridor scenes.\n"
+                f"45. When compressing dialogue, preserve the conversational register (academic, informal, suggestive) "
+                f"rather than converting it into functional negotiation (offer/resistance/cost).\n\n"
+            )
         prompt += self._build_distill_feedback_guidance()
         prompt += (
             f"Reply with a JSON array of {request.target_scenes} scene objects:\n"
@@ -717,6 +786,10 @@ class SceneDistiller:
         )
         guarded = self._post_distill_same_function_merge(guarded, aggressiveness)
 
+        # Narrative function budget: flag scenes that duplicate a function
+        # already fully realized in an earlier scene (non-adjacent)
+        guarded = self._enforce_function_budget(guarded)
+
         for idx, scene in enumerate(guarded, start=1):
             scene.scene_number = idx
 
@@ -858,7 +931,62 @@ class SceneDistiller:
         self._clarify_adjacent_character_entries(normalized)
         for idx, scene in enumerate(normalized, start=1):
             scene.scene_number = idx
+
+        # ── Post-distillation validation checks ─────────────────────────
+        self._validate_scene_linearity(normalized)
+
         return normalized
+
+    def _validate_scene_linearity(self, scenes: list[DistilledScene]) -> None:
+        """Post-distillation validation: warn on timeline violations.
+
+        Checks:
+        1. Turn ranges must be non-overlapping and monotonically increasing.
+        2. Phase IDs must not regress (already enforced above, but double-check).
+        3. No dramatic function should dominate >50% of scenes (excluding unknown/transition).
+        """
+        # 1. Turn range overlap check
+        for i in range(1, len(scenes)):
+            prev_end = scenes[i - 1].turn_range[1]
+            curr_start = scenes[i].turn_range[0]
+            if curr_start < prev_end:
+                logger.warning(
+                    "VALIDATION: Turn range overlap between scene %d (ends T%d) and scene %d (starts T%d)",
+                    scenes[i - 1].scene_number, prev_end,
+                    scenes[i].scene_number, curr_start,
+                )
+
+        # 2. Phase monotonicity
+        ep_phases = (self.episode_config or {}).get("phases", [])
+        if ep_phases:
+            phase_order = {
+                str(p.get("id", "")): i for i, p in enumerate(ep_phases) if p.get("id")
+            }
+            max_idx = -1
+            for scene in scenes:
+                idx = phase_order.get(scene.phase_id, -1)
+                if idx < 0:
+                    continue
+                if idx < max_idx:
+                    logger.warning(
+                        "VALIDATION: Phase regression detected in scene %d: '%s' appears after later phase",
+                        scene.scene_number, scene.phase_id,
+                    )
+                max_idx = max(max_idx, idx)
+
+        # 3. Function concentration check
+        from collections import Counter
+        fn_counts = Counter(
+            s.dramatic_function.strip().lower()
+            for s in scenes
+            if s.dramatic_function.strip().lower() not in ("unknown", "transition", "")
+        )
+        for fn, count in fn_counts.most_common(3):
+            if count > len(scenes) * 0.5 and count >= 3:
+                logger.warning(
+                    "VALIDATION: Dramatic function '%s' dominates %d/%d scenes (>50%%)",
+                    fn, count, len(scenes),
+                )
 
     def _apply_scene_readability_guards(
         self,
@@ -1136,6 +1264,63 @@ class SceneDistiller:
             merges_left -= 1
 
         return merged
+
+    def _enforce_function_budget(
+        self, scenes: list[DistilledScene]
+    ) -> list[DistilledScene]:
+        """Annotate scenes where a dramatic function is being re-asserted
+        rather than advanced.
+
+        For each dramatic function, the FIRST scene that realizes it is
+        canonical.  Later scenes with the same function are allowed ONLY
+        if they introduce genuinely new beats (different beat_references)
+        or a different phase_id.  Otherwise, the duplicate function's
+        summary is compressed into a reference back to the canonical scene.
+
+        This prevents the "idea importance confirmed" being re-performed
+        across multiple scenes without new consequence.
+        """
+        if len(scenes) <= 2:
+            return scenes
+
+        function_ledger: dict[str, int] = {}  # function -> first scene index
+        for i, scene in enumerate(scenes):
+            fn = (scene.dramatic_function or "unknown").strip().lower()
+            if fn == "unknown" or fn == "transition":
+                continue
+
+            if fn not in function_ledger:
+                function_ledger[fn] = i
+                continue
+
+            # This function was already realized in an earlier scene
+            first_idx = function_ledger[fn]
+            first_scene = scenes[first_idx]
+
+            # Allow if different phase (genuinely new context)
+            if scene.phase_id and first_scene.phase_id and scene.phase_id != first_scene.phase_id:
+                continue
+
+            # Allow if significantly different beat references
+            first_beats = set(first_scene.beat_references)
+            this_beats = set(scene.beat_references)
+            if this_beats and not this_beats.issubset(first_beats):
+                continue
+
+            # This is a re-assertion. Compress the summary to signal
+            # "continuation, not restart" to the prose generator.
+            logger.info(
+                "Function budget: scene %d re-asserts '%s' already realized in scene %d; "
+                "marking as continuation",
+                scene.scene_number, fn, first_scene.scene_number,
+            )
+            if scene.narrative_summary and "continuation" not in scene.narrative_summary.lower():
+                scene.narrative_summary = (
+                    f"[Continuation of {fn} from scene {first_scene.scene_number}] "
+                    + scene.narrative_summary
+                )
+
+        return scenes
 
     def _scene_has_structural_transition(self, scene: DistilledScene) -> bool:
         """True if this scene contains an entry/exit/location-change event that should not be merged away."""

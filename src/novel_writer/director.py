@@ -70,6 +70,24 @@ class DirectorAI:
         self.guardian_briefing = (guardian_briefing or "").strip()
         self.llm = llm
         self.debug_log: list[dict] = []
+        # Resolve prose mode for clue materialization intensity control
+        narrative = episode_config.get("narrative") or {}
+        self.prose_mode = narrative.get("prose_mode", "").strip() or "techno_thriller"
+
+        # ── Function-tag budget: track which narrative functions have been
+        # strongly realized via clue injection to avoid duplicate realizations.
+        # Key = function_tag string, Value = turn number of first strong injection.
+        self._realized_function_tags: dict[str, int] = {}
+
+        # Build per-character role constraints from episode config.
+        # These are used alongside invariants to enforce Moreno/Miller role separation.
+        self._character_roles: dict[str, str] = {}
+        for char in (episode_config.get("characters") or episode_config.get("character_invariants") or []):
+            if isinstance(char, dict):
+                cid = str(char.get("id", "")).strip()
+                role_tag = str(char.get("role_function", "")).strip()
+                if cid and role_tag:
+                    self._character_roles[cid] = role_tag
 
         # Flatten constraints for quick access
         self.character_invariants: dict[str, list[str]] = {}
@@ -504,16 +522,39 @@ class DirectorAI:
         clue_content = clue.get("content", clue.get("description", ""))
         trigger_desc = clue.get("trigger", "environmental cue")
         inject_method = clue.get("inject_method", "environmental_cue")
+        function_tag = clue.get("function_tag", "")
+
+        # ── Function-tag budget enforcement ──
+        # If this clue's function_tag has already been strongly realized
+        # (i.e., via a non-environmental method), downgrade the injection
+        # to environmental_cue to prevent duplicate strong realizations.
+        # This stops Moreno/Miller scenes from re-performing the same
+        # narrative function (e.g., "resource gap" confirmed twice).
+        effective_method = inject_method
+        if function_tag and function_tag in self._realized_function_tags:
+            prev_turn = self._realized_function_tags[function_tag]
+            if effective_method in ("npc_offer", "npc_question", "document_artifact"):
+                logger.info(
+                    "Director: function_tag '%s' already realized at turn %d; "
+                    "downgrading %s → environmental_cue for clue %s",
+                    function_tag, prev_turn, effective_method, clue_id,
+                )
+                effective_method = "environmental_cue"
 
         event_text = self._generate_injection_event(
-            clue_content, trigger_desc, inject_method, world
+            clue_content, trigger_desc, effective_method, world
         )
+
+        # Record this function_tag as realized (strong methods only)
+        if function_tag and effective_method in ("npc_offer", "npc_question", "document_artifact"):
+            self._realized_function_tags[function_tag] = turn
 
         injection = {
             "clue_id": clue_id,
             "clue_content": clue_content,
             "event_text": event_text,
-            "inject_method": inject_method,
+            "inject_method": effective_method,
+            "function_tag": function_tag,
         }
         self._log("clue_injection", "director", f"Injecting clue: {clue_id}", injection)
         return injection
@@ -522,7 +563,13 @@ class DirectorAI:
         self, clue_content: str, trigger: str,
         method: str, world: WorldState
     ) -> str:
-        """Generate a natural in-world event that surfaces a clue."""
+        """Generate a natural in-world event that surfaces a clue.
+
+        In introspective_academic / literary_lab_realism modes, strong injection
+        methods (document_artifact, npc_offer) are downgraded to environmental_cue
+        for early phases (presentation, corridor) to prevent premature dramatic
+        escalation. npc_question is allowed but with softened prompts.
+        """
         builders = {
             "document_artifact": self._generate_document_artifact_event,
             # system_alert removed: generated warning/alarm events that fabricate
@@ -532,7 +579,22 @@ class DirectorAI:
             "npc_question": self._generate_npc_question_event,
             "environmental_cue": self._generate_environmental_cue_event,
         }
-        builder = builders.get(str(method or "").strip(), self._generate_environmental_cue_event)
+        effective_method = str(method or "").strip()
+
+        # In introspective modes, downgrade strong injection in early phases
+        if self.prose_mode in ("introspective_academic", "literary_lab_realism"):
+            current_phase = getattr(self, "_phase_tracker", None)
+            phase_id = getattr(current_phase, "current_phase_id", "") if current_phase else ""
+            early_phases = {"presentation", "corridor", "break_corridor", "auditorium", "main_auditorium"}
+            if phase_id in early_phases and effective_method in ("document_artifact", "npc_offer"):
+                logger.info(
+                    "Director: downgrading injection method %s → environmental_cue "
+                    "in early phase '%s' (introspective mode)",
+                    effective_method, phase_id,
+                )
+                effective_method = "environmental_cue"
+
+        builder = builders.get(effective_method, self._generate_environmental_cue_event)
         return builder(clue_content, trigger, world)
 
     def _generate_document_artifact_event(
@@ -670,6 +732,25 @@ class DirectorAI:
                 "- Treat memo discovery, warning sound, and named arrival as separate beats; do not blur them together.\n"
                 "- Name who moved and where they stopped before you describe what it meant.\n"
             )
+        # In introspective modes, clue injection should stay perceptual, not eventful
+        if self.prose_mode in ("introspective_academic", "literary_lab_realism"):
+            guidance += (
+                "- INTROSPECTIVE MODE: Keep the clue as a perceptual cue, not a dramatic event.\n"
+                "- Use observation (noticing a logo, a glance, an unfamiliar face) rather than action (someone approaches, hands over a badge, initiates conversation).\n"
+                "- The protagonist NOTICES something; they do not yet REACT with a decision.\n"
+                "- Do not add institutional details (security, badges, clearance, deadlines) not in the clue content.\n"
+                "- Keep the injection subtle: one sentence of noticing, one sentence of wondering.\n"
+            )
+
+        # Character role separation rules for injection events
+        # Prevents Moreno and Miller from performing overlapping narrative functions
+        guidance += (
+            "- Character role boundaries:\n"
+            "  • Moreno scenes: validation, warning, academic framing. Do NOT make Moreno offer resources/access/deals.\n"
+            "  • Miller scenes: access, leverage, terms, off-record offer. Do NOT make Miller provide academic validation.\n"
+            "  • If the clue content references resources/conditions/support AND the current phase is academic (presentation, corridor), "
+            "keep the tone as observation or mentor concern, not as a transactional offer.\n"
+        )
         return guidance + "\n"
 
     def _render_injection_event(self, prompt: str, purpose: str) -> str:

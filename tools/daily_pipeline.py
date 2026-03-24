@@ -23,7 +23,6 @@ from __future__ import annotations
 import argparse
 import ast
 import asyncio
-import copy
 import difflib
 import json
 import logging
@@ -102,7 +101,6 @@ def _resolve_codex_exec_cmd(codex_model: str | None = None) -> list[str] | None:
 AUTO_IMPROVE_MAX_CYCLES = 20      # (legacy) 이전 interleaved 루프 최대 사이클 수
 AUTO_IMPROVE_SCORE_THRESHOLD = 9.5  # 평균 점수 통과 기준 (10점 만점)
 AUTO_OUTER_MAX_CYCLES = 3         # 배치 파라미터 탐색 outer 루프 최대 반복 수
-AUTO_INNER_MAX_CYCLES = 3         # outer 루프 1회당 Codex fix inner 루프 최대 수
 AUTO_BATCH_TRIALS = 25            # outer 루프 1회당 파라미터 서브트라이얼 수
 AUTO_BATCH_GROUP_SIZE = 5         # 서브트라이얼 병렬 처리 그룹 크기
 # 근거: novel-loop 실측 데이터상 좋은 챕터 평균 8.0, 최솟값 7.5.
@@ -1314,8 +1312,8 @@ async def step_guardian(
         prompt = _build_guardian_gpt_prompt(context, report_text)
 
         llm = LLMClient(
-            model="gpt-4o-mini",
-            premium_model="gpt-4o",
+            model="gpt-5.4",
+            premium_model="gpt-5.4",
             budget_usd=1.5,
             api_key=os.environ.get("OPENAI_API_KEY", ""),
         )
@@ -3442,12 +3440,9 @@ async def step_auto_improve_loop(
       Phase A: 25-trial 배치 파라미터 탐색 (5 groups × 5 병렬, SQLite 영속 study)
                → best params → rl_policy.json 업데이트
       Phase B: AI review + param_factor_analysis
-               → 점수 통과 시 종료
-      Phase C: Codex fix inner loop (최대 AUTO_INNER_MAX_CYCLES = 3회)
-               → Manager (리뷰 + factor analysis) → Codex → Regen → 점수 체크
-               → 통과 시 종료, 3회 소진 시 outer loop 재시작 (수정된 코드로 재탐색)
+               → 점수 통과 시 종료, 미통과 시 outer loop 재시작
 
-    총 최대 챕터 생성: outer 3 × (25 trials + 3 regen) = 84회
+    총 최대 챕터 생성: outer 3 × 25 trials = 75회
 
     time_tracker: 전달 시 루프 내부 시간을 auto_improve_review / auto_chapter_gen 키로 누적.
     """
@@ -3485,11 +3480,9 @@ async def step_auto_improve_loop(
         logger.warning("[AUTO] context load failed: %s — param optimization disabled", _ctx_exc)
 
     _outer_max = max(1, int(outer_max_cycles or AUTO_OUTER_MAX_CYCLES))
-    _inner_max = AUTO_INNER_MAX_CYCLES
     _param_analysis_report = ""
     avg = 0.0
     review_json: dict = {}
-    _global_fixer_cycle = 0   # for backup dir naming across outer cycles
     _quality_focus: dict | None = None
     _ALL_SCORE_KEYS = [
         "thrill_score_10", "style_score_10", "causality_score_10",
@@ -3499,7 +3492,7 @@ async def step_auto_improve_loop(
     # ── Pre-run briefing ──────────────────────────────────────────────────────
     if notify:
         _n_groups = (AUTO_BATCH_TRIALS + AUTO_BATCH_GROUP_SIZE - 1) // AUTO_BATCH_GROUP_SIZE
-        _max_gens = _outer_max * (AUTO_BATCH_TRIALS + _inner_max)
+        _max_gens = _outer_max * AUTO_BATCH_TRIALS
         _plan_lines = [
             f"{DAILY_TAG}[AUTO] 📋 학습 계획 브리핑",
             f"",
@@ -3517,16 +3510,13 @@ async def step_auto_improve_loop(
             _plan_lines.append(
                 f"  Phase B — AI 리뷰 **1회** + Factor Analysis → 점수 ≥ {score_threshold} 시 종료"
             )
-            _plan_lines.append(
-                f"  Phase C — GPT Fixer 최대 {_inner_max}회 (재생성마다 AI 리뷰 1회)"
-            )
             _plan_lines.append("")
-        _total_reviews = _outer_max * (1 + _inner_max) + 1
+        _total_reviews = _outer_max + 1
         _plan_lines.append(
-            f"총 최대 챕터 생성: `{_outer_max} × ({AUTO_BATCH_TRIALS} + {_inner_max}) = {_max_gens}회`"
+            f"총 최대 챕터 생성: `{_outer_max} × {AUTO_BATCH_TRIALS} = {_max_gens}회`"
         )
         _plan_lines.append(
-            f"총 AI 리뷰: 최대 `{_outer_max} × (1 + {_inner_max}) + 1 = {_total_reviews}회`"
+            f"총 AI 리뷰: 최대 `{_outer_max} + 1 = {_total_reviews}회`"
         )
         await notify("\n".join(_plan_lines))
 
@@ -3721,240 +3711,14 @@ async def step_auto_improve_loop(
                 )
             break
 
-        # ── Phase C: Codex fix inner loop ───────────────────────────────────
-        if notify:
-            await notify(
-                f"{DAILY_TAG}[AUTO] 🔧 Phase C 시작 — "
-                f"Codex fix (최대 {_inner_max}회)"
-            )
-
         _quality_focus = {
             "thrill": thrill, "style": style, "causality": causality,
             "character": character, "scene_function": scene_fn,
         }
 
-        for inner_cycle in range(1, _inner_max + 1):
-            if stop_event and stop_event.is_set():
-                break
-
-            _global_fixer_cycle += 1
-            _cost_snapshot = copy.deepcopy(cost_tracker or {})
-            _cycle_label = f"outer {outer_cycle} / inner {inner_cycle}"
-
-            if set_status:
-                set_status(f"AUTO {_cycle_label} — 매니저 분석 중...")
-
-            # Manager
-            try:
-                _manager_instructions = await asyncio.wait_for(
-                    run_manager_agent(
-                        episode_key=episode_key,
-                        run_dir=run_dir,
-                        current_review=review_json,
-                        daily_cycle=daily_cycle,
-                        fixer_cycle=_global_fixer_cycle,
-                        notify=notify,
-                        review_tier=review_tier,
-                        manager_period=manager_period,
-                        cost_tracker=cost_tracker,
-                        metrics=metrics,
-                        param_analysis_report=_param_analysis_report,
-                    ),
-                    timeout=1800.0,
-                )
-            except asyncio.TimeoutError:
-                _manager_instructions = None
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ Manager 30분 타임아웃")
-
-            # Codex fix
-            if set_status:
-                set_status(f"AUTO {_cycle_label} — Codex 수정 중...")
-            if notify:
-                await notify(f"{DAILY_TAG}[AUTO] 🔧 Codex Fixer 실행 ({_cycle_label})")
-
-            backup_dir = await asyncio.to_thread(_backup_target_files, run_dir, _global_fixer_cycle)
-
-            fixer_prompt = _build_codex_fixer_prompt(review_json, manager_instructions=_manager_instructions)
-            _codex_t0 = time.monotonic()
-            ok, summary = await _run_codex_fixer(
-                fixer_prompt, run_dir, _global_fixer_cycle,
-                set_process=set_process, notify=notify,
-                stop_event=stop_event, codex_model=_codex_model_for_tier(review_tier),
-            )
-            _codex_elapsed = time.monotonic() - _codex_t0
-            if cost_tracker is not None:
-                cost_tracker["codex_fixer_sec"] = float(cost_tracker.get("codex_fixer_sec", 0.0)) + _codex_elapsed
-            if not ok:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ❌ Codex 실패 ({_cycle_label}): {summary}")
-                break
-
-            changed_files = await asyncio.to_thread(_detect_changed_target_files, backup_dir)
-            if notify:
-                _chg = "\n".join(f"- {p}" for p in changed_files) if changed_files else "- 없음"
-                await notify(f"{DAILY_TAG}[AUTO] ✅ 코드 수정 완료:\n{summary[:400]}\n변경: {_chg}")
-
-            # Validation + smoke test + code review
-            val_ok, val_reason = await _run_local_fixer_validation(
-                changed_files=changed_files, run_dir=run_dir,
-                fixer_cycle=_global_fixer_cycle, stop_event=stop_event, notify=notify,
-            )
-            if not val_ok:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⏪ 검증 실패 → 롤백: {val_reason}")
-                await asyncio.to_thread(_rollback_from_backup, backup_dir)
-                if cost_tracker is not None:
-                    cost_tracker.update(_cost_snapshot)
-                break
-
-            smoke_ok, smoke_reason = await _run_prompt_smoke_test(changed_files, run_dir, notify)
-            if not smoke_ok:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] 🔥 Smoke test 실패 → 롤백: {smoke_reason}")
-                await asyncio.to_thread(_rollback_from_backup, backup_dir)
-                if cost_tracker is not None:
-                    cost_tracker.update(_cost_snapshot)
-                break
-
-            code_ok, code_reason = await _run_gpt_code_review(
-                backup_dir=backup_dir, summary=summary, run_dir=run_dir,
-                fixer_cycle=_global_fixer_cycle, changed_files=changed_files,
-                validation_summary=val_reason, cost_tracker=cost_tracker, metrics=metrics,
-            )
-            if not code_ok:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⏪ 코드리뷰 reject → 롤백: {code_reason}")
-                await asyncio.to_thread(_rollback_from_backup, backup_dir)
-                if cost_tracker is not None:
-                    cost_tracker.update(_cost_snapshot)
-                break
-
-            await _git_commit_fixer_changes(_global_fixer_cycle, episode_key, summary)
-
-            # Re-simulate if needed
-            if any(p in SIMULATION_RELEVANT_FIXER_FILES for p in changed_files):
-                sim_ok = await step_simulator(
-                    episode_key=episode_key, run_dir=run_dir, cycle=daily_cycle,
-                    budget=budget, notify=notify, set_status=set_status,
-                    stop_event=stop_event, set_process=set_process,
-                    cost_tracker=cost_tracker, metrics=metrics,
-                    auto_cycle_index=_global_fixer_cycle,
-                    auto_max_cycles=_outer_max * _inner_max,
-                    guardian_briefing_path=guardian_briefing_path,
-                )
-                if not sim_ok:
-                    if notify:
-                        await notify(f"{DAILY_TAG}[AUTO] ⚠️ 재시뮬레이션 실패")
-                    break
-
-            # Regen with best params (rl_policy.json already updated by Phase A)
-            if set_status:
-                set_status(f"AUTO {_cycle_label} — 챕터 재생성 중...")
-            if notify:
-                await notify(f"{DAILY_TAG}[AUTO] 📖 best params로 챕터 재생성")
-
-            cached_scenes: Path | None = None
-            if changed_files and set(changed_files).issubset(SCENE_CACHE_SAFE_FIXER_FILES):
-                _sc = run_dir / f"{resolve_episode_file(episode_key).stem}_scenes.json"
-                if _sc.exists():
-                    cached_scenes = _sc
-
-            _regen_tracker: dict[str, float] = {"chapter": 0.0}
-            _regen_t0 = time.monotonic()
-            new_chapter = await step_chapter_gen(
-                episode_key, run_dir, daily_cycle, target_words, budget, protagonist,
-                notify=notify, upload=upload, set_status=set_status,
-                stop_event=stop_event, set_process=set_process,
-                cost_tracker=_regen_tracker, metrics=metrics,
-                auto_cycle_index=_global_fixer_cycle,
-                auto_max_cycles=_outer_max * _inner_max,
-                upload_version_label=f"outer{outer_cycle}_inner{inner_cycle}",
-                precomputed_scenes_path=cached_scenes,
-                guardian_briefing_path=guardian_briefing_path,
-                review_tier=review_tier,
-            )
-            if cost_tracker is not None:
-                cost_tracker["auto_chapter"] = (
-                    cost_tracker.get("auto_chapter", 0.0)
-                    + float(_regen_tracker.get("chapter", 0.0))
-                )
-            if time_tracker is not None:
-                time_tracker["auto_chapter_gen"] = (
-                    time_tracker.get("auto_chapter_gen", 0.0) + (time.monotonic() - _regen_t0)
-                )
-            if new_chapter is None:
-                if notify:
-                    await notify(f"{DAILY_TAG}[AUTO] ⚠️ 재생성 실패")
-                break
-
-            # Score check — rollback if significantly worse
-            new_text = new_chapter.read_text(encoding="utf-8", errors="replace")
-            _chk_json = review_json   # fallback: keep current review if check fails
-            _chk_t0 = time.monotonic()
-            try:
-                _chk_llm = LLMClient(
-                    model=_llm_review_model_for_tier(review_tier),
-                    premium_model=_llm_premium_model_for_tier(review_tier),
-                    budget_usd=2.0,
-                    api_key=os.environ.get("OPENAI_API_KEY", ""),
-                )
-                _chk_ctx = await asyncio.to_thread(_load_story_context_for_review)
-                _chk_raw = await asyncio.to_thread(
-                    _chk_llm.chat,
-                    [{"role": "user", "content": _build_ai_reviewer_prompt(new_text, _chk_ctx)}],
-                    use_premium=_use_premium_review_tier(review_tier),
-                    purpose="regen_score_check",
-                    max_tokens=1400,
-                )
-                _chk_json = json.loads(re.sub(r"```(?:json)?\n?", "", _chk_raw).strip().rstrip("`"))
-                new_avg = sum(int(_chk_json.get(k, 0)) for k in _ALL_SCORE_KEYS) / len(_ALL_SCORE_KEYS)
-                _record_budget_usage(cost_tracker, metrics, _chk_llm.budget_summary(), cost_key="regen_check")
-            except Exception as _chk_exc:
-                logger.warning("[AUTO] regen score check failed: %s", _chk_exc)
-                new_avg = avg
-            finally:
-                if time_tracker is not None:
-                    time_tracker["auto_improve_review"] = (
-                        time_tracker.get("auto_improve_review", 0.0) + (time.monotonic() - _chk_t0)
-                    )
-
-            if new_avg < avg - 0.5:
-                if notify:
-                    await notify(
-                        f"{DAILY_TAG}[AUTO] ⏪ 재생성 후 점수 하락 "
-                        f"({avg:.1f} → {new_avg:.1f}) → 롤백"
-                    )
-                await asyncio.to_thread(_rollback_from_backup, backup_dir)
-                if cost_tracker is not None:
-                    cost_tracker.update(_cost_snapshot)
-                break
-
-            current_chapter = new_chapter
-            avg = new_avg
-            review_json = _chk_json   # update review for next manager cycle
-            if notify:
-                wc = len(new_text.split())
-                await notify(
-                    f"{DAILY_TAG}[AUTO] 📝 재생성 완료 ({wc}단어, 점수 {avg:.1f}/10)"
-                )
-
-            if avg >= score_threshold:
-                if notify:
-                    await notify(
-                        f"{DAILY_TAG}[AUTO] ✅ 품질 통과 (평균 {avg:.1f} ≥ {score_threshold}) "
-                        f"— {_cycle_label}에서 완료"
-                    )
-                break  # break inner loop
-
-        # inner loop 완료 — 점수 통과 시 outer loop도 종료
-        if avg >= score_threshold:
-            break
-
         if notify and outer_cycle < _outer_max:
             await notify(
-                f"{DAILY_TAG}[AUTO] 🔄 Phase C {_inner_max}회 소진 (avg {avg:.1f}) "
-                f"— outer {outer_cycle + 1}/{_outer_max}로 수정된 코드로 재탐색"
+                f"{DAILY_TAG}[AUTO] 🔄 avg {avg:.1f} — outer {outer_cycle + 1}/{_outer_max}으로 재탐색"
             )
 
     return current_chapter
@@ -3962,15 +3726,13 @@ async def step_auto_improve_loop(
 # ── User choice helpers ───────────────────────────────────────────────────────
 
 def _parse_user_choice(text: str) -> str:
-    """'1/코드', '2/스토리', '3/최적화', '4/그만두기' 중 하나를 반환."""
+    """'1/스토리', '2/최적화', '3/그만두기' 중 하나를 반환."""
     t = text.strip().lower()
-    if re.search(r"^1\b|코드|code|\.py|fixer", t):
-        return "code"
-    if re.search(r"^2\b|스토리|story|에피소드|config|yaml|야믈|캐릭터|플롯", t):
+    if re.search(r"^1\b|스토리|story|에피소드|config|yaml|야믈|캐릭터|플롯", t):
         return "story"
-    if re.search(r"^3\b|최적화|optimize|optim|더\s*돌|추가.*사이클|사이클.*추가", t):
+    if re.search(r"^2\b|최적화|optimize|optim|더\s*돌|추가.*사이클|사이클.*추가", t):
         return "optimize"
-    if re.search(r"^4\b|그만|stop|끝|종료|다음|next|승인|ok|good|pass", t):
+    if re.search(r"^3\b|그만|stop|끝|종료|다음|next|승인|ok|good|pass", t):
         return "next"
     return "other"
 
@@ -4610,8 +4372,8 @@ async def run_daily_pipeline(
         return {"success": True, "cycle": cycle, "chapter_path": str(chapter_path), "approved": None, "feedback": None}
 
     # ── Step 5: 선택지 메뉴 루프 ─────────────────────────────────────────────
-    # 1=코드수정, 2=스토리수정, 3=최적화 추가, 4=그만두기
-    # 1/2 완료 후 다시 이 메뉴로 복귀. 4 선택 시 종료.
+    # 1=스토리수정, 2=최적화 추가, 3=그만두기
+    # 1/2 완료 후 다시 이 메뉴로 복귀. 3 선택 시 종료.
     raw_feedback: str | None = None
     choice: str = "other"
 
@@ -4619,15 +4381,14 @@ async def run_daily_pipeline(
         if notify:
             await notify(
                 f"{DAILY_TAG}[CHOICE] 📋 **개선 방향을 선택해주세요.**\n\n"
-                "**1️⃣ 코드 수정** — Codex가 소설 생성 .py 파일을 자동 수정 후 챕터 재생성\n"
-                "**2️⃣ 스토리 수정** — 에피소드 config YAML을 Codex로 직접 수정\n"
-                "**3️⃣ 최적화 추가** — 파라미터 탐색 + Codex fix를 N회 더 실행\n"
-                "**4️⃣ 그만두기** — 현재 챕터로 마무리\n\n"
+                "**1️⃣ 스토리 수정** — 에피소드 config YAML을 Codex로 직접 수정\n"
+                "**2️⃣ 최적화 추가** — 파라미터 탐색을 N회 더 실행\n"
+                "**3️⃣ 그만두기** — 현재 챕터로 마무리\n\n"
                 "번호 + 구체적인 의견을 같이 적으면 더 잘 반영됩니다.\n"
-                "예: `1 대사가 너무 딱딱해` / `2 수민이 너무 수동적으로 나와`"
+                "예: `1 수민이 너무 수동적으로 나와`"
             )
         if set_status:
-            set_status("선택 대기 중 (1=코드 / 2=스토리 / 3=최적화 / 4=종료)")
+            set_status("선택 대기 중 (1=스토리 / 2=최적화 / 3=종료)")
 
     await _show_choice_menu()
 
@@ -4658,65 +4419,12 @@ async def run_daily_pipeline(
 
         choice = _parse_user_choice(raw_feedback)
 
-        # ── Step 5a: 코드 수정 ──
-        if choice == "code":
-            if set_status:
-                set_status("코드 수정 중 (Codex)...")
-            if notify:
-                await notify(f"{DAILY_TAG}[CHOICE] 1️⃣ 코드 수정 선택 — Codex Fixer 실행 중...")
-
-            backup_dir = await asyncio.to_thread(_backup_target_files, run_dir, cycle)
-            if notify:
-                await notify(f"{DAILY_TAG}[CHOICE] 💾 이전 버전 백업 → `{backup_dir.name}/`")
-
-            user_issues = raw_feedback.strip()
-            fixer_prompt = (
-                f"사용자 피드백: {user_issues}\n\n" + _build_codex_fixer_prompt({
-                    "what_felt_boring_or_hard": [user_issues],
-                    "style_tips": [],
-                    "reader_comment": user_issues,
-                    "thrill_score_10": "?",
-                    "style_score_10": "?",
-                })
-            )
-            ok, summary = await _run_codex_fixer(
-                fixer_prompt, run_dir, cycle,
-                set_process=set_process, notify=notify, stop_event=stop_event,
-                codex_model=_codex_model_for_tier(review_tier),
-            )
-            if ok:
-                if notify:
-                    await notify(f"{DAILY_TAG}[CHOICE] ✅ 코드 수정 완료:\n{summary}")
-                committed, _ = await _git_commit_fixer_changes(cycle, episode_key, summary)
-                if committed and notify:
-                    await notify(f"{DAILY_TAG}[CHOICE] 📦 git commit 완료")
-                if notify:
-                    await notify(f"{DAILY_TAG}[CHOICE] 📖 수정된 코드로 챕터 재생성 중...")
-                new_chapter = await step_chapter_gen(
-                    episode_key, run_dir, cycle, target_words, budget, protagonist,
-                    notify=notify, upload=upload, set_status=set_status,
-                    stop_event=stop_event, set_process=set_process, cost_tracker=cost_tracker,
-                    metrics=cost_tracker,
-                    upload_version_label=f"choice_code_cycle{cycle}",
-                    guardian_briefing_path=guardian_briefing_path,
-                    review_tier=review_tier,
-                )
-                if new_chapter:
-                    chapter_path = new_chapter
-                    if set_metrics:
-                        set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
-            else:
-                if notify:
-                    await notify(f"{DAILY_TAG}[CHOICE] ❌ 코드 수정 실패: {summary}")
-            await _show_choice_menu()
-            continue
-
-        # ── Step 5b: 스토리 수정 ──
-        elif choice == "story":
+        # ── Step 5a: 스토리 수정 ──
+        if choice == "story":
             if set_status:
                 set_status("스토리 수정 중 (Codex)...")
             if notify:
-                await notify(f"{DAILY_TAG}[CHOICE] 2️⃣ 스토리 수정 선택 — 에피소드 YAML 수정 중...")
+                await notify(f"{DAILY_TAG}[CHOICE] 1️⃣ 스토리 수정 선택 — 에피소드 YAML 수정 중...")
 
             ok, summary = await _run_story_fixer(
                 episode_key,
@@ -4768,14 +4476,14 @@ async def run_daily_pipeline(
             await _show_choice_menu()
             continue
 
-        # ── Step 5c: 최적화 추가 ──
+        # ── Step 5b: 최적화 추가 ──
         elif choice == "optimize":
             if notify:
                 await notify(
-                    f"{DAILY_TAG}[CHOICE] 3️⃣ 최적화 추가 — 몇 회 더 돌릴까요?\n\n"
-                    f"숫자만 입력하거나 `3 2` 처럼 번호 뒤에 붙여도 됩니다.\n"
+                    f"{DAILY_TAG}[CHOICE] 2️⃣ 최적화 추가 — 몇 회 더 돌릴까요?\n\n"
+                    f"숫자만 입력하거나 `2 2` 처럼 번호 뒤에 붙여도 됩니다.\n"
                     f"예: `2` → outer 2회 추가 실행\n\n"
-                    f"(현재 목표 {score_threshold}/10, Phase A {AUTO_BATCH_TRIALS} trials × N회 + Codex fix)"
+                    f"(현재 목표 {score_threshold}/10, Phase A {AUTO_BATCH_TRIALS} trials × N회)"
                 )
             if set_status:
                 set_status("추가 최적화 횟수 대기 중...")
@@ -4809,7 +4517,7 @@ async def run_daily_pipeline(
             await _show_choice_menu()
             continue
 
-        # ── Step 5d: 그만두기(4/next) / 기타 → 루프 탈출, Step 6으로 ──
+        # ── Step 5c: 그만두기(3/next) / 기타 → 루프 탈출, Step 6으로 ──
         else:
             break  # while 루프 종료
 
@@ -4829,7 +4537,7 @@ async def run_daily_pipeline(
         set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
     if choice == "next":
         parsed["approved_next_episode"] = True
-    elif choice in ("code", "story", "optimize"):
+    elif choice in ("story", "optimize"):
         parsed["approved_next_episode"] = False
     update_story_state(STORY_STATE_PATH, episode_key, episode_data, parsed)
 
@@ -4837,7 +4545,7 @@ async def run_daily_pipeline(
     if set_status:
         set_status(f"완료 — {'승인됨' if approved else '재시도 예정'}")
     if notify:
-        choice_label = {"code": "코드 수정", "story": "스토리 수정", "next": "그만두기", "optimize": "추가 최적화", "other": "피드백 저장"}.get(choice, "완료")
+        choice_label = {"story": "스토리 수정", "next": "그만두기", "optimize": "추가 최적화", "other": "피드백 저장"}.get(choice, "완료")
         _elapsed_line, _token_line, _cost_line = _build_final_usage_lines(pipeline_start, cost_tracker)
         if approved:
             await notify(
