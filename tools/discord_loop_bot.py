@@ -231,6 +231,7 @@ def _parse_review_tier_choice(text: str) -> str | None:
 def _parse_outer_cycles_choice(text: str) -> int | None:
     t = (text or "").strip().lower()
     aliases = {
+        "없음": 0, "0회": 0, "최적화없음": 0, "no-optuna": 0,
         "한번": 1, "1회": 1,
         "두번": 2, "2회": 2,
         "세번": 3, "3회": 3,
@@ -242,7 +243,7 @@ def _parse_outer_cycles_choice(text: str) -> int | None:
         return aliases[t]
     if t.isdigit():
         value = int(t)
-        if 1 <= value <= 50:
+        if 0 <= value <= 50:
             return value
     return None
 
@@ -293,6 +294,27 @@ def _build_plan_preview(arg_text: str, outer_cycles: int) -> str:
     # 파라미터 수: sim study 4개 + prose study 6개
     n_sim_params = 4
     n_prose_params = 6
+
+    # outer_cycles=0: no-optuna 심플 플랜
+    if outer_cycles == 0:
+        lines = [
+            f"📋 **실행 플랜 확인 (Optuna 없음)** — `{episode_key}`",
+            "─────────────────────────────────────",
+            f"🔄  Outer cycles   : **0회** (Optuna 최적화 없음)",
+            f"📊  리뷰 티어      : **{tier_label}**",
+            f"📝  목표 단어수    : **{target_words:,}자**",
+            "─────────────────────────────────────",
+            "**실행 흐름:**",
+            f"  🔍 1. Config Guardian 검수",
+            f"  ⚙️  2. 시뮬레이션 1회 — {sim_turns_label}턴",
+            f"  📖 3. 챕터 생성 1회",
+            f"  📊 4. 베이스라인 AI 리뷰 1회 (스코어카드 출력)",
+            f"",
+            f"  ⏩ Phase A(Optuna) / Phase C(GPT Fixer) 건너뜀",
+            "─────────────────────────────────────",
+            "**`1`** 로 시작  |  **`2`** 로 취소",
+        ]
+        return "\n".join(lines)
 
     # 실측 비용 추정
     cost_line = ""
@@ -2335,8 +2357,8 @@ async def async_main() -> None:
                         await _send_text_with_token(
                             message.channel,
                             message.channel.id,
-                            "이번 세션에서 outer cycle을 몇 번 돌릴까요? (`1`~`50`)\n"
-                            "`3` 빠른 확인 | `10` 기본 추천 | `25` 충분한 탐색 | `50` 최대\n"
+                            "이번 세션에서 outer cycle을 몇 번 돌릴까요? (`0`~`50`)\n"
+                            "`0` Optuna 없이 시뮬+챕터+리뷰만 | `3` 빠른 확인 | `10` 기본 추천 | `25` 충분한 탐색\n"
                             "숫자로 답장해주세요. 취소는 `취소`.",
                             manager_bot_token,
                         )
@@ -2355,7 +2377,7 @@ async def async_main() -> None:
                         await _send_text_with_token(
                             message.channel,
                             message.channel.id,
-                            "outer cycle 수를 `1`에서 `50` 사이 숫자로 보내주세요. 취소는 `취소`.",
+                            "outer cycle 수를 `0`에서 `50` 사이 숫자로 보내주세요. (`0` = Optuna 없이 리뷰만) 취소는 `취소`.",
                             manager_bot_token,
                         )
                         return

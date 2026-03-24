@@ -4502,28 +4502,37 @@ async def run_daily_pipeline(
         time_tracker["baseline_review"] = time.monotonic() - _baseline_rev_t0
 
     # ── Step 3.5: AI 자동 개선 루프 (AI 리뷰 → Codex Fixer → 챕터 재생성) ──
-    if notify:
-        await notify(
-            f"{DAILY_TAG}[AUTO] 🚀 AI 자동 개선 루프 시작 "
-            f"(outer 최대 {outer_max_cycles or AUTO_OUTER_MAX_CYCLES}회, 목표 {AUTO_IMPROVE_SCORE_THRESHOLD}/10)"
+    if outer_max_cycles is not None and int(outer_max_cycles) == 0:
+        # outer_cycles=0: Optuna 최적화 없이 시뮬+챕터+베이스라인 리뷰만 완료.
+        if notify:
+            await notify(
+                f"{DAILY_TAG}[AUTO] ⏩ outer_cycles=0 — Optuna 최적화 건너뜀\n"
+                f"시뮬레이션·챕터 생성·베이스라인 리뷰까지 완료했습니다."
+            )
+        time_tracker["auto_improve"] = 0.0
+    else:
+        if notify:
+            await notify(
+                f"{DAILY_TAG}[AUTO] 🚀 AI 자동 개선 루프 시작 "
+                f"(outer 최대 {outer_max_cycles or AUTO_OUTER_MAX_CYCLES}회, 목표 {AUTO_IMPROVE_SCORE_THRESHOLD}/10)"
+            )
+        _t0 = time.monotonic()
+        chapter_path = await step_auto_improve_loop(
+            episode_key, run_dir, chapter_path, target_words, budget, protagonist,
+            guardian_briefing_path=guardian_briefing_path,
+            notify=notify,
+            upload=upload,
+            set_status=set_status,
+            stop_event=stop_event,
+            set_process=set_process,
+            review_tier=review_tier,
+            cost_tracker=cost_tracker,
+            metrics=cost_tracker,
+            daily_cycle=cycle,
+            outer_max_cycles=outer_max_cycles,
+            time_tracker=time_tracker,
         )
-    _t0 = time.monotonic()
-    chapter_path = await step_auto_improve_loop(
-        episode_key, run_dir, chapter_path, target_words, budget, protagonist,
-        guardian_briefing_path=guardian_briefing_path,
-        notify=notify,
-        upload=upload,
-        set_status=set_status,
-        stop_event=stop_event,
-        set_process=set_process,
-        review_tier=review_tier,
-        cost_tracker=cost_tracker,
-        metrics=cost_tracker,
-        daily_cycle=cycle,
-        outer_max_cycles=outer_max_cycles,
-        time_tracker=time_tracker,
-    )
-    time_tracker["auto_improve"] = time.monotonic() - _t0
+        time_tracker["auto_improve"] = time.monotonic() - _t0
     if set_metrics:
         set_metrics({**cost_tracker, "_time_tracker": dict(time_tracker)})
 
